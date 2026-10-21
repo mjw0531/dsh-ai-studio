@@ -6,8 +6,8 @@ import os from "node:os";
 import path from "node:path";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 12;
-var STUDIO_PLUGIN_VERSION = "1.4.0";
+var STUDIO_SCHEMA_VERSION = 13;
+var STUDIO_PLUGIN_VERSION = "1.5.0";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -545,7 +545,7 @@ function isDecisionStatus(value) {
   return value === "pending" || value === "approved" || value === "rejected";
 }
 function isDecision(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && (value.taskId === null || typeof value.taskId === "string") && (value.runId === null || typeof value.runId === "string") && typeof value.title === "string" && typeof value.context === "string" && Array.isArray(value.options) && typeof value.recommendation === "string" && (value.reversible === void 0 || typeof value.reversible === "boolean") && isDecisionStatus(value.status) && typeof value.decision === "string" && typeof value.note === "string" && typeof value.decidedBy === "string" && (value.tokenCost === null || typeof value.tokenCost === "number") && typeof value.createdAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string");
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && (value.taskId === null || typeof value.taskId === "string") && (value.runId === null || typeof value.runId === "string") && typeof value.title === "string" && typeof value.context === "string" && Array.isArray(value.options) && typeof value.recommendation === "string" && (value.reversible === void 0 || typeof value.reversible === "boolean") && (value.adrDraft === null || value.adrDraft === void 0 || typeof value.adrDraft === "string") && isDecisionStatus(value.status) && typeof value.decision === "string" && typeof value.note === "string" && typeof value.decidedBy === "string" && (value.tokenCost === null || typeof value.tokenCost === "number") && typeof value.createdAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string");
 }
 function isBranchStatus(value) {
   return value === "open" || value === "review" || value === "merged" || value === "abandoned";
@@ -709,9 +709,9 @@ function migrateState(value) {
     };
   }
   if (state.schemaVersion === 11) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 12,
       tasks: state.tasks.map((task) => ({
         ...task,
         docsSynced: task.docsSynced ?? false
@@ -719,6 +719,16 @@ function migrateState(value) {
       decisions: state.decisions.map((decision) => ({
         ...decision,
         reversible: decision.reversible ?? true
+      }))
+    };
+  }
+  if (state.schemaVersion === 12) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      decisions: state.decisions.map((decision) => ({
+        ...decision,
+        adrDraft: decision.adrDraft ?? null
       }))
     };
   }
@@ -1357,6 +1367,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
               ],
               recommendation: "\u540C\u4E00\u5951\u7EA6\u51FA\u73B0\u4E24\u6761\u4E0D\u540C\u53D8\u66F4\u3002\u8BF7\u7531 Owner/Architect \u88C1\u51B3\uFF1B\u5728\u88C1\u51B3\u524D\u4E0D\u8981\u5408\u5E76\u4EFB\u610F\u4E00\u6761\u652F\u7EBF\u3002",
               reversible: true,
+              adrDraft: null,
               status: "pending",
               decision: "",
               note: "",
@@ -1400,6 +1411,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
             options: [],
             recommendation: proposed.rationale,
             reversible: true,
+            adrDraft: null,
             status: "pending",
             decision: "",
             note: "",
@@ -1530,6 +1542,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           ],
           recommendation: "\u5B9E\u73B0\u8005\u4E0D\u80FD\u76F4\u63A5\u6539\u5951\u7EA6\u6216\u7981\u6B62\u8DEF\u5F84\uFF1B\u9700\u8981\u5951\u7EA6\u53D8\u66F4\u65F6\uFF0C\u5E94\u7531 Architect/Owner \u5148\u66F4\u65B0\u5951\u7EA6\uFF0C\u518D\u91CD\u65B0\u6D3E\u5355\u3002",
           reversible: true,
+          adrDraft: null,
           status: "pending",
           decision: "",
           note: "",
@@ -1635,6 +1648,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           2e3
         ),
         reversible: input.reversible !== false,
+        adrDraft: null,
         status: "pending",
         decision: "",
         note: "",
@@ -1695,6 +1709,28 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       decision.note = optionalText(input.note, "note", 2e3);
       decision.decidedBy = "Owner";
       decision.decidedAt = at;
+      if (input.status === "approved" && decision.reversible === false) {
+        decision.adrDraft = [
+          `# ADR: ${decision.title}`,
+          "",
+          `- \u65E5\u671F\uFF1A${at.slice(0, 10)}`,
+          "- \u72B6\u6001\uFF1AAccepted",
+          "- \u4E0D\u53EF\u9006\uFF1A\u662F",
+          "",
+          "## \u80CC\u666F",
+          decision.context || "\uFF08\u672A\u586B\u5199\uFF09",
+          "",
+          "## \u51B3\u7B56",
+          decision.decision || "\uFF08\u672A\u586B\u5199\uFF09",
+          "",
+          "## \u7406\u7531",
+          decision.note || "\uFF08\u672A\u586B\u5199\uFF09",
+          "",
+          "## \u5EFA\u8BAE",
+          decision.recommendation || "\uFF08\u65E0\uFF09",
+          ""
+        ].join("\n");
+      }
       state.updatedAt = at;
       this.recordEvent(state, {
         type: input.status === "approved" ? "decision.approved" : "decision.rejected",
@@ -2566,6 +2602,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       ],
       recommendation: "\u540C\u4E00\u4EFB\u52A1\u8FDE\u7EED\u5931\u8D25 2 \u6B21\uFF0C\u6309\u5DE5\u4F5C\u6D41\u5E94\u9000\u56DE\u67B6\u6784\u5E08\u91CD\u62C6\uFF0C\u4E0D\u5141\u8BB8\u7B2C\u4E09\u6B21\u539F\u5730\u91CD\u8BD5\u3002",
       reversible: true,
+      adrDraft: null,
       status: "pending",
       decision: "",
       note: "",

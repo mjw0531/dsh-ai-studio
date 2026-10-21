@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 12;
-export const STUDIO_PLUGIN_VERSION = "1.4.0";
+export const STUDIO_SCHEMA_VERSION = 13;
+export const STUDIO_PLUGIN_VERSION = "1.5.0";
 
 export type TaskStatus =
   | "backlog"
@@ -250,6 +250,7 @@ export interface Decision {
   options: DecisionOption[];
   recommendation: string;
   reversible: boolean;
+  adrDraft: string | null;
   status: DecisionStatus;
   decision: string;
   note: string;

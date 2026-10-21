@@ -785,6 +785,8 @@ test("requires a reason when approving an irreversible decision", async () => {
     });
     assert.equal(decided.status, "approved");
     assert.equal(decided.reversible, false);
+    assert.match(decided.adrDraft ?? "", /# ADR: 切换网络同步方案/);
+    assert.match(decided.adrDraft ?? "", /选择状态同步，并写 ADR/);
   });
 });
 
@@ -834,7 +836,7 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
     assert.deepEqual(data.runs, []);
     assert.deepEqual(data.decisions, []);
     const migrated = JSON.parse(await readFile(file, "utf8"));
-    assert.equal(migrated.schemaVersion, 12);
+    assert.equal(migrated.schemaVersion, 13);
     assert.ok(migrated.runs.every((run) => run.status !== undefined));
     assert.ok(Array.isArray(migrated.reviews));
     assert.ok(Array.isArray(migrated.branches));

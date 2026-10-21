@@ -797,6 +797,9 @@ function isDecision(value: unknown): value is Decision {
     typeof value.recommendation === "string" &&
     (value.reversible === undefined ||
       typeof value.reversible === "boolean") &&
+    (value.adrDraft === null ||
+      value.adrDraft === undefined ||
+      typeof value.adrDraft === "string") &&
     isDecisionStatus(value.status) &&
     typeof value.decision === "string" &&
     typeof value.note === "string" &&
@@ -1054,9 +1057,9 @@ function migrateState(value: unknown): StudioState {
     };
   }
   if (state.schemaVersion === 11) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 12,
       tasks: state.tasks.map((task) => ({
         ...task,
         docsSynced: task.docsSynced ?? false,
@@ -1064,6 +1067,16 @@ function migrateState(value: unknown): StudioState {
       decisions: state.decisions.map((decision) => ({
         ...decision,
         reversible: decision.reversible ?? true,
+      })),
+    };
+  }
+  if (state.schemaVersion === 12) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      decisions: state.decisions.map((decision) => ({
+        ...decision,
+        adrDraft: decision.adrDraft ?? null,
       })),
     };
   }
@@ -1883,6 +1896,7 @@ export class StudioStore {
               recommendation:
                 "同一契约出现两条不同变更。请由 Owner/Architect 裁决；在裁决前不要合并任意一条支线。",
               reversible: true,
+              adrDraft: null,
               status: "pending",
               decision: "",
               note: "",
@@ -1929,6 +1943,7 @@ export class StudioStore {
             options: [],
             recommendation: proposed.rationale,
             reversible: true,
+            adrDraft: null,
             status: "pending",
             decision: "",
             note: "",
@@ -2082,6 +2097,7 @@ export class StudioStore {
           recommendation:
             "实现者不能直接改契约或禁止路径；需要契约变更时，应由 Architect/Owner 先更新契约，再重新派单。",
           reversible: true,
+          adrDraft: null,
           status: "pending",
           decision: "",
           note: "",
@@ -2204,6 +2220,7 @@ export class StudioStore {
           2000,
         ),
         reversible: input.reversible !== false,
+        adrDraft: null,
         status: "pending",
         decision: "",
         note: "",
@@ -2272,6 +2289,28 @@ export class StudioStore {
       decision.note = optionalText(input.note, "note", 2000);
       decision.decidedBy = "Owner";
       decision.decidedAt = at;
+      if (input.status === "approved" && decision.reversible === false) {
+        decision.adrDraft = [
+          `# ADR: ${decision.title}`,
+          "",
+          `- 日期：${at.slice(0, 10)}`,
+          "- 状态：Accepted",
+          "- 不可逆：是",
+          "",
+          "## 背景",
+          decision.context || "（未填写）",
+          "",
+          "## 决策",
+          decision.decision || "（未填写）",
+          "",
+          "## 理由",
+          decision.note || "（未填写）",
+          "",
+          "## 建议",
+          decision.recommendation || "（无）",
+          "",
+        ].join("\n");
+      }
       state.updatedAt = at;
       this.recordEvent(state, {
         type:
@@ -3260,6 +3299,7 @@ export class StudioStore {
       recommendation:
         "同一任务连续失败 2 次，按工作流应退回架构师重拆，不允许第三次原地重试。",
       reversible: true,
+      adrDraft: null,
       status: "pending",
       decision: "",
       note: "",
