@@ -507,6 +507,66 @@ test("promotes project-scope agent decisions into the boardroom", async () => {
   });
 });
 
+test("escalates a cross-branch contract conflict to the boardroom", async () => {
+  await withStore(async (store) => {
+    const data = await store.bootstrap();
+    const owner = data.roles[0];
+    const reviewer = data.roles[1];
+    assert.ok(owner && reviewer);
+
+    const makeRun = async (title, branch, change) => {
+      const task = await store.createTask({
+        title,
+        acceptance: ["有回执"],
+        ownerRoleId: owner.id,
+        reviewerRoleId: reviewer.id,
+        branch,
+      });
+      await store.transitionTask(task.id, "ready");
+      const run = await store.beginRun(task.id, "检查契约");
+      await store.completeRun(run.id, {
+        output: "{}",
+        receipt: {
+          summary: `${title} 完成`,
+          evidence: ["检查完成"],
+          artifacts: [],
+          decisions: [],
+          contractDeltas: [
+            { contract: "docs/contracts/replay-v1.md", change },
+          ],
+          rejectedOptions: [],
+          blockers: [],
+        },
+        tokens: 10,
+      });
+      return { task, run };
+    };
+
+    const first = await makeRun(
+      "支线 A",
+      "task/branch-a",
+      "A 采用 JSON schema",
+    );
+    const second = await makeRun(
+      "支线 B",
+      "task/branch-b",
+      "B 采用二进制格式",
+    );
+
+    const after = await store.bootstrap();
+    assert.ok(after.branches.length >= 2);
+    assert.ok(after.branches.some((branch) => branch.taskId === first.task.id));
+    assert.ok(after.branches.some((branch) => branch.taskId === second.task.id));
+    assert.equal(after.contractChanges.length, 2);
+    assert.equal(after.decisions.length, 1);
+    assert.match(after.decisions[0].title, /契约冲突/);
+    assert.equal(after.decisions[0].status, "pending");
+    assert.equal(after.decisions[0].options.length, 2);
+    assert.equal(after.decisions[0].runId, second.run.id);
+    assert.equal(after.branches.find((b) => b.taskId === first.task.id)?.status, "review");
+  });
+});
+
 test("migrates a schema v1 file by adding merge proposals", async () => {
   await withStore(async (store, dir) => {
     const file = path.join(dir, "studio.json");
@@ -522,7 +582,9 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
     assert.deepEqual(data.runs, []);
     assert.deepEqual(data.decisions, []);
     const migrated = JSON.parse(await readFile(file, "utf8"));
-    assert.equal(migrated.schemaVersion, 4);
+    assert.equal(migrated.schemaVersion, 5);
     assert.ok(migrated.runs.every((run) => run.status !== undefined));
+    assert.ok(Array.isArray(migrated.branches));
+    assert.ok(Array.isArray(migrated.contractChanges));
   });
 });

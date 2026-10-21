@@ -1,10 +1,12 @@
 # @ai-workbench/dsh-studio
 
-> 即装即用的 DeepSeek Harness AI 工作台：**公司仪表盘、Agent 派单、token 预算、决策董事会、项目、角色、任务、验收、合并治理**，一个独立页面。
+> 即装即用的 DeepSeek Harness AI 工作台：**公司仪表盘、Agent 派单、token 预算、决策董事会、支线/契约冲突、项目、角色、任务、验收、合并治理**，一个独立页面。
 
-当前版本 **0.5.0**，已在 **DSH 0.2.1-rc.2** 上完成端到端验证（Web/桌面安装、页面渲染、任务创建、验收门禁、合并治理、公司仪表盘、Agent 分析派单与结构化回执、token 计量、决策董事会批准/拒绝、重启持久化）。
+当前版本 **0.5.1**，已在 **DSH 0.2.1-rc.2** 上完成端到端验证（Web/桌面安装、页面渲染、任务创建、验收门禁、合并治理、公司仪表盘、Agent 分析派单与结构化回执、token 计量、董事会、支线/契约冲突自动升级、重启持久化）。
 
 ![Studio Decision Boardroom](docs/decision-boardroom.png)
+
+![Studio Branches](docs/branches.png)
 
 ## 它是什么
 
@@ -13,6 +15,7 @@ Studio 把 DSH 从「一个会话」扩展成「一间工作室」：
 - **公司仪表盘**：跨项目的项目组合、老板收件箱、角色负载、风险雷达和交付流；token 消耗来自 DSH meter，金额成本等报价接入后再显示。
 - **Agent 分析派单**：在 Task Room 把任务派给负责人角色，DSH Agent 读取任务/契约后返回 `summary / evidence / artifacts / decisions / contract_deltas / rejected_options / blockers` 结构化回执。
 - **决策董事会**：Agent 的项目级决策建议自动进入待裁决；Owner 在独立页面批准/拒绝并记录结论与理由。Agent 不能替 Owner 拍板。
+- **支线/契约冲突**：每次派单自动登记支线；Agent 回执里的 `contractDeltas` 写入契约变更。两条支线改同一契约且内容不同时，自动升级为待裁决决策。
 - **角色薪资与预算**：角色可配置模型和单任务/每日 token 预算；项目可配置总 token 预算。
 - **项目**：一个项目边界，下面有角色和任务。
 - **角色**：持久的职责契约（使命、职责、决策权），不是人设卡。
@@ -61,15 +64,15 @@ cd D:\AI工作台\packages\dsh-studio
 pnpm pack
 ```
 
-把生成的 `ai-workbench-dsh-studio-0.5.0.tgz` 发给对方，在 **Add plugin** 里填 tarball 路径即可。
+把生成的 `ai-workbench-dsh-studio-0.5.1.tgz` 发给对方，在 **Add plugin** 里填 tarball 路径即可。
 
 ## 使用
 
 首次打开会自动生成一个「MOBA 垂直切片」演示项目、4 个角色和 5 个任务。
 
 1. **公司**：老板视角的项目组合、老板收件箱、角色负载、风险雷达和交付流。
-2. **董事会**：Agent 提出的项目级决策、人工提出的决策；批准/拒绝并记录结论与理由。
-3. **项目**：看当前项目的任务板、验收、团队和最近事件。
+2. **董事会**：Agent 提出的项目级决策、人工提出的决策、跨支线契约冲突；批准/拒绝并记录结论与理由。
+3. **项目**：看当前项目的支线、契约变更、任务板、验收、团队和最近事件。
 4. **任务**：点卡片打开 Task Room；勾验收项、写证据、推进状态；对「待规划/可开始」的任务点「派单分析」，Agent 返回回执并自动写证据、进入待验收。
 5. **合并**：查看合并队列；批准、打回、记录合并提交。
 6. **团队**：新增角色，写使命/职责/决策权，并配置模型与 token 预算。
@@ -97,7 +100,7 @@ Task Room 里，验收项、证据和状态推进是同一份事实：没勾完�
 - 每次进程启动生成随机 Bearer token，只注入当前 DSH 页面；数据接口同源、`Cache-Control: no-store`，桌面 Boot 回退使用受控 CORS。
 - 不存储模型密钥；不要手动把 token 贴到聊天/日志里。
 - 数据损坏时会备份为 `studio.json.corrupt-<timestamp>`，并重建演示数据。
-- 旧 schema（v1/v2/v3）会自动迁移到 v4：增加 `mergeProposals`、`runs`、`decisions`、角色模型/预算字段和项目预算；已有项目/角色/任务不丢失。
+- 旧 schema（v1-v4）会自动迁移到 v5：增加 `mergeProposals`、`runs`、`branches`、`contractChanges`、`decisions`、角色模型/预算字段和项目预算；已有项目/角色/任务不丢失。
 - 桌面渲染器运行在 `dsh-app://` 上，因此 `/studio-api/boot` 会对 `dsh-app://` / `null` origin 反射 CORS 并发放进程级 token；数据接口仍然只认这个 token。Web 端的 Boot 路由继续走 DSH 会话认证。
 
 ## 版本兼容策略
@@ -137,7 +140,7 @@ packages/dsh-studio/
   cordis.patch.yml
 ```
 
-## 当前边界（v0.5）
+## 当前边界（v0.5.1）
 
 - ✅ 项目/角色/任务/验收/证据/事件持久化。
 - ✅ 独立页面、侧栏入口、主题、响应式。
@@ -147,13 +150,14 @@ packages/dsh-studio/
 - ✅ Agent 分析派单与结构化回执；回执缺 `summary`/`evidence` 时任务退回可开始，不能进入验收。
 - ✅ 角色模型/token 预算、项目 token 预算、DSH token meter 消耗。
 - ✅ 决策董事会：项目级决策持久化、待裁决列表、批准/拒绝、结论与理由、Agent 决策自动入会。
+- ✅ 支线自动登记、Agent 契约变更记录、跨支线同契约冲突自动升级为待裁决决策。
 - ⏳ 代码执行/worktree 隔离（当前 Agent 只读分析，不修改文件；v0.6 接入）。
 - ⏳ 金额成本/报价（当前只显示 token，不编造金额）。
 - ⏳ Git worktree、自动合并/合并队列执行（当前只记录治理状态，命令由人执行）。
 - ⏳ Project Book 检索、角色/Scope 的强隔离（当前只有角色契约与只读提示词）。
 - ⏳ 决策自动生成 ADR 草稿（当前记录结论，不自动写文件）。
 
-v0.5 的 Agent 派单仍是**分析模式**：真实调用 DSH Agent、返回结构化回执、计量 token、把项目级决策升级到董事会；但不会修改项目文件，代码执行和 worktree 隔离留给 v0.6。
+v0.5.1 的 Agent 派单仍是**分析模式**：真实调用 DSH Agent、返回结构化回执、登记支线与契约变更、把项目级决策和跨支线契约冲突升级到董事会；但不会修改项目文件，代码执行和 worktree 隔离留给 v0.6。
 
 ## License
 

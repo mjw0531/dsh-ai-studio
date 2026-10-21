@@ -9,6 +9,7 @@ import type { FormEvent, ReactNode } from "react";
 import {
   AGENT_RUN_STATUS_LABELS,
   ALLOWED_TRANSITIONS,
+  BRANCH_STATUS_LABELS,
   COMPANY_HEALTH_LABELS,
   DECISION_STATUS_LABELS,
   MERGE_RISK_LABELS,
@@ -23,7 +24,9 @@ import type {
   AgentReceipt,
   AgentRun,
   BootstrapResponse,
+  Branch,
   CompanyHealth,
+  ContractChange,
   CompanyProjectSummary,
   CreateDecisionInput,
   DecideDecisionInput,
@@ -1804,6 +1807,23 @@ function MissionView({
 
       <section className="studio-panel" style={{ marginBottom: 16 }}>
         <div className="studio-panel-head">
+          <IconGitMerge width={14} height={14} />
+          <h3>支线</h3>
+          <span className="studio-muted">
+            {data.branches.length} 条 · 契约变更会自动检测冲突
+          </span>
+        </div>
+        <div className="studio-panel-body">
+          <BranchPanel
+            branches={data.branches}
+            contractChanges={data.contractChanges}
+            tasks={data.tasks}
+          />
+        </div>
+      </section>
+
+      <section className="studio-panel" style={{ marginBottom: 16 }}>
+        <div className="studio-panel-head">
           <IconKanban width={14} height={14} />
           <h3>任务板</h3>
           <span className="studio-muted">
@@ -2265,6 +2285,69 @@ function Roster({
               进行中
             </div>
           </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function BranchPanel({
+  branches,
+  contractChanges,
+  tasks,
+}: {
+  branches: Branch[];
+  contractChanges: ContractChange[];
+  tasks: Task[];
+}) {
+  if (branches.length === 0) {
+    return (
+      <div className="studio-empty" style={{ padding: 18 }}>
+        <strong>还没有支线</strong>
+        创建带分支名的任务，或派单一次；Studio 会自动登记支线并跟踪契约变更。
+      </div>
+    );
+  }
+  const taskById = new Map(tasks.map((task) => [task.id, task]));
+  return (
+    <div className="studio-branch-list">
+      {branches.map((branch) => {
+        const changes = contractChanges.filter(
+          (change) => change.branchId === branch.id,
+        );
+        return (
+          <article key={branch.id} className="studio-branch-card">
+            <div className="studio-branch-head">
+              <span className="studio-mono">{branch.name}</span>
+              <span className="studio-pill" data-tone="accent">
+                {BRANCH_STATUS_LABELS[branch.status]}
+              </span>
+              <span className="studio-faint" style={{ marginLeft: "auto" }}>
+                {changes.length} 个契约变更
+              </span>
+            </div>
+            <div className="studio-branch-goal">
+              {branch.goal || "没有写支线目标。"}
+            </div>
+            <div className="studio-branch-meta">
+              {branch.taskId === null
+                ? "未绑定任务"
+                : (taskById.get(branch.taskId)?.title ?? branch.taskId)}
+              {branch.contractKeys.length > 0
+                ? ` · 契约：${branch.contractKeys.join("、")}`
+                : " · 还没有契约变更"}
+            </div>
+            {changes.length > 0 ? (
+              <div className="studio-branch-changes">
+                {changes.slice(-3).map((change) => (
+                  <div key={change.id}>
+                    <span className="studio-mono">{change.contract}</span>
+                    <span>{change.change}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </article>
         );
       })}
     </div>
@@ -3198,6 +3281,8 @@ function SettingsView({
             <dd>{data.features.ownerDashboard ? "可用" : "不可用"}</dd>
             <dt>董事会</dt>
             <dd>{data.features.decisionBoard ? "可用" : "不可用"}</dd>
+            <dt>支线/契约</dt>
+            <dd>{data.features.branchBoard ? "可用" : "不可用"}</dd>
             <dt>合并治理</dt>
             <dd>
               {data.features.mergeGovernance
