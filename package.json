@@ -1,0 +1,20 @@
+{
+  "name": "dsh-studio-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.28.5",
+  "scripts": {
+    "build": "pnpm --filter @ai-workbench/dsh-studio build",
+    "typecheck": "pnpm --filter @ai-workbench/dsh-studio typecheck",
+    "test": "pnpm --filter @ai-workbench/dsh-studio test",
+    "check": "pnpm typecheck && pnpm test"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.2"
+  }
+}
