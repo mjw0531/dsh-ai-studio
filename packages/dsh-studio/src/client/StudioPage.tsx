@@ -582,6 +582,18 @@ export function StudioPage() {
     );
   };
 
+  const toggleDocsSynced = async (task: Task): Promise<void> => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.updateTask(task.id, {
+          docsSynced: !task.docsSynced,
+        });
+      },
+      task.docsSynced ? "已取消文档同步标记" : "已标记文档同步",
+    );
+  };
+
   const addEvidence = async (task: Task, text: string): Promise<boolean> => {
     const evidence = [
       ...task.evidence,
@@ -958,6 +970,7 @@ export function StudioPage() {
           onDispatch={() => dispatchTask(selectedTask)}
           onVerify={(command) => verifyTask(selectedTask, command)}
           onReview={() => reviewTask(selectedTask)}
+          onToggleDocs={() => toggleDocsSynced(selectedTask)}
           onTransition={(status) => void transitionTask(selectedTask, status)}
           onToggleAcceptance={(id) =>
             void toggleAcceptance(selectedTask, id)
@@ -1243,6 +1256,11 @@ function DecisionCard({
         <span className="studio-pill" data-tone="warn">
           待裁决
         </span>
+        {!decision.reversible ? (
+          <span className="studio-pill" data-tone="p0">
+            不可逆
+          </span>
+        ) : null}
         <strong>{decision.title}</strong>
         <span className="studio-faint" style={{ marginLeft: "auto" }}>
           {formatDate(decision.createdAt)}
@@ -2931,6 +2949,7 @@ function TaskDrawer({
   onDispatch,
   onVerify,
   onReview,
+  onToggleDocs,
   onTransition,
   onToggleAcceptance,
   onAddEvidence,
@@ -2951,6 +2970,7 @@ function TaskDrawer({
   onDispatch: () => Promise<boolean>;
   onVerify: (command: string) => Promise<boolean>;
   onReview: () => Promise<boolean>;
+  onToggleDocs: () => Promise<void>;
   onTransition: (status: TaskStatus) => void;
   onToggleAcceptance: (id: string) => void;
   onAddEvidence: (text: string) => Promise<boolean>;
@@ -3152,6 +3172,17 @@ function TaskDrawer({
               <dt>任务 ID</dt>
               <dd className="studio-mono">{task.id}</dd>
             </dl>
+            <label className="studio-check" style={{ marginTop: 10 }}>
+              <input
+                type="checkbox"
+                checked={task.docsSynced}
+                onChange={() => void onToggleDocs()}
+              />
+              文档已同步（PRD / ADR / CONTEXT）
+            </label>
+            <div className="studio-hint">
+              项目绑定了知识文档时，完成前必须确认文档已同步。
+            </div>
           </section>
 
           <TaskAgentPanel
@@ -4767,6 +4798,7 @@ function DecisionForm({
   const [context, setContext] = useState("");
   const [recommendation, setRecommendation] = useState("");
   const [taskId, setTaskId] = useState("");
+  const [reversible, setReversible] = useState(true);
   const [localError, setLocalError] = useState<string | null>(null);
 
   const submit = (event: FormEvent): void => {
@@ -4781,6 +4813,7 @@ function DecisionForm({
       context: context.trim(),
       recommendation: recommendation.trim(),
       taskId: taskId === "" ? null : taskId,
+      reversible,
     });
   };
 
@@ -4858,6 +4891,14 @@ function DecisionForm({
             ))}
           </select>
         </div>
+        <label className="studio-check">
+          <input
+            type="checkbox"
+            checked={!reversible}
+            onChange={(event) => setReversible(!event.target.checked)}
+          />
+          不可逆决策（批准时必须写明结论和理由）
+        </label>
       </form>
     </ModalShell>
   );

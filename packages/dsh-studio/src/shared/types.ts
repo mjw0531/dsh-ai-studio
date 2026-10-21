@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 11;
-export const STUDIO_PLUGIN_VERSION = "1.2.0";
+export const STUDIO_SCHEMA_VERSION = 12;
+export const STUDIO_PLUGIN_VERSION = "1.3.0";
 
 export type TaskStatus =
   | "backlog"
@@ -94,6 +94,7 @@ export interface Task {
   kind: TaskKind;
   integration: boolean;
   originTaskId: string | null;
+  docsSynced: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -248,6 +249,7 @@ export interface Decision {
   context: string;
   options: DecisionOption[];
   recommendation: string;
+  reversible: boolean;
   status: DecisionStatus;
   decision: string;
   note: string;
@@ -641,6 +643,7 @@ export interface UpdateTaskInput {
   contractRef?: string | null;
   kind?: TaskKind;
   integration?: boolean;
+  docsSynced?: boolean;
 }
 
 export interface TransitionTaskInput {
@@ -660,6 +663,7 @@ export interface CreateDecisionInput {
   context?: string;
   recommendation?: string;
   taskId?: string | null;
+  reversible?: boolean;
 }
 
 export interface DecideDecisionInput {

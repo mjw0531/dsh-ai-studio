@@ -2,7 +2,7 @@
 
 一套构建在 **DeepSeek Harness（DSH）** 之上的多角色 AI 工作台：把「一个聊天窗口」变成一间**有公司仪表盘、Agent 派单、token 预算、决策董事会、支线/契约冲突、worktree 代码执行、项目、角色、任务、验收、合并治理**的工作室。
 
-> 当前状态：**v1.2.0 可运行**。已完成公司级 Owner Dashboard、Agent 派单与结构化回执、角色模型/token 预算、DSH token 计量、决策董事会、支线/契约冲突自动升级、git worktree 代码执行、Host 独立验证、独立 AI 评审、自动集成分期、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、项目/角色/任务/验收/证据持久化、合并治理，并在 DSH `0.2.1-rc.2` 上完成 Web/桌面验证。
+> 当前状态：**v1.3.0 可运行**。已完成公司级 Owner Dashboard、Agent 派单与结构化回执、角色模型/token 预算、DSH token 计量、决策董事会、支线/契约冲突自动升级、git worktree 代码执行、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、项目/角色/任务/验收/证据持久化、合并治理，并在 DSH `0.2.1-rc.2` 上完成 Web/桌面验证。
 
 ![Studio Decision Boardroom](docs/images/decision-boardroom.png)
 
@@ -19,6 +19,8 @@
 - **闭环 ticket**：集成/playtest ticket 标记；连续失败 2 次自动生成 Architect 重拆 ticket（backlog），不只是留一个决策。
 - **独立 AI 评审**：验收人角色另开 Agent 会话，只读 diff/Host 验证输出，给出 pass/fail 与 findings；代码任务没有通过评审不能 done。
 - **自动集成分期**：每完成 3 个任务自动生成一张 backlog 集成/playtest ticket，不自动派单。
+- **文档同步门禁**：项目绑定 PRD/INVARIANTS/MODULES 时，任务 done 前必须勾选“文档已同步”。
+- **不可逆决策**：Decision 可标记不可逆；批准时必须写结论和理由。
 - **Agent 分析派单**：Task Room 把任务派给负责人角色，Agent 返回结构化回执；回执缺 `summary`/`evidence` 时任务退回可开始，不能进入验收。
 - **薪资与预算**：角色配置模型、单任务/每日 token 预算；项目配置总 token 预算。
 - **独立工作台页面**：DSH 侧栏点击「工作台」，进入公司仪表盘，不占用聊天会话。
@@ -116,6 +118,7 @@ tools/                   # CDP 端到端验证脚本
 - [ADR-0012：重拆票与集成票](docs/adr/0012-resplit-and-integration-tickets.md)
 - [ADR-0013：独立 AI 评审](docs/adr/0013-independent-ai-review.md)
 - [ADR-0014：自动集成分期](docs/adr/0014-automatic-integration-gate.md)
+- [ADR-0015：文档同步与不可逆决策](docs/adr/0015-docs-sync-and-irreversible-decisions.md)
 
 ## 开发
 
@@ -151,8 +154,9 @@ dsh --profile web --no-open --port 0
 - **v0.9**：契约越界护栏、契约/禁止路径改动自动 blocked + 决策。
 - **v1.0**：集成/playtest ticket、连续失败自动生成 Architect 重拆 ticket。
 - **v1.1**：独立 AI 评审、代码任务 done 前评审门禁。
-- **v1.2（当前）**：每 3 个完成任务自动生成 backlog 集成/playtest ticket。
-- **v1.3**：文档同步门禁、不可逆决策、真实 Git merge 评审、Ticket 工序细化。
+- **v1.2**：每 3 个完成任务自动生成 backlog 集成/playtest ticket。
+- **v1.3（当前）**：文档同步门禁、不可逆决策批准必须写理由。
+- **v1.4**：真实 Git merge 评审、Ticket 工序细化、评审模型同族风险提示。
 - **v1.0**：用工作台完成一个 2.5D MOBA 垂直切片，再抽象为可复用插件。
 
 详细迭代计划见 [后续迭代](docs/02-后续迭代.md)。

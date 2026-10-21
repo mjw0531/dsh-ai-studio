@@ -721,6 +721,73 @@ test("requires an independent review before completing a code task", async () =>
   });
 });
 
+test("requires docs sync before completing a documented project task", async () => {
+  await withStore(async (store) => {
+    const data = await store.bootstrap();
+    await store.updateProject(data.project.id, {
+      prdPath: "docs/PRD.md",
+      invariantsPath: null,
+      modulesPath: null,
+    });
+    const task = await store.createTask({
+      title: "文档同步任务",
+      acceptance: ["实现完成"],
+      ownerRoleId: data.roles[0].id,
+      reviewerRoleId: data.roles[1].id,
+    });
+    await store.transitionTask(task.id, "ready");
+    await store.transitionTask(task.id, "running");
+    await store.transitionTask(task.id, "review");
+    await store.updateTask(task.id, {
+      acceptance: task.acceptance.map((item) => ({ ...item, done: true })),
+      evidence: [
+        {
+          id: "ev-docs",
+          text: "实现已完成",
+          createdAt: new Date().toISOString(),
+        },
+      ],
+    });
+    await assert.rejects(
+      () => store.transitionTask(task.id, "done"),
+      (error) =>
+        error instanceof StudioStoreError &&
+        error.code === "docs_sync_required",
+    );
+    await store.updateTask(task.id, { docsSynced: true });
+    const done = await store.transitionTask(task.id, "done");
+    assert.equal(done.status, "done");
+  });
+});
+
+test("requires a reason when approving an irreversible decision", async () => {
+  await withStore(async (store) => {
+    const decision = await store.createDecision({
+      title: "切换网络同步方案",
+      context: "不可逆架构选择",
+      reversible: false,
+    });
+    await assert.rejects(
+      () =>
+        store.decideDecision(decision.id, {
+          status: "approved",
+          decision: "",
+          note: "",
+        }),
+      (error) =>
+        error instanceof StudioStoreError &&
+        error.code === "decision_reason_required",
+    );
+    const decided = await store.decideDecision(decision.id, {
+      status: "approved",
+      decision: "选择状态同步，并写 ADR",
+      note: "Owner 批准",
+    });
+    assert.equal(decided.status, "approved");
+    assert.equal(decided.reversible, false);
+  });
+});
+
 test("requires a passing verification before merging a code project", async () => {
   await withStore(async (store, dir) => {
     const data = await store.bootstrap();
@@ -767,7 +834,7 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
     assert.deepEqual(data.runs, []);
     assert.deepEqual(data.decisions, []);
     const migrated = JSON.parse(await readFile(file, "utf8"));
-    assert.equal(migrated.schemaVersion, 11);
+    assert.equal(migrated.schemaVersion, 12);
     assert.ok(migrated.runs.every((run) => run.status !== undefined));
     assert.ok(Array.isArray(migrated.reviews));
     assert.ok(Array.isArray(migrated.branches));
@@ -791,7 +858,8 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
           task.contractRef === null &&
           task.kind === "new" &&
           task.integration === false &&
-          task.originTaskId === null,
+          task.originTaskId === null &&
+          task.docsSynced === false,
       ),
     );
   });

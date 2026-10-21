@@ -2,7 +2,7 @@
 
 > 即装即用的 DeepSeek Harness AI 工作台：**公司仪表盘、Agent 派单、token 预算、决策董事会、支线/契约冲突、worktree 代码执行、项目、角色、任务、验收、合并治理**，一个独立页面。
 
-当前版本 **1.2.0**，已在 **DSH 0.2.1-rc.2** 上完成端到端验证（Web/桌面安装、页面渲染、任务创建、验收门禁、合并治理、公司仪表盘、Agent 派单与结构化回执、token 计量、董事会、支线/契约冲突自动升级、git worktree 代码编辑、Host 独立验证、独立 AI 评审、自动集成分期、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、重启持久化）。
+当前版本 **1.3.0**，已在 **DSH 0.2.1-rc.2** 上完成端到端验证（Web/桌面安装、页面渲染、任务创建、验收门禁、合并治理、公司仪表盘、Agent 派单与结构化回执、token 计量、董事会、支线/契约冲突自动升级、git worktree 代码编辑、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、重启持久化）。
 
 ![Studio Decision Boardroom](docs/decision-boardroom.png)
 
@@ -24,6 +24,8 @@ Studio 把 DSH 从「一个会话」扩展成「一间工作室」：
 - **集成/重拆闭环**：Task 可标记为集成/playtest ticket；连续失败 2 次自动生成 Architect 重拆 ticket（backlog），而不是只留一个决策。
 - **独立 AI 评审**：验收人角色另开 Agent 会话，只读 diff 和 Host 验证输出，给出 pass/fail 与具体发现；代码任务没有通过的评审不能 done。
 - **自动集成分期**：每完成 3 个任务自动生成一张 backlog 集成/playtest ticket（打包可玩 + 人玩 10 分钟），不会自动派单。
+- **文档同步门禁**：项目绑定 PRD/INVARIANTS/MODULES 时，任务 done 前必须勾选“文档已同步”。
+- **不可逆决策**：Decision 可标记不可逆；批准时必须写结论和理由。
 - **角色薪资与预算**：角色可配置模型和单任务/每日 token 预算；项目可配置总 token 预算。
 - **项目**：一个项目边界，下面有角色和任务。
 - **角色**：持久的职责契约（使命、职责、决策权），不是人设卡。
@@ -72,7 +74,7 @@ cd D:\AI工作台\packages\dsh-studio
 pnpm pack
 ```
 
-把生成的 `ai-workbench-dsh-studio-1.2.0.tgz` 发给对方，在 **Add plugin** 里填 tarball 路径即可。
+把生成的 `ai-workbench-dsh-studio-1.3.0.tgz` 发给对方，在 **Add plugin** 里填 tarball 路径即可。
 
 ## 使用
 
@@ -108,7 +110,7 @@ Task Room 里，验收项、证据和状态推进是同一份事实：没勾完�
 - 每次进程启动生成随机 Bearer token，只注入当前 DSH 页面；数据接口同源、`Cache-Control: no-store`，桌面 Boot 回退使用受控 CORS。
 - 不存储模型密钥；不要手动把 token 贴到聊天/日志里。
 - 数据损坏时会备份为 `studio.json.corrupt-<timestamp>`，并重建演示数据。
-- 旧 schema（v1-v10）会自动迁移到 v11：增加 `mergeProposals`、`runs`、`branches`、`contractChanges`、`decisions`、`verifications`、`reviews`、`modules`、项目仓库/worktree/知识文档路径、任务模块/契约/票类型/集成标记/重拆来源、角色模型/预算字段和项目预算；已有项目/角色/任务不丢失。
+- 旧 schema（v1-v11）会自动迁移到 v12：增加 `mergeProposals`、`runs`、`branches`、`contractChanges`、`decisions`、`verifications`、`reviews`、`modules`、项目仓库/worktree/知识文档路径、任务模块/契约/票类型/集成标记/重拆来源/文档同步标记、决策不可逆标记、角色模型/预算字段和项目预算；已有项目/角色/任务不丢失。
 - 桌面渲染器运行在 `dsh-app://` 上，因此 `/studio-api/boot` 会对 `dsh-app://` / `null` origin 反射 CORS 并发放进程级 token；数据接口仍然只认这个 token。Web 端的 Boot 路由继续走 DSH 会话认证。
 
 ## 版本兼容策略
@@ -148,7 +150,7 @@ packages/dsh-studio/
   cordis.patch.yml
 ```
 
-## 当前边界（v1.2）
+## 当前边界（v1.3）
 
 - ✅ 项目/角色/任务/验收/证据/事件持久化。
 - ✅ 独立页面、侧栏入口、主题、响应式。
@@ -167,7 +169,9 @@ packages/dsh-studio/
 - ✅ 工作流闭环：集成/playtest ticket 标记；连续失败 2 次自动生成 Architect 重拆 ticket。
 - ✅ 独立评审：验收人 Agent 只读 diff/Host 验证，pass/fail + findings；代码任务 done 前必须有通过评审。
 - ✅ 自动集成分期：每 3 个完成任务生成一张 backlog 集成票；不自动派单、不替代单任务验收。
-- ⏳ 文档同步门禁、不可逆决策、真实 Git merge、Ticket 工序细化。
+- ✅ 文档同步门禁：项目有知识文档时 done 前必须勾选“文档已同步”。
+- ✅ 不可逆决策：Decision 标记不可逆后，批准必须写结论和理由。
+- ⏳ 真实 Git merge、Ticket 工序细化、评审模型同族风险提示。
 - ⏳ 运行中 token 硬停、金额报价。
 - ⏳ Git merge 执行/合并队列（当前仍只记录治理状态，命令由人执行）。
 - ⏳ Project Book 检索、角色/Scope 强隔离。

@@ -735,7 +735,9 @@ function isTask(value: unknown): value is Task {
       typeof value.integration === "boolean") &&
     (value.originTaskId === null ||
       value.originTaskId === undefined ||
-      typeof value.originTaskId === "string")
+      typeof value.originTaskId === "string") &&
+    (value.docsSynced === undefined ||
+      typeof value.docsSynced === "boolean")
   );
 }
 
@@ -793,6 +795,8 @@ function isDecision(value: unknown): value is Decision {
     typeof value.context === "string" &&
     Array.isArray(value.options) &&
     typeof value.recommendation === "string" &&
+    (value.reversible === undefined ||
+      typeof value.reversible === "boolean") &&
     isDecisionStatus(value.status) &&
     typeof value.decision === "string" &&
     typeof value.note === "string" &&
@@ -1039,14 +1043,28 @@ function migrateState(value: unknown): StudioState {
     };
   }
   if (state.schemaVersion === 10) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 11,
       reviews: Array.isArray(
         (state as unknown as { reviews?: unknown }).reviews,
       )
         ? ((state as unknown as { reviews: IndependentReview[] }).reviews)
         : [],
+    };
+  }
+  if (state.schemaVersion === 11) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      tasks: state.tasks.map((task) => ({
+        ...task,
+        docsSynced: task.docsSynced ?? false,
+      })),
+      decisions: state.decisions.map((decision) => ({
+        ...decision,
+        reversible: decision.reversible ?? true,
+      })),
     };
   }
   return state;
@@ -1863,6 +1881,7 @@ export class StudioStore {
               ],
               recommendation:
                 "同一契约出现两条不同变更。请由 Owner/Architect 裁决；在裁决前不要合并任意一条支线。",
+              reversible: true,
               status: "pending",
               decision: "",
               note: "",
@@ -1908,6 +1927,7 @@ export class StudioStore {
             context: proposed.rationale,
             options: [],
             recommendation: proposed.rationale,
+            reversible: true,
             status: "pending",
             decision: "",
             note: "",
@@ -2060,6 +2080,7 @@ export class StudioStore {
           ],
           recommendation:
             "实现者不能直接改契约或禁止路径；需要契约变更时，应由 Architect/Owner 先更新契约，再重新派单。",
+          reversible: true,
           status: "pending",
           decision: "",
           note: "",
@@ -2181,6 +2202,7 @@ export class StudioStore {
           "recommendation",
           2000,
         ),
+        reversible: input.reversible !== false,
         status: "pending",
         decision: "",
         note: "",
@@ -2230,6 +2252,17 @@ export class StudioStore {
         throw new StudioStoreError(
           "invalid_input",
           "决策状态只能是 approved 或 rejected",
+        );
+      }
+      if (
+        decision.reversible === false &&
+        input.status === "approved" &&
+        optionalText(input.decision, "decision", 4000) === ""
+      ) {
+        throw new StudioStoreError(
+          "decision_reason_required",
+          "不可逆决策批准时必须写明结论和理由",
+          409,
         );
       }
       const at = nowIso(this.now);
@@ -2513,6 +2546,7 @@ export class StudioStore {
         integration: input.integration === true,
         originTaskId:
           optionalText(input.originTaskId, "originTaskId", 120) || null,
+        docsSynced: false,
         createdAt: at,
         updatedAt: at,
       };
@@ -2595,6 +2629,9 @@ export class StudioStore {
       if (input.integration !== undefined) {
         task.integration = input.integration === true;
       }
+      if (input.docsSynced !== undefined) {
+        task.docsSynced = input.docsSynced === true;
+      }
       task.updatedAt = at;
       state.updatedAt = at;
       this.recordEvent(state, {
@@ -2665,6 +2702,18 @@ export class StudioStore {
           throw new StudioStoreError(
             "review_required",
             "代码任务完成前必须有一次通过的独立评审",
+            409,
+          );
+        }
+        const hasDocs =
+          project !== undefined &&
+          (project.prdPath !== null ||
+            project.invariantsPath !== null ||
+            project.modulesPath !== null);
+        if (hasDocs && !task.docsSynced) {
+          throw new StudioStoreError(
+            "docs_sync_required",
+            "项目已绑定 PRD/INVARIANTS/MODULES，完成前必须确认文档已同步",
             409,
           );
         }
@@ -2746,6 +2795,7 @@ export class StudioStore {
       kind: "new",
       integration: true,
       originTaskId: null,
+      docsSynced: false,
       createdAt: at,
       updatedAt: at,
     };
@@ -3140,6 +3190,7 @@ export class StudioStore {
           kind: "fix",
           integration: false,
           originTaskId: task.id,
+          docsSynced: false,
           createdAt: at,
           updatedAt: at,
         };
@@ -3183,6 +3234,7 @@ export class StudioStore {
       ],
       recommendation:
         "同一任务连续失败 2 次，按工作流应退回架构师重拆，不允许第三次原地重试。",
+      reversible: true,
       status: "pending",
       decision: "",
       note: "",
@@ -3424,6 +3476,7 @@ export class StudioStore {
       kind: "new",
       integration: false,
       originTaskId: null,
+      docsSynced: false,
       createdAt: at,
       updatedAt: at,
     });
