@@ -2681,8 +2681,81 @@ export class StudioStore {
         taskId: task.id,
         payload: { from, to: next },
       });
+      if (next === "done") {
+        this.scheduleIntegrationGate(state, task.projectId, at);
+      }
       await this.save();
       return structuredClone(task);
+    });
+  }
+
+  private scheduleIntegrationGate(
+    state: StudioState,
+    projectId: string,
+    at: string,
+  ): void {
+    const done = state.tasks.filter(
+      (item) => item.projectId === projectId && item.status === "done",
+    ).length;
+    const generated = state.tasks.filter(
+      (item) =>
+        item.projectId === projectId &&
+        item.title.startsWith("集成验收（自动 #"),
+    ).length;
+    if (Math.floor(done / 3) <= generated) return;
+    const lead =
+      state.roles.find(
+        (role) =>
+          role.projectId === projectId &&
+          (role.id === "role-lead" || role.title.includes("制作人")),
+      ) ?? state.roles.find((role) => role.projectId === projectId);
+    const verifier =
+      state.roles.find(
+        (role) =>
+          role.projectId === projectId &&
+          (role.id === "role-verifier" || role.title.includes("QA")),
+      ) ?? lead;
+    if (lead === undefined) return;
+    const index = generated + 1;
+    const task: Task = {
+      id: newId("task"),
+      projectId,
+      title: `集成验收（自动 #${String(index)}）`,
+      goal: "每 3 个完成任务后的集成 gate：打包当前 build，人玩 10 分钟，记录阻断问题与可继续迭代的判断。",
+      status: "backlog",
+      priority: "P1",
+      ownerRoleId: lead.id,
+      reviewerRoleId: verifier?.id ?? lead.id,
+      acceptance: [
+        {
+          id: newId("acc"),
+          text: "打包出可运行 build",
+          done: false,
+        },
+        {
+          id: newId("acc"),
+          text: "人玩 10 分钟并记录阻断问题",
+          done: false,
+        },
+      ],
+      evidence: [],
+      branch: null,
+      verifyCommand: "npm test",
+      module: null,
+      contractRef: null,
+      kind: "new",
+      integration: true,
+      originTaskId: null,
+      createdAt: at,
+      updatedAt: at,
+    };
+    state.tasks.push(task);
+    this.recordEvent(state, {
+      type: "integration.scheduled",
+      at,
+      projectId,
+      taskId: task.id,
+      payload: { index, doneTasks: done },
     });
   }
 

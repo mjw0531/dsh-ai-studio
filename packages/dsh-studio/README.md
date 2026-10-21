@@ -2,7 +2,7 @@
 
 > 即装即用的 DeepSeek Harness AI 工作台：**公司仪表盘、Agent 派单、token 预算、决策董事会、支线/契约冲突、worktree 代码执行、项目、角色、任务、验收、合并治理**，一个独立页面。
 
-当前版本 **1.1.0**，已在 **DSH 0.2.1-rc.2** 上完成端到端验证（Web/桌面安装、页面渲染、任务创建、验收门禁、合并治理、公司仪表盘、Agent 派单与结构化回执、token 计量、董事会、支线/契约冲突自动升级、git worktree 代码编辑、Host 独立验证、独立 AI 评审、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、重启持久化）。
+当前版本 **1.2.0**，已在 **DSH 0.2.1-rc.2** 上完成端到端验证（Web/桌面安装、页面渲染、任务创建、验收门禁、合并治理、公司仪表盘、Agent 派单与结构化回执、token 计量、董事会、支线/契约冲突自动升级、git worktree 代码编辑、Host 独立验证、独立 AI 评审、自动集成分期、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、重启持久化）。
 
 ![Studio Decision Boardroom](docs/decision-boardroom.png)
 
@@ -23,6 +23,7 @@ Studio 把 DSH 从「一个会话」扩展成「一间工作室」：
 - **契约护栏**：代码 Run 改动模块契约文件、禁止路径，或越出允许的 `src/`/`test/` 路径时，任务自动 blocked 并生成「契约越界」决策，不静默接受。
 - **集成/重拆闭环**：Task 可标记为集成/playtest ticket；连续失败 2 次自动生成 Architect 重拆 ticket（backlog），而不是只留一个决策。
 - **独立 AI 评审**：验收人角色另开 Agent 会话，只读 diff 和 Host 验证输出，给出 pass/fail 与具体发现；代码任务没有通过的评审不能 done。
+- **自动集成分期**：每完成 3 个任务自动生成一张 backlog 集成/playtest ticket（打包可玩 + 人玩 10 分钟），不会自动派单。
 - **角色薪资与预算**：角色可配置模型和单任务/每日 token 预算；项目可配置总 token 预算。
 - **项目**：一个项目边界，下面有角色和任务。
 - **角色**：持久的职责契约（使命、职责、决策权），不是人设卡。
@@ -71,7 +72,7 @@ cd D:\AI工作台\packages\dsh-studio
 pnpm pack
 ```
 
-把生成的 `ai-workbench-dsh-studio-1.1.0.tgz` 发给对方，在 **Add plugin** 里填 tarball 路径即可。
+把生成的 `ai-workbench-dsh-studio-1.2.0.tgz` 发给对方，在 **Add plugin** 里填 tarball 路径即可。
 
 ## 使用
 
@@ -147,7 +148,7 @@ packages/dsh-studio/
   cordis.patch.yml
 ```
 
-## 当前边界（v1.1）
+## 当前边界（v1.2）
 
 - ✅ 项目/角色/任务/验收/证据/事件持久化。
 - ✅ 独立页面、侧栏入口、主题、响应式。
@@ -165,7 +166,8 @@ packages/dsh-studio/
 - ✅ 契约护栏：代码改动契约文件/禁止路径/越出允许的 src/test 时自动 blocked + 决策。
 - ✅ 工作流闭环：集成/playtest ticket 标记；连续失败 2 次自动生成 Architect 重拆 ticket。
 - ✅ 独立评审：验收人 Agent 只读 diff/Host 验证，pass/fail + findings；代码任务 done 前必须有通过评审。
-- ⏳ 自动生成集成分期 gate、文档同步门禁、不可逆决策、真实 Git merge。
+- ✅ 自动集成分期：每 3 个完成任务生成一张 backlog 集成票；不自动派单、不替代单任务验收。
+- ⏳ 文档同步门禁、不可逆决策、真实 Git merge、Ticket 工序细化。
 - ⏳ 运行中 token 硬停、金额报价。
 - ⏳ Git merge 执行/合并队列（当前仍只记录治理状态，命令由人执行）。
 - ⏳ Project Book 检索、角色/Scope 强隔离。

@@ -605,6 +605,31 @@ test("blocks a task and escalates after two failed runs", async () => {
   });
 });
 
+test("schedules an integration ticket every third completed task", async () => {
+  await withStore(async (store) => {
+    const first = await readyTask(store, "任务 A");
+    const second = await readyTask(store, "任务 B");
+    assert.ok(first.id && second.id);
+    const after = await store.bootstrap();
+    const auto = after.tasks.filter((task) =>
+      task.title.startsWith("集成验收（自动 #"),
+    );
+    assert.equal(auto.length, 1);
+    assert.equal(auto[0]?.integration, true);
+    assert.equal(auto[0]?.status, "backlog");
+    assert.equal(auto[0]?.ownerRoleId, "role-lead");
+    assert.match(auto[0]?.goal ?? "", /人玩 10 分钟/);
+    await readyTask(store, "任务 C");
+    const afterMore = await store.bootstrap();
+    assert.equal(
+      afterMore.tasks.filter((task) =>
+        task.title.startsWith("集成验收（自动 #"),
+      ).length,
+      1,
+    );
+  });
+});
+
 test("blocks a code run that edits the module contract", async () => {
   await withStore(async (store) => {
     const data = await store.bootstrap();
