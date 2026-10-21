@@ -14,6 +14,7 @@ import type {
   MergeRisk,
   TaskStatus,
   TransitionTaskInput,
+  UpdateProjectInput,
   UpdateTaskInput,
 } from "../shared/types.js";
 import { StudioStore, StudioStoreError } from "./store.js";
@@ -193,6 +194,19 @@ function asCreateProject(body: Record<string, unknown>): CreateProjectInput {
     name: asString(body.name, "name"),
     description: asOptionalString(body.description, "description"),
     tokenBudget: asOptionalBudget(body.tokenBudget, "tokenBudget"),
+  };
+}
+
+function asUpdateProject(
+  body: Record<string, unknown>,
+): UpdateProjectInput {
+  return {
+    repoPath:
+      body.repoPath === undefined
+        ? undefined
+        : body.repoPath === null
+          ? null
+          : asString(body.repoPath, "repoPath"),
   };
 }
 
@@ -420,6 +434,19 @@ export class StudioRouter {
         asCreateProject(await readJson(req)),
       );
       sendJson(res, 201, { ok: true, project });
+      return;
+    }
+
+    const projectMatch =
+      /^\/studio-api\/projects\/([^/]+)$/.exec(parsed.pathname);
+    if (projectMatch !== null) {
+      this.requireMethod(parsed, ["PATCH"]);
+      assertJsonRequest(req);
+      const project = await this.store.updateProject(
+        decodeSegment(projectMatch[1] ?? ""),
+        asUpdateProject(await readJson(req)),
+      );
+      sendJson(res, 200, { ok: true, project });
       return;
     }
 
