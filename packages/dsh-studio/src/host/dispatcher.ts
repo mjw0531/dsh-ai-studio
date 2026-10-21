@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import type {
   AgentReceipt,
   AgentRun,
+  Module,
   Project,
   Role,
   Task,
@@ -78,6 +79,7 @@ interface RunContext {
   task: Task;
   role: Role;
   project: Project;
+  module: Module | null;
 }
 
 function assistantText(messages: AgentMessage[]): string {
@@ -184,6 +186,7 @@ function buildPrompt(
   workspace?: TaskWorkspace,
 ): string {
   const { task, role, project } = context;
+  const module = context.module;
   const acceptance = task.acceptance
     .map((item, index) => `${String(index + 1)}. ${item.text}`)
     .join("\n");
@@ -214,7 +217,17 @@ function buildPrompt(
     `优先级：${task.priority}`,
     `票类型：${task.kind === "fix" ? "改修型（先诊断再改）" : "新建型（red→green）"}`,
     `模块：${task.module ?? "未指定"}`,
-    `契约：${task.contractRef ?? "未指定"}`,
+    module === null ? "" : `模块职责：${module.responsibility || "未填写"}`,
+    module === null
+      ? ""
+      : `允许路径：${module.allowedPaths.join("；") || "未限制"}`,
+    module === null
+      ? ""
+      : `禁止路径：${module.forbiddenPaths.join("；") || "无"}`,
+    module === null || module.contractText === ""
+      ? ""
+      : `模块契约：\n${module.contractText.slice(0, 6000)}`,
+    `契约：${task.contractRef ?? module?.contractPath ?? "未指定"}`,
     `分支：${workspace?.branch ?? task.branch ?? "未创建"}`,
     "验收标准：",
     acceptance || "（无）",

@@ -10,6 +10,7 @@ import {
 } from "./compat.js";
 import { AgentDispatcher } from "./dispatcher.js";
 import type { DispatcherContext } from "./dispatcher.js";
+import { DocsService } from "./docs.js";
 import { handleRouterError, StudioRouter } from "./router.js";
 import { StudioStore } from "./store.js";
 import { VerificationService } from "./verify.js";
@@ -106,6 +107,7 @@ export async function apply(ctx: StudioHostContext): Promise<void> {
     store,
   );
   const verifier = new VerificationService(store);
+  const docs = new DocsService(store);
 
   const token = randomBytes(24).toString("hex");
   const startedAt = new Date().toISOString();
@@ -126,6 +128,7 @@ export async function apply(ctx: StudioHostContext): Promise<void> {
     getBootPayload: () => bootPayload,
     dispatchTask: (taskId) => dispatcher.dispatch(taskId),
     verifyTask: (taskId, command) => verifier.verify(taskId, command),
+    readProjectDoc: (path) => docs.read(path),
   });
 
   const install = (): (() => void) => {

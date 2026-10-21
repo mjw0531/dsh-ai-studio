@@ -9,8 +9,12 @@ import type {
   CreateProjectInput,
   CreateRoleInput,
   CreateTaskInput,
+  CreateModuleInput,
   MergeProposal,
+  Module,
   Project,
+  ProjectDoc,
+  UpdateModuleInput,
   Role,
   Task,
   TaskStatus,
@@ -185,6 +189,32 @@ export class StudioClient {
       { method: "PATCH", body: input },
     );
     return data.project;
+  }
+
+  async createModule(input: CreateModuleInput): Promise<Module> {
+    const data = await this.request<{ module: Module }>("/modules", {
+      method: "POST",
+      body: input,
+    });
+    return data.module;
+  }
+
+  async updateModule(
+    moduleId: string,
+    input: UpdateModuleInput,
+  ): Promise<Module> {
+    const data = await this.request<{ module: Module }>(
+      `/modules/${encodeURIComponent(moduleId)}`,
+      { method: "PATCH", body: input },
+    );
+    return data.module;
+  }
+
+  async readProjectDoc(docPath: string): Promise<ProjectDoc> {
+    const data = await this.request<{ doc: ProjectDoc }>(
+      `/project-docs?path=${encodeURIComponent(docPath)}`,
+    );
+    return data.doc;
   }
 
   async selectProject(projectId: string): Promise<Project> {

@@ -753,6 +753,73 @@ export const studioCss = `
 }
 .studio-role-salary .studio-mono { color: var(--st-accent); }
 
+.studio-knowledge-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: 14px;
+  align-items: start;
+}
+.studio-doc-view {
+  margin-top: 12px;
+  border: 1px solid var(--st-border);
+  border-radius: 9px;
+  background: var(--st-panel-2);
+  overflow: hidden;
+}
+.studio-doc-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--st-border);
+  font-size: 10px;
+}
+.studio-doc-head .studio-pill { margin-left: auto; }
+.studio-doc-view pre {
+  max-height: 420px;
+  margin: 0;
+  padding: 10px;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: var(--st-muted);
+  font-size: 10px;
+  line-height: 1.6;
+}
+.studio-module-list { display: flex; flex-direction: column; gap: 8px; margin-top: 9px; }
+.studio-module-card {
+  padding: 10px;
+  border: 1px solid var(--st-border);
+  border-radius: 9px;
+  background: var(--st-panel-2);
+}
+.studio-module-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+.studio-module-card p { margin: 6px 0; color: var(--st-muted); font-size: 11px; line-height: 1.55; }
+.studio-module-contract {
+  max-height: 120px;
+  margin: 7px 0 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: var(--st-faint);
+  font-size: 10px;
+  line-height: 1.5;
+}
+.studio-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--st-accent);
+  font-family: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
 .studio-diff {
   max-height: 180px;
   margin: 0;

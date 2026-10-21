@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 8;
-export const STUDIO_PLUGIN_VERSION = "0.7.0";
+export const STUDIO_SCHEMA_VERSION = 9;
+export const STUDIO_PLUGIN_VERSION = "0.8.0";
 
 export type TaskStatus =
   | "backlog"
@@ -24,6 +24,9 @@ export interface Project {
   description: string;
   tokenBudget: number | null;
   repoPath: string | null;
+  prdPath: string | null;
+  invariantsPath: string | null;
+  modulesPath: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -43,6 +46,20 @@ export interface Role {
   tokenBudget: number | null;
   /** Per-UTC-day token budget for this role; null means unlimited. */
   dailyTokenBudget: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Module {
+  id: string;
+  projectId: string;
+  name: string;
+  responsibility: string;
+  contractPath: string | null;
+  contractText: string;
+  allowedPaths: string[];
+  forbiddenPaths: string[];
+  dependsOn: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -239,6 +256,7 @@ export interface StudioState {
   activeProjectId: string | null;
   projects: Project[];
   roles: Role[];
+  modules: Module[];
   tasks: Task[];
   mergeProposals: MergeProposal[];
   runs: AgentRun[];
@@ -364,6 +382,7 @@ export interface BootstrapResponse {
   activeProjectId: string | null;
   project: Project | null;
   roles: Role[];
+  modules: Module[];
   tasks: Task[];
   mergeProposals: MergeProposal[];
   runs: AgentRun[];
@@ -384,6 +403,7 @@ export interface BootstrapResponse {
     branchBoard: boolean;
     codeExecution: boolean;
     verification: boolean;
+    knowledge: boolean;
     gitMerge: boolean;
   };
 }
@@ -521,6 +541,36 @@ export interface CreateProjectInput {
 
 export interface UpdateProjectInput {
   repoPath?: string | null;
+  prdPath?: string | null;
+  invariantsPath?: string | null;
+  modulesPath?: string | null;
+}
+
+export interface CreateModuleInput {
+  name: string;
+  responsibility?: string;
+  contractPath?: string | null;
+  contractText?: string;
+  allowedPaths?: string[];
+  forbiddenPaths?: string[];
+  dependsOn?: string[];
+}
+
+export interface UpdateModuleInput {
+  responsibility?: string;
+  contractPath?: string | null;
+  contractText?: string;
+  allowedPaths?: string[];
+  forbiddenPaths?: string[];
+  dependsOn?: string[];
+}
+
+export interface ProjectDoc {
+  kind: "prd" | "invariants" | "modules" | "custom";
+  path: string;
+  content: string;
+  truncated: boolean;
+  exists: boolean;
 }
 
 export interface CreateRoleInput {

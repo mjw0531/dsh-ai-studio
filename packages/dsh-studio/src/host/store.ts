@@ -27,8 +27,11 @@ import type {
   CompanyTotals,
   ContractChange,
   CreateDecisionInput,
+  CreateModuleInput,
   DecideDecisionInput,
   Decision,
+  Module,
+  UpdateModuleInput,
   CreateMergeProposalInput,
   CreateProjectInput,
   CreateRoleInput,
@@ -637,6 +640,15 @@ function isProject(value: unknown): value is Project {
     typeof value.description === "string" &&
     (value.tokenBudget === null || typeof value.tokenBudget === "number") &&
     (value.repoPath === null || typeof value.repoPath === "string") &&
+    (value.prdPath === null ||
+      value.prdPath === undefined ||
+      typeof value.prdPath === "string") &&
+    (value.invariantsPath === null ||
+      value.invariantsPath === undefined ||
+      typeof value.invariantsPath === "string") &&
+    (value.modulesPath === null ||
+      value.modulesPath === undefined ||
+      typeof value.modulesPath === "string") &&
     typeof value.createdAt === "string" &&
     typeof value.updatedAt === "string"
   );
@@ -840,6 +852,24 @@ function isVerification(value: unknown): value is Verification {
   );
 }
 
+function isModule(value: unknown): value is Module {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.projectId === "string" &&
+    typeof value.name === "string" &&
+    typeof value.responsibility === "string" &&
+    (value.contractPath === null ||
+      typeof value.contractPath === "string") &&
+    typeof value.contractText === "string" &&
+    Array.isArray(value.allowedPaths) &&
+    Array.isArray(value.forbiddenPaths) &&
+    Array.isArray(value.dependsOn) &&
+    typeof value.createdAt === "string" &&
+    typeof value.updatedAt === "string"
+  );
+}
+
 function migrateState(value: unknown): StudioState {
   if (!isRecord(value)) {
     throw new Error("Studio state must be an object");
@@ -945,15 +975,32 @@ function migrateState(value: unknown): StudioState {
     };
   }
   if (state.schemaVersion === 7) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 8,
       tasks: state.tasks.map((task) => ({
         ...task,
         module: task.module ?? null,
         contractRef: task.contractRef ?? null,
         kind: task.kind ?? "new",
       })),
+    };
+  }
+  if (state.schemaVersion === 8) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      projects: state.projects.map((project) => ({
+        ...project,
+        prdPath: project.prdPath ?? null,
+        invariantsPath: project.invariantsPath ?? null,
+        modulesPath: project.modulesPath ?? null,
+      })),
+      modules: Array.isArray(
+        (state as unknown as { modules?: unknown }).modules,
+      )
+        ? ((state as unknown as { modules: Module[] }).modules)
+        : [],
     };
   }
   return state;
@@ -971,6 +1018,7 @@ function assertState(value: unknown): asserts value is StudioState {
   if (
     !Array.isArray(value.projects) ||
     !Array.isArray(value.roles) ||
+    !Array.isArray(value.modules) ||
     !Array.isArray(value.tasks) ||
     !Array.isArray(value.mergeProposals) ||
     !Array.isArray(value.runs) ||
@@ -987,6 +1035,9 @@ function assertState(value: unknown): asserts value is StudioState {
   }
   if (!value.roles.every(isRole)) {
     throw new Error("Studio state contains an invalid role");
+  }
+  if (!value.modules.every(isModule)) {
+    throw new Error("Studio state contains an invalid module");
   }
   if (!value.tasks.every(isTask)) {
     throw new Error("Studio state contains an invalid task");
@@ -1042,6 +1093,9 @@ export class StudioStore {
       const roles = project === null
         ? []
         : state.roles.filter((role) => role.projectId === project.id);
+      const modules = project === null
+        ? []
+        : state.modules.filter((module) => module.projectId === project.id);
       const tasks = project === null
         ? []
         : state.tasks.filter((task) => task.projectId === project.id);
@@ -1109,6 +1163,7 @@ export class StudioStore {
         activeProjectId: state.activeProjectId,
         project,
         roles,
+        modules,
         tasks,
         mergeProposals,
         runs,
@@ -1129,6 +1184,7 @@ export class StudioStore {
           branchBoard: true,
           codeExecution: true,
           verification: true,
+          knowledge: true,
           gitMerge: false,
         },
       };
@@ -1145,6 +1201,9 @@ export class StudioStore {
         description: optionalText(input.description, "description", 600),
         tokenBudget: optionalTokenBudget(input.tokenBudget, "tokenBudget"),
         repoPath: optionalText(input.repoPath, "repoPath", 1000) || null,
+        prdPath: null,
+        invariantsPath: null,
+        modulesPath: null,
         createdAt: at,
         updatedAt: at,
       };
@@ -1175,6 +1234,18 @@ export class StudioStore {
       if (input.repoPath !== undefined) {
         project.repoPath =
           optionalText(input.repoPath, "repoPath", 1000) || null;
+      }
+      if (input.prdPath !== undefined) {
+        project.prdPath =
+          optionalText(input.prdPath, "prdPath", 500) || null;
+      }
+      if (input.invariantsPath !== undefined) {
+        project.invariantsPath =
+          optionalText(input.invariantsPath, "invariantsPath", 500) || null;
+      }
+      if (input.modulesPath !== undefined) {
+        project.modulesPath =
+          optionalText(input.modulesPath, "modulesPath", 500) || null;
       }
       const at = nowIso(this.now);
       project.updatedAt = at;
@@ -1208,6 +1279,7 @@ export class StudioStore {
     task: Task;
     role: Role;
     project: Project;
+    module: Module | null;
   }> {
     return this.runExclusive(async () => {
       const state = this.requireState();
@@ -1230,10 +1302,19 @@ export class StudioStore {
           404,
         );
       }
+      const module =
+        task.module === null
+          ? undefined
+          : state.modules.find(
+              (item) =>
+                item.projectId === task.projectId &&
+                item.name === task.module,
+            );
       return {
         task: structuredClone(task),
         role: structuredClone(role),
         project: structuredClone(project),
+        module: module === undefined ? null : structuredClone(module),
       };
     });
   }
@@ -1904,6 +1985,125 @@ export class StudioStore {
       });
       await this.save();
       return structuredClone(decision);
+    });
+  }
+
+  async createModule(input: CreateModuleInput): Promise<Module> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const project = this.pickProject(state, undefined);
+      if (project === null) {
+        throw new StudioStoreError("project_required", "请先创建一个项目");
+      }
+      const name = requiredText(input.name, "name", 120);
+      if (
+        state.modules.some(
+          (module) =>
+            module.projectId === project.id && module.name === name,
+        )
+      ) {
+        throw new StudioStoreError(
+          "module_exists",
+          "同一项目下模块名不能重复",
+          409,
+        );
+      }
+      const at = nowIso(this.now);
+      const module: Module = {
+        id: newId("module"),
+        projectId: project.id,
+        name,
+        responsibility: optionalText(
+          input.responsibility,
+          "responsibility",
+          2000,
+        ),
+        contractPath:
+          optionalText(input.contractPath, "contractPath", 500) || null,
+        contractText: optionalText(
+          input.contractText,
+          "contractText",
+          8000,
+        ),
+        allowedPaths: textList(input.allowedPaths, "allowedPaths", 30),
+        forbiddenPaths: textList(
+          input.forbiddenPaths,
+          "forbiddenPaths",
+          30,
+        ),
+        dependsOn: textList(input.dependsOn, "dependsOn", 20),
+        createdAt: at,
+        updatedAt: at,
+      };
+      state.modules.push(module);
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "module.created",
+        at,
+        projectId: project.id,
+        payload: { moduleId: module.id, name: module.name },
+      });
+      await this.save();
+      return structuredClone(module);
+    });
+  }
+
+  async updateModule(
+    moduleId: string,
+    input: UpdateModuleInput,
+  ): Promise<Module> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const module = state.modules.find((item) => item.id === moduleId);
+      if (module === undefined) {
+        throw new StudioStoreError("module_not_found", "模块不存在", 404);
+      }
+      if (input.responsibility !== undefined) {
+        module.responsibility = optionalText(
+          input.responsibility,
+          "responsibility",
+          2000,
+        );
+      }
+      if (input.contractPath !== undefined) {
+        module.contractPath =
+          optionalText(input.contractPath, "contractPath", 500) || null;
+      }
+      if (input.contractText !== undefined) {
+        module.contractText = optionalText(
+          input.contractText,
+          "contractText",
+          8000,
+        );
+      }
+      if (input.allowedPaths !== undefined) {
+        module.allowedPaths = textList(
+          input.allowedPaths,
+          "allowedPaths",
+          30,
+        );
+      }
+      if (input.forbiddenPaths !== undefined) {
+        module.forbiddenPaths = textList(
+          input.forbiddenPaths,
+          "forbiddenPaths",
+          30,
+        );
+      }
+      if (input.dependsOn !== undefined) {
+        module.dependsOn = textList(input.dependsOn, "dependsOn", 20);
+      }
+      const at = nowIso(this.now);
+      module.updatedAt = at;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "module.updated",
+        at,
+        projectId: module.projectId,
+        payload: { moduleId: module.id },
+      });
+      await this.save();
+      return structuredClone(module);
     });
   }
 
@@ -2698,6 +2898,9 @@ export class StudioStore {
         "用一条可玩的最小链路验证工作台：任务、角色、验收和状态机。",
       tokenBudget: null,
       repoPath: null,
+      prdPath: null,
+      invariantsPath: null,
+      modulesPath: null,
       createdAt: at,
       updatedAt: at,
     };
@@ -2860,6 +3063,7 @@ export class StudioStore {
       activeProjectId: project.id,
       projects: [project],
       roles,
+      modules: [],
       tasks,
       mergeProposals: [],
       runs: [],
