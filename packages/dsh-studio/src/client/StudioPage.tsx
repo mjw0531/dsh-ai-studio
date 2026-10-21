@@ -2877,6 +2877,11 @@ function TaskCard({
       <div className="studio-task-top">
         <PriorityPill priority={task.priority} />
         <StatusPill status={task.status} />
+        {task.integration ? (
+          <span className="studio-pill" data-tone="p1">
+            集成
+          </span>
+        ) : null}
         {mergeProposal !== null && mergeProposal.status !== "rejected" ? (
           <MergePill proposal={mergeProposal} />
         ) : null}
@@ -3087,7 +3092,10 @@ function TaskDrawer({
             <div className="studio-section-label">上下文</div>
             <dl className="studio-kv">
               <dt>票类型</dt>
-              <dd>{TASK_KIND_LABELS[task.kind]}</dd>
+              <dd>
+                {TASK_KIND_LABELS[task.kind]}
+                {task.integration ? " · 集成/playtest" : ""}
+              </dd>
               <dt>模块</dt>
               <dd className="studio-mono">{task.module ?? "未指定"}</dd>
               <dt>契约</dt>
@@ -3096,6 +3104,12 @@ function TaskDrawer({
               <dd>
                 {runs.filter((run) => run.status === "failed").length} / 2
               </dd>
+              {task.originTaskId !== null ? (
+                <>
+                  <dt>重拆来源</dt>
+                  <dd className="studio-mono">{task.originTaskId}</dd>
+                </>
+              ) : null}
               <dt>分支</dt>
               <dd className="studio-mono">{task.branch ?? "未创建"}</dd>
               <dt>负责人</dt>
@@ -4077,6 +4091,7 @@ function TaskForm({
   const [moduleName, setModuleName] = useState("");
   const [contractRef, setContractRef] = useState("");
   const [kind, setKind] = useState<TaskKind>("new");
+  const [integration, setIntegration] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
   const submit = (event: FormEvent): void => {
@@ -4110,6 +4125,7 @@ function TaskForm({
       module: moduleName.trim() || null,
       contractRef: contractRef.trim() || null,
       kind,
+      integration,
     });
   };
 
@@ -4231,6 +4247,14 @@ function TaskForm({
             实现者只应修改这个契约允许的范围；改契约本身要走架构师/Owner。
           </div>
         </div>
+        <label className="studio-check">
+          <input
+            type="checkbox"
+            checked={integration}
+            onChange={(event) => setIntegration(event.target.checked)}
+          />
+          集成 / playtest ticket（打包可玩 + 人玩 10 分钟）
+        </label>
         <div className="studio-field-row">
           <div className="studio-field">
             <label htmlFor="task-owner">负责人</label>

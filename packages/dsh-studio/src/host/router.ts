@@ -311,6 +311,8 @@ function asCreateTask(body: Record<string, unknown>): CreateTaskInput {
     body.priority === "P0" || body.priority === "P1" || body.priority === "P2"
       ? body.priority
       : "P1";
+  const kind =
+    body.kind === "fix" || body.kind === "new" ? body.kind : undefined;
   return {
     title: asString(body.title, "title"),
     goal: asOptionalString(body.goal, "goal"),
@@ -319,6 +321,15 @@ function asCreateTask(body: Record<string, unknown>): CreateTaskInput {
     reviewerRoleId: reviewer,
     acceptance: asStringArray(body.acceptance, "acceptance"),
     branch: asOptionalString(body.branch, "branch") ?? null,
+    verifyCommand:
+      asOptionalString(body.verifyCommand, "verifyCommand") ?? null,
+    module: asOptionalString(body.module, "module") ?? null,
+    contractRef:
+      asOptionalString(body.contractRef, "contractRef") ?? null,
+    kind,
+    integration: body.integration === true,
+    originTaskId:
+      asOptionalString(body.originTaskId, "originTaskId") ?? null,
   };
 }
 
@@ -363,6 +374,36 @@ function asUpdateTask(body: Record<string, unknown>): UpdateTaskInput {
   if (body.branch !== undefined) {
     result.branch =
       body.branch === null ? null : asOptionalString(body.branch, "branch");
+  }
+  if (body.verifyCommand !== undefined) {
+    result.verifyCommand =
+      body.verifyCommand === null
+        ? null
+        : asOptionalString(body.verifyCommand, "verifyCommand");
+  }
+  if (body.module !== undefined) {
+    result.module =
+      body.module === null
+        ? null
+        : asOptionalString(body.module, "module");
+  }
+  if (body.contractRef !== undefined) {
+    result.contractRef =
+      body.contractRef === null
+        ? null
+        : asOptionalString(body.contractRef, "contractRef");
+  }
+  if (body.kind !== undefined) {
+    if (body.kind !== "new" && body.kind !== "fix") {
+      throw new HttpError(400, "invalid_input", "kind 无效");
+    }
+    result.kind = body.kind;
+  }
+  if (body.integration !== undefined) {
+    if (typeof body.integration !== "boolean") {
+      throw new HttpError(400, "invalid_input", "integration 必须是布尔值");
+    }
+    result.integration = body.integration;
   }
   return result;
 }

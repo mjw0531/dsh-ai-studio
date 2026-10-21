@@ -6,12 +6,13 @@ Studio 是 DSH 的即装即用工作台插件。改领域词、工作流或接�
 
 - **完成门禁**：任务进入 `done` 前，所有 acceptance 必须为 done，且至少有一条 evidence。不要在 UI 或 API 里绕过 `StudioStore.transitionTask`。
 - **合并门禁**：只有 `done` 任务能提交合并提案；提案必须经过 `review → approved → merged`。`merged` 是治理记录，不是 Git 事实；不要在未经明确设计的情况下自动执行 `git merge`。打回提案会把任务退回 `running`。
-- **v0.9.0 边界**：Host 只依赖 `ctx.webServer` 的路由/结构化 index injection、`ctx.connection.admit()`、公开的 `ctx.agents` / `ctx.agentPresets` / `ctx.llm` / `ctx.tokenMeter`；Client 只依赖 `ctx.slots`、`ctx.layout` 和平台 React。不要引入 DSH 私有 Remote 代码生成器，也不要把 `features.agentExecution` / `features.gitMerge` 改成 true 来假装功能已接入。
+- **v1.0.0 边界**：Host 只依赖 `ctx.webServer` 的路由/结构化 index injection、`ctx.connection.admit()`、公开的 `ctx.agents` / `ctx.agentPresets` / `ctx.llm` / `ctx.tokenMeter`；Client 只依赖 `ctx.slots`、`ctx.layout` 和平台 React。不要引入 DSH 私有 Remote 代码生成器，也不要把 `features.agentExecution` / `features.gitMerge` 改成 true 来假装功能已接入。
 - **Agent 回执门禁**：Agent 只能把任务推进到 `review`；回执必须包含非空 `summary` 和至少一条 `evidence`，否则 Run 记为 failed、任务退回 `ready`。
 - **worktree 门禁**：绑定仓库的派单必须在 `.worktrees/<taskId>` 的独立 worktree 内执行，分支为 `studio/<taskId>`；Agent 不得 merge/push 或改主工作区。测试命令被 Windows ACL 阻断时，Run 必须如实记录 blocker，不能伪造测试通过。
 - **独立验证门禁**：验证命令由 Host 在 worktree 内执行，退出码和输出必须持久化；通过只写 evidence，不自动勾验收项、不自动 done。
 - **失败与合并门禁**：同一 task 连续失败 2 次必须 blocked 并生成决策，不允许第三次原地重试；代码项目没有通过的 Host 验证不能提交合并提案。
 - **契约门禁**：代码 Run 改动模块契约文件、禁止路径，或越出允许的 src/test 路径时，必须 blocked + 「契约越界」决策；不能静默接受。
+- **闭环门禁**：连续失败 2 次必须同时生成 Architect 重拆 ticket（backlog），不能只留决策；集成/playtest ticket 用 `integration` 标记。
 - **决策门禁**：项目级决策只能由 Owner 在董事会批准/拒绝；Agent 只能提出建议，不能替 Owner 决定。决策必须保留结论和理由，批准后不得静默改写。
 - **支线门禁**：派单时自动登记 Branch；Agent 的 `contractDeltas` 写入 `contractChanges`。两条支线改同一契约且内容不同时，必须自动生成待裁决 Decision，不能静默合并。
 - **公司聚合是派生视图**：Owner Dashboard 的 `company` 必须从 `StudioState` 计算，不能成为第二份事实来源；金额成本没有真实报价时显示“待接入”，token 消耗必须来自 DSH meter。
