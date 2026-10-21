@@ -334,7 +334,7 @@ export const studioCss = `
 
 .studio-grid-stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 20px;
 }
@@ -667,6 +667,71 @@ export const studioCss = `
 
 .studio-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .studio-action-note { color: var(--st-faint); font-size: 10px; margin-top: 6px; }
+
+.studio-merge-list { display: flex; flex-direction: column; gap: 10px; }
+.studio-merge-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 650;
+  flex-wrap: wrap;
+}
+.studio-merge-title button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--st-text);
+  font-weight: 650;
+  text-align: left;
+}
+.studio-merge-title button:hover { color: var(--st-accent); }
+.studio-merge-title .studio-mono { color: var(--st-faint); font-weight: 400; }
+.studio-merge-card[data-status="approved"] { border-color: rgba(240, 180, 95, 0.28); }
+.studio-merge-card[data-status="merged"] { border-color: rgba(91, 214, 162, 0.25); }
+.studio-merge-form { display: flex; flex-direction: column; gap: 10px; }
+.studio-merge-card {
+  padding: 12px;
+  border: 1px solid var(--st-border);
+  border-radius: 10px;
+  background: var(--st-panel);
+}
+.studio-merge-top { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.studio-merge-command {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  padding: 8px 9px;
+  border: 1px solid var(--st-border);
+  border-radius: 8px;
+  background: var(--st-bg-soft);
+  overflow-wrap: anywhere;
+}
+.studio-merge-command code {
+  color: var(--st-accent);
+  font-family: var(--dsh-font-family-mono, ui-monospace, SFMono-Regular, Consolas, monospace);
+  font-size: 10px;
+}
+.studio-merge-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 10px;
+}
+.studio-merge-actions > input {
+  width: 100%;
+  border: 1px solid var(--st-border);
+  border-radius: 8px;
+  background: var(--st-panel);
+  color: var(--st-text);
+  padding: 7px 9px;
+  outline: none;
+  font-size: 11px;
+}
+.studio-merge-actions > input:focus { border-color: var(--st-accent); box-shadow: 0 0 0 3px var(--st-accent-soft); }
 
 .studio-modal-overlay { display: grid; place-items: center; padding: 20px; }
 .studio-modal {

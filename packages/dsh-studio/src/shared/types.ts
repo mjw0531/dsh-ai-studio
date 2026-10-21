@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 1;
-export const STUDIO_PLUGIN_VERSION = "0.1.0";
+export const STUDIO_SCHEMA_VERSION = 2;
+export const STUDIO_PLUGIN_VERSION = "0.2.0";
 
 export type TaskStatus =
   | "backlog"
@@ -66,6 +66,27 @@ export interface Task {
   updatedAt: string;
 }
 
+export type MergeRisk = "low" | "medium" | "high";
+export type MergeStatus = "review" | "approved" | "rejected" | "merged";
+
+export interface MergeProposal {
+  id: string;
+  projectId: string;
+  taskId: string;
+  branch: string;
+  base: string;
+  summary: string;
+  risk: MergeRisk;
+  rollback: string;
+  status: MergeStatus;
+  reviewNote: string;
+  mergeCommit: string | null;
+  createdAt: string;
+  updatedAt: string;
+  decidedAt: string | null;
+  mergedAt: string | null;
+}
+
 export interface StudioEvent {
   id: string;
   type: string;
@@ -84,6 +105,7 @@ export interface StudioState {
   projects: Project[];
   roles: Role[];
   tasks: Task[];
+  mergeProposals: MergeProposal[];
   events: StudioEvent[];
 }
 
@@ -97,6 +119,9 @@ export interface StudioStats {
   done: number;
   acceptanceDone: number;
   acceptanceTotal: number;
+  mergeReview: number;
+  mergeApproved: number;
+  mergeMerged: number;
 }
 
 export interface BootstrapResponse {
@@ -114,11 +139,13 @@ export interface BootstrapResponse {
   project: Project | null;
   roles: Role[];
   tasks: Task[];
+  mergeProposals: MergeProposal[];
   stats: StudioStats;
   events: StudioEvent[];
   features: {
     independentPage: boolean;
     filePersistence: boolean;
+    mergeGovernance: boolean;
     agentExecution: boolean;
     gitMerge: boolean;
   };
@@ -153,6 +180,26 @@ export const PRIORITY_LABELS: Record<TaskPriority, string> = {
   P1: "P1 重要",
   P2: "P2 普通",
 };
+
+export const MERGE_STATUS_LABELS: Record<MergeStatus, string> = {
+  review: "待评审",
+  approved: "已批准",
+  rejected: "已打回",
+  merged: "已合并",
+};
+
+export const MERGE_RISK_LABELS: Record<MergeRisk, string> = {
+  low: "低风险",
+  medium: "中风险",
+  high: "高风险",
+};
+
+export const MERGE_STATUS_ORDER: MergeStatus[] = [
+  "review",
+  "approved",
+  "rejected",
+  "merged",
+];
 
 /**
  * 允许的任务状态迁移。Agent 永远不能自己把任务推进到 done：
@@ -228,6 +275,22 @@ export interface UpdateTaskInput {
 
 export interface TransitionTaskInput {
   status: TaskStatus;
+}
+
+export interface CreateMergeProposalInput {
+  summary: string;
+  rollback: string;
+  risk?: MergeRisk;
+  base?: string;
+  branch?: string;
+}
+
+export interface MergeProposalNoteInput {
+  note?: string;
+}
+
+export interface MergeProposalCompleteInput {
+  mergeCommit?: string;
 }
 
 export interface ApiErrorBody {

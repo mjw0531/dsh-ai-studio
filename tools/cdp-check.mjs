@@ -86,12 +86,15 @@ if (dismissText !== "") {
   await new Promise((resolve) => setTimeout(resolve, 400));
 }
 
-const clickText = process.env.CLICK_TEXT;
-if (clickText !== undefined && clickText !== "") {
+const clickTexts = (process.env.CLICK_TEXTS ?? process.env.CLICK_TEXT ?? "")
+  .split("|")
+  .map((text) => text.trim())
+  .filter(Boolean);
+for (const clickText of clickTexts) {
   const clicked = await send("Runtime.evaluate", {
     expression: `(() => {
       const candidates = [...document.querySelectorAll('button, a, [role="button"]')];
-      const target = candidates.find((el) => (el.textContent ?? '').trim() === ${JSON.stringify(clickText)});
+      const target = candidates.find((el) => (el.textContent ?? '').trim().startsWith(${JSON.stringify(clickText)}));
       if (target === undefined) return false;
       target.click();
       return true;
@@ -99,7 +102,7 @@ if (clickText !== undefined && clickText !== "") {
     returnByValue: true,
   });
   console.log(`click "${clickText}": ${String(clicked.result.value)}`);
-  await new Promise((resolve) => setTimeout(resolve, 2500));
+  await new Promise((resolve) => setTimeout(resolve, 1200));
 }
 
 const openTask = process.env.OPEN_TASK;

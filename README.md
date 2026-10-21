@@ -1,8 +1,8 @@
 # AI 工作台（Studio）
 
-一套构建在 **DeepSeek Harness（DSH）** 之上的多角色 AI 工作台：把「一个聊天窗口」变成一间**有项目、有角色、有任务、有验收**的工作室。
+一套构建在 **DeepSeek Harness（DSH）** 之上的多角色 AI 工作台：把「一个聊天窗口」变成一间**有项目、有角色、有任务、有验收、有合并治理**的工作室。
 
-> 当前状态：**v0.1 可运行**。已完成 DSH 插件安装、独立页面、项目/角色/任务/验收/证据的本地持久化，并在 DSH `0.2.1-rc.2` 上做了端到端验证。
+> 当前状态：**v0.2 可运行**。已完成 DSH 插件安装、独立页面、项目/角色/任务/验收/证据的本地持久化、合并提案/批准/打回/合并记录，并在 DSH `0.2.1-rc.2` 上做了端到端验证。
 
 ![Studio Mission Control](docs/images/mission-control.png)
 
@@ -13,8 +13,15 @@
 - **角色**：使命、职位、职责、决策权；为后续编译成 DSH Agent Preset 做准备。
 - **任务**：目标、负责人、验收人、优先级、分支、验收标准、证据。
 - **验收门禁**：任务完成前必须勾完所有验收项，并至少记录一条证据；完成后锁定。
+- **合并治理**：验收通过后可提交合并提案，记录摘要、风险、回滚、评审备注和合并提交；批准、打回、合并都有审计事件。
 - **本地持久化**：`$DSH_HOME/studio/studio.json`，重启不丢；首次运行自动生成演示项目。
 - **版本适配**：`engines.dsh >= 0.2.1-rc.2`；只依赖 Web Server 路由、client slots 和 React，不依赖私有 Remote 生成器。
+
+## 合并治理
+
+![Studio Merge Queue](docs/images/merge-queue.png)
+
+分支不会自己汇入主干。合并提案必须带摘要、风险、回滚和评审记录；批准后由人或 Integrator 执行 Git，Studio 记录状态与审计事件。
 
 ## 快速开始
 
@@ -48,12 +55,12 @@ dsh --profile web
 ```text
 DSH Web/Desktop
   ├─ 独立页面（client plugin）
-  │    Mission Control / Task Room / Team / Settings
+  │    Mission Control / Task Room / Merge Queue / Team / Settings
   └─ Host plugin
        ├─ /studio-api（同源、Bearer token、JSON）
        ├─ 文件存储（$DSH_HOME/studio/studio.json）
        ├─ 版本适配（app-boot → 安装包清单 → env）
-       └─ 状态机 / 验收门禁
+       └─ 状态机 / 验收门禁 / 合并治理
 ```
 
 - Host 半是普通 Cordis 插件，只依赖 `ctx.webServer`。
@@ -76,6 +83,12 @@ CONTEXT.md               # 术语表
 tools/                   # CDP 端到端验证脚本
 ```
 
+## 决策记录
+
+- [ADR-0001：自建编排层](docs/adr/0001-studio-owns-orchestration.md)
+- [ADR-0002：同源 HTTP + token](docs/adr/0002-same-origin-http-and-token.md)
+- [ADR-0003：合并治理只记录状态](docs/adr/0003-record-only-merge-governance.md)
+
 ## 开发
 
 ```powershell
@@ -97,10 +110,11 @@ dsh --profile web --no-open --port 0
 
 ## 路线
 
-- **v0.1（当前）**：项目/角色/任务/验收/证据；独立页面；本地持久化；版本适配。
-- **v0.2**：Agent 派单与回执；角色卡编译 DSH Agent Preset；Task Room 嵌入会话。
-- **v0.3**：Git worktree、Merge Proposal、独立评审、合并队列。
-- **v0.4**：Project Book、权限/预算、决策 Inbox、审计视图。
+- **v0.1**：项目/角色/任务/验收/证据；独立页面；本地持久化；版本适配。
+- **v0.2（当前）**：合并提案、批准、打回、合并记录；schema v1→v2 迁移。
+- **v0.3**：Agent 派单与回执；角色卡编译 DSH Agent Preset；Task Room 嵌入会话。
+- **v0.4**：Git worktree、自动合并/合并队列执行、独立评审。
+- **v0.5**：Project Book、权限/预算、决策 Inbox、审计视图。
 - **v1.0**：用工作台完成一个 2.5D MOBA 垂直切片，再抽象为可复用插件。
 
 ## 核心原则

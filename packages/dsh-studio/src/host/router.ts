@@ -4,9 +4,11 @@ import { STUDIO_PLUGIN_VERSION } from "../shared/types.js";
 import type {
   ApiErrorBody,
   CompatibilityInfo,
+  CreateMergeProposalInput,
   CreateProjectInput,
   CreateRoleInput,
   CreateTaskInput,
+  MergeRisk,
   TaskStatus,
   TransitionTaskInput,
   UpdateTaskInput,
@@ -228,6 +230,28 @@ function asUpdateTask(body: Record<string, unknown>): UpdateTaskInput {
   return result;
 }
 
+function asMergeRisk(value: unknown): MergeRisk {
+  if (value === undefined) return "medium";
+  if (value === "low" || value === "medium" || value === "high") return value;
+  throw new HttpError(400, "invalid_input", "risk 必须是 low/medium/high");
+}
+
+function asCreateMergeProposal(
+  body: Record<string, unknown>,
+): CreateMergeProposalInput {
+  return {
+    summary: asString(body.summary, "summary"),
+    rollback: asString(body.rollback, "rollback"),
+    risk: asMergeRisk(body.risk),
+    base: asOptionalString(body.base, "base"),
+    branch: asOptionalString(body.branch, "branch"),
+  };
+}
+
+function asNote(body: Record<string, unknown>): string | undefined {
+  return asOptionalString(body.note, "note");
+}
+
 export class StudioRouter {
   private readonly store: StudioStore;
   private readonly token: string;
@@ -345,6 +369,45 @@ export class StudioRouter {
         asTaskStatus(body.status),
       );
       sendJson(res, 200, { ok: true, task });
+      return;
+    }
+
+    const taskMerge =
+      /^\/studio-api\/tasks\/([^/]+)\/merge-proposal$/.exec(parsed.pathname);
+    if (taskMerge !== null) {
+      this.requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const proposal = await this.store.createMergeProposal(
+        decodeSegment(taskMerge[1] ?? ""),
+        asCreateMergeProposal(await readJson(req)),
+      );
+      sendJson(res, 201, { ok: true, proposal });
+      return;
+    }
+
+    const mergeDecision =
+      /^\/studio-api\/merge-proposals\/([^/]+)\/(approve|reject|merge)$/.exec(
+        parsed.pathname,
+      );
+    if (mergeDecision !== null) {
+      this.requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const body = await readJson(req);
+      const proposalId = decodeSegment(mergeDecision[1] ?? "");
+      const action = mergeDecision[2];
+      const proposal =
+        action === "approve"
+          ? await this.store.approveMergeProposal(proposalId, asNote(body))
+          : action === "reject"
+            ? await this.store.rejectMergeProposal(
+                proposalId,
+                asNote(body) ?? "",
+              )
+            : await this.store.completeMergeProposal(
+                proposalId,
+                asOptionalString(body.mergeCommit, "mergeCommit"),
+              );
+      sendJson(res, 200, { ok: true, proposal });
       return;
     }
 

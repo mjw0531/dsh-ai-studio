@@ -8,6 +8,8 @@ import type { FormEvent, ReactNode } from "react";
 
 import {
   ALLOWED_TRANSITIONS,
+  MERGE_RISK_LABELS,
+  MERGE_STATUS_LABELS,
   PRIORITY_LABELS,
   TASK_STATUS_LABELS,
   TASK_STATUS_ORDER,
@@ -15,9 +17,12 @@ import {
 } from "../shared/types.js";
 import type {
   BootstrapResponse,
+  CreateMergeProposalInput,
   CreateProjectInput,
   CreateRoleInput,
   CreateTaskInput,
+  MergeProposal,
+  MergeRisk,
   Role,
   Task,
   TaskPriority,
@@ -32,6 +37,7 @@ import {
   IconAlert,
   IconCheck,
   IconChevronRight,
+  IconGitMerge,
   IconGrid,
   IconKanban,
   IconMoon,
@@ -43,7 +49,7 @@ import {
   IconX,
 } from "./icons.js";
 
-type Tab = "mission" | "tasks" | "team" | "settings";
+type Tab = "mission" | "tasks" | "merges" | "team" | "settings";
 type ModalState =
   | { kind: "task" }
   | { kind: "role" }
@@ -61,6 +67,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { id: "mission", label: "总览", caption: "Mission Control" },
   { id: "tasks", label: "任务", caption: "Task Board" },
+  { id: "merges", label: "合并", caption: "Merge Queue" },
   { id: "team", label: "团队", caption: "Roles" },
   { id: "settings", label: "设置", caption: "Runtime" },
 ];
@@ -112,6 +119,8 @@ function NavIcon({ tab }: { tab: Tab }) {
       return <IconGrid width={15} height={15} />;
     case "tasks":
       return <IconKanban width={15} height={15} />;
+    case "merges":
+      return <IconGitMerge width={15} height={15} />;
     case "team":
       return <IconUsers width={15} height={15} />;
     case "settings":
@@ -140,6 +149,36 @@ function PriorityPill({ priority }: { priority: TaskPriority }) {
     <span className="studio-pill" data-tone={priority.toLowerCase()}>
       {priority}
     </span>
+  );
+}
+
+function mergeTone(status: MergeProposal["status"]): string {
+  if (status === "merged") return "ok";
+  if (status === "approved") return "p1";
+  if (status === "rejected") return "p0";
+  return "accent";
+}
+
+function MergePill({ proposal }: { proposal: MergeProposal }) {
+  return (
+    <span className="studio-pill" data-tone={mergeTone(proposal.status)}>
+      <IconGitMerge width={10} height={10} />
+      {MERGE_STATUS_LABELS[proposal.status]}
+    </span>
+  );
+}
+
+function latestMergeForTask(
+  proposals: MergeProposal[],
+  taskId: string,
+): MergeProposal | null {
+  const matching = proposals
+    .filter((proposal) => proposal.taskId === taskId)
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  return (
+    matching.find((proposal) => proposal.status !== "rejected") ??
+    matching[0] ??
+    null
   );
 }
 
@@ -288,8 +327,12 @@ export function StudioPage() {
 
   const project = data.project;
   const reviewCount = data.tasks.filter((task) => task.status === "review").length;
-  const taskCountForNav =
-    tab === "tasks" ? data.stats.total : data.stats.total;
+  const mergeCount =
+    data.stats.mergeReview + data.stats.mergeApproved;
+  const selectedMerge =
+    selectedTask === null
+      ? null
+      : latestMergeForTask(data.mergeProposals, selectedTask.id);
 
   const createTask = async (input: CreateTaskInput): Promise<void> => {
     const ok = await run(
@@ -368,6 +411,58 @@ export function StudioPage() {
         await client.updateTask(task.id, { evidence });
       },
       "证据已记录",
+    );
+  };
+
+  const createMerge = async (
+    task: Task,
+    input: CreateMergeProposalInput,
+  ): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.createMergeProposal(task.id, input);
+      },
+      "合并提案已提交",
+    );
+  };
+
+  const approveMerge = async (
+    proposal: MergeProposal,
+    note?: string,
+  ): Promise<void> => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.approveMergeProposal(proposal.id, note);
+      },
+      "合并提案已批准",
+    );
+  };
+
+  const rejectMerge = async (
+    proposal: MergeProposal,
+    note: string,
+  ): Promise<void> => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.rejectMergeProposal(proposal.id, note);
+      },
+      "合并提案已打回",
+    );
+  };
+
+  const completeMerge = async (
+    proposal: MergeProposal,
+    mergeCommit?: string,
+  ): Promise<void> => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.completeMergeProposal(proposal.id, mergeCommit);
+      },
+      "已记录合并完成",
     );
   };
 
@@ -459,7 +554,9 @@ export function StudioPage() {
               {item.id === "mission" && reviewCount > 0 ? (
                 <span className="studio-nav-count">{reviewCount}</span>
               ) : item.id === "tasks" ? (
-                <span className="studio-nav-count">{taskCountForNav}</span>
+                <span className="studio-nav-count">{data.stats.total}</span>
+              ) : item.id === "merges" && mergeCount > 0 ? (
+                <span className="studio-nav-count">{mergeCount}</span>
               ) : item.id === "team" ? (
                 <span className="studio-nav-count">{data.roles.length}</span>
               ) : null}
@@ -510,6 +607,19 @@ export function StudioPage() {
               />
             ) : null}
 
+            {tab === "merges" ? (
+              <MergeView
+                data={data}
+                busy={busy}
+                onOpenTask={setSelectedTaskId}
+                onApprove={(proposal, note) => void approveMerge(proposal, note)}
+                onReject={(proposal, note) => void rejectMerge(proposal, note)}
+                onComplete={(proposal, commit) =>
+                  void completeMerge(proposal, commit)
+                }
+              />
+            ) : null}
+
             {tab === "team" ? (
               <TeamView
                 data={data}
@@ -536,6 +646,7 @@ export function StudioPage() {
           key={selectedTask.id}
           task={selectedTask}
           roles={data.roles}
+          mergeProposal={selectedMerge}
           busy={busy}
           onClose={() => setSelectedTaskId(null)}
           onTransition={(status) => void transitionTask(selectedTask, status)}
@@ -543,6 +654,18 @@ export function StudioPage() {
             void toggleAcceptance(selectedTask, id)
           }
           onAddEvidence={(text) => addEvidence(selectedTask, text)}
+          onCreateMerge={(input) => createMerge(selectedTask, input)}
+          onApproveMerge={(note) => {
+            if (selectedMerge !== null) void approveMerge(selectedMerge, note);
+          }}
+          onRejectMerge={(note) => {
+            if (selectedMerge !== null) void rejectMerge(selectedMerge, note);
+          }}
+          onCompleteMerge={(commit) => {
+            if (selectedMerge !== null) {
+              void completeMerge(selectedMerge, commit);
+            }
+          }}
         />
       ) : null}
 
@@ -602,7 +725,12 @@ function MissionView({
   const ready = data.tasks.filter(
     (task) => task.status === "running" && allAccepted(task),
   );
+  const mergeNeeds = data.mergeProposals.filter(
+    (proposal) =>
+      proposal.status === "review" || proposal.status === "approved",
+  );
   const needs = [...review, ...blocked, ...ready].slice(0, 5);
+  const totalNeeds = mergeNeeds.length + needs.length;
   const acceptanceRate =
     data.stats.acceptanceTotal === 0
       ? 0
@@ -655,6 +783,18 @@ function MissionView({
           tone={data.stats.review > 0 ? "warn" : undefined}
         />
         <StatCard
+          label="待合并"
+          value={String(data.stats.mergeReview + data.stats.mergeApproved)}
+          note={`${String(data.stats.mergeMerged)} 个已合并`}
+          tone={
+            data.stats.mergeApproved > 0
+              ? "warn"
+              : data.stats.mergeReview > 0
+                ? "danger"
+                : undefined
+          }
+        />
+        <StatCard
           label="进行中"
           value={String(data.stats.running)}
           note={`${String(ready.length)} 个已满足验收条件`}
@@ -681,17 +821,54 @@ function MissionView({
             <IconSpark width={14} height={14} />
             <h3>需要你</h3>
             <span className="studio-muted">
-              {needs.length === 0 ? "当前没有阻塞项" : `${String(needs.length)} 项`}
+              {totalNeeds === 0 ? "当前没有阻塞项" : `${String(totalNeeds)} 项`}
             </span>
           </div>
           <div className="studio-panel-body">
-            {needs.length === 0 ? (
+            {totalNeeds === 0 ? (
               <div className="studio-empty">
                 <strong>节奏正常</strong>
-                没有待验收、阻塞或可提交验收的任务。
+                没有待验收、待合并、阻塞或可提交验收的事项。
               </div>
             ) : (
               <div className="studio-needs">
+                {mergeNeeds.map((proposal) => {
+                  const task = data.tasks.find(
+                    (item) => item.id === proposal.taskId,
+                  );
+                  return (
+                    <button
+                      key={proposal.id}
+                      type="button"
+                      className="studio-need"
+                      onClick={() => onOpenTask(proposal.taskId)}
+                    >
+                      <span
+                        className="studio-need-mark"
+                        data-tone={
+                          proposal.status === "approved" ? "warn" : "accent"
+                        }
+                      />
+                      <span>
+                        <span className="studio-need-title">
+                          {task?.title ?? "合并提案"}
+                        </span>
+                        <span className="studio-need-meta">
+                          {proposal.status === "approved"
+                            ? "已批准，等待合并"
+                            : "合并提案待评审"}
+                          {" · "}
+                          {proposal.branch} → {proposal.base}
+                        </span>
+                      </span>
+                      <IconChevronRight
+                        className="studio-need-arrow"
+                        width={14}
+                        height={14}
+                      />
+                    </button>
+                  );
+                })}
                 {needs.map((task) => (
                   <button
                     key={task.id}
@@ -757,6 +934,7 @@ function MissionView({
           <TaskBoard
             tasks={data.tasks}
             roles={data.roles}
+            mergeProposals={data.mergeProposals}
             onOpenTask={onOpenTask}
           />
         </div>
@@ -823,9 +1001,230 @@ function TasksView({
       <TaskBoard
         tasks={tasks}
         roles={data.roles}
+        mergeProposals={data.mergeProposals}
         onOpenTask={onOpenTask}
       />
     </>
+  );
+}
+
+function MergeView({
+  data,
+  busy,
+  onOpenTask,
+  onApprove,
+  onReject,
+  onComplete,
+}: {
+  data: BootstrapResponse;
+  busy: boolean;
+  onOpenTask: (id: string) => void;
+  onApprove: (proposal: MergeProposal, note?: string) => void;
+  onReject: (proposal: MergeProposal, note: string) => void;
+  onComplete: (proposal: MergeProposal, commit?: string) => void;
+}) {
+  const proposals = [...data.mergeProposals].sort((left, right) => {
+    const order = { review: 0, approved: 1, rejected: 2, merged: 3 };
+    const byStatus = order[left.status] - order[right.status];
+    return byStatus !== 0
+      ? byStatus
+      : right.createdAt.localeCompare(left.createdAt);
+  });
+  const rejected = data.mergeProposals.filter(
+    (proposal) => proposal.status === "rejected",
+  ).length;
+
+  return (
+    <>
+      <div className="studio-page-head">
+        <div>
+          <div className="studio-eyebrow">Merge Queue</div>
+          <h1 className="studio-title">合并治理</h1>
+          <p className="studio-subtitle">
+            分支不会自己汇入主干。每个提案都要有摘要、风险、回滚和评审记录；Studio
+            记录治理状态，Git 命令由人或 Integrator 执行。
+          </p>
+        </div>
+        <div className="studio-head-actions">
+          <span className="studio-pill" data-tone="accent">
+            待评审 {data.stats.mergeReview}
+          </span>
+          <span className="studio-pill" data-tone="p1">
+            待合并 {data.stats.mergeApproved}
+          </span>
+          <span className="studio-pill" data-tone="ok">
+            已合并 {data.stats.mergeMerged}
+          </span>
+        </div>
+      </div>
+
+      {proposals.length === 0 ? (
+        <div className="studio-empty">
+          <strong>还没有合并提案</strong>
+          任务完成验收并记录证据后，在 Task Room 的「合并治理」里提交第一个提案。
+        </div>
+      ) : (
+        <div className="studio-merge-list">
+          {proposals.map((proposal) => {
+            const task = data.tasks.find(
+              (item) => item.id === proposal.taskId,
+            );
+            return (
+              <MergeProposalCard
+                key={proposal.id}
+                proposal={proposal}
+                task={task ?? null}
+                busy={busy}
+                onOpenTask={onOpenTask}
+                onApprove={onApprove}
+                onReject={onReject}
+                onComplete={onComplete}
+              />
+            );
+          })}
+          {rejected > 0 ? (
+            <div className="studio-action-note">
+              有 {rejected} 个提案被打回；任务回到执行中，修改后可重新提交。
+            </div>
+          ) : null}
+        </div>
+      )}
+    </>
+  );
+}
+
+function MergeProposalCard({
+  proposal,
+  task,
+  busy,
+  onOpenTask,
+  onApprove,
+  onReject,
+  onComplete,
+}: {
+  proposal: MergeProposal;
+  task: Task | null;
+  busy: boolean;
+  onOpenTask: (id: string) => void;
+  onApprove: (proposal: MergeProposal, note?: string) => void;
+  onReject: (proposal: MergeProposal, note: string) => void;
+  onComplete: (proposal: MergeProposal, commit?: string) => void;
+}) {
+  const [note, setNote] = useState("");
+  const [commit, setCommit] = useState("");
+
+  return (
+    <article className="studio-merge-card" data-status={proposal.status}>
+      <div className="studio-merge-top">
+        <MergePill proposal={proposal} />
+        <span className="studio-pill" data-tone="p2">
+          {MERGE_RISK_LABELS[proposal.risk]}
+        </span>
+        <span className="studio-muted" style={{ marginLeft: "auto" }}>
+          {proposal.branch} → {proposal.base}
+        </span>
+      </div>
+
+      <div className="studio-merge-title">
+        {task === null ? (
+          proposal.taskId
+        ) : (
+          <button type="button" onClick={() => onOpenTask(proposal.taskId)}>
+            {task.title}
+          </button>
+        )}
+        <span className="studio-mono">{proposal.id}</span>
+      </div>
+
+      <dl className="studio-kv" style={{ marginTop: 9 }}>
+        <dt>变更摘要</dt>
+        <dd>{proposal.summary}</dd>
+        <dt>回滚方案</dt>
+        <dd>{proposal.rollback}</dd>
+        {proposal.reviewNote !== "" ? (
+          <>
+            <dt>评审备注</dt>
+            <dd>{proposal.reviewNote}</dd>
+          </>
+        ) : null}
+        {proposal.mergeCommit !== null ? (
+          <>
+            <dt>合并提交</dt>
+            <dd className="studio-mono">{proposal.mergeCommit}</dd>
+          </>
+        ) : null}
+        <dt>创建</dt>
+        <dd>{formatDate(proposal.createdAt)}</dd>
+      </dl>
+
+      <div className="studio-merge-command">
+        <span className="studio-faint">人工执行：</span>
+        <code>
+          git switch {proposal.base} && git merge --no-ff {proposal.branch}
+        </code>
+      </div>
+
+      {proposal.status === "review" ? (
+        <div className="studio-merge-actions">
+          <input
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            placeholder="评审备注（打回时必填）"
+            disabled={busy}
+          />
+          <div className="studio-actions">
+            <button
+              type="button"
+              className="studio-btn"
+              data-variant="primary"
+              data-size="sm"
+              disabled={busy}
+              onClick={() => onApprove(proposal, note.trim() || undefined)}
+            >
+              <IconCheck width={13} height={13} />
+              批准
+            </button>
+            <button
+              type="button"
+              className="studio-btn"
+              data-variant="danger"
+              data-size="sm"
+              disabled={busy || note.trim() === ""}
+              title={note.trim() === "" ? "打回必须写清楚原因" : "打回并退回执行"}
+              onClick={() => onReject(proposal, note.trim())}
+            >
+              打回
+            </button>
+          </div>
+        </div>
+      ) : proposal.status === "approved" ? (
+        <div className="studio-merge-actions">
+          <input
+            value={commit}
+            onChange={(event) => setCommit(event.target.value)}
+            placeholder="合并提交 SHA（可选）"
+            disabled={busy}
+          />
+          <button
+            type="button"
+            className="studio-btn"
+            data-variant="primary"
+            data-size="sm"
+            disabled={busy}
+            onClick={() => onComplete(proposal, commit.trim() || undefined)}
+          >
+            <IconCheck width={13} height={13} />
+            标记已合并
+          </button>
+        </div>
+      ) : (
+        <div className="studio-action-note">
+          {proposal.status === "merged"
+            ? `已合并${proposal.mergedAt !== null ? ` · ${formatDate(proposal.mergedAt)}` : ""}`
+            : "已打回；任务回到执行中，修改后可重新提交。"}
+        </div>
+      )}
+    </article>
   );
 }
 
@@ -979,10 +1378,12 @@ function Roster({
 function TaskBoard({
   tasks,
   roles,
+  mergeProposals,
   onOpenTask,
 }: {
   tasks: Task[];
   roles: Role[];
+  mergeProposals: MergeProposal[];
   onOpenTask: (id: string) => void;
 }) {
   return (
@@ -1010,6 +1411,10 @@ function TaskBoard({
                       key={task.id}
                       task={task}
                       roles={roles}
+                      mergeProposal={latestMergeForTask(
+                        mergeProposals,
+                        task.id,
+                      )}
                       onOpen={onOpenTask}
                     />
                   ))
@@ -1026,10 +1431,12 @@ function TaskBoard({
 function TaskCard({
   task,
   roles,
+  mergeProposal,
   onOpen,
 }: {
   task: Task;
   roles: Role[];
+  mergeProposal: MergeProposal | null;
   onOpen: (id: string) => void;
 }) {
   const done = acceptanceDone(task);
@@ -1044,6 +1451,9 @@ function TaskCard({
       <div className="studio-task-top">
         <PriorityPill priority={task.priority} />
         <StatusPill status={task.status} />
+        {mergeProposal !== null && mergeProposal.status !== "rejected" ? (
+          <MergePill proposal={mergeProposal} />
+        ) : null}
       </div>
       <div className="studio-task-title">{task.title}</div>
       {task.goal ? <div className="studio-task-goal">{task.goal}</div> : null}
@@ -1065,19 +1475,29 @@ function TaskCard({
 function TaskDrawer({
   task,
   roles,
+  mergeProposal,
   busy,
   onClose,
   onTransition,
   onToggleAcceptance,
   onAddEvidence,
+  onCreateMerge,
+  onApproveMerge,
+  onRejectMerge,
+  onCompleteMerge,
 }: {
   task: Task;
   roles: Role[];
+  mergeProposal: MergeProposal | null;
   busy: boolean;
   onClose: () => void;
   onTransition: (status: TaskStatus) => void;
   onToggleAcceptance: (id: string) => void;
   onAddEvidence: (text: string) => Promise<boolean>;
+  onCreateMerge: (input: CreateMergeProposalInput) => Promise<boolean>;
+  onApproveMerge: (note?: string) => void;
+  onRejectMerge: (note: string) => void;
+  onCompleteMerge: (mergeCommit?: string) => void;
 }) {
   const [evidenceText, setEvidenceText] = useState("");
   const done = acceptanceDone(task);
@@ -1114,6 +1534,9 @@ function TaskDrawer({
             <div className="studio-actions" style={{ marginBottom: 8 }}>
               <StatusPill status={task.status} />
               <PriorityPill priority={task.priority} />
+              {mergeProposal !== null ? (
+                <MergePill proposal={mergeProposal} />
+              ) : null}
             </div>
             <h2>{task.title}</h2>
             <div className="studio-muted">
@@ -1252,6 +1675,16 @@ function TaskDrawer({
             </dl>
           </section>
 
+          <TaskMergePanel
+            task={task}
+            proposal={mergeProposal}
+            busy={busy}
+            onCreate={onCreateMerge}
+            onApprove={onApproveMerge}
+            onReject={onRejectMerge}
+            onComplete={onCompleteMerge}
+          />
+
           <section>
             <div className="studio-section-label">推进任务</div>
             {transitions.length === 0 ? (
@@ -1289,12 +1722,274 @@ function TaskDrawer({
               </div>
             )}
             <div className="studio-action-note">
-              v0.1 是控制面：状态与验收已经持久化；Agent 派单、worktree 和合并队列在下一阶段接入。
+              v0.2 已接入合并治理：提案、评审、批准、合并记录都会持久化；Git 命令仍由人执行。
             </div>
           </section>
         </div>
       </aside>
     </div>
+  );
+}
+
+function TaskMergePanel({
+  task,
+  proposal,
+  busy,
+  onCreate,
+  onApprove,
+  onReject,
+  onComplete,
+}: {
+  task: Task;
+  proposal: MergeProposal | null;
+  busy: boolean;
+  onCreate: (input: CreateMergeProposalInput) => Promise<boolean>;
+  onApprove: (note?: string) => void;
+  onReject: (note: string) => void;
+  onComplete: (mergeCommit?: string) => void;
+}) {
+  const [summary, setSummary] = useState("");
+  const [branch, setBranch] = useState(task.branch ?? "");
+  const [base, setBase] = useState("main");
+  const [risk, setRisk] = useState<MergeRisk>("medium");
+  const [rollback, setRollback] = useState("");
+  const [reviewNote, setReviewNote] = useState("");
+  const [mergeCommit, setMergeCommit] = useState("");
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  const complete = allAccepted(task);
+  const hasEvidence = task.evidence.length > 0;
+  const reviewable = task.status === "done";
+  const canSubmit =
+    reviewable &&
+    complete &&
+    hasEvidence &&
+    branch.trim() !== "" &&
+    summary.trim() !== "" &&
+    rollback.trim() !== "";
+  const activeProposal =
+    proposal !== null && proposal.status !== "rejected" ? proposal : null;
+
+  const submit = async (event: FormEvent): Promise<void> => {
+    event.preventDefault();
+    if (!canSubmit) {
+      setLocalError("先完成验收、记录证据，并填写分支、摘要和回滚方案。");
+      return;
+    }
+    setLocalError(null);
+    const ok = await onCreate({
+      branch: branch.trim(),
+      base: base.trim() || "main",
+      risk,
+      summary: summary.trim(),
+      rollback: rollback.trim(),
+    });
+    if (ok) {
+      setSummary("");
+      setRollback("");
+    }
+  };
+
+  return (
+    <section>
+      <div className="studio-section-label">合并治理</div>
+
+      {activeProposal === null ? (
+        <>
+          {proposal !== null && proposal.status === "rejected" ? (
+            <div className="studio-alert" data-tone="warn" style={{ marginBottom: 10 }}>
+              上次合并提案被打回：{proposal.reviewNote || "未填写原因"}
+            </div>
+          ) : null}
+          {!reviewable ? (
+            <div className="studio-faint" style={{ fontSize: 11 }}>
+              任务验收通过后，才能提交合并提案。
+            </div>
+          ) : !complete || !hasEvidence ? (
+            <div className="studio-faint" style={{ fontSize: 11 }}>
+              先完成全部验收项并记录至少一条证据，才能提交合并提案。
+            </div>
+          ) : (
+            <form onSubmit={(event) => void submit(event)} className="studio-merge-form">
+              {localError !== null ? (
+                <div className="studio-alert">{localError}</div>
+              ) : null}
+              <div className="studio-field-row">
+                <div className="studio-field">
+                  <label htmlFor="merge-branch">分支</label>
+                  <input
+                    id="merge-branch"
+                    value={branch}
+                    onChange={(event) => setBranch(event.target.value)}
+                    placeholder="task/003-ability"
+                  />
+                </div>
+                <div className="studio-field">
+                  <label htmlFor="merge-base">目标分支</label>
+                  <input
+                    id="merge-base"
+                    value={base}
+                    onChange={(event) => setBase(event.target.value)}
+                    placeholder="main"
+                  />
+                </div>
+              </div>
+              <div className="studio-field">
+                <label htmlFor="merge-risk">风险</label>
+                <select
+                  id="merge-risk"
+                  value={risk}
+                  onChange={(event) => setRisk(event.target.value as MergeRisk)}
+                >
+                  <option value="low">{MERGE_RISK_LABELS.low}</option>
+                  <option value="medium">{MERGE_RISK_LABELS.medium}</option>
+                  <option value="high">{MERGE_RISK_LABELS.high}</option>
+                </select>
+              </div>
+              <div className="studio-field">
+                <label htmlFor="merge-summary">变更摘要</label>
+                <textarea
+                  id="merge-summary"
+                  value={summary}
+                  onChange={(event) => setSummary(event.target.value)}
+                  placeholder="改了什么、影响哪些契约/模块"
+                />
+              </div>
+              <div className="studio-field">
+                <label htmlFor="merge-rollback">回滚方案</label>
+                <textarea
+                  id="merge-rollback"
+                  value={rollback}
+                  onChange={(event) => setRollback(event.target.value)}
+                  placeholder="出问题时怎么回滚？"
+                />
+              </div>
+              <div className="studio-actions" style={{ marginTop: 10 }}>
+                <button
+                  type="submit"
+                  className="studio-btn"
+                  data-variant="primary"
+                  data-size="sm"
+                  disabled={busy || !canSubmit}
+                >
+                  <IconGitMerge width={13} height={13} />
+                  提交合并提案
+                </button>
+              </div>
+              <div className="studio-action-note">
+                Studio 只记录治理状态，不执行 Git。合并命令由人或 Integrator 执行。
+              </div>
+            </form>
+          )}
+        </>
+      ) : (
+        <>
+          <div className="studio-merge-card">
+            <div className="studio-merge-top">
+              <MergePill proposal={activeProposal} />
+              <span className="studio-pill" data-tone="p2">
+                {MERGE_RISK_LABELS[activeProposal.risk]}
+              </span>
+              <span className="studio-muted" style={{ marginLeft: "auto" }}>
+                {activeProposal.branch} → {activeProposal.base}
+              </span>
+            </div>
+            <dl className="studio-kv" style={{ marginTop: 10 }}>
+              <dt>变更摘要</dt>
+              <dd>{activeProposal.summary}</dd>
+              <dt>回滚方案</dt>
+              <dd>{activeProposal.rollback}</dd>
+              <dt>评审备注</dt>
+              <dd>{activeProposal.reviewNote || "无"}</dd>
+              {activeProposal.mergeCommit !== null ? (
+                <>
+                  <dt>合并提交</dt>
+                  <dd className="studio-mono">{activeProposal.mergeCommit}</dd>
+                </>
+              ) : null}
+              <dt>创建</dt>
+              <dd>{formatDate(activeProposal.createdAt)}</dd>
+              {activeProposal.mergedAt !== null ? (
+                <>
+                  <dt>合并时间</dt>
+                  <dd>{formatDate(activeProposal.mergedAt)}</dd>
+                </>
+              ) : null}
+            </dl>
+            <div className="studio-merge-command">
+              <span className="studio-faint">人工执行：</span>
+              <code>
+                git switch {activeProposal.base} && git merge --no-ff{" "}
+                {activeProposal.branch}
+              </code>
+            </div>
+          </div>
+
+          {activeProposal.status === "review" ? (
+            <div className="studio-merge-actions">
+              <input
+                value={reviewNote}
+                onChange={(event) => setReviewNote(event.target.value)}
+                placeholder="评审备注（打回时必填）"
+                disabled={busy}
+              />
+              <div className="studio-actions">
+                <button
+                  type="button"
+                  className="studio-btn"
+                  data-variant="primary"
+                  data-size="sm"
+                  disabled={busy}
+                  onClick={() => onApprove(reviewNote.trim() || undefined)}
+                >
+                  <IconCheck width={13} height={13} />
+                  批准
+                </button>
+                <button
+                  type="button"
+                  className="studio-btn"
+                  data-variant="danger"
+                  data-size="sm"
+                  disabled={busy || reviewNote.trim() === ""}
+                  title={
+                    reviewNote.trim() === ""
+                      ? "打回必须写清楚原因"
+                      : "打回并退回执行"
+                  }
+                  onClick={() => onReject(reviewNote.trim())}
+                >
+                  打回
+                </button>
+              </div>
+            </div>
+          ) : activeProposal.status === "approved" ? (
+            <div className="studio-merge-actions">
+              <input
+                value={mergeCommit}
+                onChange={(event) => setMergeCommit(event.target.value)}
+                placeholder="合并提交 SHA（可选）"
+                disabled={busy}
+              />
+              <button
+                type="button"
+                className="studio-btn"
+                data-variant="primary"
+                data-size="sm"
+                disabled={busy}
+                onClick={() => onComplete(mergeCommit.trim() || undefined)}
+              >
+                <IconCheck width={13} height={13} />
+                标记已合并
+              </button>
+            </div>
+          ) : (
+            <div className="studio-action-note">
+              合并已完成；如需继续变更，请创建后续任务。
+            </div>
+          )}
+        </>
+      )}
+    </section>
   );
 }
 
@@ -1424,14 +2119,22 @@ function SettingsView({
             <dd>{data.features.independentPage ? "可用" : "不可用"}</dd>
             <dt>文件持久化</dt>
             <dd>{data.features.filePersistence ? "可用" : "不可用"}</dd>
+            <dt>合并治理</dt>
+            <dd>
+              {data.features.mergeGovernance
+                ? "可用（记录评审，人工执行 Git）"
+                : "不可用"}
+            </dd>
             <dt>Agent 执行</dt>
             <dd className="studio-faint">下一阶段</dd>
-            <dt>Git 分支/合并</dt>
-            <dd className="studio-faint">下一阶段</dd>
+            <dt>Git 自动合并</dt>
+            <dd className="studio-faint">
+              {data.features.gitMerge ? "已启用" : "未启用（有意）"}
+            </dd>
           </dl>
           <p className="studio-hint" style={{ marginTop: 10 }}>
-            v0.1 只使用 DSH Web Server 路由、client slots 和 React，不依赖私有
-            Remote 生成器；宿主能力缺失时会显示错误而不是白屏。
+            v0.2 只使用 DSH Web Server 路由、client slots 和 React，不依赖私有
+            Remote 生成器；合并命令由人执行，Studio 不做不可逆的 Git 操作。
           </p>
         </section>
 
