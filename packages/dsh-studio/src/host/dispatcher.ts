@@ -82,6 +82,14 @@ interface RunContext {
   module: Module | null;
 }
 
+function changedFilesFromDiff(diffStat: string | null): string[] {
+  if (diffStat === null) return [];
+  return diffStat
+    .split("\n")
+    .map((line) => /^[ MARC?]{1,2} (\S.*)$/.exec(line)?.[1]?.trim() ?? "")
+    .filter(Boolean);
+}
+
 function assistantText(messages: AgentMessage[]): string {
   const assistant = [...messages]
     .reverse()
@@ -368,6 +376,13 @@ export class AgentDispatcher {
             : null,
         diffStat,
       });
+      if (workspace !== undefined) {
+        await this.store.enforceContractScope(
+          run.taskId,
+          run.id,
+          changedFilesFromDiff(diffStat),
+        );
+      }
     } catch (error) {
       await this.store
         .failRun(

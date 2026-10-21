@@ -114,6 +114,10 @@ _Avoid_: 目录、文件
 模块的职责、接口摘要、允许/禁止路径和依赖；实现者只按契约卡工作，改契约本身要另开决策/ticket。
 _Avoid_: 文档、注释
 
+**Contract Violation（契约越界）**:
+代码 Run 改动了契约文件、禁止路径，或越出允许的 src/test 路径；Task 必须 blocked 并生成决策。
+_Avoid_: 普通冲突、代码错误
+
 **Project Knowledge（项目知识）**:
 PRD / INVARIANTS / MODULES 等项目级文档，只读保存在仓库里；Studio 只引用路径，不复制第二份正文。
 _Avoid_: 知识库、世界书

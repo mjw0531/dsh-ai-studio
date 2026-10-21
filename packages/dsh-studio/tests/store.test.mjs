@@ -598,6 +598,48 @@ test("blocks a task and escalates after two failed runs", async () => {
   });
 });
 
+test("blocks a code run that edits the module contract", async () => {
+  await withStore(async (store) => {
+    const data = await store.bootstrap();
+    const owner = data.roles[0];
+    const reviewer = data.roles[1];
+    assert.ok(owner && reviewer);
+    const module = await store.createModule({
+      name: "replay",
+      responsibility: "replay 契约",
+      contractPath: "docs/contracts/replay-v1.md",
+      allowedPaths: ["src/replay.js"],
+      forbiddenPaths: ["src/net/"],
+    });
+    const task = await store.createTask({
+      title: "修改 replay 契约",
+      acceptance: ["diff"],
+      ownerRoleId: owner.id,
+      reviewerRoleId: reviewer.id,
+      module: module.name,
+      contractRef: module.contractPath,
+    });
+    await store.transitionTask(task.id, "ready");
+    const run = await store.beginRun(task.id, "test");
+    const violations = await store.enforceContractScope(task.id, run.id, [
+      "docs/contracts/replay-v1.md",
+      "src/net/client.js",
+      "src/replay.js",
+    ]);
+    assert.deepEqual(violations, [
+      "docs/contracts/replay-v1.md",
+      "src/net/client.js",
+    ]);
+    const after = await store.bootstrap();
+    assert.equal(
+      after.tasks.find((item) => item.id === task.id)?.status,
+      "blocked",
+    );
+    assert.equal(after.decisions.length, 1);
+    assert.match(after.decisions[0].title, /契约越界/);
+  });
+});
+
 test("requires a passing verification before merging a code project", async () => {
   await withStore(async (store, dir) => {
     const data = await store.bootstrap();
