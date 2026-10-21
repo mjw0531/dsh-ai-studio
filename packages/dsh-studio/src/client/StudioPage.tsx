@@ -3193,7 +3193,7 @@ function TaskDrawer({
               </div>
             )}
             <div className="studio-action-note">
-              v0.5 已接入 Agent 分析派单、结构化回执、token 计量与决策董事会；合并与 Git 命令仍由人执行。
+              v0.9 已接入 worktree 代码执行、Host 独立验证、模块契约与契约护栏、失败/验证门禁、token 计量与决策董事会；合并与 Git 命令仍由人执行。
             </div>
           </section>
         </div>
@@ -3934,6 +3934,12 @@ function SettingsView({
             <dd>{data.features.codeExecution ? "可用（worktree）" : "不可用"}</dd>
             <dt>独立验证</dt>
             <dd>{data.features.verification ? "可用（Host 执行）" : "不可用"}</dd>
+            <dt>契约护栏</dt>
+            <dd>
+              {data.features.contractGuard
+                ? "可用（契约/禁止路径越界自动升级）"
+                : "不可用"}
+            </dd>
             <dt>合并治理</dt>
             <dd>
               {data.features.mergeGovernance
@@ -3943,7 +3949,7 @@ function SettingsView({
             <dt>Agent 派单</dt>
             <dd>
               {data.features.agentExecution
-                ? "可用（分析模式，返回结构化回执）"
+                ? "可用（分析 / worktree 代码，结构化回执）"
                 : "不可用"}
             </dd>
             <dt>Git 自动合并</dt>
@@ -3952,8 +3958,8 @@ function SettingsView({
             </dd>
           </dl>
           <p className="studio-hint" style={{ marginTop: 10 }}>
-            v0.5 只使用 DSH Web Server 路由、client slots、React 和公开 Agent API，
-            不依赖私有 Remote 生成器；Agent 只做分析/回执，决策与合并由人拍板。
+            v0.9 只使用 DSH Web Server 路由、client slots、React 和公开 Agent API，
+            不依赖私有 Remote 生成器；Agent 在 worktree 写代码，Host 独立验证并执行契约护栏，决策与合并由人拍板。
           </p>
         </section>
 

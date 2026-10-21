@@ -3031,7 +3031,7 @@ function TaskDrawer({
                     status
                   );
                 }) }),
-                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-action-note", children: "v0.5 \u5DF2\u63A5\u5165 Agent \u5206\u6790\u6D3E\u5355\u3001\u7ED3\u6784\u5316\u56DE\u6267\u3001token \u8BA1\u91CF\u4E0E\u51B3\u7B56\u8463\u4E8B\u4F1A\uFF1B\u5408\u5E76\u4E0E Git \u547D\u4EE4\u4ECD\u7531\u4EBA\u6267\u884C\u3002" })
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-action-note", children: "v0.9 \u5DF2\u63A5\u5165 worktree \u4EE3\u7801\u6267\u884C\u3001Host \u72EC\u7ACB\u9A8C\u8BC1\u3001\u6A21\u5757\u5951\u7EA6\u4E0E\u5951\u7EA6\u62A4\u680F\u3001\u5931\u8D25/\u9A8C\u8BC1\u95E8\u7981\u3001token \u8BA1\u91CF\u4E0E\u51B3\u7B56\u8463\u4E8B\u4F1A\uFF1B\u5408\u5E76\u4E0E Git \u547D\u4EE4\u4ECD\u7531\u4EBA\u6267\u884C\u3002" })
               ] })
             ] })
           ]
@@ -3612,14 +3612,16 @@ function SettingsView({
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.codeExecution ? "\u53EF\u7528\uFF08worktree\uFF09" : "\u4E0D\u53EF\u7528" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u72EC\u7ACB\u9A8C\u8BC1" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.verification ? "\u53EF\u7528\uFF08Host \u6267\u884C\uFF09" : "\u4E0D\u53EF\u7528" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u5951\u7EA6\u62A4\u680F" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.contractGuard ? "\u53EF\u7528\uFF08\u5951\u7EA6/\u7981\u6B62\u8DEF\u5F84\u8D8A\u754C\u81EA\u52A8\u5347\u7EA7\uFF09" : "\u4E0D\u53EF\u7528" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u5408\u5E76\u6CBB\u7406" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.mergeGovernance ? "\u53EF\u7528\uFF08\u8BB0\u5F55\u8BC4\u5BA1\uFF0C\u4EBA\u5DE5\u6267\u884C Git\uFF09" : "\u4E0D\u53EF\u7528" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "Agent \u6D3E\u5355" }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.agentExecution ? "\u53EF\u7528\uFF08\u5206\u6790\u6A21\u5F0F\uFF0C\u8FD4\u56DE\u7ED3\u6784\u5316\u56DE\u6267\uFF09" : "\u4E0D\u53EF\u7528" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.agentExecution ? "\u53EF\u7528\uFF08\u5206\u6790 / worktree \u4EE3\u7801\uFF0C\u7ED3\u6784\u5316\u56DE\u6267\uFF09" : "\u4E0D\u53EF\u7528" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "Git \u81EA\u52A8\u5408\u5E76" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { className: "studio-faint", children: data.features.gitMerge ? "\u5DF2\u542F\u7528" : "\u672A\u542F\u7528\uFF08\u6709\u610F\uFF09" })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { className: "studio-hint", style: { marginTop: 10 }, children: "v0.5 \u53EA\u4F7F\u7528 DSH Web Server \u8DEF\u7531\u3001client slots\u3001React \u548C\u516C\u5F00 Agent API\uFF0C \u4E0D\u4F9D\u8D56\u79C1\u6709 Remote \u751F\u6210\u5668\uFF1BAgent \u53EA\u505A\u5206\u6790/\u56DE\u6267\uFF0C\u51B3\u7B56\u4E0E\u5408\u5E76\u7531\u4EBA\u62CD\u677F\u3002" })
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { className: "studio-hint", style: { marginTop: 10 }, children: "v0.9 \u53EA\u4F7F\u7528 DSH Web Server \u8DEF\u7531\u3001client slots\u3001React \u548C\u516C\u5F00 Agent API\uFF0C \u4E0D\u4F9D\u8D56\u79C1\u6709 Remote \u751F\u6210\u5668\uFF1BAgent \u5728 worktree \u5199\u4EE3\u7801\uFF0CHost \u72EC\u7ACB\u9A8C\u8BC1\u5E76\u6267\u884C\u5951\u7EA6\u62A4\u680F\uFF0C\u51B3\u7B56\u4E0E\u5408\u5E76\u7531\u4EBA\u62CD\u677F\u3002" })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "studio-settings-card", children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h3", { children: "\u754C\u9762" }),

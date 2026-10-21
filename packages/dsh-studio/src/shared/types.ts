@@ -5,7 +5,7 @@
  */
 
 export const STUDIO_SCHEMA_VERSION = 9;
-export const STUDIO_PLUGIN_VERSION = "0.8.0";
+export const STUDIO_PLUGIN_VERSION = "0.9.0";
 
 export type TaskStatus =
   | "backlog"
@@ -404,6 +404,7 @@ export interface BootstrapResponse {
     codeExecution: boolean;
     verification: boolean;
     knowledge: boolean;
+    contractGuard: boolean;
     gitMerge: boolean;
   };
 }

@@ -1185,6 +1185,7 @@ export class StudioStore {
           codeExecution: true,
           verification: true,
           knowledge: true,
+          contractGuard: true,
           gitMerge: false,
         },
       };
@@ -1809,6 +1810,108 @@ export class StudioStore {
       });
       await this.save();
       return structuredClone(run);
+    });
+  }
+
+  /**
+   * Enforces the module contract boundary after a code run. Changing the
+   * contract file or a forbidden path blocks the task and escalates a decision;
+   * it never silently rewrites the Agent's worktree.
+   */
+  async enforceContractScope(
+    taskId: string,
+    runId: string,
+    changedFiles: string[],
+  ): Promise<string[]> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const task = this.findTask(state, taskId);
+      const module =
+        task.module === null
+          ? undefined
+          : state.modules.find(
+              (item) =>
+                item.projectId === task.projectId &&
+                item.name === task.module,
+            );
+      if (module === undefined) return [];
+      const normalize = (value: string): string =>
+        value.replaceAll("\\", "/").replace(/^\.\//, "").toLowerCase();
+      const contract = normalize(module.contractPath ?? "");
+      const forbidden = module.forbiddenPaths.map(normalize).filter(Boolean);
+      const allowed = module.allowedPaths.map(normalize).filter(Boolean);
+      const violations = changedFiles
+        .map(normalize)
+        .filter((file) => {
+          if (file === "") return false;
+          if (contract !== "" && file === contract) return true;
+          if (
+            forbidden.some(
+              (path) => file === path || file.startsWith(`${path}/`),
+            )
+          ) {
+            return true;
+          }
+          if (
+            allowed.length > 0 &&
+            (file.startsWith("src/") || file.startsWith("test/")) &&
+            !allowed.some(
+              (path) => file === path || file.startsWith(`${path}/`),
+            )
+          ) {
+            return true;
+          }
+          return false;
+        });
+      if (violations.length === 0) return [];
+      const at = nowIso(this.now);
+      task.status = "blocked";
+      task.updatedAt = at;
+      const title = `契约越界：${task.title.slice(0, 160)}`;
+      if (
+        !state.decisions.some(
+          (item) => item.taskId === task.id && item.title === title,
+        )
+      ) {
+        const run = state.runs.find((item) => item.id === runId);
+        state.decisions.push({
+          id: newId("dec"),
+          projectId: task.projectId,
+          taskId: task.id,
+          runId,
+          title,
+          context: `模块「${module.name}」的契约/禁止路径被修改：${violations.join("、")}`,
+          options: [
+            {
+              label: "退回 Architect 修订契约",
+              tradeoff: "先确认契约边界是否变化，再重开 ticket",
+            },
+            {
+              label: "撤销越界改动",
+              tradeoff: "保留现有契约，要求 Agent 只改允许路径",
+            },
+          ],
+          recommendation:
+            "实现者不能直接改契约或禁止路径；需要契约变更时，应由 Architect/Owner 先更新契约，再重新派单。",
+          status: "pending",
+          decision: "",
+          note: "",
+          decidedBy: "",
+          tokenCost: run?.tokens ?? null,
+          createdAt: at,
+          decidedAt: null,
+        });
+      }
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "contract.violated",
+        at,
+        projectId: task.projectId,
+        taskId: task.id,
+        payload: { runId, module: module.name, violations },
+      });
+      await this.save();
+      return violations;
     });
   }
 

@@ -7,7 +7,7 @@ import path from "node:path";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 9;
-var STUDIO_PLUGIN_VERSION = "0.8.0";
+var STUDIO_PLUGIN_VERSION = "0.9.0";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -820,6 +820,7 @@ var StudioStore = class {
           codeExecution: true,
           verification: true,
           knowledge: true,
+          contractGuard: true,
           gitMerge: false
         }
       };
@@ -1341,6 +1342,86 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       });
       await this.save();
       return structuredClone(run);
+    });
+  }
+  /**
+   * Enforces the module contract boundary after a code run. Changing the
+   * contract file or a forbidden path blocks the task and escalates a decision;
+   * it never silently rewrites the Agent's worktree.
+   */
+  async enforceContractScope(taskId, runId, changedFiles) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const task = this.findTask(state, taskId);
+      const module = task.module === null ? void 0 : state.modules.find(
+        (item) => item.projectId === task.projectId && item.name === task.module
+      );
+      if (module === void 0) return [];
+      const normalize = (value) => value.replaceAll("\\", "/").replace(/^\.\//, "").toLowerCase();
+      const contract = normalize(module.contractPath ?? "");
+      const forbidden = module.forbiddenPaths.map(normalize).filter(Boolean);
+      const allowed = module.allowedPaths.map(normalize).filter(Boolean);
+      const violations = changedFiles.map(normalize).filter((file) => {
+        if (file === "") return false;
+        if (contract !== "" && file === contract) return true;
+        if (forbidden.some(
+          (path2) => file === path2 || file.startsWith(`${path2}/`)
+        )) {
+          return true;
+        }
+        if (allowed.length > 0 && (file.startsWith("src/") || file.startsWith("test/")) && !allowed.some(
+          (path2) => file === path2 || file.startsWith(`${path2}/`)
+        )) {
+          return true;
+        }
+        return false;
+      });
+      if (violations.length === 0) return [];
+      const at = nowIso(this.now);
+      task.status = "blocked";
+      task.updatedAt = at;
+      const title = `\u5951\u7EA6\u8D8A\u754C\uFF1A${task.title.slice(0, 160)}`;
+      if (!state.decisions.some(
+        (item) => item.taskId === task.id && item.title === title
+      )) {
+        const run = state.runs.find((item) => item.id === runId);
+        state.decisions.push({
+          id: newId("dec"),
+          projectId: task.projectId,
+          taskId: task.id,
+          runId,
+          title,
+          context: `\u6A21\u5757\u300C${module.name}\u300D\u7684\u5951\u7EA6/\u7981\u6B62\u8DEF\u5F84\u88AB\u4FEE\u6539\uFF1A${violations.join("\u3001")}`,
+          options: [
+            {
+              label: "\u9000\u56DE Architect \u4FEE\u8BA2\u5951\u7EA6",
+              tradeoff: "\u5148\u786E\u8BA4\u5951\u7EA6\u8FB9\u754C\u662F\u5426\u53D8\u5316\uFF0C\u518D\u91CD\u5F00 ticket"
+            },
+            {
+              label: "\u64A4\u9500\u8D8A\u754C\u6539\u52A8",
+              tradeoff: "\u4FDD\u7559\u73B0\u6709\u5951\u7EA6\uFF0C\u8981\u6C42 Agent \u53EA\u6539\u5141\u8BB8\u8DEF\u5F84"
+            }
+          ],
+          recommendation: "\u5B9E\u73B0\u8005\u4E0D\u80FD\u76F4\u63A5\u6539\u5951\u7EA6\u6216\u7981\u6B62\u8DEF\u5F84\uFF1B\u9700\u8981\u5951\u7EA6\u53D8\u66F4\u65F6\uFF0C\u5E94\u7531 Architect/Owner \u5148\u66F4\u65B0\u5951\u7EA6\uFF0C\u518D\u91CD\u65B0\u6D3E\u5355\u3002",
+          status: "pending",
+          decision: "",
+          note: "",
+          decidedBy: "",
+          tokenCost: run?.tokens ?? null,
+          createdAt: at,
+          decidedAt: null
+        });
+      }
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "contract.violated",
+        at,
+        projectId: task.projectId,
+        taskId: task.id,
+        payload: { runId, module: module.name, violations }
+      });
+      await this.save();
+      return violations;
     });
   }
   async recordVerification(taskId, input) {
