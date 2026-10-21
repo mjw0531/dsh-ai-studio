@@ -138,6 +138,10 @@ _Avoid_: 重试、修复票
 由验收人角色另开 Agent 会话，只读 diff 与 Host 验证结果，给出 pass/fail 和 findings；代码任务 done 前必须有通过评审。
 _Avoid_: 自测、验收（Review 是验收的一部分）
 
+**Integration Gate（集成分期）**:
+每完成 3 个任务自动生成的 backlog 集成/playtest ticket；要求打包可玩并人玩 10 分钟，不自动派单。
+_Avoid_: 自动发布、总验收
+
 **Run（运行）**:
 一个 Agent 对某个 Task 的一次尝试；可失败、重试、换人。
 _Avoid_: 任务（Task 可以有很多 Run）

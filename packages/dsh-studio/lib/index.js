@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 11;
-var STUDIO_PLUGIN_VERSION = "1.1.0";
+var STUDIO_PLUGIN_VERSION = "1.2.0";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -2573,8 +2573,68 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         taskId: task.id,
         payload: { from, to: next }
       });
+      if (next === "done") {
+        this.scheduleIntegrationGate(state, task.projectId, at);
+      }
       await this.save();
       return structuredClone(task);
+    });
+  }
+  scheduleIntegrationGate(state, projectId, at) {
+    const done = state.tasks.filter(
+      (item) => item.projectId === projectId && item.status === "done"
+    ).length;
+    const generated = state.tasks.filter(
+      (item) => item.projectId === projectId && item.title.startsWith("\u96C6\u6210\u9A8C\u6536\uFF08\u81EA\u52A8 #")
+    ).length;
+    if (Math.floor(done / 3) <= generated) return;
+    const lead = state.roles.find(
+      (role) => role.projectId === projectId && (role.id === "role-lead" || role.title.includes("\u5236\u4F5C\u4EBA"))
+    ) ?? state.roles.find((role) => role.projectId === projectId);
+    const verifier = state.roles.find(
+      (role) => role.projectId === projectId && (role.id === "role-verifier" || role.title.includes("QA"))
+    ) ?? lead;
+    if (lead === void 0) return;
+    const index = generated + 1;
+    const task = {
+      id: newId("task"),
+      projectId,
+      title: `\u96C6\u6210\u9A8C\u6536\uFF08\u81EA\u52A8 #${String(index)}\uFF09`,
+      goal: "\u6BCF 3 \u4E2A\u5B8C\u6210\u4EFB\u52A1\u540E\u7684\u96C6\u6210 gate\uFF1A\u6253\u5305\u5F53\u524D build\uFF0C\u4EBA\u73A9 10 \u5206\u949F\uFF0C\u8BB0\u5F55\u963B\u65AD\u95EE\u9898\u4E0E\u53EF\u7EE7\u7EED\u8FED\u4EE3\u7684\u5224\u65AD\u3002",
+      status: "backlog",
+      priority: "P1",
+      ownerRoleId: lead.id,
+      reviewerRoleId: verifier?.id ?? lead.id,
+      acceptance: [
+        {
+          id: newId("acc"),
+          text: "\u6253\u5305\u51FA\u53EF\u8FD0\u884C build",
+          done: false
+        },
+        {
+          id: newId("acc"),
+          text: "\u4EBA\u73A9 10 \u5206\u949F\u5E76\u8BB0\u5F55\u963B\u65AD\u95EE\u9898",
+          done: false
+        }
+      ],
+      evidence: [],
+      branch: null,
+      verifyCommand: "npm test",
+      module: null,
+      contractRef: null,
+      kind: "new",
+      integration: true,
+      originTaskId: null,
+      createdAt: at,
+      updatedAt: at
+    };
+    state.tasks.push(task);
+    this.recordEvent(state, {
+      type: "integration.scheduled",
+      at,
+      projectId,
+      taskId: task.id,
+      payload: { index, doneTasks: done }
     });
   }
   async listTransitions(taskId) {
