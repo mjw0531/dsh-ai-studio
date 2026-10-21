@@ -43,6 +43,7 @@ import type {
   Task,
   TaskPriority,
   TaskStatus,
+  Verification,
 } from "../shared/types.js";
 import {
   readStudioBoot,
@@ -549,6 +550,19 @@ export function StudioPage() {
     );
   };
 
+  const verifyTask = async (
+    task: Task,
+    command: string,
+  ): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.verifyTask(task.id, command);
+      },
+      "验证命令已执行",
+    );
+  };
+
   const createDecision = async (
     input: CreateDecisionInput,
   ): Promise<boolean> => {
@@ -851,10 +865,14 @@ export function StudioPage() {
           roles={data.roles}
           mergeProposal={selectedMerge}
           runs={data.runs.filter((run) => run.taskId === selectedTask.id)}
+          verifications={data.verifications.filter(
+            (verification) => verification.taskId === selectedTask.id,
+          )}
           codeMode={data.project?.repoPath != null}
           busy={busy}
           onClose={() => setSelectedTaskId(null)}
           onDispatch={() => dispatchTask(selectedTask)}
+          onVerify={(command) => verifyTask(selectedTask, command)}
           onTransition={(status) => void transitionTask(selectedTask, status)}
           onToggleAcceptance={(id) =>
             void toggleAcceptance(selectedTask, id)
@@ -2481,10 +2499,12 @@ function TaskDrawer({
   roles,
   mergeProposal,
   runs,
+  verifications,
   codeMode,
   busy,
   onClose,
   onDispatch,
+  onVerify,
   onTransition,
   onToggleAcceptance,
   onAddEvidence,
@@ -2497,10 +2517,12 @@ function TaskDrawer({
   roles: Role[];
   mergeProposal: MergeProposal | null;
   runs: AgentRun[];
+  verifications: Verification[];
   codeMode: boolean;
   busy: boolean;
   onClose: () => void;
   onDispatch: () => Promise<boolean>;
+  onVerify: (command: string) => Promise<boolean>;
   onTransition: (status: TaskStatus) => void;
   onToggleAcceptance: (id: string) => void;
   onAddEvidence: (text: string) => Promise<boolean>;
@@ -2693,9 +2715,25 @@ function TaskDrawer({
             onDispatch={onDispatch}
           />
 
+          <TaskVerificationPanel
+            task={task}
+            runs={runs}
+            verifications={verifications}
+            busy={busy}
+            onVerify={onVerify}
+          />
+
           <TaskMergePanel
             task={task}
             proposal={mergeProposal}
+            verification={
+              mergeProposal?.verificationId === null ||
+              mergeProposal?.verificationId === undefined
+                ? null
+                : (verifications.find(
+                    (item) => item.id === mergeProposal.verificationId,
+                  ) ?? null)
+            }
             busy={busy}
             onCreate={onCreateMerge}
             onApprove={onApproveMerge}
@@ -2746,6 +2784,80 @@ function TaskDrawer({
         </div>
       </aside>
     </div>
+  );
+}
+
+function TaskVerificationPanel({
+  task,
+  runs,
+  verifications,
+  busy,
+  onVerify,
+}: {
+  task: Task;
+  runs: AgentRun[];
+  verifications: Verification[];
+  busy: boolean;
+  onVerify: (command: string) => Promise<boolean>;
+}) {
+  const [command, setCommand] = useState(
+    task.verifyCommand ?? "npm test",
+  );
+  const latest = verifications[0] ?? null;
+  const workspaceRun = runs.find((run) => run.workspacePath !== null);
+  return (
+    <section>
+      <div className="studio-section-label">独立验证</div>
+      <div className="studio-action-note" style={{ marginTop: 0 }}>
+        由 Studio Host 在任务 worktree 内直接执行，不经过 Agent 会话。
+        验证通过会写入 evidence，但不会自动通过验收。
+      </div>
+      {workspaceRun === undefined ? (
+        <div className="studio-faint" style={{ fontSize: 11, marginTop: 9 }}>
+          还没有带 worktree 的 Run；先派单执行一次。
+        </div>
+      ) : (
+        <>
+          <div className="studio-verify-form">
+            <input
+              value={command}
+              onChange={(event) => setCommand(event.target.value)}
+              aria-label="验证命令"
+              placeholder="npm test"
+            />
+            <button
+              type="button"
+              className="studio-btn"
+              data-size="sm"
+              disabled={busy || command.trim() === ""}
+              onClick={() => void onVerify(command.trim())}
+            >
+              <IconCheck width={13} height={13} />
+              运行验证
+            </button>
+          </div>
+          {latest === null ? (
+            <div className="studio-faint" style={{ fontSize: 11, marginTop: 8 }}>
+              还没有验证记录。
+            </div>
+          ) : (
+            <div
+              className="studio-verification"
+              data-passed={latest.passed}
+            >
+              <div className="studio-verification-head">
+                <span className="studio-pill" data-tone={latest.passed ? "ok" : "p0"}>
+                  {latest.passed ? "通过" : "失败"}
+                </span>
+                <code>{latest.command}</code>
+                <span className="studio-faint">exit {latest.exitCode}</span>
+              </div>
+              <pre>{latest.output.slice(0, 4000) || "（无输出）"}</pre>
+            </div>
+          )}
+        </>
+      )}
+    </section>
   );
 }
 
@@ -2944,6 +3056,7 @@ function ReceiptList({ label, items }: { label: string; items: string[] }) {
 function TaskMergePanel({
   task,
   proposal,
+  verification,
   busy,
   onCreate,
   onApprove,
@@ -2952,6 +3065,7 @@ function TaskMergePanel({
 }: {
   task: Task;
   proposal: MergeProposal | null;
+  verification: Verification | null;
   busy: boolean;
   onCreate: (input: CreateMergeProposalInput) => Promise<boolean>;
   onApprove: (note?: string) => void;
@@ -3109,6 +3223,36 @@ function TaskMergePanel({
               <dd>{activeProposal.summary}</dd>
               <dt>回滚方案</dt>
               <dd>{activeProposal.rollback}</dd>
+              {activeProposal.changedFiles.length > 0 ? (
+                <>
+                  <dt>变更文件</dt>
+                  <dd className="studio-mono">
+                    {activeProposal.changedFiles.join("、")}
+                  </dd>
+                </>
+              ) : null}
+              {activeProposal.diffStat !== null ? (
+                <>
+                  <dt>Diff</dt>
+                  <dd>
+                    <pre className="studio-diff">{activeProposal.diffStat}</pre>
+                  </dd>
+                </>
+              ) : null}
+              {verification !== null ? (
+                <>
+                  <dt>独立验证</dt>
+                  <dd>
+                    <span
+                      className="studio-pill"
+                      data-tone={verification.passed ? "ok" : "p0"}
+                    >
+                      {verification.passed ? "通过" : "失败"}
+                    </span>{" "}
+                    <code>{verification.command}</code>
+                  </dd>
+                </>
+              ) : null}
               <dt>评审备注</dt>
               <dd>{activeProposal.reviewNote || "无"}</dd>
               {activeProposal.mergeCommit !== null ? (
@@ -3366,6 +3510,8 @@ function SettingsView({
             <dd>{data.features.branchBoard ? "可用" : "不可用"}</dd>
             <dt>代码执行</dt>
             <dd>{data.features.codeExecution ? "可用（worktree）" : "不可用"}</dd>
+            <dt>独立验证</dt>
+            <dd>{data.features.verification ? "可用（Host 执行）" : "不可用"}</dd>
             <dt>合并治理</dt>
             <dd>
               {data.features.mergeGovernance
@@ -3499,6 +3645,7 @@ function TaskForm({
   );
   const [acceptanceText, setAcceptanceText] = useState("");
   const [branch, setBranch] = useState("");
+  const [verifyCommand, setVerifyCommand] = useState("npm test");
   const [localError, setLocalError] = useState<string | null>(null);
 
   const submit = (event: FormEvent): void => {
@@ -3528,6 +3675,7 @@ function TaskForm({
       reviewerRoleId: reviewerRoleId || null,
       acceptance,
       branch: branch.trim() || null,
+      verifyCommand: verifyCommand.trim() || null,
     });
   };
 
@@ -3599,6 +3747,18 @@ function TaskForm({
               onChange={(event) => setBranch(event.target.value)}
               placeholder="task/003-ability"
             />
+          </div>
+        </div>
+        <div className="studio-field">
+          <label htmlFor="task-verify">验证命令（可选）</label>
+          <input
+            id="task-verify"
+            value={verifyCommand}
+            onChange={(event) => setVerifyCommand(event.target.value)}
+            placeholder="npm test"
+          />
+          <div className="studio-hint">
+            由 Studio Host 在 worktree 内独立执行；通过会写 evidence，但不自动通过验收。
           </div>
         </div>
         <div className="studio-field-row">

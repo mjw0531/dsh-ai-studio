@@ -16,6 +16,7 @@ import type {
   TransitionTaskInput,
   UpdateProjectInput,
   UpdateTaskInput,
+  Verification,
 } from "../shared/types.js";
 import { StudioStore, StudioStoreError } from "./store.js";
 
@@ -34,6 +35,7 @@ interface StudioRouterOptions {
   connection: ConnectionLike;
   getBootPayload: () => unknown;
   dispatchTask: (taskId: string) => Promise<AgentRun>;
+  verifyTask: (taskId: string, command?: string) => Promise<Verification>;
 }
 
 interface ParsedRequest {
@@ -355,6 +357,10 @@ export class StudioRouter {
   private readonly connection: ConnectionLike;
   private readonly getBootPayload: () => unknown;
   private readonly dispatchTask: (taskId: string) => Promise<AgentRun>;
+  private readonly verifyTask: (
+    taskId: string,
+    command?: string,
+  ) => Promise<Verification>;
 
   constructor(options: StudioRouterOptions) {
     this.store = options.store;
@@ -364,6 +370,7 @@ export class StudioRouter {
     this.connection = options.connection;
     this.getBootPayload = options.getBootPayload;
     this.dispatchTask = options.dispatchTask;
+    this.verifyTask = options.verifyTask;
   }
 
   async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -531,6 +538,24 @@ export class StudioRouter {
         decodeSegment(taskDispatch[1] ?? ""),
       );
       sendJson(res, 202, { ok: true, run });
+      return;
+    }
+
+    const taskVerify =
+      /^\/studio-api\/tasks\/([^/]+)\/verify$/.exec(parsed.pathname);
+    if (taskVerify !== null) {
+      this.requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const body = (await readJson(req)) as { command?: unknown };
+      const command =
+        body.command === undefined
+          ? undefined
+          : asOptionalString(body.command, "command");
+      const verification = await this.verifyTask(
+        decodeSegment(taskVerify[1] ?? ""),
+        command,
+      );
+      sendJson(res, 200, { ok: true, verification });
       return;
     }
 

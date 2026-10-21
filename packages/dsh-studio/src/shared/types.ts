@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 6;
-export const STUDIO_PLUGIN_VERSION = "0.6.0";
+export const STUDIO_SCHEMA_VERSION = 7;
+export const STUDIO_PLUGIN_VERSION = "0.6.1";
 
 export type TaskStatus =
   | "backlog"
@@ -70,8 +70,22 @@ export interface Task {
   acceptance: AcceptanceItem[];
   evidence: EvidenceItem[];
   branch: string | null;
+  verifyCommand: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface Verification {
+  id: string;
+  projectId: string;
+  taskId: string;
+  runId: string | null;
+  command: string;
+  workdir: string;
+  exitCode: number;
+  output: string;
+  passed: boolean;
+  createdAt: string;
 }
 
 export type MergeRisk = "low" | "medium" | "high";
@@ -89,6 +103,9 @@ export interface MergeProposal {
   status: MergeStatus;
   reviewNote: string;
   mergeCommit: string | null;
+  diffStat: string | null;
+  changedFiles: string[];
+  verificationId: string | null;
   createdAt: string;
   updatedAt: string;
   decidedAt: string | null;
@@ -224,6 +241,7 @@ export interface StudioState {
   branches: Branch[];
   contractChanges: ContractChange[];
   decisions: Decision[];
+  verifications: Verification[];
   events: StudioEvent[];
 }
 
@@ -348,6 +366,7 @@ export interface BootstrapResponse {
   branches: Branch[];
   contractChanges: ContractChange[];
   decisions: Decision[];
+  verifications: Verification[];
   stats: StudioStats;
   events: StudioEvent[];
   company: CompanySummary;
@@ -360,6 +379,7 @@ export interface BootstrapResponse {
     decisionBoard: boolean;
     branchBoard: boolean;
     codeExecution: boolean;
+    verification: boolean;
     gitMerge: boolean;
   };
 }
@@ -514,6 +534,11 @@ export interface CreateTaskInput {
   reviewerRoleId?: string | null;
   acceptance?: string[];
   branch?: string | null;
+  verifyCommand?: string | null;
+}
+
+export interface VerifyTaskInput {
+  command?: string;
 }
 
 export interface UpdateTaskInput {
@@ -525,6 +550,7 @@ export interface UpdateTaskInput {
   acceptance?: AcceptanceItem[];
   evidence?: EvidenceItem[];
   branch?: string | null;
+  verifyCommand?: string | null;
 }
 
 export interface TransitionTaskInput {

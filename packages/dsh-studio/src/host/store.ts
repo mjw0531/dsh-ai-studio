@@ -48,6 +48,7 @@ import type {
   TaskStatus,
   UpdateProjectInput,
   UpdateTaskInput,
+  Verification,
 } from "../shared/types.js";
 
 export class StudioStoreError extends Error {
@@ -704,7 +705,10 @@ function isTask(value: unknown): value is Task {
     isTaskStatus(value.status) &&
     isTaskPriority(value.priority) &&
     Array.isArray(value.acceptance) &&
-    Array.isArray(value.evidence)
+    Array.isArray(value.evidence) &&
+    (value.verifyCommand === null ||
+      value.verifyCommand === undefined ||
+      typeof value.verifyCommand === "string")
   );
 }
 
@@ -729,6 +733,13 @@ function isMergeProposal(value: unknown): value is MergeProposal {
       value.status === "merged") &&
     typeof value.reviewNote === "string" &&
     (value.mergeCommit === null || typeof value.mergeCommit === "string") &&
+    (value.diffStat === null ||
+      value.diffStat === undefined ||
+      typeof value.diffStat === "string") &&
+    (Array.isArray(value.changedFiles) || value.changedFiles === undefined) &&
+    (value.verificationId === null ||
+      value.verificationId === undefined ||
+      typeof value.verificationId === "string") &&
     typeof value.createdAt === "string" &&
     typeof value.updatedAt === "string" &&
     (value.decidedAt === null || typeof value.decidedAt === "string") &&
@@ -804,6 +815,22 @@ function isContractChange(value: unknown): value is ContractChange {
   );
 }
 
+function isVerification(value: unknown): value is Verification {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.projectId === "string" &&
+    typeof value.taskId === "string" &&
+    (value.runId === null || typeof value.runId === "string") &&
+    typeof value.command === "string" &&
+    typeof value.workdir === "string" &&
+    typeof value.exitCode === "number" &&
+    typeof value.output === "string" &&
+    typeof value.passed === "boolean" &&
+    typeof value.createdAt === "string"
+  );
+}
+
 function migrateState(value: unknown): StudioState {
   if (!isRecord(value)) {
     throw new Error("Studio state must be an object");
@@ -870,9 +897,9 @@ function migrateState(value: unknown): StudioState {
     };
   }
   if (state.schemaVersion === 5) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 6,
       projects: state.projects.map((project) => ({
         ...project,
         repoPath: project.repoPath ?? null,
@@ -883,6 +910,29 @@ function migrateState(value: unknown): StudioState {
         workspacePath: run.workspacePath ?? null,
         diffStat: run.diffStat ?? null,
       })),
+    };
+  }
+  if (state.schemaVersion === 6) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      tasks: state.tasks.map((task) => ({
+        ...task,
+        verifyCommand: task.verifyCommand ?? null,
+      })),
+      mergeProposals: state.mergeProposals.map((proposal) => ({
+        ...proposal,
+        diffStat: proposal.diffStat ?? null,
+        changedFiles: Array.isArray(proposal.changedFiles)
+          ? proposal.changedFiles
+          : [],
+        verificationId: proposal.verificationId ?? null,
+      })),
+      verifications: Array.isArray(
+        (state as unknown as { verifications?: unknown }).verifications,
+      )
+        ? ((state as unknown as { verifications: Verification[] }).verifications)
+        : [],
     };
   }
   return state;
@@ -906,6 +956,7 @@ function assertState(value: unknown): asserts value is StudioState {
     !Array.isArray(value.branches) ||
     !Array.isArray(value.contractChanges) ||
     !Array.isArray(value.decisions) ||
+    !Array.isArray(value.verifications) ||
     !Array.isArray(value.events)
   ) {
     throw new Error("Studio state collections are missing");
@@ -930,6 +981,9 @@ function assertState(value: unknown): asserts value is StudioState {
   }
   if (!value.contractChanges.every(isContractChange)) {
     throw new Error("Studio state contains an invalid contract change");
+  }
+  if (!value.verifications.every(isVerification)) {
+    throw new Error("Studio state contains an invalid verification");
   }
   if (!value.decisions.every(isDecision)) {
     throw new Error("Studio state contains an invalid decision");
@@ -994,6 +1048,13 @@ export class StudioStore {
         : state.contractChanges.filter(
             (change) => change.projectId === project.id,
           );
+      const verifications = project === null
+        ? []
+        : state.verifications
+            .filter((verification) => verification.projectId === project.id)
+            .sort((left, right) =>
+              right.createdAt.localeCompare(left.createdAt),
+            );
       const decisions = project === null
         ? []
         : state.decisions
@@ -1033,6 +1094,7 @@ export class StudioStore {
         branches,
         contractChanges,
         decisions,
+        verifications,
         stats: statsFor(tasks, mergeProposals),
         events,
         company: buildCompany(state, now),
@@ -1045,6 +1107,7 @@ export class StudioStore {
           decisionBoard: true,
           branchBoard: true,
           codeExecution: true,
+          verification: true,
           gitMerge: false,
         },
       };
@@ -1150,6 +1213,28 @@ export class StudioStore {
         task: structuredClone(task),
         role: structuredClone(role),
         project: structuredClone(project),
+      };
+    });
+  }
+
+  async getTaskVerificationContext(taskId: string): Promise<{
+    task: Task;
+    run: AgentRun | null;
+  }> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const task = this.findTask(state, taskId);
+      const run = [...state.runs]
+        .filter(
+          (item) =>
+            item.taskId === taskId && item.workspacePath !== null,
+        )
+        .sort((left, right) =>
+          right.startedAt.localeCompare(left.startedAt),
+        )[0];
+      return {
+        task: structuredClone(task),
+        run: run === undefined ? null : structuredClone(run),
       };
     });
   }
@@ -1613,6 +1698,72 @@ export class StudioStore {
     });
   }
 
+  async recordVerification(
+    taskId: string,
+    input: {
+      command: string;
+      workdir: string;
+      exitCode: number;
+      output: string;
+      passed: boolean;
+      runId?: string | null;
+    },
+  ): Promise<Verification> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const task = this.findTask(state, taskId);
+      const at = nowIso(this.now);
+      const run = input.runId
+        ? state.runs.find((item) => item.id === input.runId)
+        : [...state.runs]
+            .filter(
+              (item) =>
+                item.taskId === taskId && item.workspacePath !== null,
+            )
+            .sort((left, right) =>
+              right.startedAt.localeCompare(left.startedAt),
+            )[0];
+      const verification: Verification = {
+        id: newId("verify"),
+        projectId: task.projectId,
+        taskId,
+        runId: run?.id ?? null,
+        command: requiredText(input.command, "command", 500),
+        workdir: requiredText(input.workdir, "workdir", 1000),
+        exitCode: input.exitCode,
+        output: input.output.slice(0, 20000),
+        passed: input.passed,
+        createdAt: at,
+      };
+      state.verifications.push(verification);
+      if (input.passed) {
+        const text = `验证通过：\`${verification.command}\`（exit 0）`;
+        if (!task.evidence.some((item) => item.text === text)) {
+          task.evidence.push({
+            id: newId("ev"),
+            text,
+            createdAt: at,
+          });
+        }
+      }
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: input.passed ? "verification.passed" : "verification.failed",
+        at,
+        projectId: task.projectId,
+        taskId,
+        payload: {
+          verificationId: verification.id,
+          command: verification.command,
+          exitCode: verification.exitCode,
+          runId: verification.runId,
+        },
+      });
+      await this.save();
+      return structuredClone(verification);
+    });
+  }
+
   async createDecision(input: CreateDecisionInput): Promise<Decision> {
     return this.runExclusive(async () => {
       const state = this.requireState();
@@ -1850,6 +2001,8 @@ export class StudioStore {
         acceptance: normalizeAcceptance(input.acceptance ?? []),
         evidence: [],
         branch: optionalText(input.branch, "branch", 160) || null,
+        verifyCommand:
+          optionalText(input.verifyCommand, "verifyCommand", 500) || null,
         createdAt: at,
         updatedAt: at,
       };
@@ -1914,6 +2067,10 @@ export class StudioStore {
       }
       if (input.branch !== undefined) {
         task.branch = optionalText(input.branch, "branch", 160) || null;
+      }
+      if (input.verifyCommand !== undefined) {
+        task.verifyCommand =
+          optionalText(input.verifyCommand, "verifyCommand", 500) || null;
       }
       task.updatedAt = at;
       state.updatedAt = at;
@@ -2043,6 +2200,24 @@ export class StudioStore {
         throw new StudioStoreError("invalid_input", "risk 必须是 low/medium/high");
       }
       const at = nowIso(this.now);
+      const latestRun = [...state.runs]
+        .filter((run) => run.taskId === task.id)
+        .sort((left, right) =>
+          right.startedAt.localeCompare(left.startedAt),
+        )[0];
+      const latestVerification = [...state.verifications]
+        .filter((verification) => verification.taskId === task.id)
+        .sort((left, right) =>
+          right.createdAt.localeCompare(left.createdAt),
+        )[0];
+      const changedFiles =
+        latestRun?.diffStat === null || latestRun?.diffStat === undefined
+          ? []
+          : latestRun.diffStat
+              .split("\n")
+              .filter((line) => /^[ MARC?]{1,2} \S/.test(line))
+              .map((line) => line.slice(3).trim())
+              .filter(Boolean);
       const proposal: MergeProposal = {
         id: newId("merge"),
         projectId: task.projectId,
@@ -2055,6 +2230,9 @@ export class StudioStore {
         status: "review",
         reviewNote: "",
         mergeCommit: null,
+        diffStat: latestRun?.diffStat ?? null,
+        changedFiles,
+        verificationId: latestVerification?.id ?? null,
         createdAt: at,
         updatedAt: at,
         decidedAt: null,
@@ -2484,6 +2662,7 @@ export class StudioStore {
       acceptance: items,
       evidence: [],
       branch,
+      verifyCommand: null,
       createdAt: at,
       updatedAt: at,
     });
@@ -2573,6 +2752,7 @@ export class StudioStore {
         })),
       contractChanges: [],
       decisions: [],
+      verifications: [],
       events: [
         {
           id: "evt-demo",

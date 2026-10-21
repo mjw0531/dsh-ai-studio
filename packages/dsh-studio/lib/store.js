@@ -6,8 +6,8 @@ import os from "node:os";
 import path from "node:path";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 6;
-var STUDIO_PLUGIN_VERSION = "0.6.0";
+var STUDIO_SCHEMA_VERSION = 7;
+var STUDIO_PLUGIN_VERSION = "0.6.1";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -533,13 +533,13 @@ function isAgentRun(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.branchName === null || typeof value.branchName === "string") && (value.workspacePath === null || typeof value.workspacePath === "string") && (value.diffStat === null || typeof value.diffStat === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
 }
 function isTask(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence);
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence) && (value.verifyCommand === null || value.verifyCommand === void 0 || typeof value.verifyCommand === "string");
 }
 function isMergeRisk(value) {
   return value === "low" || value === "medium" || value === "high";
 }
 function isMergeProposal(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && typeof value.branch === "string" && typeof value.base === "string" && typeof value.summary === "string" && isMergeRisk(value.risk) && typeof value.rollback === "string" && (value.status === "review" || value.status === "approved" || value.status === "rejected" || value.status === "merged") && typeof value.reviewNote === "string" && (value.mergeCommit === null || typeof value.mergeCommit === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && (value.mergedAt === null || typeof value.mergedAt === "string");
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && typeof value.branch === "string" && typeof value.base === "string" && typeof value.summary === "string" && isMergeRisk(value.risk) && typeof value.rollback === "string" && (value.status === "review" || value.status === "approved" || value.status === "rejected" || value.status === "merged") && typeof value.reviewNote === "string" && (value.mergeCommit === null || typeof value.mergeCommit === "string") && (value.diffStat === null || value.diffStat === void 0 || typeof value.diffStat === "string") && (Array.isArray(value.changedFiles) || value.changedFiles === void 0) && (value.verificationId === null || value.verificationId === void 0 || typeof value.verificationId === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && (value.mergedAt === null || typeof value.mergedAt === "string");
 }
 function isDecisionStatus(value) {
   return value === "pending" || value === "approved" || value === "rejected";
@@ -555,6 +555,9 @@ function isBranch(value) {
 }
 function isContractChange(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.branchId === "string" && (value.taskId === null || typeof value.taskId === "string") && (value.runId === null || typeof value.runId === "string") && typeof value.contract === "string" && typeof value.change === "string" && typeof value.createdAt === "string";
+}
+function isVerification(value) {
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.runId === null || typeof value.runId === "string") && typeof value.command === "string" && typeof value.workdir === "string" && typeof value.exitCode === "number" && typeof value.output === "string" && typeof value.passed === "boolean" && typeof value.createdAt === "string";
 }
 function migrateState(value) {
   if (!isRecord(value)) {
@@ -618,9 +621,9 @@ function migrateState(value) {
     };
   }
   if (state.schemaVersion === 5) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 6,
       projects: state.projects.map((project) => ({
         ...project,
         repoPath: project.repoPath ?? null
@@ -631,6 +634,25 @@ function migrateState(value) {
         workspacePath: run.workspacePath ?? null,
         diffStat: run.diffStat ?? null
       }))
+    };
+  }
+  if (state.schemaVersion === 6) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      tasks: state.tasks.map((task) => ({
+        ...task,
+        verifyCommand: task.verifyCommand ?? null
+      })),
+      mergeProposals: state.mergeProposals.map((proposal) => ({
+        ...proposal,
+        diffStat: proposal.diffStat ?? null,
+        changedFiles: Array.isArray(proposal.changedFiles) ? proposal.changedFiles : [],
+        verificationId: proposal.verificationId ?? null
+      })),
+      verifications: Array.isArray(
+        state.verifications
+      ) ? state.verifications : []
     };
   }
   return state;
@@ -644,7 +666,7 @@ function assertState(value) {
       `Unsupported Studio schema version: ${String(value.schemaVersion)}`
     );
   }
-  if (!Array.isArray(value.projects) || !Array.isArray(value.roles) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.runs) || !Array.isArray(value.branches) || !Array.isArray(value.contractChanges) || !Array.isArray(value.decisions) || !Array.isArray(value.events)) {
+  if (!Array.isArray(value.projects) || !Array.isArray(value.roles) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.runs) || !Array.isArray(value.branches) || !Array.isArray(value.contractChanges) || !Array.isArray(value.decisions) || !Array.isArray(value.verifications) || !Array.isArray(value.events)) {
     throw new Error("Studio state collections are missing");
   }
   if (!value.projects.every(isProject)) {
@@ -667,6 +689,9 @@ function assertState(value) {
   }
   if (!value.contractChanges.every(isContractChange)) {
     throw new Error("Studio state contains an invalid contract change");
+  }
+  if (!value.verifications.every(isVerification)) {
+    throw new Error("Studio state contains an invalid verification");
   }
   if (!value.decisions.every(isDecision)) {
     throw new Error("Studio state contains an invalid decision");
@@ -710,6 +735,9 @@ var StudioStore = class {
       const contractChanges = project === null ? [] : state.contractChanges.filter(
         (change) => change.projectId === project.id
       );
+      const verifications = project === null ? [] : state.verifications.filter((verification) => verification.projectId === project.id).sort(
+        (left, right) => right.createdAt.localeCompare(left.createdAt)
+      );
       const decisions = project === null ? [] : state.decisions.filter((decision) => decision.projectId === project.id).sort((left, right) => {
         if (left.status !== right.status) {
           if (left.status === "pending") return -1;
@@ -742,6 +770,7 @@ var StudioStore = class {
         branches,
         contractChanges,
         decisions,
+        verifications,
         stats: statsFor(tasks, mergeProposals),
         events,
         company: buildCompany(state, now),
@@ -754,6 +783,7 @@ var StudioStore = class {
           decisionBoard: true,
           branchBoard: true,
           codeExecution: true,
+          verification: true,
           gitMerge: false
         }
       };
@@ -847,6 +877,21 @@ var StudioStore = class {
         task: structuredClone(task),
         role: structuredClone(role),
         project: structuredClone(project)
+      };
+    });
+  }
+  async getTaskVerificationContext(taskId) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const task = this.findTask(state, taskId);
+      const run = [...state.runs].filter(
+        (item) => item.taskId === taskId && item.workspacePath !== null
+      ).sort(
+        (left, right) => right.startedAt.localeCompare(left.startedAt)
+      )[0];
+      return {
+        task: structuredClone(task),
+        run: run === void 0 ? null : structuredClone(run)
       };
     });
   }
@@ -1234,6 +1279,56 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       return structuredClone(run);
     });
   }
+  async recordVerification(taskId, input) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const task = this.findTask(state, taskId);
+      const at = nowIso(this.now);
+      const run = input.runId ? state.runs.find((item) => item.id === input.runId) : [...state.runs].filter(
+        (item) => item.taskId === taskId && item.workspacePath !== null
+      ).sort(
+        (left, right) => right.startedAt.localeCompare(left.startedAt)
+      )[0];
+      const verification = {
+        id: newId("verify"),
+        projectId: task.projectId,
+        taskId,
+        runId: run?.id ?? null,
+        command: requiredText(input.command, "command", 500),
+        workdir: requiredText(input.workdir, "workdir", 1e3),
+        exitCode: input.exitCode,
+        output: input.output.slice(0, 2e4),
+        passed: input.passed,
+        createdAt: at
+      };
+      state.verifications.push(verification);
+      if (input.passed) {
+        const text = `\u9A8C\u8BC1\u901A\u8FC7\uFF1A\`${verification.command}\`\uFF08exit 0\uFF09`;
+        if (!task.evidence.some((item) => item.text === text)) {
+          task.evidence.push({
+            id: newId("ev"),
+            text,
+            createdAt: at
+          });
+        }
+      }
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: input.passed ? "verification.passed" : "verification.failed",
+        at,
+        projectId: task.projectId,
+        taskId,
+        payload: {
+          verificationId: verification.id,
+          command: verification.command,
+          exitCode: verification.exitCode,
+          runId: verification.runId
+        }
+      });
+      await this.save();
+      return structuredClone(verification);
+    });
+  }
   async createDecision(input) {
     return this.runExclusive(async () => {
       const state = this.requireState();
@@ -1458,6 +1553,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         acceptance: normalizeAcceptance(input.acceptance ?? []),
         evidence: [],
         branch: optionalText(input.branch, "branch", 160) || null,
+        verifyCommand: optionalText(input.verifyCommand, "verifyCommand", 500) || null,
         createdAt: at,
         updatedAt: at
       };
@@ -1521,6 +1617,9 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       }
       if (input.branch !== void 0) {
         task.branch = optionalText(input.branch, "branch", 160) || null;
+      }
+      if (input.verifyCommand !== void 0) {
+        task.verifyCommand = optionalText(input.verifyCommand, "verifyCommand", 500) || null;
       }
       task.updatedAt = at;
       state.updatedAt = at;
@@ -1640,6 +1739,13 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         throw new StudioStoreError("invalid_input", "risk \u5FC5\u987B\u662F low/medium/high");
       }
       const at = nowIso(this.now);
+      const latestRun = [...state.runs].filter((run) => run.taskId === task.id).sort(
+        (left, right) => right.startedAt.localeCompare(left.startedAt)
+      )[0];
+      const latestVerification = [...state.verifications].filter((verification) => verification.taskId === task.id).sort(
+        (left, right) => right.createdAt.localeCompare(left.createdAt)
+      )[0];
+      const changedFiles = latestRun?.diffStat === null || latestRun?.diffStat === void 0 ? [] : latestRun.diffStat.split("\n").filter((line) => /^[ MARC?]{1,2} \S/.test(line)).map((line) => line.slice(3).trim()).filter(Boolean);
       const proposal = {
         id: newId("merge"),
         projectId: task.projectId,
@@ -1652,6 +1758,9 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         status: "review",
         reviewNote: "",
         mergeCommit: null,
+        diffStat: latestRun?.diffStat ?? null,
+        changedFiles,
+        verificationId: latestVerification?.id ?? null,
         createdAt: at,
         updatedAt: at,
         decidedAt: null,
@@ -2003,6 +2112,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       acceptance: items,
       evidence: [],
       branch,
+      verifyCommand: null,
       createdAt: at,
       updatedAt: at
     });
@@ -2090,6 +2200,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       })),
       contractChanges: [],
       decisions: [],
+      verifications: [],
       events: [
         {
           id: "evt-demo",

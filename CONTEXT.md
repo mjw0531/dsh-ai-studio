@@ -56,6 +56,10 @@ _Avoid_: 分支（Git 术语容易混淆）、工作区
 绑定 git 仓库后为单个 Task 创建的独立检出目录（`.worktrees/<taskId>`）和分支（`studio/<taskId>`）；Agent 只在这里写代码。
 _Avoid_: 分支、沙箱
 
+**Verification（独立验证）**:
+由 Host 在 worktree 内执行的一条验证命令及其退出码/输出；通过只写 evidence，不代表验收通过。
+_Avoid_: 测试结果（太泛）、Agent 自检
+
 **Contract Change（契约变更）**:
 某条支线对某个契约声明的一次变更；同契约不同变更跨支线出现时触发冲突升级。
 _Avoid_: diff、提交（代码仓库概念）
