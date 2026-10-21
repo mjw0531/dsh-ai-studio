@@ -126,6 +126,14 @@ _Avoid_: 知识库、世界书
 有目标、输入、产物、验收标准、依赖、负责人和分支的工作单元。
 _Avoid_: 待办、消息、会话
 
+**Integration Ticket（集成票）**:
+把若干个已完成任务合成一个可玩 build，并做人玩验收；用 `integration` 标记，不替代单任务验收。
+_Avoid_: 总任务、发布
+
+**Re-split Ticket（重拆票）**:
+连续失败 2 次后由系统为 Architect 生成的 backlog 任务，目标是重拆任务/契约，而不是继续写业务代码。
+_Avoid_: 重试、修复票
+
 **Run（运行）**:
 一个 Agent 对某个 Task 的一次尝试；可失败、重试、换人。
 _Avoid_: 任务（Task 可以有很多 Run）

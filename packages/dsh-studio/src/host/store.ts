@@ -729,7 +729,12 @@ function isTask(value: unknown): value is Task {
       typeof value.contractRef === "string") &&
     (value.kind === undefined ||
       value.kind === "new" ||
-      value.kind === "fix")
+      value.kind === "fix") &&
+    (value.integration === undefined ||
+      typeof value.integration === "boolean") &&
+    (value.originTaskId === null ||
+      value.originTaskId === undefined ||
+      typeof value.originTaskId === "string")
   );
 }
 
@@ -987,9 +992,9 @@ function migrateState(value: unknown): StudioState {
     };
   }
   if (state.schemaVersion === 8) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 9,
       projects: state.projects.map((project) => ({
         ...project,
         prdPath: project.prdPath ?? null,
@@ -1001,6 +1006,17 @@ function migrateState(value: unknown): StudioState {
       )
         ? ((state as unknown as { modules: Module[] }).modules)
         : [],
+    };
+  }
+  if (state.schemaVersion === 9) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      tasks: state.tasks.map((task) => ({
+        ...task,
+        integration: task.integration ?? false,
+        originTaskId: task.originTaskId ?? null,
+      })),
     };
   }
   return state;
@@ -2343,6 +2359,9 @@ export class StudioStore {
         contractRef:
           optionalText(input.contractRef, "contractRef", 300) || null,
         kind: input.kind === "fix" ? "fix" : "new",
+        integration: input.integration === true,
+        originTaskId:
+          optionalText(input.originTaskId, "originTaskId", 120) || null,
         createdAt: at,
         updatedAt: at,
       };
@@ -2421,6 +2440,9 @@ export class StudioStore {
       }
       if (input.kind !== undefined) {
         task.kind = input.kind === "fix" ? "fix" : "new";
+      }
+      if (input.integration !== undefined) {
+        task.integration = input.integration === true;
       }
       task.updatedAt = at;
       state.updatedAt = at;
@@ -2830,6 +2852,64 @@ export class StudioStore {
     if (failures < 2 || task.status === "done") return;
     task.status = "blocked";
     task.updatedAt = at;
+    const hasResplit = state.tasks.some(
+      (item) => item.originTaskId === task.id,
+    );
+    if (!hasResplit) {
+      const architect =
+        state.roles.find(
+          (role) =>
+            role.projectId === task.projectId &&
+            (role.id === "role-architect" ||
+              role.title.includes("架构")),
+        ) ??
+        state.roles.find((role) => role.id === task.ownerRoleId);
+      if (architect !== undefined) {
+        const resplit: Task = {
+          id: newId("task"),
+          projectId: task.projectId,
+          title: `重拆：${task.title}`.slice(0, 160),
+          goal: `原任务连续失败 ${String(failures)} 次。先诊断根因，重拆任务/契约，产出可执行的新 ticket 与验收标准；不要直接写业务代码。最后一次失败：${reason}`,
+          status: "backlog",
+          priority: task.priority,
+          ownerRoleId: architect.id,
+          reviewerRoleId: task.reviewerRoleId,
+          acceptance: [
+            {
+              id: newId("acc"),
+              text: "给出重拆后的任务/契约",
+              done: false,
+            },
+            {
+              id: newId("acc"),
+              text: "标明可执行 ticket 与验收标准",
+              done: false,
+            },
+          ],
+          evidence: [],
+          branch: null,
+          verifyCommand: task.verifyCommand,
+          module: task.module,
+          contractRef: task.contractRef,
+          kind: "fix",
+          integration: false,
+          originTaskId: task.id,
+          createdAt: at,
+          updatedAt: at,
+        };
+        state.tasks.push(resplit);
+        this.recordEvent(state, {
+          type: "task.resplit",
+          at,
+          projectId: task.projectId,
+          taskId: resplit.id,
+          payload: {
+            originTaskId: task.id,
+            ownerRoleId: architect.id,
+          },
+        });
+      }
+    }
     const title = `连续失败：${task.title.slice(0, 160)}`;
     if (
       state.decisions.some(
@@ -3096,6 +3176,8 @@ export class StudioStore {
       module: null,
       contractRef: null,
       kind: "new",
+      integration: false,
+      originTaskId: null,
       createdAt: at,
       updatedAt: at,
     });

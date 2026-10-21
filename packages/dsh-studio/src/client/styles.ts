@@ -753,6 +753,16 @@ export const studioCss = `
 }
 .studio-role-salary .studio-mono { color: var(--st-accent); }
 
+.studio-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--st-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+.studio-check input { accent-color: var(--st-accent); }
+
 .studio-knowledge-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);

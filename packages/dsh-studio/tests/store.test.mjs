@@ -595,6 +595,13 @@ test("blocks a task and escalates after two failed runs", async () => {
     assert.equal(after.decisions.length, 1);
     assert.match(after.decisions[0].title, /连续失败/);
     assert.equal(after.decisions[0].status, "pending");
+    const resplit = after.tasks.find(
+      (item) => item.originTaskId === task.id,
+    );
+    assert.ok(resplit);
+    assert.equal(resplit.status, "backlog");
+    assert.equal(resplit.kind, "fix");
+    assert.equal(resplit.ownerRoleId, "role-architect");
   });
 });
 
@@ -686,7 +693,7 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
     assert.deepEqual(data.runs, []);
     assert.deepEqual(data.decisions, []);
     const migrated = JSON.parse(await readFile(file, "utf8"));
-    assert.equal(migrated.schemaVersion, 9);
+    assert.equal(migrated.schemaVersion, 10);
     assert.ok(migrated.runs.every((run) => run.status !== undefined));
     assert.ok(Array.isArray(migrated.branches));
     assert.ok(Array.isArray(migrated.contractChanges));
@@ -707,7 +714,9 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
           task.verifyCommand === null &&
           task.module === null &&
           task.contractRef === null &&
-          task.kind === "new",
+          task.kind === "new" &&
+          task.integration === false &&
+          task.originTaskId === null,
       ),
     );
   });

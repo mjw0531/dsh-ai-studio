@@ -2760,6 +2760,7 @@ function TaskCard({
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-task-top", children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(PriorityPill, { priority: task.priority }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(StatusPill, { status: task.status }),
+          task.integration ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-pill", "data-tone": "p1", children: "\u96C6\u6210" }) : null,
           mergeProposal !== null && mergeProposal.status !== "rejected" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(MergePill, { proposal: mergeProposal }) : null
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-task-title", children: task.title }),
@@ -2943,7 +2944,10 @@ function TaskDrawer({
                 /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-section-label", children: "\u4E0A\u4E0B\u6587" }),
                 /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("dl", { className: "studio-kv", children: [
                   /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u7968\u7C7B\u578B" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: TASK_KIND_LABELS[task.kind] }),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("dd", { children: [
+                    TASK_KIND_LABELS[task.kind],
+                    task.integration ? " \xB7 \u96C6\u6210/playtest" : ""
+                  ] }),
                   /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u6A21\u5757" }),
                   /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { className: "studio-mono", children: task.module ?? "\u672A\u6307\u5B9A" }),
                   /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u5951\u7EA6" }),
@@ -2953,6 +2957,10 @@ function TaskDrawer({
                     runs.filter((run) => run.status === "failed").length,
                     " / 2"
                   ] }),
+                  task.originTaskId !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u91CD\u62C6\u6765\u6E90" }),
+                    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { className: "studio-mono", children: task.originTaskId })
+                  ] }) : null,
                   /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u5206\u652F" }),
                   /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { className: "studio-mono", children: task.branch ?? "\u672A\u521B\u5EFA" }),
                   /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u8D1F\u8D23\u4EBA" }),
@@ -3720,6 +3728,7 @@ function TaskForm({
   const [moduleName, setModuleName] = (0, import_react.useState)("");
   const [contractRef, setContractRef] = (0, import_react.useState)("");
   const [kind, setKind] = (0, import_react.useState)("new");
+  const [integration, setIntegration] = (0, import_react.useState)(false);
   const [localError, setLocalError] = (0, import_react.useState)(null);
   const submit = (event) => {
     event.preventDefault();
@@ -3748,7 +3757,8 @@ function TaskForm({
       verifyCommand: verifyCommand.trim() || null,
       module: moduleName.trim() || null,
       contractRef: contractRef.trim() || null,
-      kind
+      kind,
+      integration
     });
   };
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
@@ -3882,6 +3892,17 @@ function TaskForm({
             }
           ),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-hint", children: "\u5B9E\u73B0\u8005\u53EA\u5E94\u4FEE\u6539\u8FD9\u4E2A\u5951\u7EA6\u5141\u8BB8\u7684\u8303\u56F4\uFF1B\u6539\u5951\u7EA6\u672C\u8EAB\u8981\u8D70\u67B6\u6784\u5E08/Owner\u3002" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("label", { className: "studio-check", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "input",
+            {
+              type: "checkbox",
+              checked: integration,
+              onChange: (event) => setIntegration(event.target.checked)
+            }
+          ),
+          "\u96C6\u6210 / playtest ticket\uFF08\u6253\u5305\u53EF\u73A9 + \u4EBA\u73A9 10 \u5206\u949F\uFF09"
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field-row", children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
@@ -5226,6 +5247,16 @@ var studioCss = `
   font-size: 10px;
 }
 .studio-role-salary .studio-mono { color: var(--st-accent); }
+
+.studio-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--st-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+.studio-check input { accent-color: var(--st-accent); }
 
 .studio-knowledge-grid {
   display: grid;

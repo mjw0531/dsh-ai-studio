@@ -6,8 +6,8 @@ import os from "node:os";
 import path from "node:path";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 9;
-var STUDIO_PLUGIN_VERSION = "0.9.0";
+var STUDIO_SCHEMA_VERSION = 10;
+var STUDIO_PLUGIN_VERSION = "1.0.0";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -533,7 +533,7 @@ function isAgentRun(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.branchName === null || typeof value.branchName === "string") && (value.workspacePath === null || typeof value.workspacePath === "string") && (value.diffStat === null || typeof value.diffStat === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
 }
 function isTask(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence) && (value.verifyCommand === null || value.verifyCommand === void 0 || typeof value.verifyCommand === "string") && (value.module === null || value.module === void 0 || typeof value.module === "string") && (value.contractRef === null || value.contractRef === void 0 || typeof value.contractRef === "string") && (value.kind === void 0 || value.kind === "new" || value.kind === "fix");
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence) && (value.verifyCommand === null || value.verifyCommand === void 0 || typeof value.verifyCommand === "string") && (value.module === null || value.module === void 0 || typeof value.module === "string") && (value.contractRef === null || value.contractRef === void 0 || typeof value.contractRef === "string") && (value.kind === void 0 || value.kind === "new" || value.kind === "fix") && (value.integration === void 0 || typeof value.integration === "boolean") && (value.originTaskId === null || value.originTaskId === void 0 || typeof value.originTaskId === "string");
 }
 function isMergeRisk(value) {
   return value === "low" || value === "medium" || value === "high";
@@ -671,9 +671,9 @@ function migrateState(value) {
     };
   }
   if (state.schemaVersion === 8) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 9,
       projects: state.projects.map((project) => ({
         ...project,
         prdPath: project.prdPath ?? null,
@@ -683,6 +683,17 @@ function migrateState(value) {
       modules: Array.isArray(
         state.modules
       ) ? state.modules : []
+    };
+  }
+  if (state.schemaVersion === 9) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      tasks: state.tasks.map((task) => ({
+        ...task,
+        integration: task.integration ?? false,
+        originTaskId: task.originTaskId ?? null
+      }))
     };
   }
   return state;
@@ -1811,6 +1822,8 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         module: optionalText(input.module, "module", 120) || null,
         contractRef: optionalText(input.contractRef, "contractRef", 300) || null,
         kind: input.kind === "fix" ? "fix" : "new",
+        integration: input.integration === true,
+        originTaskId: optionalText(input.originTaskId, "originTaskId", 120) || null,
         createdAt: at,
         updatedAt: at
       };
@@ -1886,6 +1899,9 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       }
       if (input.kind !== void 0) {
         task.kind = input.kind === "fix" ? "fix" : "new";
+      }
+      if (input.integration !== void 0) {
+        task.integration = input.integration === true;
       }
       task.updatedAt = at;
       state.updatedAt = at;
@@ -2239,6 +2255,59 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
     if (failures < 2 || task.status === "done") return;
     task.status = "blocked";
     task.updatedAt = at;
+    const hasResplit = state.tasks.some(
+      (item) => item.originTaskId === task.id
+    );
+    if (!hasResplit) {
+      const architect = state.roles.find(
+        (role) => role.projectId === task.projectId && (role.id === "role-architect" || role.title.includes("\u67B6\u6784"))
+      ) ?? state.roles.find((role) => role.id === task.ownerRoleId);
+      if (architect !== void 0) {
+        const resplit = {
+          id: newId("task"),
+          projectId: task.projectId,
+          title: `\u91CD\u62C6\uFF1A${task.title}`.slice(0, 160),
+          goal: `\u539F\u4EFB\u52A1\u8FDE\u7EED\u5931\u8D25 ${String(failures)} \u6B21\u3002\u5148\u8BCA\u65AD\u6839\u56E0\uFF0C\u91CD\u62C6\u4EFB\u52A1/\u5951\u7EA6\uFF0C\u4EA7\u51FA\u53EF\u6267\u884C\u7684\u65B0 ticket \u4E0E\u9A8C\u6536\u6807\u51C6\uFF1B\u4E0D\u8981\u76F4\u63A5\u5199\u4E1A\u52A1\u4EE3\u7801\u3002\u6700\u540E\u4E00\u6B21\u5931\u8D25\uFF1A${reason}`,
+          status: "backlog",
+          priority: task.priority,
+          ownerRoleId: architect.id,
+          reviewerRoleId: task.reviewerRoleId,
+          acceptance: [
+            {
+              id: newId("acc"),
+              text: "\u7ED9\u51FA\u91CD\u62C6\u540E\u7684\u4EFB\u52A1/\u5951\u7EA6",
+              done: false
+            },
+            {
+              id: newId("acc"),
+              text: "\u6807\u660E\u53EF\u6267\u884C ticket \u4E0E\u9A8C\u6536\u6807\u51C6",
+              done: false
+            }
+          ],
+          evidence: [],
+          branch: null,
+          verifyCommand: task.verifyCommand,
+          module: task.module,
+          contractRef: task.contractRef,
+          kind: "fix",
+          integration: false,
+          originTaskId: task.id,
+          createdAt: at,
+          updatedAt: at
+        };
+        state.tasks.push(resplit);
+        this.recordEvent(state, {
+          type: "task.resplit",
+          at,
+          projectId: task.projectId,
+          taskId: resplit.id,
+          payload: {
+            originTaskId: task.id,
+            ownerRoleId: architect.id
+          }
+        });
+      }
+    }
     const title = `\u8FDE\u7EED\u5931\u8D25\uFF1A${task.title.slice(0, 160)}`;
     if (state.decisions.some(
       (item) => item.taskId === task.id && item.title === title
@@ -2452,6 +2521,8 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       module: null,
       contractRef: null,
       kind: "new",
+      integration: false,
+      originTaskId: null,
       createdAt: at,
       updatedAt: at
     });
