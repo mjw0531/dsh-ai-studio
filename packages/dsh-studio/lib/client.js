@@ -335,6 +335,13 @@ var StudioClient = class {
     );
     return data.proposal;
   }
+  async executeMerge(proposalId) {
+    const data = await this.request(
+      `/merge-proposals/${encodeURIComponent(proposalId)}/execute`,
+      { method: "POST", body: {} }
+    );
+    return data.proposal;
+  }
   async completeMergeProposal(proposalId, mergeCommit) {
     const data = await this.request(
       `/merge-proposals/${encodeURIComponent(proposalId)}/merge`,
@@ -978,6 +985,15 @@ function StudioPage() {
       "\u5DF2\u8BB0\u5F55\u5408\u5E76\u5B8C\u6210"
     );
   };
+  const executeMerge = async (proposal) => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.executeMerge(proposal.id);
+      },
+      "Git \u5408\u5E76\u5B8C\u6210\uFF0C\u5DF2\u8BB0\u5F55 merge commit"
+    );
+  };
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-root", "data-theme": theme, children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("header", { className: "studio-header", children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-brand", children: [
@@ -1189,6 +1205,11 @@ function StudioPage() {
         onCompleteMerge: (commit) => {
           if (selectedMerge !== null) {
             void completeMerge(selectedMerge, commit);
+          }
+        },
+        onExecuteMerge: () => {
+          if (selectedMerge !== null) {
+            void executeMerge(selectedMerge);
           }
         }
       },
@@ -2832,7 +2853,8 @@ function TaskDrawer({
   onCreateMerge,
   onApproveMerge,
   onRejectMerge,
-  onCompleteMerge
+  onCompleteMerge,
+  onExecuteMerge
 }) {
   const [evidenceText, setEvidenceText] = (0, import_react.useState)("");
   const done = acceptanceDone(task);
@@ -3072,7 +3094,8 @@ function TaskDrawer({
                   onCreate: onCreateMerge,
                   onApprove: onApproveMerge,
                   onReject: onRejectMerge,
-                  onComplete: onCompleteMerge
+                  onComplete: onCompleteMerge,
+                  onExecute: onExecuteMerge
                 }
               ),
               /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { children: [
@@ -3354,7 +3377,8 @@ function TaskMergePanel({
   onCreate,
   onApprove,
   onReject,
-  onComplete
+  onComplete,
+  onExecute
 }) {
   const [summary, setSummary] = (0, import_react.useState)("");
   const [branch, setBranch] = (0, import_react.useState)(task.branch ?? "");
@@ -3593,7 +3617,7 @@ function TaskMergePanel({
             disabled: busy
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
           "button",
           {
             type: "button",
@@ -3601,10 +3625,27 @@ function TaskMergePanel({
             "data-variant": "primary",
             "data-size": "sm",
             disabled: busy,
+            onClick: () => {
+              if (window.confirm(
+                `\u5C06\u5728\u5F53\u524D\u4ED3\u5E93\u6267\u884C Git merge ${activeProposal.branch} \u2192 ${activeProposal.base}\uFF0C\u4E14\u8981\u6C42\u5F53\u524D\u5C31\u5728 ${activeProposal.base} \u4E0A\u3001\u5DE5\u4F5C\u533A\u5E72\u51C0\u3002\u786E\u5B9A\u5417\uFF1F`
+              )) {
+                onExecute();
+              }
+            },
+            children: "\u6267\u884C Git \u5408\u5E76"
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+          "button",
+          {
+            type: "button",
+            className: "studio-btn",
+            "data-size": "sm",
+            disabled: busy,
             onClick: () => onComplete(mergeCommit.trim() || void 0),
             children: [
               /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconCheck, { width: 13, height: 13 }),
-              "\u6807\u8BB0\u5DF2\u5408\u5E76"
+              "\u4EC5\u8BB0\u5F55\u5408\u5E76"
             ]
           }
         )

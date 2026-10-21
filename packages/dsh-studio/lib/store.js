@@ -7,7 +7,7 @@ import path from "node:path";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 12;
-var STUDIO_PLUGIN_VERSION = "1.3.0";
+var STUDIO_PLUGIN_VERSION = "1.4.0";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -866,6 +866,7 @@ var StudioStore = class {
           knowledge: true,
           contractGuard: true,
           independentReview: true,
+          mergeExecution: true,
           gitMerge: false
         }
       };
@@ -2362,6 +2363,26 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       });
       await this.save();
       return structuredClone(proposal);
+    });
+  }
+  async getMergeContext(proposalId) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const proposal = this.findMergeProposal(state, proposalId);
+      const project = state.projects.find(
+        (item) => item.id === proposal.projectId
+      );
+      if (project === void 0) {
+        throw new StudioStoreError(
+          "project_not_found",
+          "\u5408\u5E76\u63D0\u6848\u5BF9\u5E94\u7684\u9879\u76EE\u4E0D\u5B58\u5728",
+          404
+        );
+      }
+      return {
+        proposal: structuredClone(proposal),
+        project: structuredClone(project)
+      };
     });
   }
   async completeMergeProposal(proposalId, mergeCommit) {

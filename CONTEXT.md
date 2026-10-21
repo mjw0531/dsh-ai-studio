@@ -150,6 +150,10 @@ _Avoid_: 文档自动生成
 `reversible=false` 的项目级决策；批准时必须写明结论和理由，不能只点同意。
 _Avoid_: 重要决策（所有决策都重要，但只有部分不可逆）
 
+**Merge Execution（合并执行）**:
+人批准提案后，由 Host 在干净仓库、当前 base 分支上执行的 `git merge --no-ff`；冲突自动 abort，不 push。
+_Avoid_: 自动合并、自动发布
+
 **Run（运行）**:
 一个 Agent 对某个 Task 的一次尝试；可失败、重试、换人。
 _Avoid_: 任务（Task 可以有很多 Run）

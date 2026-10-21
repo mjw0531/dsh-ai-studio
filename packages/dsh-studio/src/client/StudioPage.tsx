@@ -724,6 +724,18 @@ export function StudioPage() {
     );
   };
 
+  const executeMerge = async (
+    proposal: MergeProposal,
+  ): Promise<void> => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.executeMerge(proposal.id);
+      },
+      "Git 合并完成，已记录 merge commit",
+    );
+  };
+
   return (
     <div className="studio-root" data-theme={theme}>
       <header className="studio-header">
@@ -986,6 +998,11 @@ export function StudioPage() {
           onCompleteMerge={(commit) => {
             if (selectedMerge !== null) {
               void completeMerge(selectedMerge, commit);
+            }
+          }}
+          onExecuteMerge={() => {
+            if (selectedMerge !== null) {
+              void executeMerge(selectedMerge);
             }
           }}
         />
@@ -2957,6 +2974,7 @@ function TaskDrawer({
   onApproveMerge,
   onRejectMerge,
   onCompleteMerge,
+  onExecuteMerge,
 }: {
   task: Task;
   roles: Role[];
@@ -2978,6 +2996,7 @@ function TaskDrawer({
   onApproveMerge: (note?: string) => void;
   onRejectMerge: (note: string) => void;
   onCompleteMerge: (mergeCommit?: string) => void;
+  onExecuteMerge: () => void;
 }) {
   const [evidenceText, setEvidenceText] = useState("");
   const done = acceptanceDone(task);
@@ -3226,6 +3245,7 @@ function TaskDrawer({
             onApprove={onApproveMerge}
             onReject={onRejectMerge}
             onComplete={onCompleteMerge}
+            onExecute={onExecuteMerge}
           />
 
           <section>
@@ -3628,6 +3648,7 @@ function TaskMergePanel({
   onApprove,
   onReject,
   onComplete,
+  onExecute,
 }: {
   task: Task;
   proposal: MergeProposal | null;
@@ -3638,6 +3659,7 @@ function TaskMergePanel({
   onApprove: (note?: string) => void;
   onReject: (note: string) => void;
   onComplete: (mergeCommit?: string) => void;
+  onExecute: () => void;
 }) {
   const [summary, setSummary] = useState("");
   const [branch, setBranch] = useState(task.branch ?? "");
@@ -3902,10 +3924,27 @@ function TaskMergePanel({
                 data-variant="primary"
                 data-size="sm"
                 disabled={busy}
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      `将在当前仓库执行 Git merge ${activeProposal.branch} → ${activeProposal.base}，且要求当前就在 ${activeProposal.base} 上、工作区干净。确定吗？`,
+                    )
+                  ) {
+                    onExecute();
+                  }
+                }}
+              >
+                执行 Git 合并
+              </button>
+              <button
+                type="button"
+                className="studio-btn"
+                data-size="sm"
+                disabled={busy}
                 onClick={() => onComplete(mergeCommit.trim() || undefined)}
               >
                 <IconCheck width={13} height={13} />
-                标记已合并
+                仅记录合并
               </button>
             </div>
           ) : (

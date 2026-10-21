@@ -11,6 +11,7 @@ import {
 import { AgentDispatcher } from "./dispatcher.js";
 import type { DispatcherContext } from "./dispatcher.js";
 import { DocsService } from "./docs.js";
+import { GitMergeService } from "./merge.js";
 import { handleRouterError, StudioRouter } from "./router.js";
 import { StudioStore } from "./store.js";
 import { VerificationService } from "./verify.js";
@@ -108,6 +109,7 @@ export async function apply(ctx: StudioHostContext): Promise<void> {
   );
   const verifier = new VerificationService(store);
   const docs = new DocsService(store);
+  const merger = new GitMergeService(store);
 
   const token = randomBytes(24).toString("hex");
   const startedAt = new Date().toISOString();
@@ -129,6 +131,7 @@ export async function apply(ctx: StudioHostContext): Promise<void> {
     dispatchTask: (taskId) => dispatcher.dispatch(taskId),
     verifyTask: (taskId, command) => verifier.verify(taskId, command),
     reviewTask: (taskId) => dispatcher.review(taskId),
+    executeMerge: (proposalId) => merger.execute(proposalId),
     readProjectDoc: (path) => docs.read(path),
   });
 

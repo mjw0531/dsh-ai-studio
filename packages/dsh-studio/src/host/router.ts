@@ -13,6 +13,7 @@ import type {
   CreateTaskInput,
   DecideDecisionInput,
   IndependentReview,
+  MergeProposal,
   MergeRisk,
   ProjectDoc,
   TaskStatus,
@@ -41,6 +42,7 @@ interface StudioRouterOptions {
   dispatchTask: (taskId: string) => Promise<AgentRun>;
   verifyTask: (taskId: string, command?: string) => Promise<Verification>;
   reviewTask: (taskId: string) => Promise<IndependentReview>;
+  executeMerge: (proposalId: string) => Promise<MergeProposal>;
   readProjectDoc: (path: string) => Promise<ProjectDoc>;
 }
 
@@ -454,6 +456,9 @@ export class StudioRouter {
   private readonly reviewTask: (
     taskId: string,
   ) => Promise<IndependentReview>;
+  private readonly executeMerge: (
+    proposalId: string,
+  ) => Promise<MergeProposal>;
   private readonly readProjectDoc: (path: string) => Promise<ProjectDoc>;
 
   constructor(options: StudioRouterOptions) {
@@ -466,6 +471,7 @@ export class StudioRouter {
     this.dispatchTask = options.dispatchTask;
     this.verifyTask = options.verifyTask;
     this.reviewTask = options.reviewTask;
+    this.executeMerge = options.executeMerge;
     this.readProjectDoc = options.readProjectDoc;
   }
 
@@ -738,7 +744,7 @@ export class StudioRouter {
     }
 
     const mergeDecision =
-      /^\/studio-api\/merge-proposals\/([^/]+)\/(approve|reject|merge)$/.exec(
+      /^\/studio-api\/merge-proposals\/([^/]+)\/(approve|reject|merge|execute)$/.exec(
         parsed.pathname,
       );
     if (mergeDecision !== null) {
@@ -755,10 +761,12 @@ export class StudioRouter {
                 proposalId,
                 asNote(body) ?? "",
               )
-            : await this.store.completeMergeProposal(
-                proposalId,
-                asOptionalString(body.mergeCommit, "mergeCommit"),
-              );
+            : action === "execute"
+              ? await this.executeMerge(proposalId)
+              : await this.store.completeMergeProposal(
+                  proposalId,
+                  asOptionalString(body.mergeCommit, "mergeCommit"),
+                );
       sendJson(res, 200, { ok: true, proposal });
       return;
     }

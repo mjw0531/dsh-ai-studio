@@ -1263,6 +1263,7 @@ export class StudioStore {
           knowledge: true,
           contractGuard: true,
           independentReview: true,
+          mergeExecution: true,
           gitMerge: false,
         },
       };
@@ -3020,6 +3021,30 @@ export class StudioStore {
       });
       await this.save();
       return structuredClone(proposal);
+    });
+  }
+
+  async getMergeContext(proposalId: string): Promise<{
+    proposal: MergeProposal;
+    project: Project;
+  }> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const proposal = this.findMergeProposal(state, proposalId);
+      const project = state.projects.find(
+        (item) => item.id === proposal.projectId,
+      );
+      if (project === undefined) {
+        throw new StudioStoreError(
+          "project_not_found",
+          "合并提案对应的项目不存在",
+          404,
+        );
+      }
+      return {
+        proposal: structuredClone(proposal),
+        project: structuredClone(project),
+      };
     });
   }
 
