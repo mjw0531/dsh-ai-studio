@@ -1,0 +1,330 @@
+import { randomUUID } from "node:crypto";
+
+import type {
+  AgentReceipt,
+  AgentRun,
+  Project,
+  Role,
+  Task,
+} from "../shared/types.js";
+import type { StudioStore } from "./store.js";
+
+interface MessageContent {
+  type: string;
+  text?: string;
+}
+
+interface AgentMessage {
+  role: string;
+  content: MessageContent[];
+}
+
+interface AgentLike {
+  status: string;
+  session: {
+    id: string;
+    deriveMessages(): AgentMessage[];
+  };
+  followup(message: {
+    role?: "user";
+    content: Array<{ type: "text"; text: string }>;
+    source: { kind: "user" };
+  }): unknown;
+}
+
+interface AgentHandleLike {
+  agent: AgentLike;
+  dispose(): Promise<void>;
+}
+
+interface AgentsLike {
+  create(options: {
+    sessionId: string;
+    agentOptions?: { provider: string; model: string };
+    meta: { cwd: string };
+    setup?: (agentCtx: unknown) => Promise<void>;
+  }): Promise<AgentHandleLike>;
+}
+
+interface AgentPresetsLike {
+  mount(agentCtx: unknown, id?: string): Promise<{ id: string }>;
+}
+
+interface AgentDefaultModelLike {
+  currentSelection(): { provider: string; model: string };
+}
+
+interface LlmLike {
+  listProviders(): Array<{ id: string }>;
+  listModels(providerId: string): Promise<Array<{ id: string }>>;
+}
+
+interface TokenMeterLike {
+  measure(session: unknown): { totalTokens: number };
+}
+
+export interface DispatcherContext {
+  agents: AgentsLike;
+  agentPresets: AgentPresetsLike;
+  agentDefaultModel: AgentDefaultModelLike;
+  llm: LlmLike;
+  tokenMeter: TokenMeterLike;
+}
+
+interface RunContext {
+  task: Task;
+  role: Role;
+  project: Project;
+}
+
+function assistantText(messages: AgentMessage[]): string {
+  const assistant = [...messages]
+    .reverse()
+    .find((message) => message.role === "assistant");
+  if (assistant === undefined) return "";
+  return assistant.content
+    .filter((block) => block.type === "text")
+    .map((block) => block.text ?? "")
+    .join("\n")
+    .trim();
+}
+
+function extractJsonObject(text: string): unknown {
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(text);
+  const candidate = fenced?.[1] ?? text;
+  const start = candidate.indexOf("{");
+  const end = candidate.lastIndexOf("}");
+  if (start < 0 || end <= start) return undefined;
+  try {
+    return JSON.parse(candidate.slice(start, end + 1));
+  } catch {
+    return undefined;
+  }
+}
+
+function stringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 20);
+}
+
+function objectArray(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (item): item is Record<string, unknown> =>
+      typeof item === "object" && item !== null && !Array.isArray(item),
+  );
+}
+
+function textOf(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeReceipt(raw: unknown, fallback: string): AgentReceipt {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    return {
+      summary: fallback.slice(0, 2000),
+      evidence: [],
+      artifacts: [],
+      decisions: [],
+      contractDeltas: [],
+      rejectedOptions: [],
+      blockers: ["模型没有返回可解析的 JSON 回执"],
+    };
+  }
+  const record = raw as Record<string, unknown>;
+  return {
+    summary: textOf(record.summary) || fallback.slice(0, 2000),
+    evidence: stringArray(record.evidence),
+    artifacts: objectArray(record.artifacts)
+      .map((item) => ({
+        kind: textOf(item.kind) || "unknown",
+        path: textOf(item.path),
+      }))
+      .filter((item) => item.path !== "")
+      .slice(0, 20),
+    decisions: objectArray(record.decisions)
+      .map((item) => {
+        const scope: "branch" | "project" =
+          item.scope === "project" ? "project" : "branch";
+        return {
+          title: textOf(item.title),
+          rationale: textOf(item.rationale),
+          scope,
+        };
+      })
+      .filter((item) => item.title !== "")
+      .slice(0, 20),
+    contractDeltas: objectArray(record.contractDeltas)
+      .map((item) => ({
+        contract: textOf(item.contract),
+        change: textOf(item.change),
+      }))
+      .filter((item) => item.contract !== "")
+      .slice(0, 20),
+    rejectedOptions: objectArray(record.rejectedOptions)
+      .map((item) => ({
+        option: textOf(item.option),
+        reason: textOf(item.reason),
+      }))
+      .filter((item) => item.option !== "")
+      .slice(0, 20),
+    blockers: stringArray(record.blockers),
+  };
+}
+
+function buildPrompt(context: RunContext): string {
+  const { task, role, project } = context;
+  const acceptance = task.acceptance
+    .map((item, index) => `${String(index + 1)}. ${item.text}`)
+    .join("\n");
+  return [
+    `你是 Studio 工作台里的角色「${role.name}」（${role.title || "未填写职位"}）。`,
+    `角色使命：${role.mission || "未填写"}`,
+    `职责：${role.responsibilities.join("；") || "未填写"}`,
+    "",
+    `项目：${project.name}`,
+    project.description ? `项目描述：${project.description}` : "",
+    "",
+    `任务：${task.title}`,
+    `任务目标：${task.goal || "未填写"}`,
+    `优先级：${task.priority}`,
+    `分支：${task.branch ?? "未创建"}`,
+    "验收标准：",
+    acceptance || "（无）",
+    "",
+    "本轮只做分析/规划，不要修改任何文件，不要执行会改变系统状态的命令。",
+    "请输出一个 JSON 对象（不要输出 JSON 以外的解释），字段如下：",
+    '{"summary":"一句话结论","evidence":["可复现的证据/检查结果"],"artifacts":[{"kind":"plan|diff|test|doc","path":"路径或说明"}],"decisions":[{"title":"决策","rationale":"理由","scope":"branch|project"}],"contractDeltas":[{"contract":"契约路径","change":"变更"}],"rejectedOptions":[{"option":"被否决方案","reason":"原因"}],"blockers":["阻塞"]}',
+    "没有内容的字段用空数组。不要声称任务已经完成；验收由人类/Verifier 决定。",
+  ]
+    .filter((line) => line !== "")
+    .join("\n");
+}
+
+/**
+ * Host-side adapter between Studio's durable Run record and DSH's Agent API.
+ *
+ * v0.4 runs in advisory mode: the Agent analyzes/plans and returns a structured
+ * receipt; it must not edit project files. Worktree-isolated coding is v0.6.
+ */
+export class AgentDispatcher {
+  private readonly ctx: DispatcherContext;
+  private readonly store: StudioStore;
+
+  constructor(ctx: DispatcherContext, store: StudioStore) {
+    this.ctx = ctx;
+    this.store = store;
+  }
+
+  async dispatch(taskId: string): Promise<AgentRun> {
+    const context = await this.store.getDispatchContext(taskId);
+    const selection = await this.resolveModel(context.role);
+    const prompt = buildPrompt(context);
+    const run = await this.store.beginRun(taskId, prompt);
+    void this.execute(run, selection);
+    return run;
+  }
+
+  private async resolveModel(role: Role): Promise<{
+    provider: string;
+    model: string;
+  }> {
+    const fallback = this.ctx.agentDefaultModel.currentSelection();
+    const wanted = role.model ?? fallback.model;
+    const providers = [...this.ctx.llm.listProviders()].sort((left, right) => {
+      const score = (id: string): number =>
+        id === "deepseek-account" ? 0 : id === "deepseek-official" ? 2 : 1;
+      return score(left.id) - score(right.id);
+    });
+    let first: { provider: string; model: string } | null = null;
+    for (const provider of providers) {
+      const models = await this.ctx.llm.listModels(provider.id);
+      const exact = models.find((model) => model.id === wanted);
+      if (exact !== undefined) {
+        return { provider: provider.id, model: exact.id };
+      }
+      if (first === null && models.length > 0) {
+        first = { provider: provider.id, model: models[0]?.id ?? wanted };
+      }
+    }
+    if (first !== null) return first;
+    throw new Error(`没有可用的模型路由（请求模型：${wanted}）`);
+  }
+
+  private async execute(
+    run: AgentRun,
+    selection: { provider: string; model: string },
+  ): Promise<void> {
+    let handle: AgentHandleLike | null = null;
+    try {
+      handle = await this.ctx.agents.create({
+        sessionId: `run-${randomUUID()}`,
+        meta: { cwd: process.cwd() },
+        agentOptions: selection,
+        setup: async (agentCtx) => {
+          await this.ctx.agentPresets.mount(agentCtx);
+        },
+      });
+      await this.store.attachRunSession(
+        run.id,
+        handle.agent.session.id,
+        selection.model,
+      );
+      handle.agent.followup({
+        role: "user",
+        content: [{ type: "text", text: run.prompt }],
+        source: { kind: "user" },
+      });
+
+      const deadline = Date.now() + 120_000;
+      let output = "";
+      let idleTicks = 0;
+      while (Date.now() < deadline) {
+        output = assistantText(handle.agent.session.deriveMessages());
+        if (output !== "") break;
+        if (handle.agent.status === "idle") {
+          idleTicks += 1;
+          if (idleTicks >= 10) break;
+        } else {
+          idleTicks = 0;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 400));
+      }
+      if (output === "") {
+        throw new Error("Agent 在 120 秒内没有产出（没有 assistant 消息）");
+      }
+      const idleDeadline = Date.now() + 30_000;
+      while (handle.agent.status !== "idle" && Date.now() < idleDeadline) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+      const receipt = normalizeReceipt(
+        extractJsonObject(output),
+        output,
+      );
+      const measured = this.ctx.tokenMeter.measure(handle.agent.session);
+      await this.store.completeRun(run.id, {
+        output,
+        receipt,
+        tokens:
+          typeof measured.totalTokens === "number"
+            ? measured.totalTokens
+            : null,
+      });
+    } catch (error) {
+      await this.store
+        .failRun(
+          run.id,
+          error instanceof Error ? error.message : String(error),
+        )
+        .catch(() => undefined);
+    } finally {
+      if (handle !== null) {
+        await handle.dispose().catch(() => undefined);
+      }
+    }
+  }
+}

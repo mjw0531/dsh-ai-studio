@@ -121,6 +121,22 @@ if (openTask !== undefined && openTask !== "") {
   await new Promise((resolve) => setTimeout(resolve, 900));
 }
 
+const taskActionText = process.env.TASK_ACTION_TEXT;
+if (taskActionText !== undefined && taskActionText !== "") {
+  const clicked = await send("Runtime.evaluate", {
+    expression: `(() => {
+      const candidates = [...document.querySelectorAll('button, a, [role="button"]')];
+      const target = candidates.find((el) => (el.textContent ?? '').trim().startsWith(${JSON.stringify(taskActionText)}));
+      if (target === undefined) return false;
+      target.click();
+      return true;
+    })()`,
+    returnByValue: true,
+  });
+  console.log(`task action "${taskActionText}": ${String(clicked.result.value)}`);
+  await new Promise((resolve) => setTimeout(resolve, 4000));
+}
+
 const evaluated = await send("Runtime.evaluate", {
   expression: `(() => {
     const root = document.querySelector('.studio-root');

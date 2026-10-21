@@ -8,14 +8,24 @@ import {
   readRuntimeInfo,
   safeOrigin,
 } from "./compat.js";
+import { AgentDispatcher } from "./dispatcher.js";
+import type { DispatcherContext } from "./dispatcher.js";
 import { handleRouterError, StudioRouter } from "./router.js";
 import { StudioStore } from "./store.js";
 
 /** Cordis plugin name shown in Loader logs. */
 export const name = "dsh-studio";
 
-/** The Web/Desktop surface needs the HTTP route registry, browser auth, and index injection. */
-export const inject = ["webServer", "connection"];
+/** Web/Desktop HTTP surface plus the DSH Agent runtime used by dispatch. */
+export const inject = [
+  "webServer",
+  "connection",
+  "agents",
+  "agentPresets",
+  "agentDefaultModel",
+  "llm",
+  "tokenMeter",
+];
 
 interface WebServerLike {
   register(route: {
@@ -39,6 +49,11 @@ interface LoggerLike {
 interface StudioHostContext {
   webServer: WebServerLike;
   connection: ConnectionLike;
+  agents: unknown;
+  agentPresets: unknown;
+  agentDefaultModel: unknown;
+  llm: unknown;
+  tokenMeter: unknown;
   logger?: LoggerLike;
   on?(
     event: "webserver/index-inject",
@@ -85,6 +100,10 @@ export async function apply(ctx: StudioHostContext): Promise<void> {
 
   const store = new StudioStore();
   await store.init();
+  const dispatcher = new AgentDispatcher(
+    ctx as unknown as DispatcherContext,
+    store,
+  );
 
   const token = randomBytes(24).toString("hex");
   const startedAt = new Date().toISOString();
@@ -103,6 +122,7 @@ export async function apply(ctx: StudioHostContext): Promise<void> {
     compatibility,
     connection: ctx.connection,
     getBootPayload: () => bootPayload,
+    dispatchTask: (taskId) => dispatcher.dispatch(taskId),
   });
 
   const install = (): (() => void) => {

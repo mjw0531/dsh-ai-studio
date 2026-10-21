@@ -58,6 +58,18 @@ _Avoid_: 员工、人物卡
 某个 Role 的一次运行实例，绑定 DSH 会话、工作目录、预设、预算和租约。
 _Avoid_: 员工、角色（两者不是一回事）
 
+**Agent Run（运行记录）**:
+一次派单的持久记录：会话、模型、状态、token、输出和结构化回执；失败也保留，用于审计与成本。
+_Avoid_: 任务、日志（日志不是领域对象）
+
+**Receipt（回执）**:
+Agent 交回的结构化结果：`summary / evidence / artifacts / decisions / contractDeltas / rejectedOptions / blockers`；必须至少有一条 evidence 才能进入验收。
+_Avoid_: 总结、聊天记录
+
+**Token Budget（token 预算）**:
+Owner 给项目或角色设定的 token 上限；分单任务与每日两种，超限要告警/阻断。
+_Avoid_: 薪资（薪资是比喻，预算才是领域词）
+
 **Role Card（角色卡）**:
 Role 的可编辑声明格式，描述使命、职责、非目标、决策权、能力、交付契约。
 _Avoid_: 人物卡、人设
