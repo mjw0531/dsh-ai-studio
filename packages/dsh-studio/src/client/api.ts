@@ -2,6 +2,9 @@ import type {
   AgentRun,
   ApiErrorBody,
   BootstrapResponse,
+  CreateDecisionInput,
+  DecideDecisionInput,
+  Decision,
   CreateMergeProposalInput,
   CreateProjectInput,
   CreateRoleInput,
@@ -228,6 +231,25 @@ export class StudioClient {
       { method: "POST", body: {} },
     );
     return data.run;
+  }
+
+  async createDecision(input: CreateDecisionInput): Promise<Decision> {
+    const data = await this.request<{ decision: Decision }>("/decisions", {
+      method: "POST",
+      body: input,
+    });
+    return data.decision;
+  }
+
+  async decideDecision(
+    decisionId: string,
+    input: DecideDecisionInput,
+  ): Promise<Decision> {
+    const data = await this.request<{ decision: Decision }>(
+      `/decisions/${encodeURIComponent(decisionId)}/decide`,
+      { method: "POST", body: input },
+    );
+    return data.decision;
   }
 
   async createMergeProposal(

@@ -84,6 +84,11 @@ var AGENT_RUN_STATUS_LABELS = {
   succeeded: "\u5DF2\u5B8C\u6210",
   failed: "\u5931\u8D25"
 };
+var DECISION_STATUS_LABELS = {
+  pending: "\u5F85\u88C1\u51B3",
+  approved: "\u5DF2\u6279\u51C6",
+  rejected: "\u5DF2\u62D2\u7EDD"
+};
 var ALLOWED_TRANSITIONS = {
   backlog: ["ready"],
   ready: ["backlog", "running"],
@@ -243,6 +248,20 @@ var StudioClient = class {
       { method: "POST", body: {} }
     );
     return data.run;
+  }
+  async createDecision(input) {
+    const data = await this.request("/decisions", {
+      method: "POST",
+      body: input
+    });
+    return data.decision;
+  }
+  async decideDecision(decisionId, input) {
+    const data = await this.request(
+      `/decisions/${encodeURIComponent(decisionId)}/decide`,
+      { method: "POST", body: input }
+    );
+    return data.decision;
   }
   async createMergeProposal(taskId, input) {
     const data = await this.request(
@@ -426,6 +445,7 @@ function IconSpark(props) {
 var import_jsx_runtime2 = require("react/jsx-runtime");
 var NAV_ITEMS = [
   { id: "company", label: "\u516C\u53F8", caption: "Owner Dashboard" },
+  { id: "boardroom", label: "\u8463\u4E8B\u4F1A", caption: "Decision Board" },
   { id: "mission", label: "\u9879\u76EE", caption: "Mission Control" },
   { id: "tasks", label: "\u4EFB\u52A1", caption: "Task Board" },
   { id: "merges", label: "\u5408\u5E76", caption: "Merge Queue" },
@@ -467,6 +487,8 @@ function NavIcon({ tab }) {
   switch (tab) {
     case "company":
       return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconBuilding, { width: 15, height: 15 });
+    case "boardroom":
+      return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconSpark, { width: 15, height: 15 });
     case "mission":
       return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconGrid, { width: 15, height: 15 });
     case "tasks":
@@ -651,6 +673,10 @@ function StudioPage() {
         const ok = await selectProject(need.projectId);
         if (!ok) return;
       }
+      if (need.kind === "decision") {
+        setTab("boardroom");
+        return;
+      }
       setTab("mission");
       if (need.taskId !== null) setSelectedTaskId(need.taskId);
     },
@@ -769,6 +795,26 @@ function StudioPage() {
       "\u5DF2\u6D3E\u5355\uFF0CAgent \u5F00\u59CB\u5206\u6790\uFF1B\u5B8C\u6210\u540E\u4F1A\u81EA\u52A8\u5237\u56DE\u6267"
     );
   };
+  const createDecision = async (input) => {
+    const ok = await run(
+      async () => {
+        if (client === null) return;
+        await client.createDecision(input);
+      },
+      "\u51B3\u7B56\u5DF2\u8FDB\u5165\u8463\u4E8B\u4F1A"
+    );
+    if (ok) setModal(null);
+    return ok;
+  };
+  const decideDecision = async (decision, input) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.decideDecision(decision.id, input);
+      },
+      input.status === "approved" ? "\u51B3\u7B56\u5DF2\u6279\u51C6" : "\u51B3\u7B56\u5DF2\u62D2\u7EDD"
+    );
+  };
   const createMerge = async (task, input) => {
     return run(
       async () => {
@@ -873,7 +919,7 @@ function StudioPage() {
             children: [
               /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(NavIcon, { tab: item.id }),
               /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: item.label }),
-              item.id === "company" && data.company.needs.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-nav-count", children: data.company.needs.length }) : item.id === "mission" && reviewCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-nav-count", children: reviewCount }) : item.id === "tasks" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-nav-count", children: data.stats.total }) : item.id === "merges" && mergeCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-nav-count", children: mergeCount }) : item.id === "team" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-nav-count", children: data.roles.length }) : null
+              item.id === "company" && data.company.needs.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-nav-count", children: data.company.needs.length }) : item.id === "boardroom" && data.company.totals.pendingDecisions > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-nav-count", children: data.company.totals.pendingDecisions }) : item.id === "mission" && reviewCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-nav-count", children: reviewCount }) : item.id === "tasks" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-nav-count", children: data.stats.total }) : item.id === "merges" && mergeCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-nav-count", children: mergeCount }) : item.id === "team" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-nav-count", children: data.roles.length }) : null
             ]
           },
           item.id
@@ -911,6 +957,17 @@ function StudioPage() {
             onOpenProject: (projectId) => void openCompanyProject(projectId),
             onOpenNeed: (need) => void openCompanyNeed(need),
             onNewProject: () => setModal({ kind: "project" })
+          }
+        ) : null,
+        tab === "boardroom" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          BoardroomView,
+          {
+            decisions: data.decisions,
+            runs: data.runs,
+            tasks: data.tasks,
+            busy,
+            onNew: () => setModal({ kind: "decision" }),
+            onDecide: decideDecision
           }
         ) : null,
         tab === "mission" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
@@ -1013,10 +1070,239 @@ function StudioPage() {
         onSubmit: (input) => void createProject(input)
       }
     ) : null,
+    modal?.kind === "decision" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+      DecisionForm,
+      {
+        tasks: data.tasks,
+        busy,
+        onCancel: () => setModal(null),
+        onSubmit: (input) => void createDecision(input)
+      }
+    ) : null,
     toast !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-toast", "data-kind": toast.kind, role: "status", children: [
       toast.kind === "ok" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconCheck, { width: 14, height: 14 }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconAlert, { width: 14, height: 14 }),
       toast.text
     ] }) : null
+  ] });
+}
+function BoardroomView({
+  decisions,
+  runs,
+  tasks,
+  busy,
+  onNew,
+  onDecide
+}) {
+  const pending = decisions.filter((decision) => decision.status === "pending");
+  const history = decisions.filter((decision) => decision.status !== "pending");
+  const taskById = new Map(tasks.map((task) => [task.id, task]));
+  const runById = new Map(runs.map((run) => [run.id, run]));
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-page-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-eyebrow", children: "Decision Board" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h1", { className: "studio-title", children: "\u8463\u4E8B\u4F1A" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { className: "studio-subtitle", children: "\u652F\u7EBF\u7684\u9879\u76EE\u7EA7\u51B3\u7B56\u5728\u8FD9\u91CC\u5347\u7EA7\u7ED9 Owner\u3002Agent \u53EA\u80FD\u63D0\u51FA\u5EFA\u8BAE\uFF0C\u4E0D\u80FD\u66FF\u4F60\u505A\u51B3\u5B9A\uFF1B \u6279\u51C6\u6216\u62D2\u7EDD\u90FD\u8981\u7559\u4E0B\u7ED3\u8BBA\u548C\u7406\u7531\u3002" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-head-actions", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+        "button",
+        {
+          className: "studio-btn",
+          "data-variant": "primary",
+          type: "button",
+          onClick: onNew,
+          disabled: busy,
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconPlus, { width: 14, height: 14 }),
+            "\u63D0\u51FA\u51B3\u7B56"
+          ]
+        }
+      ) })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-grid-stats", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        StatCard,
+        {
+          label: "\u5F85\u88C1\u51B3",
+          value: String(pending.length),
+          note: "Agent \u5EFA\u8BAE / \u4EBA\u5DE5\u63D0\u51FA",
+          tone: pending.length > 0 ? "warn" : void 0
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        StatCard,
+        {
+          label: "\u5DF2\u6279\u51C6",
+          value: String(
+            decisions.filter((decision) => decision.status === "approved").length
+          ),
+          note: "\u5DF2\u5199\u5165\u51B3\u7B56\u8BB0\u5F55"
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        StatCard,
+        {
+          label: "\u5DF2\u62D2\u7EDD",
+          value: String(
+            decisions.filter((decision) => decision.status === "rejected").length
+          ),
+          note: "\u4FDD\u7559\u7406\u7531"
+        }
+      )
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "studio-panel", style: { marginBottom: 16 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-panel-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconSpark, { width: 14, height: 14 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h3", { children: "\u5F85\u88C1\u51B3" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-muted", children: pending.length === 0 ? "\u6CA1\u6709\u9700\u8981\u4F60\u62CD\u677F\u7684\u9879\u76EE\u7EA7\u51B3\u7B56" : `${String(pending.length)} \u9879` })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-panel-body", children: pending.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-empty", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: "\u8463\u4E8B\u4F1A\u6682\u65F6\u7A7A\u7740" }),
+        "Agent \u5728\u56DE\u6267\u91CC\u63D0\u51FA\u9879\u76EE\u7EA7\u51B3\u7B56\uFF0C\u6216\u4F60\u624B\u52A8\u63D0\u51FA\u4E00\u6761\u51B3\u7B56\uFF0C\u4F1A\u51FA\u73B0\u5728\u8FD9\u91CC\u3002"
+      ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-decision-list", children: pending.map((decision) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        DecisionCard,
+        {
+          decision,
+          task: decision.taskId === null ? void 0 : taskById.get(decision.taskId),
+          run: decision.runId === null ? void 0 : runById.get(decision.runId),
+          busy,
+          onDecide
+        },
+        decision.id
+      )) }) })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "studio-panel", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-panel-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconCheck, { width: 14, height: 14 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h3", { children: "\u51B3\u7B56\u8BB0\u5F55" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-muted", children: "append-only \u7ED3\u8BBA" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-panel-body", children: history.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-faint", style: { fontSize: 11 }, children: "\u8FD8\u6CA1\u6709\u5DF2\u5B8C\u6210\u7684\u51B3\u7B56\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-decision-list", children: history.map((decision) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+        "div",
+        {
+          className: "studio-decision-card",
+          "data-status": decision.status,
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-decision-head", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                "span",
+                {
+                  className: "studio-pill",
+                  "data-tone": decision.status === "approved" ? "ok" : "p0",
+                  children: DECISION_STATUS_LABELS[decision.status]
+                }
+              ),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: decision.title }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-faint", style: { marginLeft: "auto" }, children: decision.decidedAt === null ? "" : formatDate(decision.decidedAt) })
+            ] }),
+            decision.decision !== "" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-decision-context", children: [
+              "\u7ED3\u8BBA\uFF1A",
+              decision.decision
+            ] }) : null,
+            decision.note !== "" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-faint", style: { fontSize: 10 }, children: [
+              "\u7406\u7531\uFF1A",
+              decision.note
+            ] }) : null
+          ]
+        },
+        decision.id
+      )) }) })
+    ] })
+  ] });
+}
+function DecisionCard({
+  decision,
+  task,
+  run,
+  busy,
+  onDecide
+}) {
+  const [conclusion, setConclusion] = (0, import_react.useState)("");
+  const [note, setNote] = (0, import_react.useState)("");
+  const submit = (status) => {
+    void onDecide(decision, {
+      status,
+      decision: conclusion.trim(),
+      note: note.trim()
+    });
+  };
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("article", { className: "studio-decision-card", "data-status": "pending", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-decision-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-pill", "data-tone": "warn", children: "\u5F85\u88C1\u51B3" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: decision.title }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-faint", style: { marginLeft: "auto" }, children: formatDate(decision.createdAt) })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-decision-meta", children: [
+      task === void 0 ? "\u9879\u76EE\u7EA7" : task.title,
+      task?.branch !== null && task?.branch !== void 0 ? ` \xB7 ${task.branch}` : "",
+      run?.tokens !== null && run?.tokens !== void 0 ? ` \xB7 ${run.tokens.toLocaleString()} tokens` : " \xB7 token \u672A\u8BA1\u91CF"
+    ] }),
+    decision.context !== "" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-decision-context", children: decision.context }) : null,
+    decision.recommendation !== "" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-decision-rec", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: "\u5EFA\u8BAE" }),
+      decision.recommendation
+    ] }) : null,
+    decision.options.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("ul", { className: "studio-decision-options", children: decision.options.map((option) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("li", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: option.label }),
+      option.tradeoff !== "" ? ` \u2014 ${option.tradeoff}` : ""
+    ] }, option.label)) }) : null,
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-decision-form", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: `decision-conclusion-${decision.id}`, children: "\u4F60\u7684\u7ED3\u8BBA\uFF08\u53EF\u9009\uFF0C\u6279\u51C6/\u62D2\u7EDD\u90FD\u4F1A\u8BB0\u5F55\uFF09" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          "textarea",
+          {
+            id: `decision-conclusion-${decision.id}`,
+            value: conclusion,
+            onChange: (event) => setConclusion(event.target.value),
+            placeholder: "\u4F8B\u5982\uFF1A\u6279\u51C6\uFF0C\u628A replay \u4E0E\u6027\u80FD\u95E8\u7981\u7EB3\u5165\u5408\u5E76\u524D\u68C0\u67E5\u3002"
+          }
+        )
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: `decision-note-${decision.id}`, children: "\u7406\u7531\uFF08\u53EF\u9009\uFF09" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          "input",
+          {
+            id: `decision-note-${decision.id}`,
+            value: note,
+            onChange: (event) => setNote(event.target.value),
+            placeholder: "\u4E3A\u4EC0\u4E48\u8FD9\u6837\u62CD\u677F\uFF1F"
+          }
+        )
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-actions", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+          "button",
+          {
+            type: "button",
+            className: "studio-btn",
+            "data-variant": "primary",
+            "data-size": "sm",
+            disabled: busy,
+            onClick: () => submit("approved"),
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconCheck, { width: 13, height: 13 }),
+              "\u6279\u51C6"
+            ]
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+          "button",
+          {
+            type: "button",
+            className: "studio-btn",
+            "data-size": "sm",
+            disabled: busy,
+            onClick: () => submit("rejected"),
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconX, { width: 13, height: 13 }),
+              "\u62D2\u7EDD"
+            ]
+          }
+        )
+      ] })
+    ] })
   ] });
 }
 function CompanyView({
@@ -2221,7 +2507,7 @@ function TaskDrawer({
                     status
                   );
                 }) }),
-                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-action-note", children: "v0.4 \u5DF2\u63A5\u5165 Agent \u5206\u6790\u6D3E\u5355\u3001\u7ED3\u6784\u5316\u56DE\u6267\u548C token \u8BA1\u91CF\uFF1B\u5408\u5E76\u4E0E Git \u547D\u4EE4\u4ECD\u7531\u4EBA\u6267\u884C\u3002" })
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-action-note", children: "v0.5 \u5DF2\u63A5\u5165 Agent \u5206\u6790\u6D3E\u5355\u3001\u7ED3\u6784\u5316\u56DE\u6267\u3001token \u8BA1\u91CF\u4E0E\u51B3\u7B56\u8463\u4E8B\u4F1A\uFF1B\u5408\u5E76\u4E0E Git \u547D\u4EE4\u4ECD\u7531\u4EBA\u6267\u884C\u3002" })
               ] })
             ] })
           ]
@@ -2240,7 +2526,7 @@ function TaskAgentPanel({
   const canDispatch = task.ownerRoleId !== null && (task.status === "backlog" || task.status === "ready");
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-section-label", children: "Agent \u6D3E\u5355" }),
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-action-note", style: { marginTop: 0 }, children: "v0.4 \u662F\u5206\u6790\u6A21\u5F0F\uFF1AAgent \u8BFB\u53D6\u4EFB\u52A1\u4E0E\u89D2\u8272\u5951\u7EA6\uFF0C\u8FD4\u56DE\u7ED3\u6784\u5316\u56DE\u6267\uFF0C\u4E0D\u4FEE\u6539\u6587\u4EF6\u3002 \u4EE3\u7801\u6267\u884C/worktree \u5728 v0.6 \u63A5\u5165\u3002" }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-action-note", style: { marginTop: 0 }, children: "v0.5 \u4ECD\u662F\u5206\u6790\u6A21\u5F0F\uFF1AAgent \u8BFB\u53D6\u4EFB\u52A1\u4E0E\u89D2\u8272\u5951\u7EA6\uFF0C\u8FD4\u56DE\u7ED3\u6784\u5316\u56DE\u6267\uFF0C\u4E0D\u4FEE\u6539\u6587\u4EF6\u3002 \u9879\u76EE\u7EA7\u51B3\u7B56\u4F1A\u81EA\u52A8\u8FDB\u5165\u8463\u4E8B\u4F1A\uFF1B\u4EE3\u7801\u6267\u884C/worktree \u5728 v0.6 \u63A5\u5165\u3002" }),
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-actions", style: { marginTop: 9 }, children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
         "button",
@@ -2672,6 +2958,8 @@ function SettingsView({
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.filePersistence ? "\u53EF\u7528" : "\u4E0D\u53EF\u7528" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u516C\u53F8\u4EEA\u8868\u76D8" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.ownerDashboard ? "\u53EF\u7528" : "\u4E0D\u53EF\u7528" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u8463\u4E8B\u4F1A" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.decisionBoard ? "\u53EF\u7528" : "\u4E0D\u53EF\u7528" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u5408\u5E76\u6CBB\u7406" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.mergeGovernance ? "\u53EF\u7528\uFF08\u8BB0\u5F55\u8BC4\u5BA1\uFF0C\u4EBA\u5DE5\u6267\u884C Git\uFF09" : "\u4E0D\u53EF\u7528" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "Agent \u6D3E\u5355" }),
@@ -2679,7 +2967,7 @@ function SettingsView({
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "Git \u81EA\u52A8\u5408\u5E76" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { className: "studio-faint", children: data.features.gitMerge ? "\u5DF2\u542F\u7528" : "\u672A\u542F\u7528\uFF08\u6709\u610F\uFF09" })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { className: "studio-hint", style: { marginTop: 10 }, children: "v0.4 \u53EA\u4F7F\u7528 DSH Web Server \u8DEF\u7531\u3001client slots\u3001React \u548C\u516C\u5F00 Agent API\uFF0C \u4E0D\u4F9D\u8D56\u79C1\u6709 Remote \u751F\u6210\u5668\uFF1BAgent \u53EA\u505A\u5206\u6790/\u56DE\u6267\uFF0C\u5408\u5E76\u547D\u4EE4\u7531\u4EBA\u6267\u884C\u3002" })
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { className: "studio-hint", style: { marginTop: 10 }, children: "v0.5 \u53EA\u4F7F\u7528 DSH Web Server \u8DEF\u7531\u3001client slots\u3001React \u548C\u516C\u5F00 Agent API\uFF0C \u4E0D\u4F9D\u8D56\u79C1\u6709 Remote \u751F\u6210\u5668\uFF1BAgent \u53EA\u505A\u5206\u6790/\u56DE\u6267\uFF0C\u51B3\u7B56\u4E0E\u5408\u5E76\u7531\u4EBA\u62CD\u677F\u3002" })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "studio-settings-card", children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h3", { children: "\u754C\u9762" }),
@@ -3185,6 +3473,118 @@ function ProjectForm({
             }
           ),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-hint", children: "\u8FD9\u662F\u516C\u53F8\u7ED9\u8BE5\u9879\u76EE\u7684 token \u4E0A\u9650\uFF1B\u5B9E\u9645\u6D88\u8017\u6765\u81EA DSH token meter\u3002" })
+        ] })
+      ] })
+    }
+  );
+}
+function DecisionForm({
+  tasks,
+  busy,
+  onCancel,
+  onSubmit
+}) {
+  const [title, setTitle] = (0, import_react.useState)("");
+  const [context, setContext] = (0, import_react.useState)("");
+  const [recommendation, setRecommendation] = (0, import_react.useState)("");
+  const [taskId, setTaskId] = (0, import_react.useState)("");
+  const [localError, setLocalError] = (0, import_react.useState)(null);
+  const submit = (event) => {
+    event.preventDefault();
+    if (title.trim() === "") {
+      setLocalError("\u8BF7\u586B\u5199\u51B3\u7B56\u6807\u9898");
+      return;
+    }
+    setLocalError(null);
+    onSubmit({
+      title: title.trim(),
+      context: context.trim(),
+      recommendation: recommendation.trim(),
+      taskId: taskId === "" ? null : taskId
+    });
+  };
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+    ModalShell,
+    {
+      title: "\u63D0\u51FA\u51B3\u7B56",
+      subtitle: "\u628A\u9700\u8981 Owner \u62CD\u677F\u7684\u4E8B\u9879\u653E\u8FDB\u8463\u4E8B\u4F1A\uFF1BAgent \u7684\u9879\u76EE\u7EA7\u5EFA\u8BAE\u4E5F\u4F1A\u81EA\u52A8\u51FA\u73B0\u5728\u8FD9\u91CC\u3002",
+      onClose: onCancel,
+      footer: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-modal-foot", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          "button",
+          {
+            className: "studio-btn",
+            type: "button",
+            onClick: onCancel,
+            disabled: busy,
+            children: "\u53D6\u6D88"
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          "button",
+          {
+            className: "studio-btn",
+            "data-variant": "primary",
+            type: "submit",
+            form: "studio-decision-form",
+            disabled: busy,
+            children: busy ? "\u63D0\u4EA4\u4E2D\u2026" : "\u653E\u5165\u8463\u4E8B\u4F1A"
+          }
+        )
+      ] }),
+      children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("form", { id: "studio-decision-form", className: "studio-modal-body", onSubmit: submit, children: [
+        localError !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-alert", children: localError }) : null,
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "decision-title", children: "\u51B3\u7B56\u6807\u9898" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "input",
+            {
+              id: "decision-title",
+              value: title,
+              onChange: (event) => setTitle(event.target.value),
+              placeholder: "\u4F8B\u5982\uFF1A\u662F\u5426\u628A replay \u6821\u9A8C\u7EB3\u5165\u5408\u5E76\u95E8\u7981\uFF1F",
+              autoFocus: true
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "decision-context", children: "\u80CC\u666F\u4E0E\u51B2\u7A81" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "textarea",
+            {
+              id: "decision-context",
+              value: context,
+              onChange: (event) => setContext(event.target.value),
+              placeholder: "\u5199\u6E05\u695A\u53CC\u65B9\u76EE\u6807\u3001\u51B2\u7A81\u70B9\u3001\u5DF2\u5C1D\u8BD5\u7684\u65B9\u6848\u3002"
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "decision-recommendation", children: "\u5EFA\u8BAE\uFF08\u53EF\u9009\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "textarea",
+            {
+              id: "decision-recommendation",
+              value: recommendation,
+              onChange: (event) => setRecommendation(event.target.value),
+              placeholder: "Architect/Owner \u7684\u5EFA\u8BAE\uFF1B\u6CA1\u6709\u5C31\u7559\u7A7A\u3002"
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "decision-task", children: "\u5173\u8054\u4EFB\u52A1\uFF08\u53EF\u9009\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+            "select",
+            {
+              id: "decision-task",
+              value: taskId,
+              onChange: (event) => setTaskId(event.target.value),
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "", children: "\u9879\u76EE\u7EA7\uFF0C\u4E0D\u7ED1\u5B9A\u4EFB\u52A1" }),
+                tasks.map((task) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: task.id, children: task.title }, task.id))
+              ]
+            }
+          )
         ] })
       ] })
     }
@@ -3978,6 +4378,36 @@ var studioCss = `
 .studio-merge-title .studio-mono { color: var(--st-faint); font-weight: 400; }
 .studio-merge-card[data-status="approved"] { border-color: rgba(240, 180, 95, 0.28); }
 .studio-merge-card[data-status="merged"] { border-color: rgba(91, 214, 162, 0.25); }
+.studio-decision-list { display: flex; flex-direction: column; gap: 10px; }
+.studio-decision-card {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 13px;
+  border: 1px solid var(--st-border);
+  border-radius: 10px;
+  background: var(--st-panel-2);
+}
+.studio-decision-card[data-status="pending"] { border-color: rgba(240, 180, 95, 0.24); }
+.studio-decision-card[data-status="approved"] { border-color: rgba(91, 214, 162, 0.22); }
+.studio-decision-head { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.studio-decision-head strong { color: var(--st-text); font-size: 13px; }
+.studio-decision-meta { color: var(--st-faint); font-size: 10px; }
+.studio-decision-context { color: var(--st-muted); font-size: 11px; line-height: 1.6; white-space: pre-wrap; }
+.studio-decision-rec {
+  padding: 9px 10px;
+  border-left: 2px solid var(--st-accent);
+  border-radius: 0 7px 7px 0;
+  background: var(--st-accent-soft);
+  color: var(--st-muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+.studio-decision-rec span { display: block; margin-bottom: 3px; color: var(--st-accent); font-size: 9px; font-weight: 700; letter-spacing: 0.08em; }
+.studio-decision-options { margin: 0; padding-left: 16px; color: var(--st-muted); font-size: 11px; line-height: 1.6; }
+.studio-decision-form { display: flex; flex-direction: column; gap: 8px; padding-top: 9px; border-top: 1px solid var(--st-border); }
+.studio-decision-form .studio-field textarea { min-height: 58px; }
+
 .studio-role-salary {
   display: flex;
   flex-wrap: wrap;

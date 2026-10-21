@@ -24,6 +24,9 @@ import type {
   CompanyRisk,
   CompanySummary,
   CompanyTotals,
+  CreateDecisionInput,
+  DecideDecisionInput,
+  Decision,
   CreateMergeProposalInput,
   CreateProjectInput,
   CreateRoleInput,
@@ -301,6 +304,8 @@ function buildCompany(state: StudioState, now: Date): CompanySummary {
     runs: 0,
     runningRuns: 0,
     tokensUsed: 0,
+    pendingDecisions: 0,
+    decidedDecisions: 0,
   };
 
   for (const project of state.projects) {
@@ -315,6 +320,9 @@ function buildCompany(state: StudioState, now: Date): CompanySummary {
     );
     const projectRuns = state.runs.filter(
       (run) => run.projectId === project.id,
+    );
+    const projectDecisions = state.decisions.filter(
+      (decision) => decision.projectId === project.id,
     );
     const roleById = new Map(projectRoles.map((role) => [role.id, role]));
     const stats = statsFor(projectTasks, projectProposals);
@@ -505,6 +513,31 @@ function buildCompany(state: StudioState, now: Date): CompanySummary {
       (sum, run) => sum + (run.tokens ?? 0),
       0,
     );
+    totals.pendingDecisions += projectDecisions.filter(
+      (decision) => decision.status === "pending",
+    ).length;
+    totals.decidedDecisions += projectDecisions.filter(
+      (decision) => decision.status !== "pending",
+    ).length;
+
+    for (const decision of projectDecisions) {
+      if (decision.status !== "pending") continue;
+      projectNeeds.push({
+        id: `need-decision-${decision.id}`,
+        kind: "decision",
+        severity: "warning",
+        projectId: project.id,
+        projectName: project.name,
+        taskId: decision.taskId,
+        proposalId: null,
+        title: `待裁决：${decision.title}`,
+        detail:
+          decision.recommendation === ""
+            ? "需要 Owner 在董事会批准或拒绝"
+            : decision.recommendation,
+        ageHours: hoursSince(decision.createdAt, now),
+      });
+    }
 
     for (const role of projectRoles) {
       const assigned = projectTasks.filter(
@@ -699,6 +732,31 @@ function isMergeProposal(value: unknown): value is MergeProposal {
  * Migrate an older on-disk state. v1 had no merge proposals; the collection is
  * additive, so no task or role rewrite is needed.
  */
+function isDecisionStatus(value: unknown): value is Decision["status"] {
+  return value === "pending" || value === "approved" || value === "rejected";
+}
+
+function isDecision(value: unknown): value is Decision {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.projectId === "string" &&
+    (value.taskId === null || typeof value.taskId === "string") &&
+    (value.runId === null || typeof value.runId === "string") &&
+    typeof value.title === "string" &&
+    typeof value.context === "string" &&
+    Array.isArray(value.options) &&
+    typeof value.recommendation === "string" &&
+    isDecisionStatus(value.status) &&
+    typeof value.decision === "string" &&
+    typeof value.note === "string" &&
+    typeof value.decidedBy === "string" &&
+    (value.tokenCost === null || typeof value.tokenCost === "number") &&
+    typeof value.createdAt === "string" &&
+    (value.decidedAt === null || typeof value.decidedAt === "string")
+  );
+}
+
 function migrateState(value: unknown): StudioState {
   if (!isRecord(value)) {
     throw new Error("Studio state must be an object");
@@ -712,9 +770,9 @@ function migrateState(value: unknown): StudioState {
     };
   }
   if (state.schemaVersion === 2) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 3,
       projects: state.projects.map((project) => ({
         ...project,
         tokenBudget: project.tokenBudget ?? null,
@@ -730,6 +788,13 @@ function migrateState(value: unknown): StudioState {
       )
         ? ((state as unknown as { runs: AgentRun[] }).runs)
         : [],
+    };
+  }
+  if (state.schemaVersion === 3) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      decisions: [],
     };
   }
   return state;
@@ -750,6 +815,7 @@ function assertState(value: unknown): asserts value is StudioState {
     !Array.isArray(value.tasks) ||
     !Array.isArray(value.mergeProposals) ||
     !Array.isArray(value.runs) ||
+    !Array.isArray(value.decisions) ||
     !Array.isArray(value.events)
   ) {
     throw new Error("Studio state collections are missing");
@@ -768,6 +834,9 @@ function assertState(value: unknown): asserts value is StudioState {
   }
   if (!value.runs.every(isAgentRun)) {
     throw new Error("Studio state contains an invalid agent run");
+  }
+  if (!value.decisions.every(isDecision)) {
+    throw new Error("Studio state contains an invalid decision");
   }
 }
 
@@ -817,6 +886,17 @@ export class StudioStore {
             .sort((left, right) =>
               right.startedAt.localeCompare(left.startedAt),
             );
+      const decisions = project === null
+        ? []
+        : state.decisions
+            .filter((decision) => decision.projectId === project.id)
+            .sort((left, right) => {
+              if (left.status !== right.status) {
+                if (left.status === "pending") return -1;
+                if (right.status === "pending") return 1;
+              }
+              return right.createdAt.localeCompare(left.createdAt);
+            });
       const events = [...state.events]
         .filter((event) => project === null || event.projectId === project.id)
         .slice(-30)
@@ -842,6 +922,7 @@ export class StudioStore {
         tasks,
         mergeProposals,
         runs,
+        decisions,
         stats: statsFor(tasks, mergeProposals),
         events,
         company: buildCompany(state, now),
@@ -851,6 +932,7 @@ export class StudioStore {
           mergeGovernance: true,
           ownerDashboard: true,
           agentExecution: true,
+          decisionBoard: true,
           gitMerge: false,
         },
       };
@@ -1172,6 +1254,48 @@ export class StudioStore {
         }
         task.updatedAt = at;
       }
+      if (input.receipt !== null) {
+        for (const proposed of input.receipt.decisions) {
+          if (proposed.scope !== "project") continue;
+          if (
+            state.decisions.some(
+              (item) =>
+                item.runId === run.id && item.title === proposed.title,
+            )
+          ) {
+            continue;
+          }
+          const decision: Decision = {
+            id: newId("dec"),
+            projectId: run.projectId,
+            taskId: run.taskId,
+            runId: run.id,
+            title: proposed.title,
+            context: proposed.rationale,
+            options: [],
+            recommendation: proposed.rationale,
+            status: "pending",
+            decision: "",
+            note: "",
+            decidedBy: "",
+            tokenCost: input.tokens,
+            createdAt: at,
+            decidedAt: null,
+          };
+          state.decisions.push(decision);
+          this.recordEvent(state, {
+            type: "decision.proposed",
+            at,
+            projectId: run.projectId,
+            taskId: run.taskId,
+            payload: {
+              decisionId: decision.id,
+              runId: run.id,
+              title: decision.title,
+            },
+          });
+        }
+      }
       state.updatedAt = at;
       this.recordEvent(state, {
         type: "agent.completed",
@@ -1216,6 +1340,116 @@ export class StudioStore {
       });
       await this.save();
       return structuredClone(run);
+    });
+  }
+
+  async createDecision(input: CreateDecisionInput): Promise<Decision> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const project = this.pickProject(state, undefined);
+      if (project === null) {
+        throw new StudioStoreError("project_required", "请先创建一个项目");
+      }
+      let taskId: string | null = null;
+      if (input.taskId !== undefined && input.taskId !== null) {
+        const task = this.findTask(state, input.taskId);
+        if (task.projectId !== project.id) {
+          throw new StudioStoreError(
+            "task_not_found",
+            "任务不属于当前项目",
+            404,
+          );
+        }
+        taskId = task.id;
+      }
+      const at = nowIso(this.now);
+      const decision: Decision = {
+        id: newId("dec"),
+        projectId: project.id,
+        taskId,
+        runId: null,
+        title: requiredText(input.title, "title", 200),
+        context: optionalText(input.context, "context", 4000),
+        options: [],
+        recommendation: optionalText(
+          input.recommendation,
+          "recommendation",
+          2000,
+        ),
+        status: "pending",
+        decision: "",
+        note: "",
+        decidedBy: "",
+        tokenCost: null,
+        createdAt: at,
+        decidedAt: null,
+      };
+      state.decisions.push(decision);
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "decision.created",
+        at,
+        projectId: project.id,
+        taskId,
+        payload: { decisionId: decision.id, title: decision.title },
+      });
+      await this.save();
+      return structuredClone(decision);
+    });
+  }
+
+  async decideDecision(
+    decisionId: string,
+    input: DecideDecisionInput,
+  ): Promise<Decision> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const decision = state.decisions.find(
+        (item) => item.id === decisionId,
+      );
+      if (decision === undefined) {
+        throw new StudioStoreError(
+          "decision_not_found",
+          "决策不存在",
+          404,
+        );
+      }
+      if (decision.status !== "pending") {
+        throw new StudioStoreError(
+          "decision_decided",
+          "这条决策已经有结论",
+          409,
+        );
+      }
+      if (input.status !== "approved" && input.status !== "rejected") {
+        throw new StudioStoreError(
+          "invalid_input",
+          "决策状态只能是 approved 或 rejected",
+        );
+      }
+      const at = nowIso(this.now);
+      decision.status = input.status;
+      decision.decision = optionalText(input.decision, "decision", 4000);
+      decision.note = optionalText(input.note, "note", 2000);
+      decision.decidedBy = "Owner";
+      decision.decidedAt = at;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type:
+          input.status === "approved"
+            ? "decision.approved"
+            : "decision.rejected",
+        at,
+        projectId: decision.projectId,
+        taskId: decision.taskId,
+        payload: {
+          decisionId: decision.id,
+          decision: decision.decision,
+          note: decision.note,
+        },
+      });
+      await this.save();
+      return structuredClone(decision);
     });
   }
 
@@ -2015,6 +2249,7 @@ export class StudioStore {
       tasks,
       mergeProposals: [],
       runs: [],
+      decisions: [],
       events: [
         {
           id: "evt-demo",

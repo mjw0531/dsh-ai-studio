@@ -1,14 +1,15 @@
 # AI 工作台（Studio）
 
-一套构建在 **DeepSeek Harness（DSH）** 之上的多角色 AI 工作台：把「一个聊天窗口」变成一间**有公司仪表盘、Agent 派单、token 预算、项目、角色、任务、验收、合并治理**的工作室。
+一套构建在 **DeepSeek Harness（DSH）** 之上的多角色 AI 工作台：把「一个聊天窗口」变成一间**有公司仪表盘、Agent 派单、token 预算、决策董事会、项目、角色、任务、验收、合并治理**的工作室。
 
-> 当前状态：**v0.4.0 可运行**。已完成公司级 Owner Dashboard、Agent 分析派单与结构化回执、角色模型/token 预算、项目预算、DSH token 计量、项目/角色/任务/验收/证据持久化、合并治理，并在 DSH `0.2.1-rc.2` 上完成 Web 端到端验证。
+> 当前状态：**v0.5.0 可运行**。已完成公司级 Owner Dashboard、Agent 分析派单与结构化回执、角色模型/token 预算、项目预算、DSH token 计量、决策董事会、项目/角色/任务/验收/证据持久化、合并治理，并在 DSH `0.2.1-rc.2` 上完成 Web/桌面验证。
 
-![Studio Owner Dashboard](docs/images/owner-dashboard-v04.png)
+![Studio Decision Boardroom](docs/images/decision-boardroom.png)
 
 ## 现在能做什么
 
 - **公司仪表盘**：跨项目组合、老板收件箱、角色负载、风险雷达、交付流和 token 消耗；金额成本等报价接入后再显示。
+- **决策董事会**：Agent 的项目级决策自动进入待裁决；Owner 批准/拒绝并记录结论与理由，Agent 不能替 Owner 拍板。
 - **Agent 分析派单**：Task Room 把任务派给负责人角色，Agent 返回结构化回执；回执缺 `summary`/`evidence` 时任务退回可开始，不能进入验收。
 - **薪资与预算**：角色配置模型、单任务/每日 token 预算；项目配置总 token 预算。
 - **独立工作台页面**：DSH 侧栏点击「工作台」，进入公司仪表盘，不占用聊天会话。
@@ -58,7 +59,7 @@ dsh --profile web
 ```text
 DSH Web/Desktop
   ├─ 独立页面（client plugin）
-  │    Owner Dashboard / Mission Control / Task Room / Merge Queue / Team / Settings
+  │    Owner Dashboard / Decision Boardroom / Mission Control / Task Room / Merge Queue / Team / Settings
   └─ Host plugin
        ├─ /studio-api（同源、Bearer token、JSON）
        ├─ 文件存储（$DSH_HOME/studio/studio.json）
@@ -96,6 +97,7 @@ tools/                   # CDP 端到端验证脚本
 - [ADR-0003：合并治理只记录状态](docs/adr/0003-record-only-merge-governance.md)
 - [ADR-0004：公司仪表盘是派生投影](docs/adr/0004-company-is-a-derived-projection.md)
 - [ADR-0005：Agent 派单先做只读分析](docs/adr/0005-agent-dispatch-is-advisory.md)
+- [ADR-0006：项目级决策进入董事会](docs/adr/0006-decision-boardroom.md)
 
 ## 开发
 
@@ -121,9 +123,9 @@ dsh --profile web --no-open --port 0
 - **v0.1**：项目/角色/任务/验收/证据；独立页面；本地持久化；版本适配。
 - **v0.2**：合并提案、批准、打回、合并记录；schema v1→v2 迁移。
 - **v0.3**：Owner Dashboard；公司级项目组合、老板收件箱、角色负载、风险雷达、交付流。
-- **v0.4（当前）**：Agent 分析派单与结构化回执；角色模型/token 预算；项目预算；DSH token 计量。
-- **v0.5**：Branch/Decision/Scope 隔离、决策升级门禁、Project Book、汇入冲突“董事会”视图。
-- **v0.6**：Git worktree、自动合并/合并队列执行、独立评审。
+- **v0.4**：Agent 分析派单与结构化回执；角色模型/token 预算；项目预算；DSH token 计量。
+- **v0.5（当前）**：决策董事会；Agent 项目级决策进入待裁决；Owner 批准/拒绝与结论记录。
+- **v0.6**：Branch/Scope 强隔离、Project Book、Git worktree、代码执行与合并队列。
 - **v1.0**：用工作台完成一个 2.5D MOBA 垂直切片，再抽象为可复用插件。
 
 详细迭代计划见 [后续迭代](docs/02-后续迭代.md)。

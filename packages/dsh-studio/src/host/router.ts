@@ -5,10 +5,12 @@ import type {
   AgentRun,
   ApiErrorBody,
   CompatibilityInfo,
+  CreateDecisionInput,
   CreateMergeProposalInput,
   CreateProjectInput,
   CreateRoleInput,
   CreateTaskInput,
+  DecideDecisionInput,
   MergeRisk,
   TaskStatus,
   TransitionTaskInput,
@@ -191,6 +193,37 @@ function asCreateProject(body: Record<string, unknown>): CreateProjectInput {
     name: asString(body.name, "name"),
     description: asOptionalString(body.description, "description"),
     tokenBudget: asOptionalBudget(body.tokenBudget, "tokenBudget"),
+  };
+}
+
+function asCreateDecision(
+  body: Record<string, unknown>,
+): CreateDecisionInput {
+  return {
+    title: asString(body.title, "title"),
+    context: asOptionalString(body.context, "context"),
+    recommendation: asOptionalString(body.recommendation, "recommendation"),
+    taskId:
+      body.taskId === null || body.taskId === undefined
+        ? null
+        : asString(body.taskId, "taskId"),
+  };
+}
+
+function asDecideDecision(
+  body: Record<string, unknown>,
+): DecideDecisionInput {
+  if (body.status !== "approved" && body.status !== "rejected") {
+    throw new HttpError(
+      400,
+      "invalid_input",
+      "status 只能是 approved 或 rejected",
+    );
+  }
+  return {
+    status: body.status,
+    decision: asOptionalString(body.decision, "decision"),
+    note: asOptionalString(body.note, "note"),
   };
 }
 
@@ -471,6 +504,29 @@ export class StudioRouter {
         decodeSegment(taskDispatch[1] ?? ""),
       );
       sendJson(res, 202, { ok: true, run });
+      return;
+    }
+
+    if (parsed.pathname === `${API_PREFIX}/decisions`) {
+      this.requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const decision = await this.store.createDecision(
+        asCreateDecision(await readJson(req)),
+      );
+      sendJson(res, 201, { ok: true, decision });
+      return;
+    }
+
+    const decisionDecide =
+      /^\/studio-api\/decisions\/([^/]+)\/decide$/.exec(parsed.pathname);
+    if (decisionDecide !== null) {
+      this.requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const decision = await this.store.decideDecision(
+        decodeSegment(decisionDecide[1] ?? ""),
+        asDecideDecision(await readJson(req)),
+      );
+      sendJson(res, 200, { ok: true, decision });
       return;
     }
 

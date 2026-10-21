@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 3;
-export const STUDIO_PLUGIN_VERSION = "0.4.0";
+export const STUDIO_SCHEMA_VERSION = 4;
+export const STUDIO_PLUGIN_VERSION = "0.5.0";
 
 export type TaskStatus =
   | "backlog"
@@ -145,6 +145,31 @@ export interface AgentRun {
   endedAt: string | null;
 }
 
+export type DecisionStatus = "pending" | "approved" | "rejected";
+
+export interface DecisionOption {
+  label: string;
+  tradeoff: string;
+}
+
+export interface Decision {
+  id: string;
+  projectId: string;
+  taskId: string | null;
+  runId: string | null;
+  title: string;
+  context: string;
+  options: DecisionOption[];
+  recommendation: string;
+  status: DecisionStatus;
+  decision: string;
+  note: string;
+  decidedBy: string;
+  tokenCost: number | null;
+  createdAt: string;
+  decidedAt: string | null;
+}
+
 export interface StudioEvent {
   id: string;
   type: string;
@@ -165,6 +190,7 @@ export interface StudioState {
   tasks: Task[];
   mergeProposals: MergeProposal[];
   runs: AgentRun[];
+  decisions: Decision[];
   events: StudioEvent[];
 }
 
@@ -192,7 +218,8 @@ export type OwnerNeedKind =
   | "missing_evidence"
   | "stale_task"
   | "unowned_task"
-  | "project_setup";
+  | "project_setup"
+  | "decision";
 export type OwnerNeedSeverity = "critical" | "warning" | "info";
 
 export interface OwnerNeed {
@@ -254,6 +281,8 @@ export interface CompanyTotals {
   runs: number;
   runningRuns: number;
   tokensUsed: number;
+  pendingDecisions: number;
+  decidedDecisions: number;
 }
 
 export interface CompanySummary {
@@ -283,6 +312,7 @@ export interface BootstrapResponse {
   tasks: Task[];
   mergeProposals: MergeProposal[];
   runs: AgentRun[];
+  decisions: Decision[];
   stats: StudioStats;
   events: StudioEvent[];
   company: CompanySummary;
@@ -292,6 +322,7 @@ export interface BootstrapResponse {
     mergeGovernance: boolean;
     ownerDashboard: boolean;
     agentExecution: boolean;
+    decisionBoard: boolean;
     gitMerge: boolean;
   };
 }
@@ -363,6 +394,12 @@ export const AGENT_RUN_STATUS_LABELS: Record<AgentRunStatus, string> = {
   running: "执行中",
   succeeded: "已完成",
   failed: "失败",
+};
+
+export const DECISION_STATUS_LABELS: Record<DecisionStatus, string> = {
+  pending: "待裁决",
+  approved: "已批准",
+  rejected: "已拒绝",
 };
 
 /**
@@ -451,6 +488,19 @@ export interface CreateMergeProposalInput {
   risk?: MergeRisk;
   base?: string;
   branch?: string;
+}
+
+export interface CreateDecisionInput {
+  title: string;
+  context?: string;
+  recommendation?: string;
+  taskId?: string | null;
+}
+
+export interface DecideDecisionInput {
+  status: "approved" | "rejected";
+  decision?: string;
+  note?: string;
 }
 
 export interface MergeProposalNoteInput {

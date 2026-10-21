@@ -421,6 +421,92 @@ test("rejects a run when the role token budget is exhausted", async () => {
   });
 });
 
+test("creates and decides a boardroom decision", async () => {
+  await withStore(async (store) => {
+    const decision = await store.createDecision({
+      title: "是否把 replay 纳入合并门禁？",
+      context: "replay 还没有 CI 载体。",
+      recommendation: "先做 replay v1，再入门禁。",
+    });
+    assert.equal(decision.status, "pending");
+    const pending = await store.bootstrap();
+    assert.equal(pending.company.totals.pendingDecisions, 1);
+    assert.ok(
+      pending.company.needs.some(
+        (need) => need.kind === "decision" && need.title.includes("replay"),
+      ),
+    );
+
+    const decided = await store.decideDecision(decision.id, {
+      status: "approved",
+      decision: "批准，先做 replay v1。",
+      note: "Owner 拍板",
+    });
+    assert.equal(decided.status, "approved");
+    assert.equal(decided.decidedBy, "Owner");
+    const after = await store.bootstrap();
+    assert.equal(after.company.totals.pendingDecisions, 0);
+    assert.equal(after.company.totals.decidedDecisions, 1);
+    await assert.rejects(
+      () =>
+        store.decideDecision(decision.id, {
+          status: "rejected",
+          decision: "重复",
+        }),
+      (error) =>
+        error instanceof StudioStoreError &&
+        error.code === "decision_decided",
+    );
+  });
+});
+
+test("promotes project-scope agent decisions into the boardroom", async () => {
+  await withStore(async (store) => {
+    const data = await store.bootstrap();
+    const owner = data.roles[0];
+    const reviewer = data.roles[1];
+    assert.ok(owner && reviewer);
+    const task = await store.createTask({
+      title: "决策任务",
+      acceptance: ["有回执"],
+      ownerRoleId: owner.id,
+      reviewerRoleId: reviewer.id,
+    });
+    await store.transitionTask(task.id, "ready");
+    const run = await store.beginRun(task.id, "提出项目级决策");
+    await store.completeRun(run.id, {
+      output: "{}",
+      receipt: {
+        summary: "需要 Owner 裁决",
+        evidence: ["已检查"],
+        artifacts: [],
+        decisions: [
+          {
+            title: "是否引入 replay 门禁",
+            rationale: "影响所有合并",
+            scope: "project",
+          },
+          {
+            title: "本轮实现细节",
+            rationale: "仅本支线",
+            scope: "branch",
+          },
+        ],
+        contractDeltas: [],
+        rejectedOptions: [],
+        blockers: [],
+      },
+      tokens: 10,
+    });
+    const after = await store.bootstrap();
+    assert.equal(after.decisions.length, 1);
+    assert.equal(after.decisions[0].status, "pending");
+    assert.equal(after.decisions[0].title, "是否引入 replay 门禁");
+    assert.equal(after.decisions[0].runId, run.id);
+    assert.equal(after.company.totals.pendingDecisions, 1);
+  });
+});
+
 test("migrates a schema v1 file by adding merge proposals", async () => {
   await withStore(async (store, dir) => {
     const file = path.join(dir, "studio.json");
@@ -434,8 +520,9 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
     const data = await migratedStore.bootstrap();
     assert.deepEqual(data.mergeProposals, []);
     assert.deepEqual(data.runs, []);
+    assert.deepEqual(data.decisions, []);
     const migrated = JSON.parse(await readFile(file, "utf8"));
-    assert.equal(migrated.schemaVersion, 3);
+    assert.equal(migrated.schemaVersion, 4);
     assert.ok(migrated.runs.every((run) => run.status !== undefined));
   });
 });
