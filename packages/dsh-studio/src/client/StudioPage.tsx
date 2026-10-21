@@ -16,6 +16,7 @@ import {
   MERGE_STATUS_LABELS,
   PRIORITY_LABELS,
   ROLE_LOAD_LABELS,
+  TASK_KIND_LABELS,
   TASK_STATUS_LABELS,
   TASK_STATUS_ORDER,
   TRANSITION_LABELS,
@@ -41,6 +42,7 @@ import type {
   Role,
   RoleLoadSummary,
   Task,
+  TaskKind,
   TaskPriority,
   TaskStatus,
   Verification,
@@ -2682,6 +2684,16 @@ function TaskDrawer({
           <section>
             <div className="studio-section-label">上下文</div>
             <dl className="studio-kv">
+              <dt>票类型</dt>
+              <dd>{TASK_KIND_LABELS[task.kind]}</dd>
+              <dt>模块</dt>
+              <dd className="studio-mono">{task.module ?? "未指定"}</dd>
+              <dt>契约</dt>
+              <dd className="studio-mono">{task.contractRef ?? "未指定"}</dd>
+              <dt>失败次数</dt>
+              <dd>
+                {runs.filter((run) => run.status === "failed").length} / 2
+              </dd>
               <dt>分支</dt>
               <dd className="studio-mono">{task.branch ?? "未创建"}</dd>
               <dt>负责人</dt>
@@ -2734,6 +2746,7 @@ function TaskDrawer({
                     (item) => item.id === mergeProposal.verificationId,
                   ) ?? null)
             }
+            codeMode={codeMode}
             busy={busy}
             onCreate={onCreateMerge}
             onApprove={onApproveMerge}
@@ -3057,6 +3070,7 @@ function TaskMergePanel({
   task,
   proposal,
   verification,
+  codeMode,
   busy,
   onCreate,
   onApprove,
@@ -3066,6 +3080,7 @@ function TaskMergePanel({
   task: Task;
   proposal: MergeProposal | null;
   verification: Verification | null;
+  codeMode: boolean;
   busy: boolean;
   onCreate: (input: CreateMergeProposalInput) => Promise<boolean>;
   onApprove: (note?: string) => void;
@@ -3135,6 +3150,11 @@ function TaskMergePanel({
             </div>
           ) : (
             <form onSubmit={(event) => void submit(event)} className="studio-merge-form">
+              {codeMode && verification === null ? (
+                <div className="studio-alert" data-tone="warn">
+                  代码项目需要先跑一次通过的「独立验证」，才能提交合并提案。
+                </div>
+              ) : null}
               {localError !== null ? (
                 <div className="studio-alert">{localError}</div>
               ) : null}
@@ -3646,6 +3666,9 @@ function TaskForm({
   const [acceptanceText, setAcceptanceText] = useState("");
   const [branch, setBranch] = useState("");
   const [verifyCommand, setVerifyCommand] = useState("npm test");
+  const [moduleName, setModuleName] = useState("");
+  const [contractRef, setContractRef] = useState("");
+  const [kind, setKind] = useState<TaskKind>("new");
   const [localError, setLocalError] = useState<string | null>(null);
 
   const submit = (event: FormEvent): void => {
@@ -3676,6 +3699,9 @@ function TaskForm({
       acceptance,
       branch: branch.trim() || null,
       verifyCommand: verifyCommand.trim() || null,
+      module: moduleName.trim() || null,
+      contractRef: contractRef.trim() || null,
+      kind,
     });
   };
 
@@ -3759,6 +3785,42 @@ function TaskForm({
           />
           <div className="studio-hint">
             由 Studio Host 在 worktree 内独立执行；通过会写 evidence，但不自动通过验收。
+          </div>
+        </div>
+        <div className="studio-field-row">
+          <div className="studio-field">
+            <label htmlFor="task-kind">票类型</label>
+            <select
+              id="task-kind"
+              value={kind}
+              onChange={(event) =>
+                setKind(event.target.value as TaskKind)
+              }
+            >
+              <option value="new">{TASK_KIND_LABELS.new}</option>
+              <option value="fix">{TASK_KIND_LABELS.fix}</option>
+            </select>
+          </div>
+          <div className="studio-field">
+            <label htmlFor="task-module">模块</label>
+            <input
+              id="task-module"
+              value={moduleName}
+              onChange={(event) => setModuleName(event.target.value)}
+              placeholder="combat / input / replay"
+            />
+          </div>
+        </div>
+        <div className="studio-field">
+          <label htmlFor="task-contract">契约引用</label>
+          <input
+            id="task-contract"
+            value={contractRef}
+            onChange={(event) => setContractRef(event.target.value)}
+            placeholder="docs/contracts/replay-v1.md"
+          />
+          <div className="studio-hint">
+            实现者只应修改这个契约允许的范围；改契约本身要走架构师/Owner。
           </div>
         </div>
         <div className="studio-field-row">

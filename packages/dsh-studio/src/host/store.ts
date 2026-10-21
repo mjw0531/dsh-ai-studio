@@ -708,7 +708,16 @@ function isTask(value: unknown): value is Task {
     Array.isArray(value.evidence) &&
     (value.verifyCommand === null ||
       value.verifyCommand === undefined ||
-      typeof value.verifyCommand === "string")
+      typeof value.verifyCommand === "string") &&
+    (value.module === null ||
+      value.module === undefined ||
+      typeof value.module === "string") &&
+    (value.contractRef === null ||
+      value.contractRef === undefined ||
+      typeof value.contractRef === "string") &&
+    (value.kind === undefined ||
+      value.kind === "new" ||
+      value.kind === "fix")
   );
 }
 
@@ -913,9 +922,9 @@ function migrateState(value: unknown): StudioState {
     };
   }
   if (state.schemaVersion === 6) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 7,
       tasks: state.tasks.map((task) => ({
         ...task,
         verifyCommand: task.verifyCommand ?? null,
@@ -933,6 +942,18 @@ function migrateState(value: unknown): StudioState {
       )
         ? ((state as unknown as { verifications: Verification[] }).verifications)
         : [],
+    };
+  }
+  if (state.schemaVersion === 7) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      tasks: state.tasks.map((task) => ({
+        ...task,
+        module: task.module ?? null,
+        contractRef: task.contractRef ?? null,
+        kind: task.kind ?? "new",
+      })),
     };
   }
   return state;
@@ -1421,6 +1442,15 @@ export class StudioStore {
           task.status = "ready";
           task.updatedAt = at;
         }
+        if (task !== undefined) {
+          this.escalateRepeatedFailure(
+            state,
+            task,
+            at,
+            run.error,
+            run,
+          );
+        }
         state.updatedAt = at;
         this.recordEvent(state, {
           type: "agent.failed",
@@ -1684,6 +1714,9 @@ export class StudioStore {
       if (task !== undefined && task.status === "running") {
         task.status = "ready";
         task.updatedAt = at;
+      }
+      if (task !== undefined) {
+        this.escalateRepeatedFailure(state, task, at, run.error, run);
       }
       state.updatedAt = at;
       this.recordEvent(state, {
@@ -2003,6 +2036,10 @@ export class StudioStore {
         branch: optionalText(input.branch, "branch", 160) || null,
         verifyCommand:
           optionalText(input.verifyCommand, "verifyCommand", 500) || null,
+        module: optionalText(input.module, "module", 120) || null,
+        contractRef:
+          optionalText(input.contractRef, "contractRef", 300) || null,
+        kind: input.kind === "fix" ? "fix" : "new",
         createdAt: at,
         updatedAt: at,
       };
@@ -2071,6 +2108,16 @@ export class StudioStore {
       if (input.verifyCommand !== undefined) {
         task.verifyCommand =
           optionalText(input.verifyCommand, "verifyCommand", 500) || null;
+      }
+      if (input.module !== undefined) {
+        task.module = optionalText(input.module, "module", 120) || null;
+      }
+      if (input.contractRef !== undefined) {
+        task.contractRef =
+          optionalText(input.contractRef, "contractRef", 300) || null;
+      }
+      if (input.kind !== undefined) {
+        task.kind = input.kind === "fix" ? "fix" : "new";
       }
       task.updatedAt = at;
       state.updatedAt = at;
@@ -2175,6 +2222,21 @@ export class StudioStore {
           "提交合并提案前至少记录一条证据",
           409,
         );
+      }
+      const project = state.projects.find(
+        (item) => item.id === task.projectId,
+      );
+      if (project?.repoPath !== null && project?.repoPath !== undefined) {
+        const passed = state.verifications.some(
+          (item) => item.taskId === task.id && item.passed,
+        );
+        if (!passed) {
+          throw new StudioStoreError(
+            "verification_required",
+            "代码项目提交合并提案前必须有一条通过的独立验证",
+            409,
+          );
+        }
       }
       const active = state.mergeProposals.find(
         (proposal) =>
@@ -2452,6 +2514,68 @@ export class StudioStore {
     return state.projects[0] ?? null;
   }
 
+  private escalateRepeatedFailure(
+    state: StudioState,
+    task: Task,
+    at: string,
+    reason: string,
+    run: AgentRun,
+  ): void {
+    const failures = state.runs.filter(
+      (item) => item.taskId === task.id && item.status === "failed",
+    ).length;
+    if (failures < 2 || task.status === "done") return;
+    task.status = "blocked";
+    task.updatedAt = at;
+    const title = `连续失败：${task.title.slice(0, 160)}`;
+    if (
+      state.decisions.some(
+        (item) => item.taskId === task.id && item.title === title,
+      )
+    ) {
+      return;
+    }
+    const decision: Decision = {
+      id: newId("dec"),
+      projectId: task.projectId,
+      taskId: task.id,
+      runId: run.id,
+      title,
+      context: `${String(failures)} 次失败；最后一次：${reason}`,
+      options: [
+        {
+          label: "退回 Architect 重拆任务/契约",
+          tradeoff: "停止原地重试，先修任务定义或契约",
+        },
+        {
+          label: "继续重试",
+          tradeoff: "保留当前任务，但需要新的证据",
+        },
+      ],
+      recommendation:
+        "同一任务连续失败 2 次，按工作流应退回架构师重拆，不允许第三次原地重试。",
+      status: "pending",
+      decision: "",
+      note: "",
+      decidedBy: "",
+      tokenCost: run.tokens,
+      createdAt: at,
+      decidedAt: null,
+    };
+    state.decisions.push(decision);
+    this.recordEvent(state, {
+      type: "decision.escalated",
+      at,
+      projectId: task.projectId,
+      taskId: task.id,
+      payload: {
+        decisionId: decision.id,
+        failures,
+        runId: run.id,
+      },
+    });
+  }
+
   private ensureBranch(
     state: StudioState,
     task: Task,
@@ -2663,6 +2787,9 @@ export class StudioStore {
       evidence: [],
       branch,
       verifyCommand: null,
+      module: null,
+      contractRef: null,
+      kind: "new",
       createdAt: at,
       updatedAt: at,
     });

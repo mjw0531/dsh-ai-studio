@@ -198,6 +198,7 @@ function buildPrompt(
           `工作区：${workspace.path}`,
           `分支：${workspace.branch}`,
           "可以修改工作区文件、运行测试和构建；不要切换/删除 worktree，不要 merge、push 或修改主工作区。",
+          "只修改模块/契约允许的范围；需要改契约本身时，在回执里提出 decision，不要直接改契约。",
           "完成后必须报告你实际运行过的命令和测试结果。",
         ];
   return [
@@ -211,6 +212,9 @@ function buildPrompt(
     `任务：${task.title}`,
     `任务目标：${task.goal || "未填写"}`,
     `优先级：${task.priority}`,
+    `票类型：${task.kind === "fix" ? "改修型（先诊断再改）" : "新建型（red→green）"}`,
+    `模块：${task.module ?? "未指定"}`,
+    `契约：${task.contractRef ?? "未指定"}`,
     `分支：${workspace?.branch ?? task.branch ?? "未创建"}`,
     "验收标准：",
     acceptance || "（无）",
