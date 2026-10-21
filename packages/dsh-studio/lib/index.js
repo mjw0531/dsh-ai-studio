@@ -2,8 +2,8 @@
 import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 10;
-var STUDIO_PLUGIN_VERSION = "1.0.0";
+var STUDIO_SCHEMA_VERSION = 11;
+var STUDIO_PLUGIN_VERSION = "1.1.0";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -324,6 +324,31 @@ ${module.contractText.slice(0, 6e3)}`,
     "\u6CA1\u6709\u5185\u5BB9\u7684\u5B57\u6BB5\u7528\u7A7A\u6570\u7EC4\u3002\u4E0D\u8981\u58F0\u79F0\u4EFB\u52A1\u5DF2\u7ECF\u5B8C\u6210\uFF1B\u9A8C\u6536\u7531\u4EBA\u7C7B/Verifier \u51B3\u5B9A\u3002"
   ].filter((line) => line !== "").join("\n");
 }
+function buildReviewPrompt(context) {
+  return [
+    "\u4F60\u662F Studio \u7684\u72EC\u7ACB\u9A8C\u6536\u8005\u3002\u4E0D\u8981\u76F8\u4FE1\u5B9E\u73B0\u8005\u7684\u81EA\u8FF0\uFF0C\u76F4\u63A5\u770B worktree \u7684 diff \u548C\u9A8C\u8BC1\u8F93\u51FA\u3002",
+    `\u9879\u76EE\uFF1A${context.project.name}`,
+    `\u4EFB\u52A1\uFF1A${context.task.title}`,
+    `\u4EFB\u52A1\u76EE\u6807\uFF1A${context.task.goal || "\u672A\u586B\u5199"}`,
+    `\u6A21\u5757\uFF1A${context.task.module ?? "\u672A\u6307\u5B9A"}`,
+    `\u5951\u7EA6\uFF1A${context.task.contractRef ?? "\u672A\u6307\u5B9A"}`,
+    "\u9A8C\u6536\u6807\u51C6\uFF1A",
+    context.task.acceptance.map(
+      (item, index) => `${String(index + 1)}. [${item.done ? "x" : " "}] ${item.text}`
+    ).join("\n") || "\uFF08\u65E0\uFF09",
+    "",
+    "\u5B9E\u73B0\u8005 diff\uFF1A",
+    context.run?.diffStat ?? "\uFF08\u6CA1\u6709\u4EE3\u7801 diff\uFF09",
+    "",
+    context.verification === null ? "\u6CA1\u6709 Host \u72EC\u7ACB\u9A8C\u8BC1\u8BB0\u5F55\u3002" : `Host \u72EC\u7ACB\u9A8C\u8BC1\uFF1A${context.verification.command} \u2192 exit ${String(context.verification.exitCode)}\uFF08${context.verification.passed ? "\u901A\u8FC7" : "\u5931\u8D25"}\uFF09
+${context.verification.output.slice(0, 6e3)}`,
+    "",
+    "\u53EA\u8BFB\u8BC4\u5BA1\uFF1A\u4E0D\u8981\u4FEE\u6539\u6587\u4EF6\uFF0C\u4E0D\u8981\u8FD0\u884C\u4F1A\u5199\u6587\u4EF6\u7684\u547D\u4EE4\u3002",
+    "\u6307\u51FA\u9A8C\u6536\u6807\u51C6\u662F\u5426\u771F\u7684\u6EE1\u8DB3\u3001diff \u662F\u5426\u8D8A\u754C\u3001\u6D4B\u8BD5\u662F\u5426\u8DB3\u591F\u3002",
+    "\u8BF7\u8F93\u51FA\u4E00\u4E2A JSON \u5BF9\u8C61\uFF08\u4E0D\u8981\u8F93\u51FA JSON \u4EE5\u5916\u7684\u89E3\u91CA\uFF09\uFF1A",
+    '{"verdict":"pass|fail","summary":"\u4E00\u53E5\u8BDD\u7ED3\u8BBA","findings":["\u5177\u4F53\u53D1\u73B0/\u98CE\u9669"]}'
+  ].filter((line) => line !== "").join("\n");
+}
 var AgentDispatcher = class {
   ctx;
   store;
@@ -340,6 +365,67 @@ var AgentDispatcher = class {
     const run2 = await this.store.beginRun(taskId, prompt, workspace);
     void this.execute(run2, selection, workspace);
     return run2;
+  }
+  async review(taskId) {
+    const context = await this.store.getReviewContext(taskId);
+    if (context.run === null || context.run.workspacePath === null) {
+      throw new Error("\u8FD9\u4E2A\u4EFB\u52A1\u8FD8\u6CA1\u6709\u53EF\u8BC4\u5BA1\u7684 worktree");
+    }
+    const selection = await this.resolveModel(context.role);
+    const prompt = buildReviewPrompt(context);
+    let handle = null;
+    let output = "";
+    try {
+      handle = await this.ctx.agents.create({
+        sessionId: `review-${randomUUID()}`,
+        meta: { cwd: context.run.workspacePath },
+        agentOptions: selection,
+        setup: async (agentCtx, agent) => {
+          await this.ctx.agentPresets.mount(agentCtx);
+          agent.session.append("approval/policy", { policy: "never" });
+        }
+      });
+      handle.agent.followup({
+        role: "user",
+        content: [{ type: "text", text: prompt }],
+        source: { kind: "user" }
+      });
+      const deadline = Date.now() + 18e4;
+      let idleTicks = 0;
+      while (Date.now() < deadline) {
+        output = assistantText(handle.agent.session.deriveMessages());
+        if (handle.agent.status === "idle") {
+          if (output !== "") break;
+          idleTicks += 1;
+          if (idleTicks >= 10) break;
+        } else {
+          idleTicks = 0;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 400));
+      }
+      const measured = this.ctx.tokenMeter.measure(handle.agent.session);
+      const raw = extractJsonObject(output);
+      const record = typeof raw === "object" && raw !== null && !Array.isArray(raw) ? raw : {};
+      const verdict = record.verdict === "pass" || record.verdict === "fail" ? record.verdict : "fail";
+      const summary = textOf(record.summary) || (output === "" ? "\u72EC\u7ACB\u8BC4\u5BA1\u6CA1\u6709\u4EA7\u51FA" : output.slice(0, 2e3));
+      const findings = stringArray(record.findings);
+      return await this.store.recordReview(taskId, {
+        reviewerRoleId: context.role.id,
+        model: selection.model,
+        verdict,
+        summary,
+        findings: findings.length === 0 && output === "" ? ["\u8BC4\u5BA1 Agent \u6CA1\u6709\u8FD4\u56DE\u5185\u5BB9"] : findings,
+        tokens: typeof measured.totalTokens === "number" ? measured.totalTokens : null,
+        runId: context.run.id
+      });
+    } finally {
+      if (handle !== null) {
+        try {
+          await handle.dispose();
+        } catch {
+        }
+      }
+    }
   }
   async resolveModel(role) {
     const fallback = this.ctx.agentDefaultModel.currentSelection();
@@ -967,6 +1053,9 @@ function isContractChange(value) {
 function isVerification(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.runId === null || typeof value.runId === "string") && typeof value.command === "string" && typeof value.workdir === "string" && typeof value.exitCode === "number" && typeof value.output === "string" && typeof value.passed === "boolean" && typeof value.createdAt === "string";
 }
+function isReview(value) {
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.runId === null || typeof value.runId === "string") && (value.reviewerRoleId === null || typeof value.reviewerRoleId === "string") && (value.model === null || typeof value.model === "string") && (value.verdict === "pass" || value.verdict === "fail") && typeof value.summary === "string" && Array.isArray(value.findings) && (value.tokens === null || typeof value.tokens === "number") && typeof value.createdAt === "string";
+}
 function isModule(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.name === "string" && typeof value.responsibility === "string" && (value.contractPath === null || typeof value.contractPath === "string") && typeof value.contractText === "string" && Array.isArray(value.allowedPaths) && Array.isArray(value.forbiddenPaths) && Array.isArray(value.dependsOn) && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
 }
@@ -1094,14 +1183,23 @@ function migrateState(value) {
     };
   }
   if (state.schemaVersion === 9) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 10,
       tasks: state.tasks.map((task) => ({
         ...task,
         integration: task.integration ?? false,
         originTaskId: task.originTaskId ?? null
       }))
+    };
+  }
+  if (state.schemaVersion === 10) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      reviews: Array.isArray(
+        state.reviews
+      ) ? state.reviews : []
     };
   }
   return state;
@@ -1115,7 +1213,7 @@ function assertState(value) {
       `Unsupported Studio schema version: ${String(value.schemaVersion)}`
     );
   }
-  if (!Array.isArray(value.projects) || !Array.isArray(value.roles) || !Array.isArray(value.modules) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.runs) || !Array.isArray(value.branches) || !Array.isArray(value.contractChanges) || !Array.isArray(value.decisions) || !Array.isArray(value.verifications) || !Array.isArray(value.events)) {
+  if (!Array.isArray(value.projects) || !Array.isArray(value.roles) || !Array.isArray(value.modules) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.runs) || !Array.isArray(value.branches) || !Array.isArray(value.contractChanges) || !Array.isArray(value.decisions) || !Array.isArray(value.verifications) || !Array.isArray(value.reviews) || !Array.isArray(value.events)) {
     throw new Error("Studio state collections are missing");
   }
   if (!value.projects.every(isProject)) {
@@ -1144,6 +1242,9 @@ function assertState(value) {
   }
   if (!value.verifications.every(isVerification)) {
     throw new Error("Studio state contains an invalid verification");
+  }
+  if (!value.reviews.every(isReview)) {
+    throw new Error("Studio state contains an invalid review");
   }
   if (!value.decisions.every(isDecision)) {
     throw new Error("Studio state contains an invalid decision");
@@ -1191,6 +1292,9 @@ var StudioStore = class {
       const verifications = project === null ? [] : state.verifications.filter((verification) => verification.projectId === project.id).sort(
         (left, right) => right.createdAt.localeCompare(left.createdAt)
       );
+      const reviews = project === null ? [] : state.reviews.filter((review) => review.projectId === project.id).sort(
+        (left, right) => right.createdAt.localeCompare(left.createdAt)
+      );
       const decisions = project === null ? [] : state.decisions.filter((decision) => decision.projectId === project.id).sort((left, right) => {
         if (left.status !== right.status) {
           if (left.status === "pending") return -1;
@@ -1225,6 +1329,7 @@ var StudioStore = class {
         contractChanges,
         decisions,
         verifications,
+        reviews,
         stats: statsFor(tasks, mergeProposals),
         events,
         company: buildCompany(state, now),
@@ -1240,6 +1345,7 @@ var StudioStore = class {
           verification: true,
           knowledge: true,
           contractGuard: true,
+          independentReview: true,
           gitMerge: false
         }
       };
@@ -1350,6 +1456,84 @@ var StudioStore = class {
         project: structuredClone(project),
         module: module === void 0 ? null : structuredClone(module)
       };
+    });
+  }
+  async getReviewContext(taskId) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const task = this.findTask(state, taskId);
+      if (task.reviewerRoleId === null) {
+        throw new StudioStoreError(
+          "reviewer_required",
+          "\u4EFB\u52A1\u6CA1\u6709\u9A8C\u6536\u4EBA\u89D2\u8272\uFF0C\u4E0D\u80FD\u72EC\u7ACB\u8BC4\u5BA1",
+          409
+        );
+      }
+      const role = state.roles.find(
+        (item) => item.id === task.reviewerRoleId
+      );
+      const project = state.projects.find(
+        (item) => item.id === task.projectId
+      );
+      if (role === void 0 || project === void 0) {
+        throw new StudioStoreError(
+          "context_not_found",
+          "\u9A8C\u6536\u4EBA\u89D2\u8272\u6216\u9879\u76EE\u4E0D\u5B58\u5728",
+          404
+        );
+      }
+      const run2 = [...state.runs].filter(
+        (item) => item.taskId === taskId && item.workspacePath !== null
+      ).sort(
+        (left, right) => right.startedAt.localeCompare(left.startedAt)
+      )[0];
+      const verification = [...state.verifications].filter((item) => item.taskId === taskId).sort(
+        (left, right) => right.createdAt.localeCompare(left.createdAt)
+      )[0];
+      return {
+        task: structuredClone(task),
+        role: structuredClone(role),
+        project: structuredClone(project),
+        run: run2 === void 0 ? null : structuredClone(run2),
+        verification: verification === void 0 ? null : structuredClone(verification)
+      };
+    });
+  }
+  async recordReview(taskId, input) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const task = this.findTask(state, taskId);
+      const at = nowIso(this.now);
+      const review = {
+        id: newId("review"),
+        projectId: task.projectId,
+        taskId,
+        runId: input.runId ?? null,
+        reviewerRoleId: input.reviewerRoleId,
+        model: input.model,
+        verdict: input.verdict,
+        summary: requiredText(input.summary, "summary", 2e3),
+        findings: textList(input.findings, "findings", 30),
+        tokens: input.tokens,
+        createdAt: at
+      };
+      state.reviews.push(review);
+      if (review.verdict === "pass") {
+        const text = `\u72EC\u7ACB\u8BC4\u5BA1\u901A\u8FC7\uFF08${input.model}\uFF09\uFF1A${review.summary}`;
+        if (!task.evidence.some((item) => item.text === text)) {
+          task.evidence.push({ id: newId("ev"), text, createdAt: at });
+        }
+      }
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: review.verdict === "pass" ? "review.passed" : "review.failed",
+        at,
+        projectId: task.projectId,
+        taskId,
+        payload: { reviewId: review.id, model: review.model }
+      });
+      await this.save();
+      return structuredClone(review);
     });
   }
   async getTaskVerificationContext(taskId) {
@@ -2361,6 +2545,21 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
             409
           );
         }
+        const project = state.projects.find(
+          (item) => item.id === task.projectId
+        );
+        const hasCodeRun = state.runs.some(
+          (item) => item.taskId === task.id && item.workspacePath !== null
+        );
+        if (project?.repoPath !== null && project?.repoPath !== void 0 && hasCodeRun && !state.reviews.some(
+          (review) => review.taskId === task.id && review.verdict === "pass"
+        )) {
+          throw new StudioStoreError(
+            "review_required",
+            "\u4EE3\u7801\u4EFB\u52A1\u5B8C\u6210\u524D\u5FC5\u987B\u6709\u4E00\u6B21\u901A\u8FC7\u7684\u72EC\u7ACB\u8BC4\u5BA1",
+            409
+          );
+        }
       }
       const from = task.status;
       const at = nowIso(this.now);
@@ -3020,6 +3219,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       contractChanges: [],
       decisions: [],
       verifications: [],
+      reviews: [],
       events: [
         {
           id: "evt-demo",
@@ -3381,6 +3581,7 @@ var StudioRouter = class {
   getBootPayload;
   dispatchTask;
   verifyTask;
+  reviewTask;
   readProjectDoc;
   constructor(options) {
     this.store = options.store;
@@ -3391,6 +3592,7 @@ var StudioRouter = class {
     this.getBootPayload = options.getBootPayload;
     this.dispatchTask = options.dispatchTask;
     this.verifyTask = options.verifyTask;
+    this.reviewTask = options.reviewTask;
     this.readProjectDoc = options.readProjectDoc;
   }
   async handle(req, res) {
@@ -3581,6 +3783,15 @@ var StudioRouter = class {
         asUpdateModule(await readJson(req))
       );
       sendJson(res, 200, { ok: true, module });
+      return;
+    }
+    const taskReview = /^\/studio-api\/tasks\/([^/]+)\/review$/.exec(parsed.pathname);
+    if (taskReview !== null) {
+      this.requireMethod(parsed, ["POST"]);
+      const review = await this.reviewTask(
+        decodeSegment(taskReview[1] ?? "")
+      );
+      sendJson(res, 200, { ok: true, review });
       return;
     }
     if (parsed.pathname === `${API_PREFIX}/decisions`) {
@@ -3782,6 +3993,7 @@ async function apply(ctx) {
     getBootPayload: () => bootPayload,
     dispatchTask: (taskId) => dispatcher.dispatch(taskId),
     verifyTask: (taskId, command) => verifier.verify(taskId, command),
+    reviewTask: (taskId) => dispatcher.review(taskId),
     readProjectDoc: (path5) => docs.read(path5)
   });
   const install = () => {

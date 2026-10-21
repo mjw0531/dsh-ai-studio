@@ -12,6 +12,7 @@ import type {
   CreateRoleInput,
   CreateTaskInput,
   DecideDecisionInput,
+  IndependentReview,
   MergeRisk,
   ProjectDoc,
   TaskStatus,
@@ -39,6 +40,7 @@ interface StudioRouterOptions {
   getBootPayload: () => unknown;
   dispatchTask: (taskId: string) => Promise<AgentRun>;
   verifyTask: (taskId: string, command?: string) => Promise<Verification>;
+  reviewTask: (taskId: string) => Promise<IndependentReview>;
   readProjectDoc: (path: string) => Promise<ProjectDoc>;
 }
 
@@ -442,6 +444,9 @@ export class StudioRouter {
     taskId: string,
     command?: string,
   ) => Promise<Verification>;
+  private readonly reviewTask: (
+    taskId: string,
+  ) => Promise<IndependentReview>;
   private readonly readProjectDoc: (path: string) => Promise<ProjectDoc>;
 
   constructor(options: StudioRouterOptions) {
@@ -453,6 +458,7 @@ export class StudioRouter {
     this.getBootPayload = options.getBootPayload;
     this.dispatchTask = options.dispatchTask;
     this.verifyTask = options.verifyTask;
+    this.reviewTask = options.reviewTask;
     this.readProjectDoc = options.readProjectDoc;
   }
 
@@ -674,6 +680,17 @@ export class StudioRouter {
         asUpdateModule(await readJson(req)),
       );
       sendJson(res, 200, { ok: true, module });
+      return;
+    }
+
+    const taskReview =
+      /^\/studio-api\/tasks\/([^/]+)\/review$/.exec(parsed.pathname);
+    if (taskReview !== null) {
+      this.requireMethod(parsed, ["POST"]);
+      const review = await this.reviewTask(
+        decodeSegment(taskReview[1] ?? ""),
+      );
+      sendJson(res, 200, { ok: true, review });
       return;
     }
 

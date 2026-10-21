@@ -647,6 +647,55 @@ test("blocks a code run that edits the module contract", async () => {
   });
 });
 
+test("requires an independent review before completing a code task", async () => {
+  await withStore(async (store) => {
+    const data = await store.bootstrap();
+    await store.updateProject(data.project.id, { repoPath: "D:\\AIgame" });
+    const owner = data.roles[0];
+    const reviewer = data.roles[1];
+    assert.ok(owner && reviewer);
+    const task = await store.createTask({
+      title: "需要独立评审",
+      acceptance: ["完成"],
+      ownerRoleId: owner.id,
+      reviewerRoleId: reviewer.id,
+    });
+    await store.transitionTask(task.id, "ready");
+    const run = await store.beginRun(task.id, "code", {
+      path: process.cwd(),
+      branch: "studio/review-test",
+    });
+    await store.transitionTask(task.id, "review");
+    await store.updateTask(task.id, {
+      acceptance: [{ id: "acc-review", text: "完成", done: true }],
+      evidence: [
+        {
+          id: "ev-review",
+          text: "diff",
+          createdAt: new Date().toISOString(),
+        },
+      ],
+    });
+    await assert.rejects(
+      () => store.transitionTask(task.id, "done"),
+      (error) =>
+        error instanceof StudioStoreError &&
+        error.code === "review_required",
+    );
+    await store.recordReview(task.id, {
+      reviewerRoleId: reviewer.id,
+      model: "test-reviewer",
+      verdict: "pass",
+      summary: "diff 与验证一致",
+      findings: [],
+      tokens: 12,
+      runId: run.id,
+    });
+    const done = await store.transitionTask(task.id, "done");
+    assert.equal(done.status, "done");
+  });
+});
+
 test("requires a passing verification before merging a code project", async () => {
   await withStore(async (store, dir) => {
     const data = await store.bootstrap();
@@ -693,8 +742,9 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
     assert.deepEqual(data.runs, []);
     assert.deepEqual(data.decisions, []);
     const migrated = JSON.parse(await readFile(file, "utf8"));
-    assert.equal(migrated.schemaVersion, 10);
+    assert.equal(migrated.schemaVersion, 11);
     assert.ok(migrated.runs.every((run) => run.status !== undefined));
+    assert.ok(Array.isArray(migrated.reviews));
     assert.ok(Array.isArray(migrated.branches));
     assert.ok(Array.isArray(migrated.contractChanges));
     assert.ok(Array.isArray(migrated.verifications));

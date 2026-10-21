@@ -2,7 +2,7 @@
 
 一套构建在 **DeepSeek Harness（DSH）** 之上的多角色 AI 工作台：把「一个聊天窗口」变成一间**有公司仪表盘、Agent 派单、token 预算、决策董事会、支线/契约冲突、worktree 代码执行、项目、角色、任务、验收、合并治理**的工作室。
 
-> 当前状态：**v1.0.0 可运行**。已完成公司级 Owner Dashboard、Agent 派单与结构化回执、角色模型/token 预算、DSH token 计量、决策董事会、支线/契约冲突自动升级、git worktree 代码执行、Host 独立验证、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、项目/角色/任务/验收/证据持久化、合并治理，并在 DSH `0.2.1-rc.2` 上完成 Web/桌面验证。
+> 当前状态：**v1.1.0 可运行**。已完成公司级 Owner Dashboard、Agent 派单与结构化回执、角色模型/token 预算、DSH token 计量、决策董事会、支线/契约冲突自动升级、git worktree 代码执行、Host 独立验证、独立 AI 评审、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、项目/角色/任务/验收/证据持久化、合并治理，并在 DSH `0.2.1-rc.2` 上完成 Web/桌面验证。
 
 ![Studio Decision Boardroom](docs/images/decision-boardroom.png)
 
@@ -17,6 +17,7 @@
 - **知识层**：PRD/INVARIANTS/MODULES 只读查看；Module 契约卡记录职责、接口摘要、允许/禁止路径和依赖，派单时进入 Agent 上下文。
 - **契约护栏**：代码 Run 改动契约文件、禁止路径或越出允许的 `src/`/`test/` 路径时，任务自动 blocked 并生成决策。
 - **闭环 ticket**：集成/playtest ticket 标记；连续失败 2 次自动生成 Architect 重拆 ticket（backlog），不只是留一个决策。
+- **独立 AI 评审**：验收人角色另开 Agent 会话，只读 diff/Host 验证输出，给出 pass/fail 与 findings；代码任务没有通过评审不能 done。
 - **Agent 分析派单**：Task Room 把任务派给负责人角色，Agent 返回结构化回执；回执缺 `summary`/`evidence` 时任务退回可开始，不能进入验收。
 - **薪资与预算**：角色配置模型、单任务/每日 token 预算；项目配置总 token 预算。
 - **独立工作台页面**：DSH 侧栏点击「工作台」，进入公司仪表盘，不占用聊天会话。
@@ -112,6 +113,7 @@ tools/                   # CDP 端到端验证脚本
 - [ADR-0010：项目知识与模块契约](docs/adr/0010-project-knowledge-and-modules.md)
 - [ADR-0011：契约越界护栏](docs/adr/0011-contract-scope-guard.md)
 - [ADR-0012：重拆票与集成票](docs/adr/0012-resplit-and-integration-tickets.md)
+- [ADR-0013：独立 AI 评审](docs/adr/0013-independent-ai-review.md)
 
 ## 开发
 
@@ -145,8 +147,9 @@ dsh --profile web --no-open --port 0
 - **v0.7**：Task 模块/契约/票类型、失败 2 次自动升级、代码项目合并前验证门禁。
 - **v0.8**：PRD/INVARIANTS/MODULES 知识层、Module 契约卡、派单加载模块契约。
 - **v0.9**：契约越界护栏、契约/禁止路径改动自动 blocked + 决策。
-- **v1.0（当前）**：集成/playtest ticket、连续失败自动生成 Architect 重拆 ticket。
-- **v1.1**：独立验收 AI、自动集成分期 gate、文档同步门禁、真实 Git merge 评审。
+- **v1.0**：集成/playtest ticket、连续失败自动生成 Architect 重拆 ticket。
+- **v1.1（当前）**：独立 AI 评审、代码任务 done 前评审门禁。
+- **v1.2**：自动集成分期 gate、文档同步门禁、不可逆决策、真实 Git merge 评审。
 - **v1.0**：用工作台完成一个 2.5D MOBA 垂直切片，再抽象为可复用插件。
 
 详细迭代计划见 [后续迭代](docs/02-后续迭代.md)。

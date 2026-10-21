@@ -293,6 +293,13 @@ var StudioClient = class {
     );
     return data.verification;
   }
+  async reviewTask(taskId) {
+    const data = await this.request(
+      `/tasks/${encodeURIComponent(taskId)}/review`,
+      { method: "POST" }
+    );
+    return data.review;
+  }
   async createDecision(input) {
     const data = await this.request("/decisions", {
       method: "POST",
@@ -895,6 +902,15 @@ function StudioPage() {
       "\u9A8C\u8BC1\u547D\u4EE4\u5DF2\u6267\u884C"
     );
   };
+  const reviewTask = async (task) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.reviewTask(task.id);
+      },
+      "\u72EC\u7ACB\u8BC4\u5BA1\u5DF2\u5B8C\u6210"
+    );
+  };
   const createDecision = async (input) => {
     const ok = await run(
       async () => {
@@ -1139,11 +1155,15 @@ function StudioPage() {
         verifications: data.verifications.filter(
           (verification) => verification.taskId === selectedTask.id
         ),
+        reviews: data.reviews.filter(
+          (review) => review.taskId === selectedTask.id
+        ),
         codeMode: data.project?.repoPath != null,
         busy,
         onClose: () => setSelectedTaskId(null),
         onDispatch: () => dispatchTask(selectedTask),
         onVerify: (command) => verifyTask(selectedTask, command),
+        onReview: () => reviewTask(selectedTask),
         onTransition: (status) => void transitionTask(selectedTask, status),
         onToggleAcceptance: (id) => void toggleAcceptance(selectedTask, id),
         onAddEvidence: (text) => addEvidence(selectedTask, text),
@@ -2785,11 +2805,13 @@ function TaskDrawer({
   mergeProposal,
   runs,
   verifications,
+  reviews,
   codeMode,
   busy,
   onClose,
   onDispatch,
   onVerify,
+  onReview,
   onTransition,
   onToggleAcceptance,
   onAddEvidence,
@@ -3002,6 +3024,16 @@ function TaskDrawer({
                 }
               ),
               /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                TaskReviewPanel,
+                {
+                  task,
+                  runs,
+                  reviews,
+                  busy,
+                  onReview
+                }
+              ),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
                 TaskMergePanel,
                 {
                   task,
@@ -3047,6 +3079,64 @@ function TaskDrawer({
       )
     }
   );
+}
+function TaskReviewPanel({
+  task,
+  runs,
+  reviews,
+  busy,
+  onReview
+}) {
+  const latest = reviews[0] ?? null;
+  const hasWorkspace = runs.some((run) => run.workspacePath !== null);
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-section-label", children: "\u72EC\u7ACB\u8BC4\u5BA1" }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-action-note", style: { marginTop: 0 }, children: "\u7531\u9A8C\u6536\u4EBA\u89D2\u8272\u53E6\u5F00 Agent \u4F1A\u8BDD\uFF0C\u53EA\u770B diff \u548C Host \u9A8C\u8BC1\u7ED3\u679C\uFF0C\u4E0D\u6539\u4EE3\u7801\u3002 \u4EE3\u7801\u4EFB\u52A1\u5B8C\u6210\u524D\u5FC5\u987B\u6709\u4E00\u6B21\u901A\u8FC7\u7684\u72EC\u7ACB\u8BC4\u5BA1\u3002" }),
+    !hasWorkspace ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-faint", style: { fontSize: 11, marginTop: 9 }, children: "\u8FD8\u6CA1\u6709\u5E26 worktree \u7684 Run\uFF1B\u5148\u6D3E\u5355\u6267\u884C\u4E00\u6B21\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+        "button",
+        {
+          type: "button",
+          className: "studio-btn",
+          "data-size": "sm",
+          style: { marginTop: 9 },
+          disabled: busy,
+          onClick: () => void onReview(),
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconSpark, { width: 13, height: 13 }),
+            "\u8FD0\u884C\u72EC\u7ACB\u8BC4\u5BA1"
+          ]
+        }
+      ),
+      latest !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+        "div",
+        {
+          className: "studio-review",
+          "data-verdict": latest.verdict,
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-review-head", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                "span",
+                {
+                  className: "studio-pill",
+                  "data-tone": latest.verdict === "pass" ? "ok" : "p0",
+                  children: latest.verdict === "pass" ? "\u901A\u8FC7" : "\u4E0D\u901A\u8FC7"
+                }
+              ),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "studio-faint", children: [
+                latest.model ?? "\u672A\u77E5\u6A21\u578B",
+                " \xB7",
+                " ",
+                latest.tokens === null ? "\u672A\u8BA1\u91CF" : `${String(latest.tokens)} tokens`
+              ] })
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { children: latest.summary }),
+            latest.findings.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("ul", { children: latest.findings.slice(0, 8).map((finding, index) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("li", { children: finding }, `${String(index)}-${finding}`)) }) : null
+          ]
+        }
+      ) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-faint", style: { fontSize: 11, marginTop: 8 }, children: "\u8FD8\u6CA1\u6709\u72EC\u7ACB\u8BC4\u5BA1\u8BB0\u5F55\u3002" })
+    ] })
+  ] });
 }
 function TaskVerificationPanel({
   task,
@@ -3622,6 +3712,8 @@ function SettingsView({
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.verification ? "\u53EF\u7528\uFF08Host \u6267\u884C\uFF09" : "\u4E0D\u53EF\u7528" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u5951\u7EA6\u62A4\u680F" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.contractGuard ? "\u53EF\u7528\uFF08\u5951\u7EA6/\u7981\u6B62\u8DEF\u5F84\u8D8A\u754C\u81EA\u52A8\u5347\u7EA7\uFF09" : "\u4E0D\u53EF\u7528" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u72EC\u7ACB\u8BC4\u5BA1" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.independentReview ? "\u53EF\u7528\uFF08\u9A8C\u6536\u4EBA Agent\uFF09" : "\u4E0D\u53EF\u7528" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u5408\u5E76\u6CBB\u7406" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.mergeGovernance ? "\u53EF\u7528\uFF08\u8BB0\u5F55\u8BC4\u5BA1\uFF0C\u4EBA\u5DE5\u6267\u884C Git\uFF09" : "\u4E0D\u53EF\u7528" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "Agent \u6D3E\u5355" }),
@@ -5334,6 +5426,22 @@ var studioCss = `
   font-size: 10px;
   line-height: 1.5;
 }
+
+.studio-review {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 9px;
+  border: 1px solid var(--st-border);
+  border-radius: 8px;
+  background: var(--st-panel-2);
+}
+.studio-review[data-verdict="fail"] { border-color: rgba(255, 117, 133, 0.25); }
+.studio-review-head { display: flex; align-items: center; gap: 8px; font-size: 10px; }
+.studio-review-head .studio-faint { margin-left: auto; }
+.studio-review p { margin: 0; color: var(--st-text); font-size: 11px; line-height: 1.55; }
+.studio-review ul { margin: 0; padding-left: 16px; color: var(--st-muted); font-size: 10px; line-height: 1.55; }
 
 .studio-verify-form { display: flex; gap: 7px; margin-top: 9px; }
 .studio-verify-form input {

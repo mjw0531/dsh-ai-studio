@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import type {
   AgentReceipt,
   AgentRun,
+  IndependentReview,
   Module,
   Project,
   Role,
@@ -249,6 +250,48 @@ function buildPrompt(
     .join("\n");
 }
 
+function buildReviewPrompt(context: {
+  task: Task;
+  project: Project;
+  run: AgentRun | null;
+  verification: {
+    command: string;
+    exitCode: number;
+    output: string;
+    passed: boolean;
+  } | null;
+}): string {
+  return [
+    "你是 Studio 的独立验收者。不要相信实现者的自述，直接看 worktree 的 diff 和验证输出。",
+    `项目：${context.project.name}`,
+    `任务：${context.task.title}`,
+    `任务目标：${context.task.goal || "未填写"}`,
+    `模块：${context.task.module ?? "未指定"}`,
+    `契约：${context.task.contractRef ?? "未指定"}`,
+    "验收标准：",
+    context.task.acceptance
+      .map(
+        (item, index) =>
+          `${String(index + 1)}. [${item.done ? "x" : " "}] ${item.text}`,
+      )
+      .join("\n") || "（无）",
+    "",
+    "实现者 diff：",
+    context.run?.diffStat ?? "（没有代码 diff）",
+    "",
+    context.verification === null
+      ? "没有 Host 独立验证记录。"
+      : `Host 独立验证：${context.verification.command} → exit ${String(context.verification.exitCode)}（${context.verification.passed ? "通过" : "失败"}）\n${context.verification.output.slice(0, 6000)}`,
+    "",
+    "只读评审：不要修改文件，不要运行会写文件的命令。",
+    "指出验收标准是否真的满足、diff 是否越界、测试是否足够。",
+    "请输出一个 JSON 对象（不要输出 JSON 以外的解释）：",
+    '{"verdict":"pass|fail","summary":"一句话结论","findings":["具体发现/风险"]}',
+  ]
+    .filter((line) => line !== "")
+    .join("\n");
+}
+
 /**
  * Host-side adapter between Studio's durable Run record and DSH's Agent API.
  *
@@ -276,6 +319,85 @@ export class AgentDispatcher {
     const run = await this.store.beginRun(taskId, prompt, workspace);
     void this.execute(run, selection, workspace);
     return run;
+  }
+
+  async review(taskId: string): Promise<IndependentReview> {
+    const context = await this.store.getReviewContext(taskId);
+    if (context.run === null || context.run.workspacePath === null) {
+      throw new Error("这个任务还没有可评审的 worktree");
+    }
+    const selection = await this.resolveModel(context.role);
+    const prompt = buildReviewPrompt(context);
+    let handle: AgentHandleLike | null = null;
+    let output = "";
+    try {
+      handle = await this.ctx.agents.create({
+        sessionId: `review-${randomUUID()}`,
+        meta: { cwd: context.run.workspacePath },
+        agentOptions: selection,
+        setup: async (agentCtx, agent) => {
+          await this.ctx.agentPresets.mount(agentCtx);
+          agent.session.append("approval/policy", { policy: "never" });
+        },
+      });
+      handle.agent.followup({
+        role: "user",
+        content: [{ type: "text", text: prompt }],
+        source: { kind: "user" },
+      });
+      const deadline = Date.now() + 180_000;
+      let idleTicks = 0;
+      while (Date.now() < deadline) {
+        output = assistantText(handle.agent.session.deriveMessages());
+        if (handle.agent.status === "idle") {
+          if (output !== "") break;
+          idleTicks += 1;
+          if (idleTicks >= 10) break;
+        } else {
+          idleTicks = 0;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 400));
+      }
+      const measured = this.ctx.tokenMeter.measure(handle.agent.session);
+      const raw = extractJsonObject(output);
+      const record =
+        typeof raw === "object" && raw !== null && !Array.isArray(raw)
+          ? (raw as Record<string, unknown>)
+          : {};
+      const verdict =
+        record.verdict === "pass" || record.verdict === "fail"
+          ? record.verdict
+          : "fail";
+      const summary =
+        textOf(record.summary) ||
+        (output === ""
+          ? "独立评审没有产出"
+          : output.slice(0, 2000));
+      const findings = stringArray(record.findings);
+      return await this.store.recordReview(taskId, {
+        reviewerRoleId: context.role.id,
+        model: selection.model,
+        verdict,
+        summary,
+        findings:
+          findings.length === 0 && output === ""
+            ? ["评审 Agent 没有返回内容"]
+            : findings,
+        tokens:
+          typeof measured.totalTokens === "number"
+            ? measured.totalTokens
+            : null,
+        runId: context.run.id,
+      });
+    } finally {
+      if (handle !== null) {
+        try {
+          await handle.dispose();
+        } catch {
+          // best effort
+        }
+      }
+    }
   }
 
   private async resolveModel(role: Role): Promise<{

@@ -30,6 +30,7 @@ import type {
   CreateModuleInput,
   DecideDecisionInput,
   Decision,
+  IndependentReview,
   Module,
   UpdateModuleInput,
   CreateMergeProposalInput,
@@ -857,6 +858,24 @@ function isVerification(value: unknown): value is Verification {
   );
 }
 
+function isReview(value: unknown): value is IndependentReview {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.projectId === "string" &&
+    typeof value.taskId === "string" &&
+    (value.runId === null || typeof value.runId === "string") &&
+    (value.reviewerRoleId === null ||
+      typeof value.reviewerRoleId === "string") &&
+    (value.model === null || typeof value.model === "string") &&
+    (value.verdict === "pass" || value.verdict === "fail") &&
+    typeof value.summary === "string" &&
+    Array.isArray(value.findings) &&
+    (value.tokens === null || typeof value.tokens === "number") &&
+    typeof value.createdAt === "string"
+  );
+}
+
 function isModule(value: unknown): value is Module {
   return (
     isRecord(value) &&
@@ -1009,14 +1028,25 @@ function migrateState(value: unknown): StudioState {
     };
   }
   if (state.schemaVersion === 9) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 10,
       tasks: state.tasks.map((task) => ({
         ...task,
         integration: task.integration ?? false,
         originTaskId: task.originTaskId ?? null,
       })),
+    };
+  }
+  if (state.schemaVersion === 10) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      reviews: Array.isArray(
+        (state as unknown as { reviews?: unknown }).reviews,
+      )
+        ? ((state as unknown as { reviews: IndependentReview[] }).reviews)
+        : [],
     };
   }
   return state;
@@ -1042,6 +1072,7 @@ function assertState(value: unknown): asserts value is StudioState {
     !Array.isArray(value.contractChanges) ||
     !Array.isArray(value.decisions) ||
     !Array.isArray(value.verifications) ||
+    !Array.isArray(value.reviews) ||
     !Array.isArray(value.events)
   ) {
     throw new Error("Studio state collections are missing");
@@ -1072,6 +1103,9 @@ function assertState(value: unknown): asserts value is StudioState {
   }
   if (!value.verifications.every(isVerification)) {
     throw new Error("Studio state contains an invalid verification");
+  }
+  if (!value.reviews.every(isReview)) {
+    throw new Error("Studio state contains an invalid review");
   }
   if (!value.decisions.every(isDecision)) {
     throw new Error("Studio state contains an invalid decision");
@@ -1146,6 +1180,13 @@ export class StudioStore {
             .sort((left, right) =>
               right.createdAt.localeCompare(left.createdAt),
             );
+      const reviews = project === null
+        ? []
+        : state.reviews
+            .filter((review) => review.projectId === project.id)
+            .sort((left, right) =>
+              right.createdAt.localeCompare(left.createdAt),
+            );
       const decisions = project === null
         ? []
         : state.decisions
@@ -1187,6 +1228,7 @@ export class StudioStore {
         contractChanges,
         decisions,
         verifications,
+        reviews,
         stats: statsFor(tasks, mergeProposals),
         events,
         company: buildCompany(state, now),
@@ -1202,6 +1244,7 @@ export class StudioStore {
           verification: true,
           knowledge: true,
           contractGuard: true,
+          independentReview: true,
           gitMerge: false,
         },
       };
@@ -1333,6 +1376,114 @@ export class StudioStore {
         project: structuredClone(project),
         module: module === undefined ? null : structuredClone(module),
       };
+    });
+  }
+
+  async getReviewContext(taskId: string): Promise<{
+    task: Task;
+    role: Role;
+    project: Project;
+    run: AgentRun | null;
+    verification: Verification | null;
+  }> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const task = this.findTask(state, taskId);
+      if (task.reviewerRoleId === null) {
+        throw new StudioStoreError(
+          "reviewer_required",
+          "任务没有验收人角色，不能独立评审",
+          409,
+        );
+      }
+      const role = state.roles.find(
+        (item) => item.id === task.reviewerRoleId,
+      );
+      const project = state.projects.find(
+        (item) => item.id === task.projectId,
+      );
+      if (role === undefined || project === undefined) {
+        throw new StudioStoreError(
+          "context_not_found",
+          "验收人角色或项目不存在",
+          404,
+        );
+      }
+      const run = [...state.runs]
+        .filter(
+          (item) =>
+            item.taskId === taskId && item.workspacePath !== null,
+        )
+        .sort((left, right) =>
+          right.startedAt.localeCompare(left.startedAt),
+        )[0];
+      const verification = [...state.verifications]
+        .filter((item) => item.taskId === taskId)
+        .sort((left, right) =>
+          right.createdAt.localeCompare(left.createdAt),
+        )[0];
+      return {
+        task: structuredClone(task),
+        role: structuredClone(role),
+        project: structuredClone(project),
+        run: run === undefined ? null : structuredClone(run),
+        verification:
+          verification === undefined
+            ? null
+            : structuredClone(verification),
+      };
+    });
+  }
+
+  async recordReview(
+    taskId: string,
+    input: {
+      reviewerRoleId: string;
+      model: string;
+      verdict: "pass" | "fail";
+      summary: string;
+      findings: string[];
+      tokens: number | null;
+      runId?: string | null;
+    },
+  ): Promise<IndependentReview> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const task = this.findTask(state, taskId);
+      const at = nowIso(this.now);
+      const review: IndependentReview = {
+        id: newId("review"),
+        projectId: task.projectId,
+        taskId,
+        runId: input.runId ?? null,
+        reviewerRoleId: input.reviewerRoleId,
+        model: input.model,
+        verdict: input.verdict,
+        summary: requiredText(input.summary, "summary", 2000),
+        findings: textList(input.findings, "findings", 30),
+        tokens: input.tokens,
+        createdAt: at,
+      };
+      state.reviews.push(review);
+      if (review.verdict === "pass") {
+        const text = `独立评审通过（${input.model}）：${review.summary}`;
+        if (!task.evidence.some((item) => item.text === text)) {
+          task.evidence.push({ id: newId("ev"), text, createdAt: at });
+        }
+      }
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type:
+          review.verdict === "pass"
+            ? "review.passed"
+            : "review.failed",
+        at,
+        projectId: task.projectId,
+        taskId,
+        payload: { reviewId: review.id, model: review.model },
+      });
+      await this.save();
+      return structuredClone(review);
     });
   }
 
@@ -2495,6 +2646,28 @@ export class StudioStore {
             409,
           );
         }
+        const project = state.projects.find(
+          (item) => item.id === task.projectId,
+        );
+        const hasCodeRun = state.runs.some(
+          (item) =>
+            item.taskId === task.id && item.workspacePath !== null,
+        );
+        if (
+          project?.repoPath !== null &&
+          project?.repoPath !== undefined &&
+          hasCodeRun &&
+          !state.reviews.some(
+            (review) =>
+              review.taskId === task.id && review.verdict === "pass",
+          )
+        ) {
+          throw new StudioStoreError(
+            "review_required",
+            "代码任务完成前必须有一次通过的独立评审",
+            409,
+          );
+        }
       }
       const from = task.status;
       const at = nowIso(this.now);
@@ -3269,6 +3442,7 @@ export class StudioStore {
       contractChanges: [],
       decisions: [],
       verifications: [],
+      reviews: [],
       events: [
         {
           id: "evt-demo",

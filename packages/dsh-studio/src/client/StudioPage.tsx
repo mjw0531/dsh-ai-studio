@@ -33,6 +33,7 @@ import type {
   CreateModuleInput,
   DecideDecisionInput,
   Decision,
+  IndependentReview,
   Module,
   Project,
   ProjectDoc,
@@ -622,6 +623,16 @@ export function StudioPage() {
     );
   };
 
+  const reviewTask = async (task: Task): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.reviewTask(task.id);
+      },
+      "独立评审已完成",
+    );
+  };
+
   const createDecision = async (
     input: CreateDecisionInput,
   ): Promise<boolean> => {
@@ -938,11 +949,15 @@ export function StudioPage() {
           verifications={data.verifications.filter(
             (verification) => verification.taskId === selectedTask.id,
           )}
+          reviews={data.reviews.filter(
+            (review) => review.taskId === selectedTask.id,
+          )}
           codeMode={data.project?.repoPath != null}
           busy={busy}
           onClose={() => setSelectedTaskId(null)}
           onDispatch={() => dispatchTask(selectedTask)}
           onVerify={(command) => verifyTask(selectedTask, command)}
+          onReview={() => reviewTask(selectedTask)}
           onTransition={(status) => void transitionTask(selectedTask, status)}
           onToggleAcceptance={(id) =>
             void toggleAcceptance(selectedTask, id)
@@ -2909,11 +2924,13 @@ function TaskDrawer({
   mergeProposal,
   runs,
   verifications,
+  reviews,
   codeMode,
   busy,
   onClose,
   onDispatch,
   onVerify,
+  onReview,
   onTransition,
   onToggleAcceptance,
   onAddEvidence,
@@ -2927,11 +2944,13 @@ function TaskDrawer({
   mergeProposal: MergeProposal | null;
   runs: AgentRun[];
   verifications: Verification[];
+  reviews: IndependentReview[];
   codeMode: boolean;
   busy: boolean;
   onClose: () => void;
   onDispatch: () => Promise<boolean>;
   onVerify: (command: string) => Promise<boolean>;
+  onReview: () => Promise<boolean>;
   onTransition: (status: TaskStatus) => void;
   onToggleAcceptance: (id: string) => void;
   onAddEvidence: (text: string) => Promise<boolean>;
@@ -3151,6 +3170,14 @@ function TaskDrawer({
             onVerify={onVerify}
           />
 
+          <TaskReviewPanel
+            task={task}
+            runs={runs}
+            reviews={reviews}
+            busy={busy}
+            onReview={onReview}
+          />
+
           <TaskMergePanel
             task={task}
             proposal={mergeProposal}
@@ -3213,6 +3240,84 @@ function TaskDrawer({
         </div>
       </aside>
     </div>
+  );
+}
+
+function TaskReviewPanel({
+  task,
+  runs,
+  reviews,
+  busy,
+  onReview,
+}: {
+  task: Task;
+  runs: AgentRun[];
+  reviews: IndependentReview[];
+  busy: boolean;
+  onReview: () => Promise<boolean>;
+}) {
+  const latest = reviews[0] ?? null;
+  const hasWorkspace = runs.some((run) => run.workspacePath !== null);
+  return (
+    <section>
+      <div className="studio-section-label">独立评审</div>
+      <div className="studio-action-note" style={{ marginTop: 0 }}>
+        由验收人角色另开 Agent 会话，只看 diff 和 Host 验证结果，不改代码。
+        代码任务完成前必须有一次通过的独立评审。
+      </div>
+      {!hasWorkspace ? (
+        <div className="studio-faint" style={{ fontSize: 11, marginTop: 9 }}>
+          还没有带 worktree 的 Run；先派单执行一次。
+        </div>
+      ) : (
+        <>
+          <button
+            type="button"
+            className="studio-btn"
+            data-size="sm"
+            style={{ marginTop: 9 }}
+            disabled={busy}
+            onClick={() => void onReview()}
+          >
+            <IconSpark width={13} height={13} />
+            运行独立评审
+          </button>
+          {latest !== null ? (
+            <div
+              className="studio-review"
+              data-verdict={latest.verdict}
+            >
+              <div className="studio-review-head">
+                <span
+                  className="studio-pill"
+                  data-tone={latest.verdict === "pass" ? "ok" : "p0"}
+                >
+                  {latest.verdict === "pass" ? "通过" : "不通过"}
+                </span>
+                <span className="studio-faint">
+                  {latest.model ?? "未知模型"} ·{" "}
+                  {latest.tokens === null
+                    ? "未计量"
+                    : `${String(latest.tokens)} tokens`}
+                </span>
+              </div>
+              <p>{latest.summary}</p>
+              {latest.findings.length > 0 ? (
+                <ul>
+                  {latest.findings.slice(0, 8).map((finding, index) => (
+                    <li key={`${String(index)}-${finding}`}>{finding}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : (
+            <div className="studio-faint" style={{ fontSize: 11, marginTop: 8 }}>
+              还没有独立评审记录。
+            </div>
+          )}
+        </>
+      )}
+    </section>
   );
 }
 
@@ -3952,6 +4057,12 @@ function SettingsView({
             <dd>
               {data.features.contractGuard
                 ? "可用（契约/禁止路径越界自动升级）"
+                : "不可用"}
+            </dd>
+            <dt>独立评审</dt>
+            <dd>
+              {data.features.independentReview
+                ? "可用（验收人 Agent）"
                 : "不可用"}
             </dd>
             <dt>合并治理</dt>

@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 10;
-export const STUDIO_PLUGIN_VERSION = "1.0.0";
+export const STUDIO_SCHEMA_VERSION = 11;
+export const STUDIO_PLUGIN_VERSION = "1.1.0";
 
 export type TaskStatus =
   | "backlog"
@@ -96,6 +96,22 @@ export interface Task {
   originTaskId: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export type ReviewVerdict = "pass" | "fail";
+
+export interface IndependentReview {
+  id: string;
+  projectId: string;
+  taskId: string;
+  runId: string | null;
+  reviewerRoleId: string | null;
+  model: string | null;
+  verdict: ReviewVerdict;
+  summary: string;
+  findings: string[];
+  tokens: number | null;
+  createdAt: string;
 }
 
 export interface Verification {
@@ -266,6 +282,7 @@ export interface StudioState {
   contractChanges: ContractChange[];
   decisions: Decision[];
   verifications: Verification[];
+  reviews: IndependentReview[];
   events: StudioEvent[];
 }
 
@@ -392,6 +409,7 @@ export interface BootstrapResponse {
   contractChanges: ContractChange[];
   decisions: Decision[];
   verifications: Verification[];
+  reviews: IndependentReview[];
   stats: StudioStats;
   events: StudioEvent[];
   company: CompanySummary;
@@ -407,6 +425,7 @@ export interface BootstrapResponse {
     verification: boolean;
     knowledge: boolean;
     contractGuard: boolean;
+    independentReview: boolean;
     gitMerge: boolean;
   };
 }

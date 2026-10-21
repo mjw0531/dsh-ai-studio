@@ -6,8 +6,8 @@ import os from "node:os";
 import path from "node:path";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 10;
-var STUDIO_PLUGIN_VERSION = "1.0.0";
+var STUDIO_SCHEMA_VERSION = 11;
+var STUDIO_PLUGIN_VERSION = "1.1.0";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -559,6 +559,9 @@ function isContractChange(value) {
 function isVerification(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.runId === null || typeof value.runId === "string") && typeof value.command === "string" && typeof value.workdir === "string" && typeof value.exitCode === "number" && typeof value.output === "string" && typeof value.passed === "boolean" && typeof value.createdAt === "string";
 }
+function isReview(value) {
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.runId === null || typeof value.runId === "string") && (value.reviewerRoleId === null || typeof value.reviewerRoleId === "string") && (value.model === null || typeof value.model === "string") && (value.verdict === "pass" || value.verdict === "fail") && typeof value.summary === "string" && Array.isArray(value.findings) && (value.tokens === null || typeof value.tokens === "number") && typeof value.createdAt === "string";
+}
 function isModule(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.name === "string" && typeof value.responsibility === "string" && (value.contractPath === null || typeof value.contractPath === "string") && typeof value.contractText === "string" && Array.isArray(value.allowedPaths) && Array.isArray(value.forbiddenPaths) && Array.isArray(value.dependsOn) && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
 }
@@ -686,14 +689,23 @@ function migrateState(value) {
     };
   }
   if (state.schemaVersion === 9) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 10,
       tasks: state.tasks.map((task) => ({
         ...task,
         integration: task.integration ?? false,
         originTaskId: task.originTaskId ?? null
       }))
+    };
+  }
+  if (state.schemaVersion === 10) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      reviews: Array.isArray(
+        state.reviews
+      ) ? state.reviews : []
     };
   }
   return state;
@@ -707,7 +719,7 @@ function assertState(value) {
       `Unsupported Studio schema version: ${String(value.schemaVersion)}`
     );
   }
-  if (!Array.isArray(value.projects) || !Array.isArray(value.roles) || !Array.isArray(value.modules) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.runs) || !Array.isArray(value.branches) || !Array.isArray(value.contractChanges) || !Array.isArray(value.decisions) || !Array.isArray(value.verifications) || !Array.isArray(value.events)) {
+  if (!Array.isArray(value.projects) || !Array.isArray(value.roles) || !Array.isArray(value.modules) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.runs) || !Array.isArray(value.branches) || !Array.isArray(value.contractChanges) || !Array.isArray(value.decisions) || !Array.isArray(value.verifications) || !Array.isArray(value.reviews) || !Array.isArray(value.events)) {
     throw new Error("Studio state collections are missing");
   }
   if (!value.projects.every(isProject)) {
@@ -736,6 +748,9 @@ function assertState(value) {
   }
   if (!value.verifications.every(isVerification)) {
     throw new Error("Studio state contains an invalid verification");
+  }
+  if (!value.reviews.every(isReview)) {
+    throw new Error("Studio state contains an invalid review");
   }
   if (!value.decisions.every(isDecision)) {
     throw new Error("Studio state contains an invalid decision");
@@ -783,6 +798,9 @@ var StudioStore = class {
       const verifications = project === null ? [] : state.verifications.filter((verification) => verification.projectId === project.id).sort(
         (left, right) => right.createdAt.localeCompare(left.createdAt)
       );
+      const reviews = project === null ? [] : state.reviews.filter((review) => review.projectId === project.id).sort(
+        (left, right) => right.createdAt.localeCompare(left.createdAt)
+      );
       const decisions = project === null ? [] : state.decisions.filter((decision) => decision.projectId === project.id).sort((left, right) => {
         if (left.status !== right.status) {
           if (left.status === "pending") return -1;
@@ -817,6 +835,7 @@ var StudioStore = class {
         contractChanges,
         decisions,
         verifications,
+        reviews,
         stats: statsFor(tasks, mergeProposals),
         events,
         company: buildCompany(state, now),
@@ -832,6 +851,7 @@ var StudioStore = class {
           verification: true,
           knowledge: true,
           contractGuard: true,
+          independentReview: true,
           gitMerge: false
         }
       };
@@ -942,6 +962,84 @@ var StudioStore = class {
         project: structuredClone(project),
         module: module === void 0 ? null : structuredClone(module)
       };
+    });
+  }
+  async getReviewContext(taskId) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const task = this.findTask(state, taskId);
+      if (task.reviewerRoleId === null) {
+        throw new StudioStoreError(
+          "reviewer_required",
+          "\u4EFB\u52A1\u6CA1\u6709\u9A8C\u6536\u4EBA\u89D2\u8272\uFF0C\u4E0D\u80FD\u72EC\u7ACB\u8BC4\u5BA1",
+          409
+        );
+      }
+      const role = state.roles.find(
+        (item) => item.id === task.reviewerRoleId
+      );
+      const project = state.projects.find(
+        (item) => item.id === task.projectId
+      );
+      if (role === void 0 || project === void 0) {
+        throw new StudioStoreError(
+          "context_not_found",
+          "\u9A8C\u6536\u4EBA\u89D2\u8272\u6216\u9879\u76EE\u4E0D\u5B58\u5728",
+          404
+        );
+      }
+      const run = [...state.runs].filter(
+        (item) => item.taskId === taskId && item.workspacePath !== null
+      ).sort(
+        (left, right) => right.startedAt.localeCompare(left.startedAt)
+      )[0];
+      const verification = [...state.verifications].filter((item) => item.taskId === taskId).sort(
+        (left, right) => right.createdAt.localeCompare(left.createdAt)
+      )[0];
+      return {
+        task: structuredClone(task),
+        role: structuredClone(role),
+        project: structuredClone(project),
+        run: run === void 0 ? null : structuredClone(run),
+        verification: verification === void 0 ? null : structuredClone(verification)
+      };
+    });
+  }
+  async recordReview(taskId, input) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const task = this.findTask(state, taskId);
+      const at = nowIso(this.now);
+      const review = {
+        id: newId("review"),
+        projectId: task.projectId,
+        taskId,
+        runId: input.runId ?? null,
+        reviewerRoleId: input.reviewerRoleId,
+        model: input.model,
+        verdict: input.verdict,
+        summary: requiredText(input.summary, "summary", 2e3),
+        findings: textList(input.findings, "findings", 30),
+        tokens: input.tokens,
+        createdAt: at
+      };
+      state.reviews.push(review);
+      if (review.verdict === "pass") {
+        const text = `\u72EC\u7ACB\u8BC4\u5BA1\u901A\u8FC7\uFF08${input.model}\uFF09\uFF1A${review.summary}`;
+        if (!task.evidence.some((item) => item.text === text)) {
+          task.evidence.push({ id: newId("ev"), text, createdAt: at });
+        }
+      }
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: review.verdict === "pass" ? "review.passed" : "review.failed",
+        at,
+        projectId: task.projectId,
+        taskId,
+        payload: { reviewId: review.id, model: review.model }
+      });
+      await this.save();
+      return structuredClone(review);
     });
   }
   async getTaskVerificationContext(taskId) {
@@ -1953,6 +2051,21 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
             409
           );
         }
+        const project = state.projects.find(
+          (item) => item.id === task.projectId
+        );
+        const hasCodeRun = state.runs.some(
+          (item) => item.taskId === task.id && item.workspacePath !== null
+        );
+        if (project?.repoPath !== null && project?.repoPath !== void 0 && hasCodeRun && !state.reviews.some(
+          (review) => review.taskId === task.id && review.verdict === "pass"
+        )) {
+          throw new StudioStoreError(
+            "review_required",
+            "\u4EE3\u7801\u4EFB\u52A1\u5B8C\u6210\u524D\u5FC5\u987B\u6709\u4E00\u6B21\u901A\u8FC7\u7684\u72EC\u7ACB\u8BC4\u5BA1",
+            409
+          );
+        }
       }
       const from = task.status;
       const at = nowIso(this.now);
@@ -2612,6 +2725,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       contractChanges: [],
       decisions: [],
       verifications: [],
+      reviews: [],
       events: [
         {
           id: "evt-demo",

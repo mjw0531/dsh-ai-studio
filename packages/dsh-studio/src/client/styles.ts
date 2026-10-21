@@ -840,6 +840,22 @@ export const studioCss = `
   line-height: 1.5;
 }
 
+.studio-review {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 9px;
+  border: 1px solid var(--st-border);
+  border-radius: 8px;
+  background: var(--st-panel-2);
+}
+.studio-review[data-verdict="fail"] { border-color: rgba(255, 117, 133, 0.25); }
+.studio-review-head { display: flex; align-items: center; gap: 8px; font-size: 10px; }
+.studio-review-head .studio-faint { margin-left: auto; }
+.studio-review p { margin: 0; color: var(--st-text); font-size: 11px; line-height: 1.55; }
+.studio-review ul { margin: 0; padding-left: 16px; color: var(--st-muted); font-size: 10px; line-height: 1.55; }
+
 .studio-verify-form { display: flex; gap: 7px; margin-top: 9px; }
 .studio-verify-form input {
   flex: 1;
