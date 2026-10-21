@@ -1,0 +1,8 @@
+# Studio 的 DSH 运行时层。
+#
+# 这个 bundle 只插入一个 host 插件。浏览器半由 dsh-client-modules 根据
+# package.json 的 dsh.client 自动发现，不需要单独一行 Loader entry。
+
+- insert:
+    - id: studio
+      name: "@ai-workbench/dsh-studio"

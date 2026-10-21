@@ -1,0 +1,33 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+build/
+out/
+*.tsbuildinfo
+*.tgz
+
+# runtime state
+.workbench/runtime/
+.workbench/**/*.lock
+.workbench/**/*.tmp
+
+# logs
+*.log
+logs/
+
+# local env / secrets
+.env
+.env.*
+!.env.example
+.credentials*
+secrets/
+
+# editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

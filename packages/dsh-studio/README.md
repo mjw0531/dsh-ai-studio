@@ -1,0 +1,136 @@
+# @ai-workbench/dsh-studio
+
+> 即装即用的 DeepSeek Harness AI 工作台：**项目、角色、任务、验收**，一个独立页面。
+
+当前版本 **0.1.0**，已在 **DSH 0.2.1-rc.2** 上完成端到端验证（Web profile 实际安装、页面渲染、任务创建、验收门禁、重启持久化）。
+
+![Studio Mission Control](docs/mission-control.png)
+
+## 它是什么
+
+Studio 把 DSH 从「一个会话」扩展成「一间工作室」：
+
+- **项目**：一个项目边界，下面有角色和任务。
+- **角色**：持久的职责契约（使命、职责、决策权），不是人设卡。
+- **任务**：目标 + 负责人 + 验收人 + 可验证的验收标准 + 证据。
+- **验收门禁**：Agent 不能自己把任务标记为完成；必须勾完验收项，并至少记录一条证据。
+- **独立页面**：DSH 侧栏出现「工作台」，主区域是一整套 Mission Control，不占用聊天会话。
+- **本地持久化**：数据自动写到 `$DSH_HOME/studio/studio.json`，重启不丢；首次运行自动生成演示项目。
+- **版本适配**：`engines.dsh >= 0.2.1-rc.2`；宿主只依赖 Web Server 路由、client slots 和 React，不依赖私有 Remote 生成器。
+
+## 安装
+
+### 方式 A：桌面端（推荐）
+
+1. 打开 DSH 的 **Plugins** 页面。
+2. **Add plugin** → 选择 **本地目录**，填入：
+
+   ```text
+   D:\AI工作台\packages\dsh-studio
+   ```
+
+3. 安装完成后点 **Enable now**。
+4. 刷新页面；左侧栏出现 **工作台**。
+
+> 如果 DSH 不让你直接选目录，先在终端打包，再在 Add plugin 里填 tarball 路径：
+>
+> ```powershell
+> cd D:\AI工作台\packages\dsh-studio
+> pnpm pack
+> ```
+
+### 方式 B：Web profile
+
+```powershell
+dsh plugin --profile web add "D:\AI工作台\packages\dsh-studio"
+dsh --profile web
+```
+
+打开启动时打印的 URL，左侧栏出现 **工作台**。
+
+### 方式 C：打包分发给别人
+
+```powershell
+cd D:\AI工作台\packages\dsh-studio
+pnpm pack
+```
+
+把生成的 `ai-workbench-dsh-studio-0.1.0.tgz` 发给对方，在 **Add plugin** 里填 tarball 路径即可。
+
+## 使用
+
+首次打开会自动生成一个「MOBA 垂直切片」演示项目、4 个角色和 5 个任务。
+
+1. **总览**：看「需要你」、任务板、团队和最近事件。
+2. **任务**：点卡片打开 Task Room；勾验收项、写证据、推进状态。
+3. **团队**：新增角色，写使命/职责/决策权。
+4. **设置**：查看 DSH 版本、兼容状态、数据目录和能力边界。
+
+![Task Room](docs/task-room.png)
+
+Task Room 里，验收项、证据和状态推进是同一份事实：没勾完、没证据，就无法验收通过。
+
+核心规则：
+
+- 新建任务必须至少有一条验收标准。
+- 任务进入「已完成」前，所有验收项必须勾选，且至少有一条证据。
+- 任务完成后锁定，需要新工作请创建后续任务。
+
+## 数据与安全
+
+- 数据文件：`$DSH_HOME/studio/studio.json`（默认 `C:\Users\<你>\.dsh\studio\studio.json`）。
+- 每次进程启动生成随机 Bearer token，只注入当前 DSH 页面；接口同源、无 CORS、`Cache-Control: no-store`。
+- 不存储模型密钥；不要手动把 token 贴到聊天/日志里。
+- 数据损坏时会备份为 `studio.json.corrupt-<timestamp>`，并重建演示数据。
+
+## 版本兼容策略
+
+- `package.json` 的 `engines.dsh` 写成 `>=0.2.1-rc.2`，未来版本不会被硬拒绝。
+- Host 只使用 `ctx.webServer.register()` / `tapIndex()`；Client 只使用 `ctx.slots`、`ctx.layout` 和平台 React。
+- DSH 版本读取顺序：`@deepseek-ai/dsh-app-boot` → 安装包清单 → 环境变量 → `unknown`。
+- 页面会显示兼容状态；能力缺失时显示错误提示，不白屏。
+- 如果未来 DSH 改掉 `webServer` 或 slots，只需替换 `src/host` / `src/client` 的少量适配代码，领域逻辑不动。
+
+## 开发
+
+```powershell
+pnpm install
+pnpm typecheck
+pnpm build
+pnpm test
+```
+
+> 仓库已带 `lib/` 构建产物，所以可以直接安装；改完 `src/` 后运行 `pnpm build` 重新生成。
+
+构建产物：
+
+- `lib/index.js`：Host 插件（ESM）。
+- `lib/client.js`：浏览器模块（DSH module-loader 格式，React 外置）。
+- `lib/store.js`：仅供 Node 测试使用的内部构建。
+
+目录：
+
+```text
+packages/dsh-studio/
+  src/host/       # Cordis 插件、HTTP API、文件存储、版本适配
+  src/client/     # React 独立页面、API client、样式
+  src/shared/     # 跨端类型、状态机、标签
+  tests/          # 存储层单测
+  cordis.patch.yml
+```
+
+## 当前边界（v0.1）
+
+- ✅ 项目/角色/任务/验收/证据/事件持久化。
+- ✅ 独立页面、侧栏入口、主题、响应式。
+- ✅ 验收门禁和状态机。
+- ⏳ Agent 派单与执行（下一阶段接入 DSH session/subagent）。
+- ⏳ Git worktree、合并提案、合并队列。
+- ⏳ Project Book 检索、角色卡编译成 DSH Agent Preset。
+- ⏳ 权限/预算策略与审计视图。
+
+这不是半成品占位：v0.1 的控制面已经可用；下一阶段会在这个数据模型上接入执行层，而不是重做页面。
+
+## License
+
+MIT
