@@ -15,6 +15,9 @@ import {
 } from "../shared/types.js";
 import type {
   AcceptanceItem,
+  AgentReceipt,
+  AgentRun,
+  AgentRunStatus,
   BootstrapResponse,
   CompanyHealth,
   CompanyProjectSummary,
@@ -113,6 +116,24 @@ function optionalText(value: unknown, field: string, max = 4000): string {
     );
   }
   return text;
+}
+
+function optionalTokenBudget(
+  value: unknown,
+  field: string,
+): number | null {
+  if (value === undefined || value === null) return null;
+  if (
+    typeof value !== "number" ||
+    !Number.isSafeInteger(value) ||
+    value < 0
+  ) {
+    throw new StudioStoreError(
+      "invalid_input",
+      `${field} 必须是非负整数 token 数`,
+    );
+  }
+  return value === 0 ? null : value;
 }
 
 function textList(value: unknown, field: string, maxItems = 20): string[] {
@@ -277,6 +298,9 @@ function buildCompany(state: StudioState, now: Date): CompanySummary {
     done: 0,
     acceptanceDone: 0,
     acceptanceTotal: 0,
+    runs: 0,
+    runningRuns: 0,
+    tokensUsed: 0,
   };
 
   for (const project of state.projects) {
@@ -288,6 +312,9 @@ function buildCompany(state: StudioState, now: Date): CompanySummary {
     );
     const projectRoles = state.roles.filter(
       (role) => role.projectId === project.id,
+    );
+    const projectRuns = state.runs.filter(
+      (run) => run.projectId === project.id,
     );
     const roleById = new Map(projectRoles.map((role) => [role.id, role]));
     const stats = statsFor(projectTasks, projectProposals);
@@ -470,6 +497,14 @@ function buildCompany(state: StudioState, now: Date): CompanySummary {
     totals.done += stats.done;
     totals.acceptanceDone += stats.acceptanceDone;
     totals.acceptanceTotal += stats.acceptanceTotal;
+    totals.runs += projectRuns.length;
+    totals.runningRuns += projectRuns.filter(
+      (run) => run.status === "running",
+    ).length;
+    totals.tokensUsed += projectRuns.reduce(
+      (sum, run) => sum + (run.tokens ?? 0),
+      0,
+    );
 
     for (const role of projectRoles) {
       const assigned = projectTasks.filter(
@@ -563,6 +598,7 @@ function isProject(value: unknown): value is Project {
     typeof value.id === "string" &&
     typeof value.name === "string" &&
     typeof value.description === "string" &&
+    (value.tokenBudget === null || typeof value.tokenBudget === "number") &&
     typeof value.createdAt === "string" &&
     typeof value.updatedAt === "string"
   );
@@ -578,7 +614,42 @@ function isRole(value: unknown): value is Role {
     typeof value.mission === "string" &&
     Array.isArray(value.responsibilities) &&
     Array.isArray(value.nonGoals) &&
-    Array.isArray(value.decisionRights)
+    Array.isArray(value.decisionRights) &&
+    (value.model === null || typeof value.model === "string") &&
+    (value.tokenBudget === null || typeof value.tokenBudget === "number") &&
+    (value.dailyTokenBudget === null ||
+      typeof value.dailyTokenBudget === "number")
+  );
+}
+
+function isAgentRunStatus(value: unknown): value is AgentRunStatus {
+  return (
+    value === "queued" ||
+    value === "running" ||
+    value === "succeeded" ||
+    value === "failed"
+  );
+}
+
+function isAgentRun(value: unknown): value is AgentRun {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.projectId === "string" &&
+    typeof value.taskId === "string" &&
+    (value.roleId === null || typeof value.roleId === "string") &&
+    (value.sessionId === null || typeof value.sessionId === "string") &&
+    isAgentRunStatus(value.status) &&
+    (value.model === null || typeof value.model === "string") &&
+    typeof value.prompt === "string" &&
+    typeof value.output === "string" &&
+    (value.receipt === null || isRecord(value.receipt)) &&
+    (value.tokens === null || typeof value.tokens === "number") &&
+    (value.budgetWarning === null ||
+      typeof value.budgetWarning === "string") &&
+    (value.error === null || typeof value.error === "string") &&
+    typeof value.startedAt === "string" &&
+    (value.endedAt === null || typeof value.endedAt === "string")
   );
 }
 
@@ -632,14 +703,36 @@ function migrateState(value: unknown): StudioState {
   if (!isRecord(value)) {
     throw new Error("Studio state must be an object");
   }
-  if (value.schemaVersion === 1) {
-    return {
-      ...(value as unknown as StudioState),
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+  let state = value as unknown as StudioState;
+  if (state.schemaVersion === 1) {
+    state = {
+      ...state,
+      schemaVersion: 2,
       mergeProposals: [],
     };
   }
-  return value as unknown as StudioState;
+  if (state.schemaVersion === 2) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      projects: state.projects.map((project) => ({
+        ...project,
+        tokenBudget: project.tokenBudget ?? null,
+      })),
+      roles: state.roles.map((role) => ({
+        ...role,
+        model: role.model ?? null,
+        tokenBudget: role.tokenBudget ?? null,
+        dailyTokenBudget: role.dailyTokenBudget ?? null,
+      })),
+      runs: Array.isArray(
+        (state as unknown as { runs?: unknown }).runs,
+      )
+        ? ((state as unknown as { runs: AgentRun[] }).runs)
+        : [],
+    };
+  }
+  return state;
 }
 
 function assertState(value: unknown): asserts value is StudioState {
@@ -656,6 +749,7 @@ function assertState(value: unknown): asserts value is StudioState {
     !Array.isArray(value.roles) ||
     !Array.isArray(value.tasks) ||
     !Array.isArray(value.mergeProposals) ||
+    !Array.isArray(value.runs) ||
     !Array.isArray(value.events)
   ) {
     throw new Error("Studio state collections are missing");
@@ -671,6 +765,9 @@ function assertState(value: unknown): asserts value is StudioState {
   }
   if (!value.mergeProposals.every(isMergeProposal)) {
     throw new Error("Studio state contains an invalid merge proposal");
+  }
+  if (!value.runs.every(isAgentRun)) {
+    throw new Error("Studio state contains an invalid agent run");
   }
 }
 
@@ -713,6 +810,13 @@ export class StudioStore {
         : state.mergeProposals.filter(
             (proposal) => proposal.projectId === project.id,
           );
+      const runs = project === null
+        ? []
+        : state.runs
+            .filter((run) => run.projectId === project.id)
+            .sort((left, right) =>
+              right.startedAt.localeCompare(left.startedAt),
+            );
       const events = [...state.events]
         .filter((event) => project === null || event.projectId === project.id)
         .slice(-30)
@@ -737,6 +841,7 @@ export class StudioStore {
         roles,
         tasks,
         mergeProposals,
+        runs,
         stats: statsFor(tasks, mergeProposals),
         events,
         company: buildCompany(state, now),
@@ -745,7 +850,7 @@ export class StudioStore {
           filePersistence: true,
           mergeGovernance: true,
           ownerDashboard: true,
-          agentExecution: false,
+          agentExecution: true,
           gitMerge: false,
         },
       };
@@ -760,6 +865,7 @@ export class StudioStore {
         id: newId("proj"),
         name: requiredText(input.name, "name", 80),
         description: optionalText(input.description, "description", 600),
+        tokenBudget: optionalTokenBudget(input.tokenBudget, "tokenBudget"),
         createdAt: at,
         updatedAt: at,
       };
@@ -791,6 +897,328 @@ export class StudioStore {
     });
   }
 
+  async getDispatchContext(taskId: string): Promise<{
+    task: Task;
+    role: Role;
+    project: Project;
+  }> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const task = this.findTask(state, taskId);
+      if (task.ownerRoleId === null) {
+        throw new StudioStoreError(
+          "owner_required",
+          "任务没有负责人角色，不能派单",
+          409,
+        );
+      }
+      const role = state.roles.find((item) => item.id === task.ownerRoleId);
+      const project = state.projects.find(
+        (item) => item.id === task.projectId,
+      );
+      if (role === undefined || project === undefined) {
+        throw new StudioStoreError(
+          "context_not_found",
+          "任务的负责人角色或项目不存在",
+          404,
+        );
+      }
+      return {
+        task: structuredClone(task),
+        role: structuredClone(role),
+        project: structuredClone(project),
+      };
+    });
+  }
+
+  async beginRun(taskId: string, prompt: string): Promise<AgentRun> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const task = this.findTask(state, taskId);
+      if (task.status !== "backlog" && task.status !== "ready") {
+        throw new StudioStoreError(
+          "task_not_dispatchable",
+          "只有待规划或可开始的任务可以派单",
+          409,
+        );
+      }
+      if (task.ownerRoleId === null) {
+        throw new StudioStoreError(
+          "owner_required",
+          "任务没有负责人角色，不能派单",
+          409,
+        );
+      }
+      const role = state.roles.find((item) => item.id === task.ownerRoleId);
+      const project = state.projects.find(
+        (item) => item.id === task.projectId,
+      );
+      if (role === undefined || project === undefined) {
+        throw new StudioStoreError(
+          "context_not_found",
+          "任务的负责人角色或项目不存在",
+          404,
+        );
+      }
+
+      const projectSpent = state.runs
+        .filter((run) => run.projectId === project.id)
+        .reduce((sum, run) => sum + (run.tokens ?? 0), 0);
+      if (
+        project.tokenBudget !== null &&
+        projectSpent >= project.tokenBudget
+      ) {
+        throw new StudioStoreError(
+          "budget_exceeded",
+          `项目 token 预算已用尽（${String(projectSpent)} / ${String(
+            project.tokenBudget,
+          )}）`,
+          409,
+        );
+      }
+      const roleSpent = state.runs
+        .filter((run) => run.roleId === role.id)
+        .reduce((sum, run) => sum + (run.tokens ?? 0), 0);
+      if (role.tokenBudget !== null && roleSpent >= role.tokenBudget) {
+        throw new StudioStoreError(
+          "budget_exceeded",
+          `角色 token 预算已用尽（${String(roleSpent)} / ${String(
+            role.tokenBudget,
+          )}）`,
+          409,
+        );
+      }
+      const today = nowIso(this.now).slice(0, 10);
+      const dailySpent = state.runs
+        .filter(
+          (run) =>
+            run.roleId === role.id && run.startedAt.slice(0, 10) === today,
+        )
+        .reduce((sum, run) => sum + (run.tokens ?? 0), 0);
+      if (
+        role.dailyTokenBudget !== null &&
+        dailySpent >= role.dailyTokenBudget
+      ) {
+        throw new StudioStoreError(
+          "budget_exceeded",
+          `角色今日 token 预算已用尽（${String(dailySpent)} / ${String(
+            role.dailyTokenBudget,
+          )}）`,
+          409,
+        );
+      }
+
+      const at = nowIso(this.now);
+      const run: AgentRun = {
+        id: newId("run"),
+        projectId: task.projectId,
+        taskId: task.id,
+        roleId: role.id,
+        sessionId: null,
+        status: "queued",
+        model: role.model,
+        prompt,
+        output: "",
+        receipt: null,
+        tokens: null,
+        budgetWarning: null,
+        error: null,
+        startedAt: at,
+        endedAt: null,
+      };
+      state.runs.push(run);
+      task.status = "running";
+      task.updatedAt = at;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "agent.dispatched",
+        at,
+        projectId: task.projectId,
+        taskId: task.id,
+        payload: {
+          runId: run.id,
+          roleId: role.id,
+          model: role.model,
+        },
+      });
+      await this.save();
+      return structuredClone(run);
+    });
+  }
+
+  async attachRunSession(
+    runId: string,
+    sessionId: string,
+    model?: string,
+  ): Promise<void> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const run = state.runs.find((item) => item.id === runId);
+      if (run === undefined) return;
+      run.sessionId = sessionId;
+      if (model !== undefined) run.model = model;
+      run.status = "running";
+      await this.save();
+    });
+  }
+
+  async completeRun(
+    runId: string,
+    input: {
+      output: string;
+      receipt: AgentReceipt | null;
+      tokens: number | null;
+    },
+  ): Promise<AgentRun> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const run = state.runs.find((item) => item.id === runId);
+      if (run === undefined) {
+        throw new StudioStoreError("run_not_found", "Agent Run 不存在", 404);
+      }
+      const at = nowIso(this.now);
+      const task = state.tasks.find((item) => item.id === run.taskId);
+      const project = state.projects.find(
+        (item) => item.id === run.projectId,
+      );
+      const role = state.roles.find((item) => item.id === run.roleId);
+      const receiptComplete =
+        input.receipt !== null &&
+        typeof input.receipt.summary === "string" &&
+        input.receipt.summary.trim() !== "" &&
+        Array.isArray(input.receipt.evidence) &&
+        input.receipt.evidence.length > 0;
+      if (!receiptComplete) {
+        run.status = "failed";
+        run.output = input.output.slice(0, 30000);
+        run.receipt = input.receipt;
+        run.tokens = input.tokens;
+        run.error =
+          "回执不完整：必须包含非空 summary 和至少一条 evidence，任务不能进入 review";
+        run.endedAt = at;
+        if (task !== undefined && task.status === "running") {
+          task.status = "ready";
+          task.updatedAt = at;
+        }
+        state.updatedAt = at;
+        this.recordEvent(state, {
+          type: "agent.failed",
+          at,
+          projectId: run.projectId,
+          taskId: run.taskId,
+          payload: {
+            runId: run.id,
+            error: run.error,
+            tokens: run.tokens,
+          },
+        });
+        await this.save();
+        return structuredClone(run);
+      }
+      const spentProject = state.runs
+        .filter(
+          (item) =>
+            item.projectId === run.projectId && item.id !== run.id,
+        )
+        .reduce((sum, item) => sum + (item.tokens ?? 0), 0);
+      const spentRole = state.runs
+        .filter(
+          (item) => item.roleId === run.roleId && item.id !== run.id,
+        )
+        .reduce((sum, item) => sum + (item.tokens ?? 0), 0);
+      const warnings: string[] = [];
+      if (
+        project !== undefined &&
+        project.tokenBudget !== null &&
+        input.tokens !== null &&
+        spentProject + input.tokens > project.tokenBudget
+      ) {
+        warnings.push(
+          `项目 token 预算超出：${String(spentProject + input.tokens)} / ${String(
+            project.tokenBudget,
+          )}`,
+        );
+      }
+      if (
+        role !== undefined &&
+        role.tokenBudget !== null &&
+        input.tokens !== null &&
+        spentRole + input.tokens > role.tokenBudget
+      ) {
+        warnings.push(
+          `角色 token 预算超出：${String(spentRole + input.tokens)} / ${String(
+            role.tokenBudget,
+          )}`,
+        );
+      }
+      run.status = "succeeded";
+      run.output = input.output.slice(0, 30000);
+      run.receipt = input.receipt;
+      run.tokens = input.tokens;
+      run.budgetWarning = warnings.length === 0 ? null : warnings.join("；");
+      run.endedAt = at;
+      if (task !== undefined) {
+        if (input.receipt !== null) {
+          const existing = new Set(task.evidence.map((item) => item.text));
+          for (const text of input.receipt.evidence.slice(0, 10)) {
+            if (existing.has(text)) continue;
+            task.evidence.push({
+              id: newId("ev"),
+              text,
+              createdAt: at,
+            });
+          }
+          if (task.status === "running") task.status = "review";
+        }
+        task.updatedAt = at;
+      }
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "agent.completed",
+        at,
+        projectId: run.projectId,
+        taskId: run.taskId,
+        payload: {
+          runId: run.id,
+          tokens: run.tokens,
+          receipt: input.receipt !== null,
+          budgetWarning: run.budgetWarning,
+        },
+      });
+      await this.save();
+      return structuredClone(run);
+    });
+  }
+
+  async failRun(runId: string, error: string): Promise<AgentRun> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const run = state.runs.find((item) => item.id === runId);
+      if (run === undefined) {
+        throw new StudioStoreError("run_not_found", "Agent Run 不存在", 404);
+      }
+      const at = nowIso(this.now);
+      run.status = "failed";
+      run.error = error.slice(0, 4000);
+      run.endedAt = at;
+      const task = state.tasks.find((item) => item.id === run.taskId);
+      if (task !== undefined && task.status === "running") {
+        task.status = "ready";
+        task.updatedAt = at;
+      }
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "agent.failed",
+        at,
+        projectId: run.projectId,
+        taskId: run.taskId,
+        payload: { runId: run.id, error: run.error },
+      });
+      await this.save();
+      return structuredClone(run);
+    });
+  }
+
   async createRole(input: CreateRoleInput): Promise<Role> {
     return this.runExclusive(async () => {
       const state = this.requireState();
@@ -808,6 +1236,12 @@ export class StudioStore {
         responsibilities: textList(input.responsibilities, "responsibilities"),
         nonGoals: textList(input.nonGoals, "nonGoals"),
         decisionRights: textList(input.decisionRights, "decisionRights"),
+        model: optionalText(input.model, "model", 120) || null,
+        tokenBudget: optionalTokenBudget(input.tokenBudget, "tokenBudget"),
+        dailyTokenBudget: optionalTokenBudget(
+          input.dailyTokenBudget,
+          "dailyTokenBudget",
+        ),
         createdAt: at,
         updatedAt: at,
       };
@@ -854,6 +1288,18 @@ export class StudioStore {
       }
       if (input.decisionRights !== undefined) {
         role.decisionRights = textList(input.decisionRights, "decisionRights");
+      }
+      if (input.model !== undefined) {
+        role.model = optionalText(input.model, "model", 120) || null;
+      }
+      if (input.tokenBudget !== undefined) {
+        role.tokenBudget = optionalTokenBudget(input.tokenBudget, "tokenBudget");
+      }
+      if (input.dailyTokenBudget !== undefined) {
+        role.dailyTokenBudget = optionalTokenBudget(
+          input.dailyTokenBudget,
+          "dailyTokenBudget",
+        );
       }
       role.updatedAt = nowIso(this.now);
       state.updatedAt = role.updatedAt;
@@ -1407,6 +1853,7 @@ export class StudioStore {
       name: "MOBA 垂直切片",
       description:
         "用一条可玩的最小链路验证工作台：任务、角色、验收和状态机。",
+      tokenBudget: null,
       createdAt: at,
       updatedAt: at,
     };
@@ -1426,6 +1873,9 @@ export class StudioStore {
       responsibilities,
       nonGoals: [],
       decisionRights,
+      model: null,
+      tokenBudget: null,
+      dailyTokenBudget: null,
       createdAt: at,
       updatedAt: at,
     });
@@ -1564,6 +2014,7 @@ export class StudioStore {
       roles,
       tasks,
       mergeProposals: [],
+      runs: [],
       events: [
         {
           id: "evt-demo",

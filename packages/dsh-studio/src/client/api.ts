@@ -1,4 +1,5 @@
 import type {
+  AgentRun,
   ApiErrorBody,
   BootstrapResponse,
   CreateMergeProposalInput,
@@ -219,6 +220,14 @@ export class StudioClient {
       { method: "POST", body: { status } },
     );
     return data.task;
+  }
+
+  async dispatchTask(taskId: string): Promise<AgentRun> {
+    const data = await this.request<{ run: AgentRun }>(
+      `/tasks/${encodeURIComponent(taskId)}/dispatch`,
+      { method: "POST", body: {} },
+    );
+    return data.run;
   }
 
   async createMergeProposal(

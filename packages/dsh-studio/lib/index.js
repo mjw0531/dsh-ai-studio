@@ -2,8 +2,8 @@
 import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 2;
-var STUDIO_PLUGIN_VERSION = "0.3.0";
+var STUDIO_SCHEMA_VERSION = 3;
+var STUDIO_PLUGIN_VERSION = "0.4.0";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -140,8 +140,204 @@ function safeOrigin(ctx) {
   }
 }
 
-// src/host/store.ts
+// src/host/dispatcher.ts
 import { randomUUID } from "node:crypto";
+function assistantText(messages) {
+  const assistant = [...messages].reverse().find((message) => message.role === "assistant");
+  if (assistant === void 0) return "";
+  return assistant.content.filter((block) => block.type === "text").map((block) => block.text ?? "").join("\n").trim();
+}
+function extractJsonObject(text) {
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(text);
+  const candidate = fenced?.[1] ?? text;
+  const start = candidate.indexOf("{");
+  const end = candidate.lastIndexOf("}");
+  if (start < 0 || end <= start) return void 0;
+  try {
+    return JSON.parse(candidate.slice(start, end + 1));
+  } catch {
+    return void 0;
+  }
+}
+function stringArray(value) {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item) => typeof item === "string").map((item) => item.trim()).filter(Boolean).slice(0, 20);
+}
+function objectArray(value) {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (item) => typeof item === "object" && item !== null && !Array.isArray(item)
+  );
+}
+function textOf(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+function normalizeReceipt(raw, fallback) {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    return {
+      summary: fallback.slice(0, 2e3),
+      evidence: [],
+      artifacts: [],
+      decisions: [],
+      contractDeltas: [],
+      rejectedOptions: [],
+      blockers: ["\u6A21\u578B\u6CA1\u6709\u8FD4\u56DE\u53EF\u89E3\u6790\u7684 JSON \u56DE\u6267"]
+    };
+  }
+  const record = raw;
+  return {
+    summary: textOf(record.summary) || fallback.slice(0, 2e3),
+    evidence: stringArray(record.evidence),
+    artifacts: objectArray(record.artifacts).map((item) => ({
+      kind: textOf(item.kind) || "unknown",
+      path: textOf(item.path)
+    })).filter((item) => item.path !== "").slice(0, 20),
+    decisions: objectArray(record.decisions).map((item) => {
+      const scope = item.scope === "project" ? "project" : "branch";
+      return {
+        title: textOf(item.title),
+        rationale: textOf(item.rationale),
+        scope
+      };
+    }).filter((item) => item.title !== "").slice(0, 20),
+    contractDeltas: objectArray(record.contractDeltas).map((item) => ({
+      contract: textOf(item.contract),
+      change: textOf(item.change)
+    })).filter((item) => item.contract !== "").slice(0, 20),
+    rejectedOptions: objectArray(record.rejectedOptions).map((item) => ({
+      option: textOf(item.option),
+      reason: textOf(item.reason)
+    })).filter((item) => item.option !== "").slice(0, 20),
+    blockers: stringArray(record.blockers)
+  };
+}
+function buildPrompt(context) {
+  const { task, role, project } = context;
+  const acceptance = task.acceptance.map((item, index) => `${String(index + 1)}. ${item.text}`).join("\n");
+  return [
+    `\u4F60\u662F Studio \u5DE5\u4F5C\u53F0\u91CC\u7684\u89D2\u8272\u300C${role.name}\u300D\uFF08${role.title || "\u672A\u586B\u5199\u804C\u4F4D"}\uFF09\u3002`,
+    `\u89D2\u8272\u4F7F\u547D\uFF1A${role.mission || "\u672A\u586B\u5199"}`,
+    `\u804C\u8D23\uFF1A${role.responsibilities.join("\uFF1B") || "\u672A\u586B\u5199"}`,
+    "",
+    `\u9879\u76EE\uFF1A${project.name}`,
+    project.description ? `\u9879\u76EE\u63CF\u8FF0\uFF1A${project.description}` : "",
+    "",
+    `\u4EFB\u52A1\uFF1A${task.title}`,
+    `\u4EFB\u52A1\u76EE\u6807\uFF1A${task.goal || "\u672A\u586B\u5199"}`,
+    `\u4F18\u5148\u7EA7\uFF1A${task.priority}`,
+    `\u5206\u652F\uFF1A${task.branch ?? "\u672A\u521B\u5EFA"}`,
+    "\u9A8C\u6536\u6807\u51C6\uFF1A",
+    acceptance || "\uFF08\u65E0\uFF09",
+    "",
+    "\u672C\u8F6E\u53EA\u505A\u5206\u6790/\u89C4\u5212\uFF0C\u4E0D\u8981\u4FEE\u6539\u4EFB\u4F55\u6587\u4EF6\uFF0C\u4E0D\u8981\u6267\u884C\u4F1A\u6539\u53D8\u7CFB\u7EDF\u72B6\u6001\u7684\u547D\u4EE4\u3002",
+    "\u8BF7\u8F93\u51FA\u4E00\u4E2A JSON \u5BF9\u8C61\uFF08\u4E0D\u8981\u8F93\u51FA JSON \u4EE5\u5916\u7684\u89E3\u91CA\uFF09\uFF0C\u5B57\u6BB5\u5982\u4E0B\uFF1A",
+    '{"summary":"\u4E00\u53E5\u8BDD\u7ED3\u8BBA","evidence":["\u53EF\u590D\u73B0\u7684\u8BC1\u636E/\u68C0\u67E5\u7ED3\u679C"],"artifacts":[{"kind":"plan|diff|test|doc","path":"\u8DEF\u5F84\u6216\u8BF4\u660E"}],"decisions":[{"title":"\u51B3\u7B56","rationale":"\u7406\u7531","scope":"branch|project"}],"contractDeltas":[{"contract":"\u5951\u7EA6\u8DEF\u5F84","change":"\u53D8\u66F4"}],"rejectedOptions":[{"option":"\u88AB\u5426\u51B3\u65B9\u6848","reason":"\u539F\u56E0"}],"blockers":["\u963B\u585E"]}',
+    "\u6CA1\u6709\u5185\u5BB9\u7684\u5B57\u6BB5\u7528\u7A7A\u6570\u7EC4\u3002\u4E0D\u8981\u58F0\u79F0\u4EFB\u52A1\u5DF2\u7ECF\u5B8C\u6210\uFF1B\u9A8C\u6536\u7531\u4EBA\u7C7B/Verifier \u51B3\u5B9A\u3002"
+  ].filter((line) => line !== "").join("\n");
+}
+var AgentDispatcher = class {
+  ctx;
+  store;
+  constructor(ctx, store) {
+    this.ctx = ctx;
+    this.store = store;
+  }
+  async dispatch(taskId) {
+    const context = await this.store.getDispatchContext(taskId);
+    const selection = await this.resolveModel(context.role);
+    const prompt = buildPrompt(context);
+    const run = await this.store.beginRun(taskId, prompt);
+    void this.execute(run, selection);
+    return run;
+  }
+  async resolveModel(role) {
+    const fallback = this.ctx.agentDefaultModel.currentSelection();
+    const wanted = role.model ?? fallback.model;
+    const providers = [...this.ctx.llm.listProviders()].sort((left, right) => {
+      const score = (id) => id === "deepseek-account" ? 0 : id === "deepseek-official" ? 2 : 1;
+      return score(left.id) - score(right.id);
+    });
+    let first = null;
+    for (const provider of providers) {
+      const models = await this.ctx.llm.listModels(provider.id);
+      const exact = models.find((model) => model.id === wanted);
+      if (exact !== void 0) {
+        return { provider: provider.id, model: exact.id };
+      }
+      if (first === null && models.length > 0) {
+        first = { provider: provider.id, model: models[0]?.id ?? wanted };
+      }
+    }
+    if (first !== null) return first;
+    throw new Error(`\u6CA1\u6709\u53EF\u7528\u7684\u6A21\u578B\u8DEF\u7531\uFF08\u8BF7\u6C42\u6A21\u578B\uFF1A${wanted}\uFF09`);
+  }
+  async execute(run, selection) {
+    let handle = null;
+    try {
+      handle = await this.ctx.agents.create({
+        sessionId: `run-${randomUUID()}`,
+        meta: { cwd: process.cwd() },
+        agentOptions: selection,
+        setup: async (agentCtx) => {
+          await this.ctx.agentPresets.mount(agentCtx);
+        }
+      });
+      await this.store.attachRunSession(
+        run.id,
+        handle.agent.session.id,
+        selection.model
+      );
+      handle.agent.followup({
+        role: "user",
+        content: [{ type: "text", text: run.prompt }],
+        source: { kind: "user" }
+      });
+      const deadline = Date.now() + 12e4;
+      let output = "";
+      let idleTicks = 0;
+      while (Date.now() < deadline) {
+        output = assistantText(handle.agent.session.deriveMessages());
+        if (output !== "") break;
+        if (handle.agent.status === "idle") {
+          idleTicks += 1;
+          if (idleTicks >= 10) break;
+        } else {
+          idleTicks = 0;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 400));
+      }
+      if (output === "") {
+        throw new Error("Agent \u5728 120 \u79D2\u5185\u6CA1\u6709\u4EA7\u51FA\uFF08\u6CA1\u6709 assistant \u6D88\u606F\uFF09");
+      }
+      const idleDeadline = Date.now() + 3e4;
+      while (handle.agent.status !== "idle" && Date.now() < idleDeadline) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+      const receipt = normalizeReceipt(
+        extractJsonObject(output),
+        output
+      );
+      const measured = this.ctx.tokenMeter.measure(handle.agent.session);
+      await this.store.completeRun(run.id, {
+        output,
+        receipt,
+        tokens: typeof measured.totalTokens === "number" ? measured.totalTokens : null
+      });
+    } catch (error) {
+      await this.store.failRun(
+        run.id,
+        error instanceof Error ? error.message : String(error)
+      ).catch(() => void 0);
+    } finally {
+      if (handle !== null) {
+        await handle.dispose().catch(() => void 0);
+      }
+    }
+  }
+};
+
+// src/host/store.ts
+import { randomUUID as randomUUID2 } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile as readFile2, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -167,7 +363,7 @@ function nowIso(now) {
   return now().toISOString();
 }
 function newId(prefix) {
-  return `${prefix}-${randomUUID().slice(0, 8)}`;
+  return `${prefix}-${randomUUID2().slice(0, 8)}`;
 }
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -201,6 +397,16 @@ function optionalText(value, field, max = 4e3) {
     );
   }
   return text;
+}
+function optionalTokenBudget(value, field) {
+  if (value === void 0 || value === null) return null;
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
+    throw new StudioStoreError(
+      "invalid_input",
+      `${field} \u5FC5\u987B\u662F\u975E\u8D1F\u6574\u6570 token \u6570`
+    );
+  }
+  return value === 0 ? null : value;
 }
 function textList(value, field, maxItems = 20) {
   if (value === void 0 || value === null) return [];
@@ -335,7 +541,10 @@ function buildCompany(state, now) {
     merged: 0,
     done: 0,
     acceptanceDone: 0,
-    acceptanceTotal: 0
+    acceptanceTotal: 0,
+    runs: 0,
+    runningRuns: 0,
+    tokensUsed: 0
   };
   for (const project of state.projects) {
     const projectTasks = state.tasks.filter(
@@ -346,6 +555,9 @@ function buildCompany(state, now) {
     );
     const projectRoles = state.roles.filter(
       (role) => role.projectId === project.id
+    );
+    const projectRuns = state.runs.filter(
+      (run) => run.projectId === project.id
     );
     const roleById = new Map(projectRoles.map((role) => [role.id, role]));
     const stats = statsFor(projectTasks, projectProposals);
@@ -502,6 +714,14 @@ function buildCompany(state, now) {
     totals.done += stats.done;
     totals.acceptanceDone += stats.acceptanceDone;
     totals.acceptanceTotal += stats.acceptanceTotal;
+    totals.runs += projectRuns.length;
+    totals.runningRuns += projectRuns.filter(
+      (run) => run.status === "running"
+    ).length;
+    totals.tokensUsed += projectRuns.reduce(
+      (sum, run) => sum + (run.tokens ?? 0),
+      0
+    );
     for (const role of projectRoles) {
       const assigned = projectTasks.filter(
         (task) => task.ownerRoleId === role.id
@@ -576,10 +796,16 @@ function buildCompany(state, now) {
   };
 }
 function isProject(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.name === "string" && typeof value.description === "string" && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
+  return isRecord(value) && typeof value.id === "string" && typeof value.name === "string" && typeof value.description === "string" && (value.tokenBudget === null || typeof value.tokenBudget === "number") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
 }
 function isRole(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.name === "string" && typeof value.title === "string" && typeof value.mission === "string" && Array.isArray(value.responsibilities) && Array.isArray(value.nonGoals) && Array.isArray(value.decisionRights);
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.name === "string" && typeof value.title === "string" && typeof value.mission === "string" && Array.isArray(value.responsibilities) && Array.isArray(value.nonGoals) && Array.isArray(value.decisionRights) && (value.model === null || typeof value.model === "string") && (value.tokenBudget === null || typeof value.tokenBudget === "number") && (value.dailyTokenBudget === null || typeof value.dailyTokenBudget === "number");
+}
+function isAgentRunStatus(value) {
+  return value === "queued" || value === "running" || value === "succeeded" || value === "failed";
+}
+function isAgentRun(value) {
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
 }
 function isTask(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence);
@@ -594,14 +820,34 @@ function migrateState(value) {
   if (!isRecord(value)) {
     throw new Error("Studio state must be an object");
   }
-  if (value.schemaVersion === 1) {
-    return {
-      ...value,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+  let state = value;
+  if (state.schemaVersion === 1) {
+    state = {
+      ...state,
+      schemaVersion: 2,
       mergeProposals: []
     };
   }
-  return value;
+  if (state.schemaVersion === 2) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      projects: state.projects.map((project) => ({
+        ...project,
+        tokenBudget: project.tokenBudget ?? null
+      })),
+      roles: state.roles.map((role) => ({
+        ...role,
+        model: role.model ?? null,
+        tokenBudget: role.tokenBudget ?? null,
+        dailyTokenBudget: role.dailyTokenBudget ?? null
+      })),
+      runs: Array.isArray(
+        state.runs
+      ) ? state.runs : []
+    };
+  }
+  return state;
 }
 function assertState(value) {
   if (!isRecord(value)) {
@@ -612,7 +858,7 @@ function assertState(value) {
       `Unsupported Studio schema version: ${String(value.schemaVersion)}`
     );
   }
-  if (!Array.isArray(value.projects) || !Array.isArray(value.roles) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.events)) {
+  if (!Array.isArray(value.projects) || !Array.isArray(value.roles) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.runs) || !Array.isArray(value.events)) {
     throw new Error("Studio state collections are missing");
   }
   if (!value.projects.every(isProject)) {
@@ -626,6 +872,9 @@ function assertState(value) {
   }
   if (!value.mergeProposals.every(isMergeProposal)) {
     throw new Error("Studio state contains an invalid merge proposal");
+  }
+  if (!value.runs.every(isAgentRun)) {
+    throw new Error("Studio state contains an invalid agent run");
   }
 }
 var StudioStore = class {
@@ -657,6 +906,9 @@ var StudioStore = class {
       const mergeProposals = project === null ? [] : state.mergeProposals.filter(
         (proposal) => proposal.projectId === project.id
       );
+      const runs = project === null ? [] : state.runs.filter((run) => run.projectId === project.id).sort(
+        (left, right) => right.startedAt.localeCompare(left.startedAt)
+      );
       const events = [...state.events].filter((event) => project === null || event.projectId === project.id).slice(-30).reverse();
       const now = this.now();
       return {
@@ -678,6 +930,7 @@ var StudioStore = class {
         roles,
         tasks,
         mergeProposals,
+        runs,
         stats: statsFor(tasks, mergeProposals),
         events,
         company: buildCompany(state, now),
@@ -686,7 +939,7 @@ var StudioStore = class {
           filePersistence: true,
           mergeGovernance: true,
           ownerDashboard: true,
-          agentExecution: false,
+          agentExecution: true,
           gitMerge: false
         }
       };
@@ -700,6 +953,7 @@ var StudioStore = class {
         id: newId("proj"),
         name: requiredText(input.name, "name", 80),
         description: optionalText(input.description, "description", 600),
+        tokenBudget: optionalTokenBudget(input.tokenBudget, "tokenBudget"),
         createdAt: at,
         updatedAt: at
       };
@@ -729,6 +983,272 @@ var StudioStore = class {
       return structuredClone(project);
     });
   }
+  async getDispatchContext(taskId) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const task = this.findTask(state, taskId);
+      if (task.ownerRoleId === null) {
+        throw new StudioStoreError(
+          "owner_required",
+          "\u4EFB\u52A1\u6CA1\u6709\u8D1F\u8D23\u4EBA\u89D2\u8272\uFF0C\u4E0D\u80FD\u6D3E\u5355",
+          409
+        );
+      }
+      const role = state.roles.find((item) => item.id === task.ownerRoleId);
+      const project = state.projects.find(
+        (item) => item.id === task.projectId
+      );
+      if (role === void 0 || project === void 0) {
+        throw new StudioStoreError(
+          "context_not_found",
+          "\u4EFB\u52A1\u7684\u8D1F\u8D23\u4EBA\u89D2\u8272\u6216\u9879\u76EE\u4E0D\u5B58\u5728",
+          404
+        );
+      }
+      return {
+        task: structuredClone(task),
+        role: structuredClone(role),
+        project: structuredClone(project)
+      };
+    });
+  }
+  async beginRun(taskId, prompt) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const task = this.findTask(state, taskId);
+      if (task.status !== "backlog" && task.status !== "ready") {
+        throw new StudioStoreError(
+          "task_not_dispatchable",
+          "\u53EA\u6709\u5F85\u89C4\u5212\u6216\u53EF\u5F00\u59CB\u7684\u4EFB\u52A1\u53EF\u4EE5\u6D3E\u5355",
+          409
+        );
+      }
+      if (task.ownerRoleId === null) {
+        throw new StudioStoreError(
+          "owner_required",
+          "\u4EFB\u52A1\u6CA1\u6709\u8D1F\u8D23\u4EBA\u89D2\u8272\uFF0C\u4E0D\u80FD\u6D3E\u5355",
+          409
+        );
+      }
+      const role = state.roles.find((item) => item.id === task.ownerRoleId);
+      const project = state.projects.find(
+        (item) => item.id === task.projectId
+      );
+      if (role === void 0 || project === void 0) {
+        throw new StudioStoreError(
+          "context_not_found",
+          "\u4EFB\u52A1\u7684\u8D1F\u8D23\u4EBA\u89D2\u8272\u6216\u9879\u76EE\u4E0D\u5B58\u5728",
+          404
+        );
+      }
+      const projectSpent = state.runs.filter((run2) => run2.projectId === project.id).reduce((sum, run2) => sum + (run2.tokens ?? 0), 0);
+      if (project.tokenBudget !== null && projectSpent >= project.tokenBudget) {
+        throw new StudioStoreError(
+          "budget_exceeded",
+          `\u9879\u76EE token \u9884\u7B97\u5DF2\u7528\u5C3D\uFF08${String(projectSpent)} / ${String(
+            project.tokenBudget
+          )}\uFF09`,
+          409
+        );
+      }
+      const roleSpent = state.runs.filter((run2) => run2.roleId === role.id).reduce((sum, run2) => sum + (run2.tokens ?? 0), 0);
+      if (role.tokenBudget !== null && roleSpent >= role.tokenBudget) {
+        throw new StudioStoreError(
+          "budget_exceeded",
+          `\u89D2\u8272 token \u9884\u7B97\u5DF2\u7528\u5C3D\uFF08${String(roleSpent)} / ${String(
+            role.tokenBudget
+          )}\uFF09`,
+          409
+        );
+      }
+      const today = nowIso(this.now).slice(0, 10);
+      const dailySpent = state.runs.filter(
+        (run2) => run2.roleId === role.id && run2.startedAt.slice(0, 10) === today
+      ).reduce((sum, run2) => sum + (run2.tokens ?? 0), 0);
+      if (role.dailyTokenBudget !== null && dailySpent >= role.dailyTokenBudget) {
+        throw new StudioStoreError(
+          "budget_exceeded",
+          `\u89D2\u8272\u4ECA\u65E5 token \u9884\u7B97\u5DF2\u7528\u5C3D\uFF08${String(dailySpent)} / ${String(
+            role.dailyTokenBudget
+          )}\uFF09`,
+          409
+        );
+      }
+      const at = nowIso(this.now);
+      const run = {
+        id: newId("run"),
+        projectId: task.projectId,
+        taskId: task.id,
+        roleId: role.id,
+        sessionId: null,
+        status: "queued",
+        model: role.model,
+        prompt,
+        output: "",
+        receipt: null,
+        tokens: null,
+        budgetWarning: null,
+        error: null,
+        startedAt: at,
+        endedAt: null
+      };
+      state.runs.push(run);
+      task.status = "running";
+      task.updatedAt = at;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "agent.dispatched",
+        at,
+        projectId: task.projectId,
+        taskId: task.id,
+        payload: {
+          runId: run.id,
+          roleId: role.id,
+          model: role.model
+        }
+      });
+      await this.save();
+      return structuredClone(run);
+    });
+  }
+  async attachRunSession(runId, sessionId, model) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const run = state.runs.find((item) => item.id === runId);
+      if (run === void 0) return;
+      run.sessionId = sessionId;
+      if (model !== void 0) run.model = model;
+      run.status = "running";
+      await this.save();
+    });
+  }
+  async completeRun(runId, input) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const run = state.runs.find((item) => item.id === runId);
+      if (run === void 0) {
+        throw new StudioStoreError("run_not_found", "Agent Run \u4E0D\u5B58\u5728", 404);
+      }
+      const at = nowIso(this.now);
+      const task = state.tasks.find((item) => item.id === run.taskId);
+      const project = state.projects.find(
+        (item) => item.id === run.projectId
+      );
+      const role = state.roles.find((item) => item.id === run.roleId);
+      const receiptComplete = input.receipt !== null && typeof input.receipt.summary === "string" && input.receipt.summary.trim() !== "" && Array.isArray(input.receipt.evidence) && input.receipt.evidence.length > 0;
+      if (!receiptComplete) {
+        run.status = "failed";
+        run.output = input.output.slice(0, 3e4);
+        run.receipt = input.receipt;
+        run.tokens = input.tokens;
+        run.error = "\u56DE\u6267\u4E0D\u5B8C\u6574\uFF1A\u5FC5\u987B\u5305\u542B\u975E\u7A7A summary \u548C\u81F3\u5C11\u4E00\u6761 evidence\uFF0C\u4EFB\u52A1\u4E0D\u80FD\u8FDB\u5165 review";
+        run.endedAt = at;
+        if (task !== void 0 && task.status === "running") {
+          task.status = "ready";
+          task.updatedAt = at;
+        }
+        state.updatedAt = at;
+        this.recordEvent(state, {
+          type: "agent.failed",
+          at,
+          projectId: run.projectId,
+          taskId: run.taskId,
+          payload: {
+            runId: run.id,
+            error: run.error,
+            tokens: run.tokens
+          }
+        });
+        await this.save();
+        return structuredClone(run);
+      }
+      const spentProject = state.runs.filter(
+        (item) => item.projectId === run.projectId && item.id !== run.id
+      ).reduce((sum, item) => sum + (item.tokens ?? 0), 0);
+      const spentRole = state.runs.filter(
+        (item) => item.roleId === run.roleId && item.id !== run.id
+      ).reduce((sum, item) => sum + (item.tokens ?? 0), 0);
+      const warnings = [];
+      if (project !== void 0 && project.tokenBudget !== null && input.tokens !== null && spentProject + input.tokens > project.tokenBudget) {
+        warnings.push(
+          `\u9879\u76EE token \u9884\u7B97\u8D85\u51FA\uFF1A${String(spentProject + input.tokens)} / ${String(
+            project.tokenBudget
+          )}`
+        );
+      }
+      if (role !== void 0 && role.tokenBudget !== null && input.tokens !== null && spentRole + input.tokens > role.tokenBudget) {
+        warnings.push(
+          `\u89D2\u8272 token \u9884\u7B97\u8D85\u51FA\uFF1A${String(spentRole + input.tokens)} / ${String(
+            role.tokenBudget
+          )}`
+        );
+      }
+      run.status = "succeeded";
+      run.output = input.output.slice(0, 3e4);
+      run.receipt = input.receipt;
+      run.tokens = input.tokens;
+      run.budgetWarning = warnings.length === 0 ? null : warnings.join("\uFF1B");
+      run.endedAt = at;
+      if (task !== void 0) {
+        if (input.receipt !== null) {
+          const existing = new Set(task.evidence.map((item) => item.text));
+          for (const text of input.receipt.evidence.slice(0, 10)) {
+            if (existing.has(text)) continue;
+            task.evidence.push({
+              id: newId("ev"),
+              text,
+              createdAt: at
+            });
+          }
+          if (task.status === "running") task.status = "review";
+        }
+        task.updatedAt = at;
+      }
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "agent.completed",
+        at,
+        projectId: run.projectId,
+        taskId: run.taskId,
+        payload: {
+          runId: run.id,
+          tokens: run.tokens,
+          receipt: input.receipt !== null,
+          budgetWarning: run.budgetWarning
+        }
+      });
+      await this.save();
+      return structuredClone(run);
+    });
+  }
+  async failRun(runId, error) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const run = state.runs.find((item) => item.id === runId);
+      if (run === void 0) {
+        throw new StudioStoreError("run_not_found", "Agent Run \u4E0D\u5B58\u5728", 404);
+      }
+      const at = nowIso(this.now);
+      run.status = "failed";
+      run.error = error.slice(0, 4e3);
+      run.endedAt = at;
+      const task = state.tasks.find((item) => item.id === run.taskId);
+      if (task !== void 0 && task.status === "running") {
+        task.status = "ready";
+        task.updatedAt = at;
+      }
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "agent.failed",
+        at,
+        projectId: run.projectId,
+        taskId: run.taskId,
+        payload: { runId: run.id, error: run.error }
+      });
+      await this.save();
+      return structuredClone(run);
+    });
+  }
   async createRole(input) {
     return this.runExclusive(async () => {
       const state = this.requireState();
@@ -746,6 +1266,12 @@ var StudioStore = class {
         responsibilities: textList(input.responsibilities, "responsibilities"),
         nonGoals: textList(input.nonGoals, "nonGoals"),
         decisionRights: textList(input.decisionRights, "decisionRights"),
+        model: optionalText(input.model, "model", 120) || null,
+        tokenBudget: optionalTokenBudget(input.tokenBudget, "tokenBudget"),
+        dailyTokenBudget: optionalTokenBudget(
+          input.dailyTokenBudget,
+          "dailyTokenBudget"
+        ),
         createdAt: at,
         updatedAt: at
       };
@@ -788,6 +1314,18 @@ var StudioStore = class {
       }
       if (input.decisionRights !== void 0) {
         role.decisionRights = textList(input.decisionRights, "decisionRights");
+      }
+      if (input.model !== void 0) {
+        role.model = optionalText(input.model, "model", 120) || null;
+      }
+      if (input.tokenBudget !== void 0) {
+        role.tokenBudget = optionalTokenBudget(input.tokenBudget, "tokenBudget");
+      }
+      if (input.dailyTokenBudget !== void 0) {
+        role.dailyTokenBudget = optionalTokenBudget(
+          input.dailyTokenBudget,
+          "dailyTokenBudget"
+        );
       }
       role.updatedAt = nowIso(this.now);
       state.updatedAt = role.updatedAt;
@@ -1182,7 +1720,7 @@ var StudioStore = class {
     state.updatedAt = nowIso(this.now);
     const serialized = `${JSON.stringify(state, null, 2)}
 `;
-    const temp = `${this.file}.${randomUUID()}.tmp`;
+    const temp = `${this.file}.${randomUUID2()}.tmp`;
     await writeFile(temp, serialized, "utf8");
     try {
       await rename(temp, this.file);
@@ -1277,6 +1815,7 @@ var StudioStore = class {
       id: "proj-demo",
       name: "MOBA \u5782\u76F4\u5207\u7247",
       description: "\u7528\u4E00\u6761\u53EF\u73A9\u7684\u6700\u5C0F\u94FE\u8DEF\u9A8C\u8BC1\u5DE5\u4F5C\u53F0\uFF1A\u4EFB\u52A1\u3001\u89D2\u8272\u3001\u9A8C\u6536\u548C\u72B6\u6001\u673A\u3002",
+      tokenBudget: null,
       createdAt: at,
       updatedAt: at
     };
@@ -1289,6 +1828,9 @@ var StudioStore = class {
       responsibilities,
       nonGoals: [],
       decisionRights,
+      model: null,
+      tokenBudget: null,
+      dailyTokenBudget: null,
       createdAt: at,
       updatedAt: at
     });
@@ -1326,7 +1868,7 @@ var StudioStore = class {
       )
     ];
     const acceptance = (...texts) => texts.map((text, index) => ({
-      id: `acc-demo-${String(index)}-${randomUUID().slice(0, 4)}`,
+      id: `acc-demo-${String(index)}-${randomUUID2().slice(0, 4)}`,
       text,
       done: false
     }));
@@ -1414,6 +1956,7 @@ var StudioStore = class {
       roles,
       tasks,
       mergeProposals: [],
+      runs: [],
       events: [
         {
           id: "evt-demo",
@@ -1539,10 +2082,23 @@ function asTaskStatus(value) {
   }
   return value;
 }
+function asOptionalBudget(value, field) {
+  if (value === void 0) return void 0;
+  if (value === null) return null;
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
+    throw new HttpError(
+      400,
+      "invalid_input",
+      `${field} \u5FC5\u987B\u662F\u975E\u8D1F\u6574\u6570 token \u6570`
+    );
+  }
+  return value === 0 ? null : value;
+}
 function asCreateProject(body) {
   return {
     name: asString(body.name, "name"),
-    description: asOptionalString(body.description, "description")
+    description: asOptionalString(body.description, "description"),
+    tokenBudget: asOptionalBudget(body.tokenBudget, "tokenBudget")
   };
 }
 function asCreateRole(body) {
@@ -1550,7 +2106,13 @@ function asCreateRole(body) {
     name: asString(body.name, "name"),
     title: asOptionalString(body.title, "title"),
     mission: asOptionalString(body.mission, "mission"),
-    responsibilities: asStringArray(body.responsibilities, "responsibilities")
+    responsibilities: asStringArray(body.responsibilities, "responsibilities"),
+    model: asOptionalString(body.model, "model") ?? null,
+    tokenBudget: asOptionalBudget(body.tokenBudget, "tokenBudget"),
+    dailyTokenBudget: asOptionalBudget(
+      body.dailyTokenBudget,
+      "dailyTokenBudget"
+    )
   };
 }
 function asCreateTask(body) {
@@ -1624,6 +2186,7 @@ var StudioRouter = class {
   compatibility;
   connection;
   getBootPayload;
+  dispatchTask;
   constructor(options) {
     this.store = options.store;
     this.token = options.token;
@@ -1631,6 +2194,7 @@ var StudioRouter = class {
     this.compatibility = options.compatibility;
     this.connection = options.connection;
     this.getBootPayload = options.getBootPayload;
+    this.dispatchTask = options.dispatchTask;
   }
   async handle(req, res) {
     const parsed = this.parse(req);
@@ -1724,6 +2288,12 @@ var StudioRouter = class {
           responsibilities: asStringArray(
             body.responsibilities,
             "responsibilities"
+          ),
+          model: asOptionalString(body.model, "model"),
+          tokenBudget: asOptionalBudget(body.tokenBudget, "tokenBudget"),
+          dailyTokenBudget: asOptionalBudget(
+            body.dailyTokenBudget,
+            "dailyTokenBudget"
           )
         }
       );
@@ -1749,6 +2319,15 @@ var StudioRouter = class {
         asTaskStatus(body.status)
       );
       sendJson(res, 200, { ok: true, task });
+      return;
+    }
+    const taskDispatch = /^\/studio-api\/tasks\/([^/]+)\/dispatch$/.exec(parsed.pathname);
+    if (taskDispatch !== null) {
+      this.requireMethod(parsed, ["POST"]);
+      const run = await this.dispatchTask(
+        decodeSegment(taskDispatch[1] ?? "")
+      );
+      sendJson(res, 202, { ok: true, run });
       return;
     }
     const taskMerge = /^\/studio-api\/tasks\/([^/]+)\/merge-proposal$/.exec(parsed.pathname);
@@ -1837,7 +2416,15 @@ function handleRouterError(res, error) {
 
 // src/host/index.ts
 var name = "dsh-studio";
-var inject = ["webServer", "connection"];
+var inject = [
+  "webServer",
+  "connection",
+  "agents",
+  "agentPresets",
+  "agentDefaultModel",
+  "llm",
+  "tokenMeter"
+];
 async function apply(ctx) {
   const runtime = await readRuntimeInfo();
   const compatibility = compatibilityOf(runtime.version);
@@ -1850,6 +2437,10 @@ async function apply(ctx) {
   }
   const store = new StudioStore();
   await store.init();
+  const dispatcher = new AgentDispatcher(
+    ctx,
+    store
+  );
   const token = randomBytes(24).toString("hex");
   const startedAt = (/* @__PURE__ */ new Date()).toISOString();
   const bootPayload = {
@@ -1866,7 +2457,8 @@ async function apply(ctx) {
     dshVersion: runtime.version,
     compatibility,
     connection: ctx.connection,
-    getBootPayload: () => bootPayload
+    getBootPayload: () => bootPayload,
+    dispatchTask: (taskId) => dispatcher.dispatch(taskId)
   });
   const install = () => {
     const disposeRoute = ctx.webServer.register({

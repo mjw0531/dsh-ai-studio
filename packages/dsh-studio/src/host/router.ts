@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 
 import { STUDIO_PLUGIN_VERSION } from "../shared/types.js";
 import type {
+  AgentRun,
   ApiErrorBody,
   CompatibilityInfo,
   CreateMergeProposalInput,
@@ -29,6 +30,7 @@ interface StudioRouterOptions {
   compatibility: CompatibilityInfo;
   connection: ConnectionLike;
   getBootPayload: () => unknown;
+  dispatchTask: (taskId: string) => Promise<AgentRun>;
 }
 
 interface ParsedRequest {
@@ -164,10 +166,31 @@ function asTaskStatus(value: unknown): TaskStatus {
   return value as TaskStatus;
 }
 
+function asOptionalBudget(
+  value: unknown,
+  field: string,
+): number | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (
+    typeof value !== "number" ||
+    !Number.isSafeInteger(value) ||
+    value < 0
+  ) {
+    throw new HttpError(
+      400,
+      "invalid_input",
+      `${field} 必须是非负整数 token 数`,
+    );
+  }
+  return value === 0 ? null : value;
+}
+
 function asCreateProject(body: Record<string, unknown>): CreateProjectInput {
   return {
     name: asString(body.name, "name"),
     description: asOptionalString(body.description, "description"),
+    tokenBudget: asOptionalBudget(body.tokenBudget, "tokenBudget"),
   };
 }
 
@@ -177,6 +200,12 @@ function asCreateRole(body: Record<string, unknown>): CreateRoleInput {
     title: asOptionalString(body.title, "title"),
     mission: asOptionalString(body.mission, "mission"),
     responsibilities: asStringArray(body.responsibilities, "responsibilities"),
+    model: asOptionalString(body.model, "model") ?? null,
+    tokenBudget: asOptionalBudget(body.tokenBudget, "tokenBudget"),
+    dailyTokenBudget: asOptionalBudget(
+      body.dailyTokenBudget,
+      "dailyTokenBudget",
+    ),
   };
 }
 
@@ -278,6 +307,7 @@ export class StudioRouter {
   private readonly compatibility: CompatibilityInfo;
   private readonly connection: ConnectionLike;
   private readonly getBootPayload: () => unknown;
+  private readonly dispatchTask: (taskId: string) => Promise<AgentRun>;
 
   constructor(options: StudioRouterOptions) {
     this.store = options.store;
@@ -286,6 +316,7 @@ export class StudioRouter {
     this.compatibility = options.compatibility;
     this.connection = options.connection;
     this.getBootPayload = options.getBootPayload;
+    this.dispatchTask = options.dispatchTask;
   }
 
   async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -396,6 +427,12 @@ export class StudioRouter {
             body.responsibilities,
             "responsibilities",
           ),
+          model: asOptionalString(body.model, "model"),
+          tokenBudget: asOptionalBudget(body.tokenBudget, "tokenBudget"),
+          dailyTokenBudget: asOptionalBudget(
+            body.dailyTokenBudget,
+            "dailyTokenBudget",
+          ),
         },
       );
       sendJson(res, 200, { ok: true, role });
@@ -423,6 +460,17 @@ export class StudioRouter {
         asTaskStatus(body.status),
       );
       sendJson(res, 200, { ok: true, task });
+      return;
+    }
+
+    const taskDispatch =
+      /^\/studio-api\/tasks\/([^/]+)\/dispatch$/.exec(parsed.pathname);
+    if (taskDispatch !== null) {
+      this.requireMethod(parsed, ["POST"]);
+      const run = await this.dispatchTask(
+        decodeSegment(taskDispatch[1] ?? ""),
+      );
+      sendJson(res, 202, { ok: true, run });
       return;
     }
 

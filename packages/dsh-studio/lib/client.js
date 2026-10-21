@@ -78,6 +78,12 @@ var ROLE_LOAD_LABELS = {
   busy: "\u5728\u5FD9",
   overloaded: "\u8FC7\u8F7D"
 };
+var AGENT_RUN_STATUS_LABELS = {
+  queued: "\u6392\u961F\u4E2D",
+  running: "\u6267\u884C\u4E2D",
+  succeeded: "\u5DF2\u5B8C\u6210",
+  failed: "\u5931\u8D25"
+};
 var ALLOWED_TRANSITIONS = {
   backlog: ["ready"],
   ready: ["backlog", "running"],
@@ -230,6 +236,13 @@ var StudioClient = class {
       { method: "POST", body: { status } }
     );
     return data.task;
+  }
+  async dispatchTask(taskId) {
+    const data = await this.request(
+      `/tasks/${encodeURIComponent(taskId)}/dispatch`,
+      { method: "POST", body: {} }
+    );
+    return data.run;
   }
   async createMergeProposal(taskId, input) {
     const data = await this.request(
@@ -643,6 +656,17 @@ function StudioPage() {
     },
     [data?.activeProjectId, selectProject]
   );
+  (0, import_react.useEffect)(() => {
+    if (data === null || !data.runs.some(
+      (run2) => run2.status === "running" || run2.status === "queued"
+    )) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      void load(void 0, true);
+    }, 4e3);
+    return () => window.clearInterval(timer);
+  }, [data?.runs, load]);
   const selectedTask = data?.tasks.find((task) => task.id === selectedTaskId) ?? null;
   if (!bootChecked) return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(LoadingState, {});
   if (boot === null) {
@@ -734,6 +758,15 @@ function StudioPage() {
         await client.updateTask(task.id, { evidence });
       },
       "\u8BC1\u636E\u5DF2\u8BB0\u5F55"
+    );
+  };
+  const dispatchTask = async (task) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.dispatchTask(task.id);
+      },
+      "\u5DF2\u6D3E\u5355\uFF0CAgent \u5F00\u59CB\u5206\u6790\uFF1B\u5B8C\u6210\u540E\u4F1A\u81EA\u52A8\u5237\u56DE\u6267"
     );
   };
   const createMerge = async (task, input) => {
@@ -933,8 +966,10 @@ function StudioPage() {
         task: selectedTask,
         roles: data.roles,
         mergeProposal: selectedMerge,
+        runs: data.runs.filter((run2) => run2.taskId === selectedTask.id),
         busy,
         onClose: () => setSelectedTaskId(null),
+        onDispatch: () => dispatchTask(selectedTask),
         onTransition: (status) => void transitionTask(selectedTask, status),
         onToggleAcceptance: (id) => void toggleAcceptance(selectedTask, id),
         onAddEvidence: (text) => addEvidence(selectedTask, text),
@@ -1005,12 +1040,17 @@ function CompanyView({
     1,
     ...company.roles.map((role) => role.activeTasks)
   );
+  const configuredBudget = company.projects.reduce(
+    (sum, summary) => sum + (summary.project.tokenBudget ?? 0),
+    0
+  );
+  const tokenUse = configuredBudget === 0 ? `${company.totals.tokensUsed.toLocaleString()} tokens` : `${company.totals.tokensUsed.toLocaleString()} / ${configuredBudget.toLocaleString()}`;
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-page-head", children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-eyebrow", children: "Owner Dashboard" }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h1", { className: "studio-title", children: "\u8D5B\u535A\u516C\u53F8" }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { className: "studio-subtitle", children: "\u8001\u677F\u89C6\u89D2\uFF1A\u9879\u76EE\u7EC4\u5408\u662F\u5426\u5065\u5EB7\u3001\u54EA\u91CC\u9700\u8981\u4F60\u62CD\u677F\u3001\u4EA7\u80FD\u82B1\u5728\u54EA\u3002 \u8FD9\u91CC\u53EA\u5C55\u793A\u771F\u5B9E\u63A7\u5236\u9762\u6570\u636E\uFF1B\u9884\u7B97\u4E0E token \u6210\u672C\u5728 Agent \u6267\u884C\u63A5\u5165\u524D\u660E\u786E\u663E\u793A\u201C\u5F85\u63A5\u5165\u201D\u3002" })
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { className: "studio-subtitle", children: "\u8001\u677F\u89C6\u89D2\uFF1A\u9879\u76EE\u7EC4\u5408\u662F\u5426\u5065\u5EB7\u3001\u54EA\u91CC\u9700\u8981\u4F60\u62CD\u677F\u3001\u4EA7\u80FD\u82B1\u5728\u54EA\u3002 \u8FD9\u91CC\u5C55\u793A\u771F\u5B9E\u63A7\u5236\u9762\u6570\u636E\uFF1Btoken \u6D88\u8017\u6765\u81EA DSH \u8BA1\u91CF\uFF0C\u91D1\u989D\u6210\u672C\u7B49\u62A5\u4EF7\u63A5\u5165\u540E\u518D\u663E\u793A\u3002" })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-head-actions", children: data.activeProjectId !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
         "button",
@@ -1143,9 +1183,23 @@ function CompanyView({
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-panel-body", children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-company-placeholder", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-section-label", children: "\u9884\u7B97 / \u6210\u672C" }),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: "\u5F85\u63A5\u5165" }),
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { children: "Agent \u6267\u884C\u4E0E token \u8BA1\u91CF\u63A5\u5165\u540E\u81EA\u52A8\u8BA1\u7B97\u3002\u73B0\u5728\u4E0D\u7F16\u9020\u91D1\u989D\uFF0C \u53EA\u5C55\u793A\u771F\u5B9E\u7684\u4EFB\u52A1\u548C\u89D2\u8272\u8D1F\u8F7D\u3002" })
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-section-label", children: "token \u6D88\u8017 / \u9884\u7B97" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: tokenUse }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("p", { children: [
+              configuredBudget === 0 ? "\u9879\u76EE\u8FD8\u6CA1\u6709\u914D\u7F6E token \u9884\u7B97\uFF1B\u6D88\u8017\u6765\u81EA DSH token meter\u3002" : `\u9884\u7B97\u4F7F\u7528\u7387 ${String(
+                Math.min(
+                  100,
+                  Math.round(
+                    company.totals.tokensUsed / configuredBudget * 100
+                  )
+                )
+              )}%\u3002`,
+              " ",
+              company.totals.runs,
+              " \u6B21\u8FD0\u884C",
+              company.totals.runningRuns > 0 ? `\uFF0C${String(company.totals.runningRuns)} \u4E2A\u6267\u884C\u4E2D` : "",
+              "\u3002\u91D1\u989D\u6210\u672C\u7B49\u62A5\u4EF7\u63A5\u5165\u540E\u518D\u663E\u793A\u3002"
+            ] })
           ] }),
           company.roles.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-empty", style: { marginTop: 12 }, children: [
             /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: "\u8FD8\u6CA1\u6709\u89D2\u8272" }),
@@ -1828,7 +1882,15 @@ function TeamView({
         role.decisionRights.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-role-section", children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-role-section-label", children: "\u51B3\u7B56\u6743" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-actions", children: role.decisionRights.slice(0, 4).map((item) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-pill", "data-tone": "accent", children: item }, item)) })
-        ] }) : null
+        ] }) : null,
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-role-section", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-role-section-label", children: "\u5C97\u4F4D\u914D\u7F6E" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-role-salary", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-mono", children: role.model ?? "\u9ED8\u8BA4\u6A21\u578B" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: role.tokenBudget === null ? "\u5355\u4EFB\u52A1\u9884\u7B97\u7EE7\u627F\u9879\u76EE" : `${role.tokenBudget.toLocaleString()} tokens/\u6B21` }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: role.dailyTokenBudget === null ? "\u6BCF\u65E5\u4E0D\u9650\u5236" : `${role.dailyTokenBudget.toLocaleString()} tokens/\u65E5` })
+          ] })
+        ] })
       ] }, role.id);
     }) })
   ] });
@@ -1939,8 +2001,10 @@ function TaskDrawer({
   task,
   roles,
   mergeProposal,
+  runs,
   busy,
   onClose,
+  onDispatch,
   onTransition,
   onToggleAcceptance,
   onAddEvidence,
@@ -2115,6 +2179,15 @@ function TaskDrawer({
                 ] })
               ] }),
               /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                TaskAgentPanel,
+                {
+                  task,
+                  runs,
+                  busy,
+                  onDispatch
+                }
+              ),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
                 TaskMergePanel,
                 {
                   task,
@@ -2148,7 +2221,7 @@ function TaskDrawer({
                     status
                   );
                 }) }),
-                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-action-note", children: "v0.3 \u5DF2\u63A5\u5165\u516C\u53F8\u4EEA\u8868\u76D8\u4E0E\u5408\u5E76\u6CBB\u7406\uFF1A\u63D0\u6848\u3001\u8BC4\u5BA1\u3001\u6279\u51C6\u3001\u5408\u5E76\u8BB0\u5F55\u90FD\u4F1A\u6301\u4E45\u5316\uFF1BGit \u547D\u4EE4\u4ECD\u7531\u4EBA\u6267\u884C\u3002" })
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-action-note", children: "v0.4 \u5DF2\u63A5\u5165 Agent \u5206\u6790\u6D3E\u5355\u3001\u7ED3\u6784\u5316\u56DE\u6267\u548C token \u8BA1\u91CF\uFF1B\u5408\u5E76\u4E0E Git \u547D\u4EE4\u4ECD\u7531\u4EBA\u6267\u884C\u3002" })
               ] })
             ] })
           ]
@@ -2156,6 +2229,113 @@ function TaskDrawer({
       )
     }
   );
+}
+function TaskAgentPanel({
+  task,
+  runs,
+  busy,
+  onDispatch
+}) {
+  const latest = runs[0] ?? null;
+  const canDispatch = task.ownerRoleId !== null && (task.status === "backlog" || task.status === "ready");
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-section-label", children: "Agent \u6D3E\u5355" }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-action-note", style: { marginTop: 0 }, children: "v0.4 \u662F\u5206\u6790\u6A21\u5F0F\uFF1AAgent \u8BFB\u53D6\u4EFB\u52A1\u4E0E\u89D2\u8272\u5951\u7EA6\uFF0C\u8FD4\u56DE\u7ED3\u6784\u5316\u56DE\u6267\uFF0C\u4E0D\u4FEE\u6539\u6587\u4EF6\u3002 \u4EE3\u7801\u6267\u884C/worktree \u5728 v0.6 \u63A5\u5165\u3002" }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-actions", style: { marginTop: 9 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+        "button",
+        {
+          type: "button",
+          className: "studio-btn",
+          "data-variant": "primary",
+          "data-size": "sm",
+          disabled: busy || !canDispatch,
+          title: task.ownerRoleId === null ? "\u8BF7\u5148\u7ED9\u4EFB\u52A1\u6307\u5B9A\u8D1F\u8D23\u4EBA\u89D2\u8272" : canDispatch ? "\u6D3E\u5355\u7ED9\u8D1F\u8D23\u4EBA\u89D2\u8272\u505A\u5206\u6790" : "\u4EFB\u52A1\u5DF2\u5728\u6267\u884C\u6216\u9A8C\u6536\uFF0C\u4E0D\u80FD\u91CD\u590D\u6D3E\u5355",
+          onClick: () => void onDispatch(),
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconSpark, { width: 13, height: 13 }),
+            latest?.status === "running" || latest?.status === "queued" ? "Agent \u6267\u884C\u4E2D\u2026" : "\u6D3E\u5355\u5206\u6790"
+          ]
+        }
+      ),
+      latest !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-pill", "data-tone": runTone(latest.status), children: AGENT_RUN_STATUS_LABELS[latest.status] }) : null
+    ] }),
+    runs.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-faint", style: { fontSize: 11, marginTop: 9 }, children: "\u8FD8\u6CA1\u6709 Agent \u8FD0\u884C\u8BB0\u5F55\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-run-list", children: runs.map((run) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(RunCard, { run }, run.id)) })
+  ] });
+}
+function runTone(status) {
+  if (status === "succeeded") return "ok";
+  if (status === "failed") return "p0";
+  if (status === "running") return "accent";
+  return "p2";
+}
+function RunCard({ run }) {
+  const receipt = run.receipt;
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("details", { className: "studio-run-card", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("summary", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-pill", "data-tone": runTone(run.status), children: AGENT_RUN_STATUS_LABELS[run.status] }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-mono", children: run.model ?? "\u9ED8\u8BA4\u6A21\u578B" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-faint", children: run.tokens === null ? "token \u5F85\u8BA1\u91CF" : `${String(run.tokens)} tokens` }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-faint", style: { marginLeft: "auto" }, children: formatDate(run.startedAt) })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-run-body", children: [
+      run.error !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-alert", children: run.error }) : null,
+      run.budgetWarning !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-alert", "data-tone": "warn", children: run.budgetWarning }) : null,
+      run.status === "running" || run.status === "queued" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-faint", style: { fontSize: 11 }, children: "Agent \u6B63\u5728\u5DE5\u4F5C\uFF1B\u9875\u9762\u6BCF 4 \u79D2\u5237\u65B0\u4E00\u6B21\u3002" }) : null,
+      receipt !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(ReceiptView, { receipt }) : run.output !== "" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("pre", { className: "studio-run-output", children: run.output }) : null
+    ] })
+  ] });
+}
+function ReceiptView({ receipt }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-receipt", children: [
+    receipt.summary.trim() === "" || receipt.evidence.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-alert", "data-tone": "warn", children: "\u56DE\u6267\u4E0D\u5B8C\u6574\uFF1AAgent \u5FC5\u987B\u7ED9\u51FA\u975E\u7A7A summary \u548C\u81F3\u5C11\u4E00\u6761 evidence\uFF0C\u4EFB\u52A1\u4E0D\u80FD\u8FDB\u5165\u9A8C\u6536\u3002" }) : null,
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-section-text", children: receipt.summary || "\uFF08\u6CA1\u6709 summary\uFF09" }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(ReceiptList, { label: "\u8BC1\u636E", items: receipt.evidence }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+      ReceiptList,
+      {
+        label: "\u4EA7\u7269",
+        items: receipt.artifacts.map(
+          (item) => `${item.kind}: ${item.path}`
+        )
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+      ReceiptList,
+      {
+        label: "\u51B3\u7B56",
+        items: receipt.decisions.map(
+          (item) => `${item.title} (${item.scope}) \u2014 ${item.rationale}`
+        )
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+      ReceiptList,
+      {
+        label: "\u5951\u7EA6\u53D8\u66F4",
+        items: receipt.contractDeltas.map(
+          (item) => `${item.contract}: ${item.change}`
+        )
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+      ReceiptList,
+      {
+        label: "\u88AB\u5426\u51B3\u65B9\u6848",
+        items: receipt.rejectedOptions.map(
+          (item) => `${item.option} \u2014 ${item.reason}`
+        )
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(ReceiptList, { label: "\u963B\u585E", items: receipt.blockers })
+  ] });
+}
+function ReceiptList({ label, items }) {
+  if (items.length === 0) return null;
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-receipt-list", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: label }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("ul", { children: items.map((item, index) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("li", { children: item }, `${label}-${String(index)}`)) })
+  ] });
 }
 function TaskMergePanel({
   task,
@@ -2494,12 +2674,12 @@ function SettingsView({
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.ownerDashboard ? "\u53EF\u7528" : "\u4E0D\u53EF\u7528" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u5408\u5E76\u6CBB\u7406" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.mergeGovernance ? "\u53EF\u7528\uFF08\u8BB0\u5F55\u8BC4\u5BA1\uFF0C\u4EBA\u5DE5\u6267\u884C Git\uFF09" : "\u4E0D\u53EF\u7528" }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "Agent \u6267\u884C" }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { className: "studio-faint", children: "\u4E0B\u4E00\u9636\u6BB5" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "Agent \u6D3E\u5355" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.agentExecution ? "\u53EF\u7528\uFF08\u5206\u6790\u6A21\u5F0F\uFF0C\u8FD4\u56DE\u7ED3\u6784\u5316\u56DE\u6267\uFF09" : "\u4E0D\u53EF\u7528" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "Git \u81EA\u52A8\u5408\u5E76" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { className: "studio-faint", children: data.features.gitMerge ? "\u5DF2\u542F\u7528" : "\u672A\u542F\u7528\uFF08\u6709\u610F\uFF09" })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { className: "studio-hint", style: { marginTop: 10 }, children: "v0.3 \u53EA\u4F7F\u7528 DSH Web Server \u8DEF\u7531\u3001client slots \u548C React\uFF0C\u4E0D\u4F9D\u8D56\u79C1\u6709 Remote \u751F\u6210\u5668\uFF1B\u5408\u5E76\u547D\u4EE4\u7531\u4EBA\u6267\u884C\uFF0CStudio \u4E0D\u505A\u4E0D\u53EF\u9006\u7684 Git \u64CD\u4F5C\u3002" })
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { className: "studio-hint", style: { marginTop: 10 }, children: "v0.4 \u53EA\u4F7F\u7528 DSH Web Server \u8DEF\u7531\u3001client slots\u3001React \u548C\u516C\u5F00 Agent API\uFF0C \u4E0D\u4F9D\u8D56\u79C1\u6709 Remote \u751F\u6210\u5668\uFF1BAgent \u53EA\u505A\u5206\u6790/\u56DE\u6267\uFF0C\u5408\u5E76\u547D\u4EE4\u7531\u4EBA\u6267\u884C\u3002" })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "studio-settings-card", children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h3", { children: "\u754C\u9762" }),
@@ -2757,6 +2937,9 @@ function RoleForm({
   const [title, setTitle] = (0, import_react.useState)("");
   const [mission, setMission] = (0, import_react.useState)("");
   const [responsibilities, setResponsibilities] = (0, import_react.useState)("");
+  const [model, setModel] = (0, import_react.useState)("");
+  const [tokenBudget, setTokenBudget] = (0, import_react.useState)("");
+  const [dailyTokenBudget, setDailyTokenBudget] = (0, import_react.useState)("");
   const [localError, setLocalError] = (0, import_react.useState)(null);
   const submit = (event) => {
     event.preventDefault();
@@ -2764,12 +2947,33 @@ function RoleForm({
       setLocalError("\u8BF7\u586B\u5199\u89D2\u8272\u540D");
       return;
     }
+    const parseBudget = (value, field) => {
+      if (value.trim() === "") return null;
+      const number = Number(value);
+      if (!Number.isSafeInteger(number) || number < 0) {
+        throw new Error(`${field} \u5FC5\u987B\u662F\u975E\u8D1F\u6574\u6570`);
+      }
+      return number === 0 ? null : number;
+    };
+    let budgets;
+    try {
+      budgets = {
+        tokenBudget: parseBudget(tokenBudget, "\u5355\u4EFB\u52A1 token \u9884\u7B97"),
+        dailyTokenBudget: parseBudget(dailyTokenBudget, "\u6BCF\u65E5 token \u9884\u7B97")
+      };
+    } catch (error) {
+      setLocalError(error instanceof Error ? error.message : String(error));
+      return;
+    }
     setLocalError(null);
     onSubmit({
       name: name2.trim(),
       title: title.trim(),
       mission: mission.trim(),
-      responsibilities: responsibilities.split("\n").map((line) => line.trim()).filter(Boolean)
+      responsibilities: responsibilities.split("\n").map((line) => line.trim()).filter(Boolean),
+      model: model.trim() || null,
+      tokenBudget: budgets.tokenBudget,
+      dailyTokenBudget: budgets.dailyTokenBudget
     });
   };
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
@@ -2844,6 +3048,47 @@ function RoleForm({
               placeholder: "\u5B9E\u73B0\u6280\u80FD/\u79FB\u52A8/\u51B7\u5374\n\u8865\u5355\u6D4B\n\u7EF4\u62A4\u6784\u5EFA"
             }
           )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "role-model", children: "\u6A21\u578B\uFF08\u53EF\u9009\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "input",
+            {
+              id: "role-model",
+              value: model,
+              onChange: (event) => setModel(event.target.value),
+              placeholder: "\u7559\u7A7A\u7EE7\u627F\u9ED8\u8BA4\u6A21\u578B\uFF0C\u4F8B\u5982 deepseek-flash"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-hint", children: "\u201C\u85AA\u8D44\u201D\u914D\u7F6E\uFF1A\u67B6\u6784\u5E08\u53EF\u4EE5\u7528\u66F4\u5F3A/\u66F4\u8D35\u7684\u6A21\u578B\uFF0C\u5B9E\u73B0\u8005\u7528\u66F4\u4FBF\u5B9C\u7684\u6A21\u578B\u3002" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "role-budget", children: "\u5355\u6B21\u4EFB\u52A1 token \u9884\u7B97" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "input",
+              {
+                id: "role-budget",
+                inputMode: "numeric",
+                value: tokenBudget,
+                onChange: (event) => setTokenBudget(event.target.value),
+                placeholder: "\u7559\u7A7A = \u7EE7\u627F\u9879\u76EE\u9884\u7B97"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "role-daily-budget", children: "\u6BCF\u65E5 token \u9884\u7B97" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "input",
+              {
+                id: "role-daily-budget",
+                inputMode: "numeric",
+                value: dailyTokenBudget,
+                onChange: (event) => setDailyTokenBudget(event.target.value),
+                placeholder: "\u7559\u7A7A = \u4E0D\u9650\u5236"
+              }
+            )
+          ] })
         ] })
       ] })
     }
@@ -2856,6 +3101,7 @@ function ProjectForm({
 }) {
   const [name2, setName] = (0, import_react.useState)("");
   const [description, setDescription] = (0, import_react.useState)("");
+  const [tokenBudget, setTokenBudget] = (0, import_react.useState)("");
   const [localError, setLocalError] = (0, import_react.useState)(null);
   const submit = (event) => {
     event.preventDefault();
@@ -2863,8 +3109,21 @@ function ProjectForm({
       setLocalError("\u8BF7\u586B\u5199\u9879\u76EE\u540D");
       return;
     }
+    let budget = null;
+    if (tokenBudget.trim() !== "") {
+      const number = Number(tokenBudget);
+      if (!Number.isSafeInteger(number) || number < 0) {
+        setLocalError("token \u9884\u7B97\u5FC5\u987B\u662F\u975E\u8D1F\u6574\u6570");
+        return;
+      }
+      budget = number === 0 ? null : number;
+    }
     setLocalError(null);
-    onSubmit({ name: name2.trim(), description: description.trim() });
+    onSubmit({
+      name: name2.trim(),
+      description: description.trim(),
+      tokenBudget: budget
+    });
   };
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
     ModalShell,
@@ -2912,6 +3171,20 @@ function ProjectForm({
               placeholder: "\u8FD9\u4E2A\u9879\u76EE\u8981\u9A8C\u8BC1\u4EC0\u4E48\uFF1F"
             }
           )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "project-budget", children: "\u9879\u76EE token \u9884\u7B97\uFF08\u53EF\u9009\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "input",
+            {
+              id: "project-budget",
+              inputMode: "numeric",
+              value: tokenBudget,
+              onChange: (event) => setTokenBudget(event.target.value),
+              placeholder: "\u7559\u7A7A = \u4E0D\u9650\u5236\uFF1B\u4F8B\u5982 200000"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-hint", children: "\u8FD9\u662F\u516C\u53F8\u7ED9\u8BE5\u9879\u76EE\u7684 token \u4E0A\u9650\uFF1B\u5B9E\u9645\u6D88\u8017\u6765\u81EA DSH token meter\u3002" })
         ] })
       ] })
     }
@@ -3705,6 +3978,58 @@ var studioCss = `
 .studio-merge-title .studio-mono { color: var(--st-faint); font-weight: 400; }
 .studio-merge-card[data-status="approved"] { border-color: rgba(240, 180, 95, 0.28); }
 .studio-merge-card[data-status="merged"] { border-color: rgba(91, 214, 162, 0.25); }
+.studio-role-salary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 9px;
+  color: var(--st-muted);
+  font-size: 10px;
+}
+.studio-role-salary .studio-mono { color: var(--st-accent); }
+
+.studio-run-list { display: flex; flex-direction: column; gap: 6px; margin-top: 9px; }
+.studio-run-card {
+  border: 1px solid var(--st-border);
+  border-radius: 9px;
+  background: var(--st-panel);
+  overflow: hidden;
+}
+.studio-run-card > summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 9px;
+  color: var(--st-muted);
+  font-size: 10px;
+  cursor: pointer;
+  list-style: none;
+}
+.studio-run-card > summary::-webkit-details-marker { display: none; }
+.studio-run-card > summary:hover { background: var(--st-panel-2); }
+.studio-run-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 9px;
+  border-top: 1px solid var(--st-border);
+  background: var(--st-bg-soft);
+}
+.studio-run-output {
+  margin: 0;
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--st-muted);
+  font-family: var(--dsh-font-family-mono, ui-monospace, SFMono-Regular, Consolas, monospace);
+  font-size: 10px;
+  line-height: 1.55;
+}
+.studio-receipt { display: flex; flex-direction: column; gap: 8px; }
+.studio-receipt-list { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 6px; font-size: 10px; }
+.studio-receipt-list > span { color: var(--st-faint); }
+.studio-receipt-list ul { margin: 0; padding-left: 14px; color: var(--st-muted); line-height: 1.55; }
+
 .studio-merge-form { display: flex; flex-direction: column; gap: 10px; }
 .studio-merge-card {
   padding: 12px;

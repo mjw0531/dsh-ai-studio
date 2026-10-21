@@ -7,6 +7,7 @@ import {
 import type { FormEvent, ReactNode } from "react";
 
 import {
+  AGENT_RUN_STATUS_LABELS,
   ALLOWED_TRANSITIONS,
   COMPANY_HEALTH_LABELS,
   MERGE_RISK_LABELS,
@@ -18,6 +19,8 @@ import {
   TRANSITION_LABELS,
 } from "../shared/types.js";
 import type {
+  AgentReceipt,
+  AgentRun,
   BootstrapResponse,
   CompanyHealth,
   CompanyProjectSummary,
@@ -374,6 +377,21 @@ export function StudioPage() {
     [data?.activeProjectId, selectProject],
   );
 
+  useEffect(() => {
+    if (
+      data === null ||
+      !data.runs.some(
+        (run) => run.status === "running" || run.status === "queued",
+      )
+    ) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      void load(undefined, true);
+    }, 4000);
+    return () => window.clearInterval(timer);
+  }, [data?.runs, load]);
+
   const selectedTask =
     data?.tasks.find((task) => task.id === selectedTaskId) ?? null;
 
@@ -482,6 +500,16 @@ export function StudioPage() {
         await client.updateTask(task.id, { evidence });
       },
       "证据已记录",
+    );
+  };
+
+  const dispatchTask = async (task: Task): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.dispatchTask(task.id);
+      },
+      "已派单，Agent 开始分析；完成后会自动刷回执",
     );
   };
 
@@ -742,8 +770,10 @@ export function StudioPage() {
           task={selectedTask}
           roles={data.roles}
           mergeProposal={selectedMerge}
+          runs={data.runs.filter((run) => run.taskId === selectedTask.id)}
           busy={busy}
           onClose={() => setSelectedTaskId(null)}
+          onDispatch={() => dispatchTask(selectedTask)}
           onTransition={(status) => void transitionTask(selectedTask, status)}
           onToggleAcceptance={(id) =>
             void toggleAcceptance(selectedTask, id)
@@ -834,6 +864,14 @@ function CompanyView({
     1,
     ...company.roles.map((role) => role.activeTasks),
   );
+  const configuredBudget = company.projects.reduce(
+    (sum, summary) => sum + (summary.project.tokenBudget ?? 0),
+    0,
+  );
+  const tokenUse =
+    configuredBudget === 0
+      ? `${company.totals.tokensUsed.toLocaleString()} tokens`
+      : `${company.totals.tokensUsed.toLocaleString()} / ${configuredBudget.toLocaleString()}`;
 
   return (
     <>
@@ -843,7 +881,7 @@ function CompanyView({
           <h1 className="studio-title">赛博公司</h1>
           <p className="studio-subtitle">
             老板视角：项目组合是否健康、哪里需要你拍板、产能花在哪。
-            这里只展示真实控制面数据；预算与 token 成本在 Agent 执行接入前明确显示“待接入”。
+            这里展示真实控制面数据；token 消耗来自 DSH 计量，金额成本等报价接入后再显示。
           </p>
         </div>
         <div className="studio-head-actions">
@@ -970,11 +1008,25 @@ function CompanyView({
           </div>
           <div className="studio-panel-body">
             <div className="studio-company-placeholder">
-              <div className="studio-section-label">预算 / 成本</div>
-              <strong>待接入</strong>
+              <div className="studio-section-label">token 消耗 / 预算</div>
+              <strong>{tokenUse}</strong>
               <p>
-                Agent 执行与 token 计量接入后自动计算。现在不编造金额，
-                只展示真实的任务和角色负载。
+                {configuredBudget === 0
+                  ? "项目还没有配置 token 预算；消耗来自 DSH token meter。"
+                  : `预算使用率 ${String(
+                      Math.min(
+                        100,
+                        Math.round(
+                          (company.totals.tokensUsed / configuredBudget) * 100,
+                        ),
+                      ),
+                    )}%。`}
+                {" "}
+                {company.totals.runs} 次运行
+                {company.totals.runningRuns > 0
+                  ? `，${String(company.totals.runningRuns)} 个执行中`
+                  : ""}
+                。金额成本等报价接入后再显示。
               </p>
             </div>
             {company.roles.length === 0 ? (
@@ -1791,6 +1843,22 @@ function TeamView({
                     </div>
                   </div>
                 ) : null}
+                <div className="studio-role-section">
+                  <div className="studio-role-section-label">岗位配置</div>
+                  <div className="studio-role-salary">
+                    <span className="studio-mono">{role.model ?? "默认模型"}</span>
+                    <span>
+                      {role.tokenBudget === null
+                        ? "单任务预算继承项目"
+                        : `${role.tokenBudget.toLocaleString()} tokens/次`}
+                    </span>
+                    <span>
+                      {role.dailyTokenBudget === null
+                        ? "每日不限制"
+                        : `${role.dailyTokenBudget.toLocaleString()} tokens/日`}
+                    </span>
+                  </div>
+                </div>
               </article>
             );
           })}
@@ -1951,8 +2019,10 @@ function TaskDrawer({
   task,
   roles,
   mergeProposal,
+  runs,
   busy,
   onClose,
+  onDispatch,
   onTransition,
   onToggleAcceptance,
   onAddEvidence,
@@ -1964,8 +2034,10 @@ function TaskDrawer({
   task: Task;
   roles: Role[];
   mergeProposal: MergeProposal | null;
+  runs: AgentRun[];
   busy: boolean;
   onClose: () => void;
+  onDispatch: () => Promise<boolean>;
   onTransition: (status: TaskStatus) => void;
   onToggleAcceptance: (id: string) => void;
   onAddEvidence: (text: string) => Promise<boolean>;
@@ -2150,6 +2222,13 @@ function TaskDrawer({
             </dl>
           </section>
 
+          <TaskAgentPanel
+            task={task}
+            runs={runs}
+            busy={busy}
+            onDispatch={onDispatch}
+          />
+
           <TaskMergePanel
             task={task}
             proposal={mergeProposal}
@@ -2197,11 +2276,179 @@ function TaskDrawer({
               </div>
             )}
             <div className="studio-action-note">
-              v0.3 已接入公司仪表盘与合并治理：提案、评审、批准、合并记录都会持久化；Git 命令仍由人执行。
+              v0.4 已接入 Agent 分析派单、结构化回执和 token 计量；合并与 Git 命令仍由人执行。
             </div>
           </section>
         </div>
       </aside>
+    </div>
+  );
+}
+
+function TaskAgentPanel({
+  task,
+  runs,
+  busy,
+  onDispatch,
+}: {
+  task: Task;
+  runs: AgentRun[];
+  busy: boolean;
+  onDispatch: () => Promise<boolean>;
+}) {
+  const latest = runs[0] ?? null;
+  const canDispatch =
+    task.ownerRoleId !== null &&
+    (task.status === "backlog" || task.status === "ready");
+
+  return (
+    <section>
+      <div className="studio-section-label">Agent 派单</div>
+      <div className="studio-action-note" style={{ marginTop: 0 }}>
+        v0.4 是分析模式：Agent 读取任务与角色契约，返回结构化回执，不修改文件。
+        代码执行/worktree 在 v0.6 接入。
+      </div>
+      <div className="studio-actions" style={{ marginTop: 9 }}>
+        <button
+          type="button"
+          className="studio-btn"
+          data-variant="primary"
+          data-size="sm"
+          disabled={busy || !canDispatch}
+          title={
+            task.ownerRoleId === null
+              ? "请先给任务指定负责人角色"
+              : canDispatch
+                ? "派单给负责人角色做分析"
+                : "任务已在执行或验收，不能重复派单"
+          }
+          onClick={() => void onDispatch()}
+        >
+          <IconSpark width={13} height={13} />
+          {latest?.status === "running" || latest?.status === "queued"
+            ? "Agent 执行中…"
+            : "派单分析"}
+        </button>
+        {latest !== null ? (
+          <span className="studio-pill" data-tone={runTone(latest.status)}>
+            {AGENT_RUN_STATUS_LABELS[latest.status]}
+          </span>
+        ) : null}
+      </div>
+
+      {runs.length === 0 ? (
+        <div className="studio-faint" style={{ fontSize: 11, marginTop: 9 }}>
+          还没有 Agent 运行记录。
+        </div>
+      ) : (
+        <div className="studio-run-list">
+          {runs.map((run) => (
+            <RunCard key={run.id} run={run} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function runTone(status: AgentRun["status"]): string {
+  if (status === "succeeded") return "ok";
+  if (status === "failed") return "p0";
+  if (status === "running") return "accent";
+  return "p2";
+}
+
+function RunCard({ run }: { run: AgentRun }) {
+  const receipt = run.receipt;
+  return (
+    <details className="studio-run-card">
+      <summary>
+        <span className="studio-pill" data-tone={runTone(run.status)}>
+          {AGENT_RUN_STATUS_LABELS[run.status]}
+        </span>
+        <span className="studio-mono">{run.model ?? "默认模型"}</span>
+        <span className="studio-faint">
+          {run.tokens === null ? "token 待计量" : `${String(run.tokens)} tokens`}
+        </span>
+        <span className="studio-faint" style={{ marginLeft: "auto" }}>
+          {formatDate(run.startedAt)}
+        </span>
+      </summary>
+      <div className="studio-run-body">
+        {run.error !== null ? (
+          <div className="studio-alert">{run.error}</div>
+        ) : null}
+        {run.budgetWarning !== null ? (
+          <div className="studio-alert" data-tone="warn">
+            {run.budgetWarning}
+          </div>
+        ) : null}
+        {run.status === "running" || run.status === "queued" ? (
+          <div className="studio-faint" style={{ fontSize: 11 }}>
+            Agent 正在工作；页面每 4 秒刷新一次。
+          </div>
+        ) : null}
+        {receipt !== null ? (
+          <ReceiptView receipt={receipt} />
+        ) : run.output !== "" ? (
+          <pre className="studio-run-output">{run.output}</pre>
+        ) : null}
+      </div>
+    </details>
+  );
+}
+
+function ReceiptView({ receipt }: { receipt: AgentReceipt }) {
+  return (
+    <div className="studio-receipt">
+      {receipt.summary.trim() === "" || receipt.evidence.length === 0 ? (
+        <div className="studio-alert" data-tone="warn">
+          回执不完整：Agent 必须给出非空 summary 和至少一条 evidence，任务不能进入验收。
+        </div>
+      ) : null}
+      <div className="studio-section-text">
+        {receipt.summary || "（没有 summary）"}
+      </div>
+      <ReceiptList label="证据" items={receipt.evidence} />
+      <ReceiptList
+        label="产物"
+        items={receipt.artifacts.map(
+          (item) => `${item.kind}: ${item.path}`,
+        )}
+      />
+      <ReceiptList
+        label="决策"
+        items={receipt.decisions.map(
+          (item) => `${item.title} (${item.scope}) — ${item.rationale}`,
+        )}
+      />
+      <ReceiptList
+        label="契约变更"
+        items={receipt.contractDeltas.map(
+          (item) => `${item.contract}: ${item.change}`,
+        )}
+      />
+      <ReceiptList
+        label="被否决方案"
+        items={receipt.rejectedOptions.map(
+          (item) => `${item.option} — ${item.reason}`,
+        )}
+      />
+      <ReceiptList label="阻塞" items={receipt.blockers} />
+    </div>
+  );
+}
+
+function ReceiptList({ label, items }: { label: string; items: string[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="studio-receipt-list">
+      <span>{label}</span>
+      <ul>
+        {items.map((item, index) => (
+          <li key={`${label}-${String(index)}`}>{item}</li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -2602,16 +2849,20 @@ function SettingsView({
                 ? "可用（记录评审，人工执行 Git）"
                 : "不可用"}
             </dd>
-            <dt>Agent 执行</dt>
-            <dd className="studio-faint">下一阶段</dd>
+            <dt>Agent 派单</dt>
+            <dd>
+              {data.features.agentExecution
+                ? "可用（分析模式，返回结构化回执）"
+                : "不可用"}
+            </dd>
             <dt>Git 自动合并</dt>
             <dd className="studio-faint">
               {data.features.gitMerge ? "已启用" : "未启用（有意）"}
             </dd>
           </dl>
           <p className="studio-hint" style={{ marginTop: 10 }}>
-            v0.3 只使用 DSH Web Server 路由、client slots 和 React，不依赖私有
-            Remote 生成器；合并命令由人执行，Studio 不做不可逆的 Git 操作。
+            v0.4 只使用 DSH Web Server 路由、client slots、React 和公开 Agent API，
+            不依赖私有 Remote 生成器；Agent 只做分析/回执，合并命令由人执行。
           </p>
         </section>
 
@@ -2890,12 +3141,33 @@ function RoleForm({
   const [title, setTitle] = useState("");
   const [mission, setMission] = useState("");
   const [responsibilities, setResponsibilities] = useState("");
+  const [model, setModel] = useState("");
+  const [tokenBudget, setTokenBudget] = useState("");
+  const [dailyTokenBudget, setDailyTokenBudget] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
 
   const submit = (event: FormEvent): void => {
     event.preventDefault();
     if (name.trim() === "") {
       setLocalError("请填写角色名");
+      return;
+    }
+    const parseBudget = (value: string, field: string): number | null => {
+      if (value.trim() === "") return null;
+      const number = Number(value);
+      if (!Number.isSafeInteger(number) || number < 0) {
+        throw new Error(`${field} 必须是非负整数`);
+      }
+      return number === 0 ? null : number;
+    };
+    let budgets: { tokenBudget: number | null; dailyTokenBudget: number | null };
+    try {
+      budgets = {
+        tokenBudget: parseBudget(tokenBudget, "单任务 token 预算"),
+        dailyTokenBudget: parseBudget(dailyTokenBudget, "每日 token 预算"),
+      };
+    } catch (error) {
+      setLocalError(error instanceof Error ? error.message : String(error));
       return;
     }
     setLocalError(null);
@@ -2907,6 +3179,9 @@ function RoleForm({
         .split("\n")
         .map((line) => line.trim())
         .filter(Boolean),
+      model: model.trim() || null,
+      tokenBudget: budgets.tokenBudget,
+      dailyTokenBudget: budgets.dailyTokenBudget,
     });
   };
 
@@ -2975,6 +3250,40 @@ function RoleForm({
             placeholder={"实现技能/移动/冷却\n补单测\n维护构建"}
           />
         </div>
+        <div className="studio-field">
+          <label htmlFor="role-model">模型（可选）</label>
+          <input
+            id="role-model"
+            value={model}
+            onChange={(event) => setModel(event.target.value)}
+            placeholder="留空继承默认模型，例如 deepseek-flash"
+          />
+          <div className="studio-hint">
+            “薪资”配置：架构师可以用更强/更贵的模型，实现者用更便宜的模型。
+          </div>
+        </div>
+        <div className="studio-field-row">
+          <div className="studio-field">
+            <label htmlFor="role-budget">单次任务 token 预算</label>
+            <input
+              id="role-budget"
+              inputMode="numeric"
+              value={tokenBudget}
+              onChange={(event) => setTokenBudget(event.target.value)}
+              placeholder="留空 = 继承项目预算"
+            />
+          </div>
+          <div className="studio-field">
+            <label htmlFor="role-daily-budget">每日 token 预算</label>
+            <input
+              id="role-daily-budget"
+              inputMode="numeric"
+              value={dailyTokenBudget}
+              onChange={(event) => setDailyTokenBudget(event.target.value)}
+              placeholder="留空 = 不限制"
+            />
+          </div>
+        </div>
       </form>
     </ModalShell>
   );
@@ -2991,6 +3300,7 @@ function ProjectForm({
 }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [tokenBudget, setTokenBudget] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
 
   const submit = (event: FormEvent): void => {
@@ -2999,8 +3309,21 @@ function ProjectForm({
       setLocalError("请填写项目名");
       return;
     }
+    let budget: number | null = null;
+    if (tokenBudget.trim() !== "") {
+      const number = Number(tokenBudget);
+      if (!Number.isSafeInteger(number) || number < 0) {
+        setLocalError("token 预算必须是非负整数");
+        return;
+      }
+      budget = number === 0 ? null : number;
+    }
     setLocalError(null);
-    onSubmit({ name: name.trim(), description: description.trim() });
+    onSubmit({
+      name: name.trim(),
+      description: description.trim(),
+      tokenBudget: budget,
+    });
   };
 
   return (
@@ -3047,6 +3370,19 @@ function ProjectForm({
             onChange={(event) => setDescription(event.target.value)}
             placeholder="这个项目要验证什么？"
           />
+        </div>
+        <div className="studio-field">
+          <label htmlFor="project-budget">项目 token 预算（可选）</label>
+          <input
+            id="project-budget"
+            inputMode="numeric"
+            value={tokenBudget}
+            onChange={(event) => setTokenBudget(event.target.value)}
+            placeholder="留空 = 不限制；例如 200000"
+          />
+          <div className="studio-hint">
+            这是公司给该项目的 token 上限；实际消耗来自 DSH token meter。
+          </div>
         </div>
       </form>
     </ModalShell>

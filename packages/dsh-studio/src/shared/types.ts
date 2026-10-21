@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 2;
-export const STUDIO_PLUGIN_VERSION = "0.3.0";
+export const STUDIO_SCHEMA_VERSION = 3;
+export const STUDIO_PLUGIN_VERSION = "0.4.0";
 
 export type TaskStatus =
   | "backlog"
@@ -21,6 +21,7 @@ export interface Project {
   id: string;
   name: string;
   description: string;
+  tokenBudget: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -34,6 +35,12 @@ export interface Role {
   responsibilities: string[];
   nonGoals: string[];
   decisionRights: string[];
+  /** Exact model id, or null to inherit the deployment default. */
+  model: string | null;
+  /** Per-run token budget; null means inherit the project budget. */
+  tokenBudget: number | null;
+  /** Per-UTC-day token budget for this role; null means unlimited. */
+  dailyTokenBudget: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -87,6 +94,57 @@ export interface MergeProposal {
   mergedAt: string | null;
 }
 
+export type AgentRunStatus = "queued" | "running" | "succeeded" | "failed";
+
+export interface AgentReceiptArtifact {
+  kind: string;
+  path: string;
+}
+
+export interface AgentReceiptDecision {
+  title: string;
+  rationale: string;
+  scope: "branch" | "project";
+}
+
+export interface AgentReceiptContractDelta {
+  contract: string;
+  change: string;
+}
+
+export interface AgentReceiptRejectedOption {
+  option: string;
+  reason: string;
+}
+
+export interface AgentReceipt {
+  summary: string;
+  evidence: string[];
+  artifacts: AgentReceiptArtifact[];
+  decisions: AgentReceiptDecision[];
+  contractDeltas: AgentReceiptContractDelta[];
+  rejectedOptions: AgentReceiptRejectedOption[];
+  blockers: string[];
+}
+
+export interface AgentRun {
+  id: string;
+  projectId: string;
+  taskId: string;
+  roleId: string | null;
+  sessionId: string | null;
+  status: AgentRunStatus;
+  model: string | null;
+  prompt: string;
+  output: string;
+  receipt: AgentReceipt | null;
+  tokens: number | null;
+  budgetWarning: string | null;
+  error: string | null;
+  startedAt: string;
+  endedAt: string | null;
+}
+
 export interface StudioEvent {
   id: string;
   type: string;
@@ -106,6 +164,7 @@ export interface StudioState {
   roles: Role[];
   tasks: Task[];
   mergeProposals: MergeProposal[];
+  runs: AgentRun[];
   events: StudioEvent[];
 }
 
@@ -192,6 +251,9 @@ export interface CompanyTotals {
   done: number;
   acceptanceDone: number;
   acceptanceTotal: number;
+  runs: number;
+  runningRuns: number;
+  tokensUsed: number;
 }
 
 export interface CompanySummary {
@@ -220,6 +282,7 @@ export interface BootstrapResponse {
   roles: Role[];
   tasks: Task[];
   mergeProposals: MergeProposal[];
+  runs: AgentRun[];
   stats: StudioStats;
   events: StudioEvent[];
   company: CompanySummary;
@@ -295,6 +358,13 @@ export const ROLE_LOAD_LABELS: Record<RoleLoadSummary["state"], string> = {
   overloaded: "过载",
 };
 
+export const AGENT_RUN_STATUS_LABELS: Record<AgentRunStatus, string> = {
+  queued: "排队中",
+  running: "执行中",
+  succeeded: "已完成",
+  failed: "失败",
+};
+
 /**
  * 允许的任务状态迁移。Agent 永远不能自己把任务推进到 done：
  * done 必须经过验收检查。
@@ -335,6 +405,7 @@ export function isTaskPriority(value: unknown): value is TaskPriority {
 export interface CreateProjectInput {
   name: string;
   description?: string;
+  tokenBudget?: number | null;
 }
 
 export interface CreateRoleInput {
@@ -344,6 +415,9 @@ export interface CreateRoleInput {
   responsibilities?: string[];
   nonGoals?: string[];
   decisionRights?: string[];
+  model?: string | null;
+  tokenBudget?: number | null;
+  dailyTokenBudget?: number | null;
 }
 
 export interface CreateTaskInput {

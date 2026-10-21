@@ -303,6 +303,124 @@ test("surfaces a pending merge in the owner inbox", async () => {
   });
 });
 
+test("dispatches an agent run, records tokens, and moves the task to review", async () => {
+  await withStore(async (store) => {
+    const data = await store.bootstrap();
+    const owner = data.roles[0];
+    const reviewer = data.roles[1];
+    assert.ok(owner && reviewer);
+    const task = await store.createTask({
+      title: "派单任务",
+      acceptance: ["回执可读"],
+      ownerRoleId: owner.id,
+      reviewerRoleId: reviewer.id,
+    });
+    await store.transitionTask(task.id, "ready");
+    const run = await store.beginRun(task.id, "分析这个任务");
+    assert.equal(run.status, "queued");
+    const running = await store.bootstrap();
+    assert.equal(
+      running.tasks.find((item) => item.id === task.id)?.status,
+      "running",
+    );
+    assert.equal(running.runs.length, 1);
+
+    const completed = await store.completeRun(run.id, {
+      output: '{"summary":"完成分析"}',
+      receipt: {
+        summary: "完成分析",
+        evidence: ["pnpm test — 17 passed"],
+        artifacts: [],
+        decisions: [],
+        contractDeltas: [],
+        rejectedOptions: [],
+        blockers: [],
+      },
+      tokens: 123,
+    });
+    assert.equal(completed.status, "succeeded");
+    const after = await store.bootstrap();
+    const updated = after.tasks.find((item) => item.id === task.id);
+    assert.equal(updated?.status, "review");
+    assert.equal(updated?.evidence.length, 1);
+    assert.equal(after.runs[0].tokens, 123);
+    assert.equal(after.company.totals.tokensUsed, 123);
+  });
+});
+
+test("keeps a task out of review when the receipt is incomplete", async () => {
+  await withStore(async (store) => {
+    const data = await store.bootstrap();
+    const owner = data.roles[0];
+    const reviewer = data.roles[1];
+    assert.ok(owner && reviewer);
+    const task = await store.createTask({
+      title: "缺证据回执",
+      acceptance: ["回执完整"],
+      ownerRoleId: owner.id,
+      reviewerRoleId: reviewer.id,
+    });
+    await store.transitionTask(task.id, "ready");
+    const run = await store.beginRun(task.id, "测试");
+    const completed = await store.completeRun(run.id, {
+      output: "{}",
+      receipt: {
+        summary: "",
+        evidence: [],
+        artifacts: [],
+        decisions: [],
+        contractDeltas: [],
+        rejectedOptions: [],
+        blockers: ["没有证据"],
+      },
+      tokens: 5,
+    });
+    assert.equal(completed.status, "failed");
+    assert.match(completed.error ?? "", /回执不完整/);
+    const after = await store.bootstrap();
+    assert.equal(
+      after.tasks.find((item) => item.id === task.id)?.status,
+      "ready",
+    );
+    assert.equal(after.tasks.find((item) => item.id === task.id)?.evidence.length, 0);
+  });
+});
+
+test("rejects a run when the role token budget is exhausted", async () => {
+  await withStore(async (store) => {
+    const data = await store.bootstrap();
+    const owner = data.roles[0];
+    assert.ok(owner);
+    const role = await store.updateRole(owner.id, { tokenBudget: 10 });
+    const task = await store.createTask({
+      title: "预算任务",
+      acceptance: ["有回执"],
+      ownerRoleId: role.id,
+      reviewerRoleId: data.roles[1]?.id ?? null,
+    });
+    await store.transitionTask(task.id, "ready");
+    const run = await store.beginRun(task.id, "预算测试");
+    await store.completeRun(run.id, {
+      output: "",
+      receipt: null,
+      tokens: 10,
+    });
+    const next = await store.createTask({
+      title: "预算任务 2",
+      acceptance: ["有回执"],
+      ownerRoleId: role.id,
+      reviewerRoleId: data.roles[1]?.id ?? null,
+    });
+    await store.transitionTask(next.id, "ready");
+    await assert.rejects(
+      () => store.beginRun(next.id, "再试一次"),
+      (error) =>
+        error instanceof StudioStoreError &&
+        error.code === "budget_exceeded",
+    );
+  });
+});
+
 test("migrates a schema v1 file by adding merge proposals", async () => {
   await withStore(async (store, dir) => {
     const file = path.join(dir, "studio.json");
@@ -315,7 +433,9 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
     await migratedStore.init();
     const data = await migratedStore.bootstrap();
     assert.deepEqual(data.mergeProposals, []);
+    assert.deepEqual(data.runs, []);
     const migrated = JSON.parse(await readFile(file, "utf8"));
-    assert.equal(migrated.schemaVersion, 2);
+    assert.equal(migrated.schemaVersion, 3);
+    assert.ok(migrated.runs.every((run) => run.status !== undefined));
   });
 });

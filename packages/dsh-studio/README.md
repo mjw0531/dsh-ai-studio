@@ -1,16 +1,18 @@
 # @ai-workbench/dsh-studio
 
-> 即装即用的 DeepSeek Harness AI 工作台：**公司仪表盘、项目、角色、任务、验收、合并治理**，一个独立页面。
+> 即装即用的 DeepSeek Harness AI 工作台：**公司仪表盘、Agent 派单、token 预算、项目、角色、任务、验收、合并治理**，一个独立页面。
 
-当前版本 **0.3.0**，已在 **DSH 0.2.1-rc.2** 上完成端到端验证（Web profile 实际安装、页面渲染、任务创建、验收门禁、合并提案/批准/合并、公司仪表盘、重启持久化）。
+当前版本 **0.4.0**，已在 **DSH 0.2.1-rc.2** 上完成端到端验证（Web profile 实际安装、页面渲染、任务创建、验收门禁、合并提案/批准/合并、公司仪表盘、Agent 分析派单与结构化回执、token 计量、重启持久化）。
 
-![Studio Owner Dashboard](docs/owner-dashboard.png)
+![Studio Owner Dashboard](docs/owner-dashboard-v04.png)
 
 ## 它是什么
 
 Studio 把 DSH 从「一个会话」扩展成「一间工作室」：
 
-- **公司仪表盘**：跨项目的项目组合、老板收件箱、角色负载、风险雷达和交付流；预算/成本在 Agent 执行接入前明确显示“待接入”，不编造数字。
+- **公司仪表盘**：跨项目的项目组合、老板收件箱、角色负载、风险雷达和交付流；token 消耗来自 DSH meter，金额成本等报价接入后再显示。
+- **Agent 分析派单**：在 Task Room 把任务派给负责人角色，DSH Agent 读取任务/契约后返回 `summary / evidence / artifacts / decisions / contract_deltas / rejected_options / blockers` 结构化回执。
+- **角色薪资与预算**：角色可配置模型和单任务/每日 token 预算；项目可配置总 token 预算。
 - **项目**：一个项目边界，下面有角色和任务。
 - **角色**：持久的职责契约（使命、职责、决策权），不是人设卡。
 - **任务**：目标 + 负责人 + 验收人 + 可验证的验收标准 + 证据。
@@ -58,7 +60,7 @@ cd D:\AI工作台\packages\dsh-studio
 pnpm pack
 ```
 
-把生成的 `ai-workbench-dsh-studio-0.3.0.tgz` 发给对方，在 **Add plugin** 里填 tarball 路径即可。
+把生成的 `ai-workbench-dsh-studio-0.4.0.tgz` 发给对方，在 **Add plugin** 里填 tarball 路径即可。
 
 ## 使用
 
@@ -66,9 +68,9 @@ pnpm pack
 
 1. **公司**：老板视角的项目组合、老板收件箱、角色负载、风险雷达和交付流。
 2. **项目**：看当前项目的任务板、验收、团队和最近事件。
-3. **任务**：点卡片打开 Task Room；勾验收项、写证据、推进状态。
+3. **任务**：点卡片打开 Task Room；勾验收项、写证据、推进状态；对「待规划/可开始」的任务点「派单分析」，Agent 返回回执并自动写证据、进入待验收。
 4. **合并**：查看合并队列；批准、打回、记录合并提交。
-5. **团队**：新增角色，写使命/职责/决策权。
+5. **团队**：新增角色，写使命/职责/决策权，并配置模型与 token 预算。
 6. **设置**：查看 DSH 版本、兼容状态、数据目录和能力边界。
 
 ![Task Room](docs/task-room.png)
@@ -93,7 +95,7 @@ Task Room 里，验收项、证据和状态推进是同一份事实：没勾完�
 - 每次进程启动生成随机 Bearer token，只注入当前 DSH 页面；数据接口同源、`Cache-Control: no-store`，桌面 Boot 回退使用受控 CORS。
 - 不存储模型密钥；不要手动把 token 贴到聊天/日志里。
 - 数据损坏时会备份为 `studio.json.corrupt-<timestamp>`，并重建演示数据。
-- 旧 schema（v1）会自动迁移到 v2：只增加 `mergeProposals` 集合，不改已有项目/角色/任务。
+- 旧 schema（v1/v2）会自动迁移到 v3：增加 `mergeProposals`、`runs`、角色模型/预算字段和项目预算；已有项目/角色/任务不丢失。
 - 桌面渲染器运行在 `dsh-app://` 上，因此 `/studio-api/boot` 会对 `dsh-app://` / `null` origin 反射 CORS 并发放进程级 token；数据接口仍然只认这个 token。Web 端的 Boot 路由继续走 DSH 会话认证。
 
 ## 版本兼容策略
@@ -133,20 +135,22 @@ packages/dsh-studio/
   cordis.patch.yml
 ```
 
-## 当前边界（v0.3）
+## 当前边界（v0.4）
 
 - ✅ 项目/角色/任务/验收/证据/事件持久化。
 - ✅ 独立页面、侧栏入口、主题、响应式。
 - ✅ 验收门禁和状态机。
 - ✅ 合并提案、批准、打回、合并记录和审计事件。
 - ✅ 公司级 Owner Dashboard：项目组合、老板收件箱、角色负载、风险雷达、交付流。
-- ⏳ Agent 派单与执行（下一阶段接入 DSH session/subagent）。
+- ✅ Agent 分析派单与结构化回执；回执缺 `summary`/`evidence` 时任务退回可开始，不能进入验收。
+- ✅ 角色模型/token 预算、项目 token 预算、DSH token meter 消耗。
+- ⏳ 代码执行/worktree 隔离（当前 Agent 只读分析，不修改文件；v0.6 接入）。
+- ⏳ 金额成本/报价（当前只显示 token，不编造金额）。
 - ⏳ Git worktree、自动合并/合并队列执行（当前只记录治理状态，命令由人执行）。
-- ⏳ 真实 token/成本计量与预算门禁。
-- ⏳ Project Book 检索、角色卡编译成 DSH Agent Preset。
+- ⏳ Project Book 检索、角色卡编译成 DSH Agent Preset 的更深定制。
 - ⏳ 权限/Scope 隔离与决策升级门禁。
 
-这不是半成品占位：v0.3 的公司仪表盘、项目、验收和合并治理已经可用；下一阶段会在这个数据模型上接入 Agent 执行层与真实成本。
+v0.4 的 Agent 派单是**分析模式**：它已经真实调用 DSH Agent、返回结构化回执并计量 token，但不会修改项目文件；代码执行和 worktree 隔离留给 v0.6。
 
 ## License
 

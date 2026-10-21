@@ -1,17 +1,19 @@
 # AI 工作台（Studio）
 
-一套构建在 **DeepSeek Harness（DSH）** 之上的多角色 AI 工作台：把「一个聊天窗口」变成一间**有公司仪表盘、项目、角色、任务、验收、合并治理**的工作室。
+一套构建在 **DeepSeek Harness（DSH）** 之上的多角色 AI 工作台：把「一个聊天窗口」变成一间**有公司仪表盘、Agent 派单、token 预算、项目、角色、任务、验收、合并治理**的工作室。
 
-> 当前状态：**v0.3.0 可运行**。已完成公司级 Owner Dashboard、项目/角色/任务/验收/证据的本地持久化、合并提案/批准/打回/合并记录，并在 DSH `0.2.1-rc.2` 上完成 Web 与桌面端验证。
+> 当前状态：**v0.4.0 可运行**。已完成公司级 Owner Dashboard、Agent 分析派单与结构化回执、角色模型/token 预算、项目预算、DSH token 计量、项目/角色/任务/验收/证据持久化、合并治理，并在 DSH `0.2.1-rc.2` 上完成 Web 端到端验证。
 
-![Studio Owner Dashboard](docs/images/owner-dashboard.png)
+![Studio Owner Dashboard](docs/images/owner-dashboard-v04.png)
 
 ## 现在能做什么
 
-- **公司仪表盘**：跨项目组合、老板收件箱、角色负载、风险雷达、交付流；预算/成本在 Agent 执行接入前明确显示“待接入”。
+- **公司仪表盘**：跨项目组合、老板收件箱、角色负载、风险雷达、交付流和 token 消耗；金额成本等报价接入后再显示。
+- **Agent 分析派单**：Task Room 把任务派给负责人角色，Agent 返回结构化回执；回执缺 `summary`/`evidence` 时任务退回可开始，不能进入验收。
+- **薪资与预算**：角色配置模型、单任务/每日 token 预算；项目配置总 token 预算。
 - **独立工作台页面**：DSH 侧栏点击「工作台」，进入公司仪表盘，不占用聊天会话。
 - **项目**：创建/切换项目，任务和角色归属项目。
-- **角色**：使命、职位、职责、决策权；为后续编译成 DSH Agent Preset 做准备。
+- **角色**：使命、职位、职责、决策权、模型与预算。
 - **任务**：目标、负责人、验收人、优先级、分支、验收标准、证据。
 - **验收门禁**：任务完成前必须勾完所有验收项，并至少记录一条证据；完成后锁定。
 - **合并治理**：验收通过后可提交合并提案，记录摘要、风险、回滚、评审备注和合并提交；批准、打回、合并都有审计事件。
@@ -61,6 +63,7 @@ DSH Web/Desktop
        ├─ /studio-api（同源、Bearer token、JSON）
        ├─ 文件存储（$DSH_HOME/studio/studio.json）
        ├─ 版本适配（app-boot → 安装包清单 → env）
+       ├─ DSH Agent 派单（agents.create + agentPresets.mount + tokenMeter）
        └─ 状态机 / 验收门禁 / 合并治理 / 公司聚合
 ```
 
@@ -92,6 +95,7 @@ tools/                   # CDP 端到端验证脚本
 - [ADR-0002：同源 HTTP + token](docs/adr/0002-same-origin-http-and-token.md)
 - [ADR-0003：合并治理只记录状态](docs/adr/0003-record-only-merge-governance.md)
 - [ADR-0004：公司仪表盘是派生投影](docs/adr/0004-company-is-a-derived-projection.md)
+- [ADR-0005：Agent 派单先做只读分析](docs/adr/0005-agent-dispatch-is-advisory.md)
 
 ## 开发
 
@@ -116,8 +120,8 @@ dsh --profile web --no-open --port 0
 
 - **v0.1**：项目/角色/任务/验收/证据；独立页面；本地持久化；版本适配。
 - **v0.2**：合并提案、批准、打回、合并记录；schema v1→v2 迁移。
-- **v0.3（当前）**：Owner Dashboard；公司级项目组合、老板收件箱、角色负载、风险雷达、交付流。
-- **v0.4**：Agent 派单与结构化回执；角色“薪资”/模型档位/token 预算；真实成本台账。
+- **v0.3**：Owner Dashboard；公司级项目组合、老板收件箱、角色负载、风险雷达、交付流。
+- **v0.4（当前）**：Agent 分析派单与结构化回执；角色模型/token 预算；项目预算；DSH token 计量。
 - **v0.5**：Branch/Decision/Scope 隔离、决策升级门禁、Project Book、汇入冲突“董事会”视图。
 - **v0.6**：Git worktree、自动合并/合并队列执行、独立评审。
 - **v1.0**：用工作台完成一个 2.5D MOBA 垂直切片，再抽象为可复用插件。
