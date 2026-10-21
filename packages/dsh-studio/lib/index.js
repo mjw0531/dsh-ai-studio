@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 2;
-var STUDIO_PLUGIN_VERSION = "0.2.0";
+var STUDIO_PLUGIN_VERSION = "0.2.1";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -1177,6 +1177,18 @@ function sendError(res, status, code, message) {
   const body = { error: { code, message } };
   sendJson(res, status, body);
 }
+function requestOf(req) {
+  const headers = new Headers();
+  for (const [name2, value] of Object.entries(req.headers)) {
+    if (value === void 0) continue;
+    headers.set(name2, Array.isArray(value) ? value.join(", ") : value);
+  }
+  const host = req.headers.host ?? "127.0.0.1";
+  return new Request(`http://${host}${req.url ?? "/"}`, {
+    method: "GET",
+    headers
+  });
+}
 function assertJsonRequest(req) {
   const contentType = req.headers["content-type"];
   if (typeof contentType === "string" && !contentType.toLowerCase().includes("application/json")) {
@@ -1326,11 +1338,15 @@ var StudioRouter = class {
   token;
   dshVersion;
   compatibility;
+  connection;
+  getBootPayload;
   constructor(options) {
     this.store = options.store;
     this.token = options.token;
     this.dshVersion = options.dshVersion;
     this.compatibility = options.compatibility;
+    this.connection = options.connection;
+    this.getBootPayload = options.getBootPayload;
   }
   async handle(req, res) {
     const parsed = this.parse(req);
@@ -1346,6 +1362,28 @@ var StudioRouter = class {
         compatibility: this.compatibility,
         time: (/* @__PURE__ */ new Date()).toISOString()
       });
+      return;
+    }
+    if (parsed.pathname === `${API_PREFIX}/boot`) {
+      this.requireMethod(parsed, ["GET"]);
+      const origin = req.headers.origin;
+      const desktopOrigin = typeof origin === "string" && (origin.startsWith("dsh-app://") || origin.startsWith("file://") || origin === "null");
+      if (desktopOrigin) {
+        res.setHeader("Access-Control-Allow-Origin", origin);
+        res.setHeader("Access-Control-Allow-Credentials", "true");
+        res.setHeader("Vary", "Origin");
+      }
+      const admission = this.connection.admit(requestOf(req));
+      if (admission.rejection !== void 0 && !desktopOrigin) {
+        sendError(
+          res,
+          admission.rejection,
+          "unauthorized",
+          "DSH \u4F1A\u8BDD\u6CA1\u6709\u901A\u8FC7\u8BA4\u8BC1\uFF0C\u65E0\u6CD5\u83B7\u53D6 Studio \u542F\u52A8\u53C2\u6570"
+        );
+        return;
+      }
+      sendJson(res, 200, this.getBootPayload());
       return;
     }
     this.assertAuthorized(req);
@@ -1515,21 +1553,14 @@ function handleRouterError(res, error) {
 
 // src/host/index.ts
 var name = "dsh-studio";
-var inject = ["webServer"];
-function injectBoot(html, payload) {
-  const json = JSON.stringify(payload).replaceAll("<", "\\u003c");
-  const script = `<script>globalThis.__DSH_STUDIO__=${json}</script>`;
-  const at = html.indexOf("</head>");
-  if (at === -1) return `${script}${html}`;
-  return `${html.slice(0, at)}${script}${html.slice(at)}`;
-}
+var inject = ["webServer", "connection"];
 async function apply(ctx) {
   const runtime = await readRuntimeInfo();
   const compatibility = compatibilityOf(runtime.version);
   const capabilities = hostCapabilities(ctx, runtime.version);
-  if (!capabilities.webServer || typeof ctx.webServer.register !== "function" || typeof ctx.webServer.tapIndex !== "function") {
+  if (!capabilities.webServer || typeof ctx.webServer.register !== "function" || typeof ctx.on !== "function" || typeof ctx.connection?.admit !== "function") {
     ctx.logger?.error(
-      "dsh-studio: this DSH build does not expose ctx.webServer.register/tapIndex; the Studio page stays unmounted."
+      "dsh-studio: this DSH build does not expose webServer.register + connection.admit; the Studio page stays unmounted."
     );
     return;
   }
@@ -1537,11 +1568,21 @@ async function apply(ctx) {
   await store.init();
   const token = randomBytes(24).toString("hex");
   const startedAt = (/* @__PURE__ */ new Date()).toISOString();
+  const bootPayload = {
+    token,
+    basePath: "/studio-api",
+    pluginVersion: STUDIO_PLUGIN_VERSION,
+    dshVersion: runtime.version,
+    startedAt,
+    dataDir: store.dataDir
+  };
   const router = new StudioRouter({
     store,
     token,
     dshVersion: runtime.version,
-    compatibility
+    compatibility,
+    connection: ctx.connection,
+    getBootPayload: () => bootPayload
   });
   const install = () => {
     const disposeRoute = ctx.webServer.register({
@@ -1559,23 +1600,20 @@ async function apply(ctx) {
         }
       }
     });
-    const disposeIndex = ctx.webServer.tapIndex(
-      (html) => injectBoot(html, {
-        token,
-        basePath: "/studio-api",
-        pluginVersion: STUDIO_PLUGIN_VERSION,
-        dshVersion: runtime.version,
-        startedAt,
-        dataDir: store.dataDir
-      })
-    );
+    const disposeInjection = ctx.on?.("webserver/index-inject", (rows) => {
+      rows.push({
+        kind: "global",
+        name: "__DSH_STUDIO__",
+        value: bootPayload
+      });
+    });
     return () => {
       disposeRoute();
-      disposeIndex();
+      disposeInjection?.();
     };
   };
   if (typeof ctx.effect === "function") {
-    ctx.effect(install, "dsh-studio: http + boot payload");
+    ctx.effect(install, "dsh-studio: route + boot payload");
   } else {
     install();
   }

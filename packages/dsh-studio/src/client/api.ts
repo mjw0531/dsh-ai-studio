@@ -40,18 +40,107 @@ export class StudioClientError extends Error {
   }
 }
 
+function isStudioBoot(value: unknown): value is StudioBoot {
+  if (typeof value !== "object" || value === null) return false;
+  const boot = value as Partial<StudioBoot>;
+  return (
+    typeof boot.token === "string" &&
+    boot.token !== "" &&
+    typeof boot.basePath === "string" &&
+    boot.basePath !== "" &&
+    typeof boot.pluginVersion === "string" &&
+    typeof boot.dshVersion === "string" &&
+    typeof boot.startedAt === "string" &&
+    typeof boot.dataDir === "string"
+  );
+}
+
 export function readStudioBoot(): StudioBoot | null {
   const boot = window.__DSH_STUDIO__;
-  if (boot === undefined) return null;
-  if (
-    typeof boot.token !== "string" ||
-    boot.token === "" ||
-    typeof boot.basePath !== "string" ||
-    boot.basePath === ""
-  ) {
-    return null;
+  return isStudioBoot(boot) ? boot : null;
+}
+
+/**
+ * Resolve boot data from the page injection first, then from the DSH-authenticated
+ * `/studio-api/boot` route. The fallback is what makes a hot-installed desktop
+ * plugin work without restarting the Electron host: the desktop shell injects
+ * its startup table once, so a plugin loaded later is absent from that table,
+ * but the browser still carries the DSH session cookie.
+ */
+export interface BootResolution {
+  boot: StudioBoot | null;
+  error: string | null;
+}
+
+export async function resolveStudioBoot(): Promise<BootResolution> {
+  const injected = readStudioBoot();
+  if (injected !== null) return { boot: injected, error: null };
+
+  const failures: string[] = [];
+  const transport = (
+    window as Window & {
+      __DSH_TRANSPORT__?: {
+        streamBaseUrl?: string;
+        fetch?: (
+          input: string | Request,
+          init?: RequestInit,
+        ) => Promise<Response>;
+      };
+    }
+  ).__DSH_TRANSPORT__;
+
+  if (typeof transport?.fetch === "function") {
+    try {
+      const response = await transport.fetch("/studio-api/boot", {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      });
+      if (response.ok) {
+        const data: unknown = await response.json();
+        if (isStudioBoot(data)) return { boot: data, error: null };
+        failures.push("transport fetch: invalid boot payload");
+      } else {
+        failures.push(`transport fetch: HTTP ${String(response.status)}`);
+      }
+    } catch (error) {
+      failures.push(
+        `transport fetch: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
-  return boot;
+
+  const streamBase = transport?.streamBaseUrl?.replace(/\/$/u, "");
+  const candidates = [
+    "/studio-api/boot",
+    ...(streamBase === undefined || streamBase === ""
+      ? []
+      : [`${streamBase}/studio-api/boot`]),
+  ];
+  for (const url of candidates) {
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        credentials: url.startsWith("http") ? "include" : "same-origin",
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      });
+      if (!response.ok) {
+        failures.push(`${url}: HTTP ${String(response.status)}`);
+        continue;
+      }
+      const data: unknown = await response.json();
+      if (isStudioBoot(data)) return { boot: data, error: null };
+      failures.push(`${url}: invalid boot payload`);
+    } catch (error) {
+      failures.push(
+        `${url}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+  return {
+    boot: null,
+    error: failures.join(" · ") || "无法获取 Studio 启动参数",
+  };
 }
 
 export class StudioClient {

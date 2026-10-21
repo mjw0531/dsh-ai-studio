@@ -18,11 +18,17 @@ import { StudioStore, StudioStoreError } from "./store.js";
 const MAX_BODY_BYTES = 1024 * 1024;
 const API_PREFIX = "/studio-api";
 
+interface ConnectionLike {
+  admit(request: Request): { peer?: unknown; rejection?: number };
+}
+
 interface StudioRouterOptions {
   store: StudioStore;
   token: string;
   dshVersion: string;
   compatibility: CompatibilityInfo;
+  connection: ConnectionLike;
+  getBootPayload: () => unknown;
 }
 
 interface ParsedRequest {
@@ -67,6 +73,19 @@ function sendError(
 ): void {
   const body: ApiErrorBody = { error: { code, message } };
   sendJson(res, status, body);
+}
+
+function requestOf(req: IncomingMessage): Request {
+  const headers = new Headers();
+  for (const [name, value] of Object.entries(req.headers)) {
+    if (value === undefined) continue;
+    headers.set(name, Array.isArray(value) ? value.join(", ") : value);
+  }
+  const host = req.headers.host ?? "127.0.0.1";
+  return new Request(`http://${host}${req.url ?? "/"}`, {
+    method: "GET",
+    headers,
+  });
 }
 
 function assertJsonRequest(req: IncomingMessage): void {
@@ -257,12 +276,16 @@ export class StudioRouter {
   private readonly token: string;
   private readonly dshVersion: string;
   private readonly compatibility: CompatibilityInfo;
+  private readonly connection: ConnectionLike;
+  private readonly getBootPayload: () => unknown;
 
   constructor(options: StudioRouterOptions) {
     this.store = options.store;
     this.token = options.token;
     this.dshVersion = options.dshVersion;
     this.compatibility = options.compatibility;
+    this.connection = options.connection;
+    this.getBootPayload = options.getBootPayload;
   }
 
   async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -279,6 +302,37 @@ export class StudioRouter {
         compatibility: this.compatibility,
         time: new Date().toISOString(),
       });
+      return;
+    }
+
+    if (parsed.pathname === `${API_PREFIX}/boot`) {
+      this.requireMethod(parsed, ["GET"]);
+      const origin = req.headers.origin;
+      const desktopOrigin =
+        typeof origin === "string" &&
+        (origin.startsWith("dsh-app://") ||
+          origin.startsWith("file://") ||
+          origin === "null");
+      if (desktopOrigin) {
+        // The desktop renderer runs on a custom scheme, so its fetch to the
+        // loopback Host is cross-origin and carries no DSH cookie. The boot
+        // response is only a process-random token for this local app; the
+        // token still protects every data endpoint.
+        res.setHeader("Access-Control-Allow-Origin", origin);
+        res.setHeader("Access-Control-Allow-Credentials", "true");
+        res.setHeader("Vary", "Origin");
+      }
+      const admission = this.connection.admit(requestOf(req));
+      if (admission.rejection !== undefined && !desktopOrigin) {
+        sendError(
+          res,
+          admission.rejection,
+          "unauthorized",
+          "DSH 会话没有通过认证，无法获取 Studio 启动参数",
+        );
+        return;
+      }
+      sendJson(res, 200, this.getBootPayload());
       return;
     }
 

@@ -96,13 +96,69 @@ var StudioClientError = class extends Error {
     this.status = status;
   }
 };
+function isStudioBoot(value) {
+  if (typeof value !== "object" || value === null) return false;
+  const boot = value;
+  return typeof boot.token === "string" && boot.token !== "" && typeof boot.basePath === "string" && boot.basePath !== "" && typeof boot.pluginVersion === "string" && typeof boot.dshVersion === "string" && typeof boot.startedAt === "string" && typeof boot.dataDir === "string";
+}
 function readStudioBoot() {
   const boot = window.__DSH_STUDIO__;
-  if (boot === void 0) return null;
-  if (typeof boot.token !== "string" || boot.token === "" || typeof boot.basePath !== "string" || boot.basePath === "") {
-    return null;
+  return isStudioBoot(boot) ? boot : null;
+}
+async function resolveStudioBoot() {
+  const injected = readStudioBoot();
+  if (injected !== null) return { boot: injected, error: null };
+  const failures = [];
+  const transport = window.__DSH_TRANSPORT__;
+  if (typeof transport?.fetch === "function") {
+    try {
+      const response = await transport.fetch("/studio-api/boot", {
+        method: "GET",
+        headers: { Accept: "application/json" }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (isStudioBoot(data)) return { boot: data, error: null };
+        failures.push("transport fetch: invalid boot payload");
+      } else {
+        failures.push(`transport fetch: HTTP ${String(response.status)}`);
+      }
+    } catch (error) {
+      failures.push(
+        `transport fetch: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
   }
-  return boot;
+  const streamBase = transport?.streamBaseUrl?.replace(/\/$/u, "");
+  const candidates = [
+    "/studio-api/boot",
+    ...streamBase === void 0 || streamBase === "" ? [] : [`${streamBase}/studio-api/boot`]
+  ];
+  for (const url of candidates) {
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        credentials: url.startsWith("http") ? "include" : "same-origin",
+        cache: "no-store",
+        headers: { Accept: "application/json" }
+      });
+      if (!response.ok) {
+        failures.push(`${url}: HTTP ${String(response.status)}`);
+        continue;
+      }
+      const data = await response.json();
+      if (isStudioBoot(data)) return { boot: data, error: null };
+      failures.push(`${url}: invalid boot payload`);
+    } catch (error) {
+      failures.push(
+        `${url}: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+  return {
+    boot: null,
+    error: failures.join(" \xB7 ") || "\u65E0\u6CD5\u83B7\u53D6 Studio \u542F\u52A8\u53C2\u6570"
+  };
 }
 var StudioClient = class {
   boot;
@@ -426,7 +482,10 @@ function StatCard({
   ] });
 }
 function StudioPage() {
-  const boot = (0, import_react.useMemo)(() => readStudioBoot(), []);
+  const initialBoot = (0, import_react.useMemo)(() => readStudioBoot(), []);
+  const [boot, setBoot] = (0, import_react.useState)(initialBoot);
+  const [bootError, setBootError] = (0, import_react.useState)(null);
+  const [bootChecked, setBootChecked] = (0, import_react.useState)(initialBoot !== null);
   const client = (0, import_react.useMemo)(
     () => boot === null ? null : new StudioClient(boot),
     [boot]
@@ -452,6 +511,19 @@ function StudioPage() {
     } catch {
     }
   }, [theme]);
+  (0, import_react.useEffect)(() => {
+    if (boot !== null || bootChecked) return;
+    let cancelled = false;
+    void resolveStudioBoot().then((result) => {
+      if (cancelled) return;
+      setBoot(result.boot);
+      setBootError(result.error);
+      setBootChecked(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [boot, bootChecked]);
   const load = (0, import_react.useCallback)(
     async (projectId, silent = false) => {
       if (client === null) return;
@@ -523,13 +595,22 @@ function StudioPage() {
     [client, load]
   );
   const selectedTask = data?.tasks.find((task) => task.id === selectedTaskId) ?? null;
-  if (boot === null) return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(MissingHost, {});
-  if (loading && data === null) return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(LoadingState, {});
+  if (!bootChecked) return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(LoadingState, {});
+  if (boot === null) {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+      MissingHost,
+      {
+        error: bootError,
+        onRetry: () => window.location.reload()
+      }
+    );
+  }
   if (data === null) {
+    if (error === null || loading) return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(LoadingState, {});
     return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
       ErrorState,
       {
-        message: error ?? "Studio \u6CA1\u6709\u8FD4\u56DE\u6570\u636E",
+        message: error,
         onRetry: () => void load()
       }
     );
@@ -2487,15 +2568,70 @@ function ErrorState({
     )
   ] }) });
 }
-function MissingHost() {
+function MissingHost({
+  error,
+  onRetry
+}) {
+  const transport = window.__DSH_TRANSPORT__;
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-root", "data-theme": "dark", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
     "div",
     {
       className: "studio-loading",
       style: { flexDirection: "column", textAlign: "center", padding: 30 },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-alert", "data-tone": "warn", style: { maxWidth: 620 }, children: "Studio Host \u6CA1\u6709\u6CE8\u5165\u9875\u9762\u542F\u52A8\u53C2\u6570\u3002\u72EC\u7ACB\u9875\u9762\u9700\u8981\u5728 DSH Web \u4E2D\u6253\u5F00\uFF0C\u4E14\u63D2\u4EF6 bundle \u5FC5\u987B\u5904\u4E8E\u542F\u7528\u72B6\u6001\u3002" }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-faint", style: { marginTop: 12, maxWidth: 520 }, children: "\u68C0\u67E5\u987A\u5E8F\uFF1APlugins \u2192 Studio \u662F\u5426\u542F\u7528\uFF1BDSH \u662F\u5426\u4EE5 web profile \u542F\u52A8\uFF1B\u5237\u65B0\u9875\u9762\u3002" })
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-alert", "data-tone": "warn", style: { maxWidth: 680 }, children: "Studio Host \u6CA1\u6709\u8FD4\u56DE\u542F\u52A8\u53C2\u6570\u3002\u63D2\u4EF6\u53EF\u80FD\u521A\u542F\u7528\uFF0C\u6216\u5F53\u524D\u9875\u9762\u7684 DSH \u4F1A\u8BDD\u8FD8\u6CA1\u6709\u5B8C\u6210\u8BA4\u8BC1\u3002" }),
+        error !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          "div",
+          {
+            className: "studio-mono",
+            style: {
+              marginTop: 10,
+              maxWidth: 720,
+              color: "var(--st-muted)",
+              overflowWrap: "anywhere"
+            },
+            children: error
+          }
+        ) : null,
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-faint", style: { marginTop: 12, maxWidth: 620 }, children: "\u68C0\u67E5\u987A\u5E8F\uFF1APlugins \u2192 Studio \u662F\u5426\u542F\u7528\uFF1B\u5237\u65B0\u9875\u9762\uFF1B\u5982\u679C\u4ECD\u5931\u8D25\uFF0C\u91CD\u542F DSH \u540E\u518D\u8BD5\u3002\u684C\u9762\u7AEF\u548C Web \u7AEF\u90FD\u901A\u8FC7\u540C\u4E00\u4E2A Host \u8DEF\u7531\u83B7\u53D6\u542F\u52A8\u53C2\u6570\u3002" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          "button",
+          {
+            className: "studio-btn",
+            "data-variant": "primary",
+            type: "button",
+            style: { marginTop: 14 },
+            onClick: onRetry,
+            children: "\u5237\u65B0\u91CD\u8BD5"
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+          "details",
+          {
+            className: "studio-faint",
+            style: { marginTop: 18, maxWidth: 680, textAlign: "left", fontSize: 10 },
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("summary", { style: { cursor: "pointer" }, children: "\u8BCA\u65AD\u4FE1\u606F" }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                "pre",
+                {
+                  className: "studio-mono",
+                  style: { whiteSpace: "pre-wrap", overflowWrap: "anywhere", marginTop: 8 },
+                  children: JSON.stringify(
+                    {
+                      error,
+                      href: window.location.href,
+                      origin: window.location.origin,
+                      transportBase: transport?.streamBaseUrl ?? null
+                    },
+                    null,
+                    2
+                  )
+                }
+              )
+            ]
+          }
+        )
       ]
     }
   ) });
