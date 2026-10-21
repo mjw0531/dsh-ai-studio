@@ -3254,6 +3254,7 @@ function TaskDrawer({
                     (item) => item.id === mergeProposal.verificationId,
                   ) ?? null)
             }
+            verifications={verifications}
             codeMode={codeMode}
             busy={busy}
             onCreate={onCreateMerge}
@@ -3666,6 +3667,7 @@ function TaskMergePanel({
   task,
   proposal,
   verification,
+  verifications,
   codeMode,
   busy,
   onCreate,
@@ -3677,6 +3679,7 @@ function TaskMergePanel({
   task: Task;
   proposal: MergeProposal | null;
   verification: Verification | null;
+  verifications: Verification[];
   codeMode: boolean;
   busy: boolean;
   onCreate: (input: CreateMergeProposalInput) => Promise<boolean>;
@@ -3697,6 +3700,13 @@ function TaskMergePanel({
   const complete = allAccepted(task);
   const hasEvidence = task.evidence.length > 0;
   const reviewable = task.status === "done";
+  const postVerification =
+    proposal?.postMergeVerificationId === null ||
+    proposal?.postMergeVerificationId === undefined
+      ? null
+      : (verifications.find(
+          (item) => item.id === proposal.postMergeVerificationId,
+        ) ?? null);
   const canSubmit =
     reviewable &&
     complete &&
@@ -3972,9 +3982,32 @@ function TaskMergePanel({
               </button>
             </div>
           ) : (
+            <>
             <div className="studio-action-note">
               合并已完成；如需继续变更，请创建后续任务。
             </div>
+            {postVerification !== null ? (
+              <div
+                className="studio-verification"
+                data-passed={postVerification.passed}
+                style={{ marginTop: 8 }}
+              >
+                <div className="studio-verification-head">
+                  <span
+                    className="studio-pill"
+                    data-tone={postVerification.passed ? "ok" : "p0"}
+                  >
+                    合并后回归{postVerification.passed ? "通过" : "失败"}
+                  </span>
+                  <code>{postVerification.command}</code>
+                  <span className="studio-faint">
+                    exit {postVerification.exitCode}
+                  </span>
+                </div>
+                <pre>{postVerification.output.slice(0, 2000) || "（无输出）"}</pre>
+              </div>
+            ) : null}
+            </>
           )}
         </>
       )}

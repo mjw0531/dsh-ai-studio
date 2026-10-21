@@ -3095,6 +3095,7 @@ function TaskDrawer({
                   verification: mergeProposal?.verificationId === null || mergeProposal?.verificationId === void 0 ? null : verifications.find(
                     (item) => item.id === mergeProposal.verificationId
                   ) ?? null,
+                  verifications,
                   codeMode,
                   busy,
                   onCreate: onCreateMerge,
@@ -3384,6 +3385,7 @@ function TaskMergePanel({
   task,
   proposal,
   verification,
+  verifications,
   codeMode,
   busy,
   onCreate,
@@ -3403,6 +3405,9 @@ function TaskMergePanel({
   const complete = allAccepted(task);
   const hasEvidence = task.evidence.length > 0;
   const reviewable = task.status === "done";
+  const postVerification = proposal?.postMergeVerificationId === null || proposal?.postMergeVerificationId === void 0 ? null : verifications.find(
+    (item) => item.id === proposal.postMergeVerificationId
+  ) ?? null;
   const canSubmit = reviewable && complete && hasEvidence && branch.trim() !== "" && summary.trim() !== "" && rollback.trim() !== "";
   const activeProposal = proposal !== null && proposal.status !== "rejected" ? proposal : null;
   const submit = async (event) => {
@@ -3661,7 +3666,38 @@ function TaskMergePanel({
             ]
           }
         )
-      ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-action-note", children: "\u5408\u5E76\u5DF2\u5B8C\u6210\uFF1B\u5982\u9700\u7EE7\u7EED\u53D8\u66F4\uFF0C\u8BF7\u521B\u5EFA\u540E\u7EED\u4EFB\u52A1\u3002" })
+      ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-action-note", children: "\u5408\u5E76\u5DF2\u5B8C\u6210\uFF1B\u5982\u9700\u7EE7\u7EED\u53D8\u66F4\uFF0C\u8BF7\u521B\u5EFA\u540E\u7EED\u4EFB\u52A1\u3002" }),
+        postVerification !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+          "div",
+          {
+            className: "studio-verification",
+            "data-passed": postVerification.passed,
+            style: { marginTop: 8 },
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-verification-head", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+                  "span",
+                  {
+                    className: "studio-pill",
+                    "data-tone": postVerification.passed ? "ok" : "p0",
+                    children: [
+                      "\u5408\u5E76\u540E\u56DE\u5F52",
+                      postVerification.passed ? "\u901A\u8FC7" : "\u5931\u8D25"
+                    ]
+                  }
+                ),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("code", { children: postVerification.command }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "studio-faint", children: [
+                  "exit ",
+                  postVerification.exitCode
+                ] })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("pre", { children: postVerification.output.slice(0, 2e3) || "\uFF08\u65E0\u8F93\u51FA\uFF09" })
+            ]
+          }
+        ) : null
+      ] })
     ] })
   ] });
 }

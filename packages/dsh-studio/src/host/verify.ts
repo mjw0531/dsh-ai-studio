@@ -7,6 +7,34 @@ import { StudioStoreError } from "./store.js";
 
 const run = promisify(exec);
 
+export async function runVerificationCommand(
+  command: string,
+  workdir: string,
+): Promise<{ output: string; exitCode: number }> {
+  try {
+    const result = await run(command, {
+      cwd: workdir,
+      timeout: 180_000,
+      maxBuffer: 2 * 1024 * 1024,
+      windowsHide: true,
+    });
+    return { output: `${result.stdout}${result.stderr}`, exitCode: 0 };
+  } catch (error) {
+    const failed = error as {
+      stdout?: string;
+      stderr?: string;
+      code?: number | string;
+      message?: string;
+    };
+    return {
+      output: `${failed.stdout ?? ""}${failed.stderr ?? ""}${
+        failed.message ?? ""
+      }`,
+      exitCode: typeof failed.code === "number" ? failed.code : 1,
+    };
+  }
+}
+
 /**
  * Trusted host-side verification.
  *
@@ -35,30 +63,10 @@ export class VerificationService {
       (command?.trim() || context.task.verifyCommand || "").trim() ||
       "npm test";
     const workdir = context.run.workspacePath;
-    let output = "";
-    let exitCode = 1;
-    try {
-      const result = await run(resolved, {
-        cwd: workdir,
-        timeout: 180_000,
-        maxBuffer: 2 * 1024 * 1024,
-        windowsHide: true,
-      });
-      output = `${result.stdout}${result.stderr}`;
-      exitCode = 0;
-    } catch (error) {
-      const failed = error as {
-        stdout?: string;
-        stderr?: string;
-        code?: number | string;
-        message?: string;
-      };
-      output = `${failed.stdout ?? ""}${failed.stderr ?? ""}${
-        failed.message ?? ""
-      }`;
-      exitCode =
-        typeof failed.code === "number" ? failed.code : 1;
-    }
+    const { output, exitCode } = await runVerificationCommand(
+      resolved,
+      workdir,
+    );
     return this.store.recordVerification(taskId, {
       command: resolved,
       workdir,

@@ -46,6 +46,7 @@ test("merges an approved proposal in a clean repository", async () => {
       acceptance: ["完成"],
       ownerRoleId: data.roles[0].id,
       reviewerRoleId: data.roles[1].id,
+      verifyCommand: 'node -e "process.exit(0)"',
     });
     await store.transitionTask(task.id, "ready");
     await store.transitionTask(task.id, "running");
@@ -79,6 +80,14 @@ test("merges an approved proposal in a clean repository", async () => {
     const merged = await new GitMergeService(store).execute(proposal.id);
     assert.equal(merged.status, "merged");
     assert.ok(merged.mergeCommit);
+    assert.ok(merged.postMergeVerificationId);
+    const after = await store.bootstrap();
+    assert.ok(
+      after.verifications.some(
+        (item) =>
+          item.id === merged.postMergeVerificationId && item.passed,
+      ),
+    );
     assert.match(
       await readFile(path.join(dir, "README.md"), "utf8"),
       /branch/,

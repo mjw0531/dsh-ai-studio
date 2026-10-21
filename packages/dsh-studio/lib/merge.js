@@ -13,6 +13,28 @@ var StudioStoreError = class extends Error {
   }
 };
 
+// src/host/verify.ts
+import { exec } from "node:child_process";
+import { promisify } from "node:util";
+var run = promisify(exec);
+async function runVerificationCommand(command, workdir) {
+  try {
+    const result = await run(command, {
+      cwd: workdir,
+      timeout: 18e4,
+      maxBuffer: 2 * 1024 * 1024,
+      windowsHide: true
+    });
+    return { output: `${result.stdout}${result.stderr}`, exitCode: 0 };
+  } catch (error) {
+    const failed = error;
+    return {
+      output: `${failed.stdout ?? ""}${failed.stderr ?? ""}${failed.message ?? ""}`,
+      exitCode: typeof failed.code === "number" ? failed.code : 1
+    };
+  }
+}
+
 // src/host/merge.ts
 function git(cwd, args) {
   return new Promise((resolve, reject) => {
@@ -52,9 +74,7 @@ var GitMergeService = class {
     this.store = store;
   }
   async execute(proposalId) {
-    const { proposal, project } = await this.store.getMergeContext(
-      proposalId
-    );
+    const { proposal, project, task } = await this.store.getMergeContext(proposalId);
     if (proposal.status !== "approved") {
       throw new StudioStoreError(
         "merge_not_approved",
@@ -127,7 +147,24 @@ var GitMergeService = class {
       throw error;
     }
     const commit = (await git(repo, ["rev-parse", "HEAD"])).stdout.trim();
-    return this.store.completeMergeProposal(proposalId, commit);
+    const merged = await this.store.completeMergeProposal(
+      proposalId,
+      commit
+    );
+    const command = task.verifyCommand?.trim() || "npm test";
+    const result = await runVerificationCommand(command, repo);
+    const verification = await this.store.recordVerification(task.id, {
+      command,
+      workdir: repo,
+      exitCode: result.exitCode,
+      output: result.output,
+      passed: result.exitCode === 0,
+      runId: null
+    });
+    return this.store.setMergePostVerification(
+      merged.id,
+      verification.id
+    );
   }
 };
 export {

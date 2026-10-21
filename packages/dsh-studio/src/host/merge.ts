@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import type { MergeProposal } from "../shared/types.js";
 import type { StudioStore } from "./store.js";
 import { StudioStoreError } from "./store.js";
+import { runVerificationCommand } from "./verify.js";
 
 interface GitFailure {
   code?: number | string;
@@ -64,9 +65,8 @@ export class GitMergeService {
   }
 
   async execute(proposalId: string): Promise<MergeProposal> {
-    const { proposal, project } = await this.store.getMergeContext(
-      proposalId,
-    );
+    const { proposal, project, task } =
+      await this.store.getMergeContext(proposalId);
     if (proposal.status !== "approved") {
       throw new StudioStoreError(
         "merge_not_approved",
@@ -144,6 +144,23 @@ export class GitMergeService {
     const commit = (
       await git(repo, ["rev-parse", "HEAD"])
     ).stdout.trim();
-    return this.store.completeMergeProposal(proposalId, commit);
+    const merged = await this.store.completeMergeProposal(
+      proposalId,
+      commit,
+    );
+    const command = task.verifyCommand?.trim() || "npm test";
+    const result = await runVerificationCommand(command, repo);
+    const verification = await this.store.recordVerification(task.id, {
+      command,
+      workdir: repo,
+      exitCode: result.exitCode,
+      output: result.output,
+      passed: result.exitCode === 0,
+      runId: null,
+    });
+    return this.store.setMergePostVerification(
+      merged.id,
+      verification.id,
+    );
   }
 }

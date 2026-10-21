@@ -769,6 +769,9 @@ function isMergeProposal(value: unknown): value is MergeProposal {
     (value.verificationId === null ||
       value.verificationId === undefined ||
       typeof value.verificationId === "string") &&
+    (value.postMergeVerificationId === null ||
+      value.postMergeVerificationId === undefined ||
+      typeof value.postMergeVerificationId === "string") &&
     typeof value.createdAt === "string" &&
     typeof value.updatedAt === "string" &&
     (value.decidedAt === null || typeof value.decidedAt === "string") &&
@@ -1071,12 +1074,23 @@ function migrateState(value: unknown): StudioState {
     };
   }
   if (state.schemaVersion === 12) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 13,
       decisions: state.decisions.map((decision) => ({
         ...decision,
         adrDraft: decision.adrDraft ?? null,
+      })),
+    };
+  }
+  if (state.schemaVersion === 13) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      mergeProposals: state.mergeProposals.map((proposal) => ({
+        ...proposal,
+        postMergeVerificationId:
+          proposal.postMergeVerificationId ?? null,
       })),
     };
   }
@@ -2956,6 +2970,7 @@ export class StudioStore {
         diffStat: latestRun?.diffStat ?? null,
         changedFiles,
         verificationId: latestVerification?.id ?? null,
+        postMergeVerificationId: null,
         createdAt: at,
         updatedAt: at,
         decidedAt: null,
@@ -3066,6 +3081,7 @@ export class StudioStore {
   async getMergeContext(proposalId: string): Promise<{
     proposal: MergeProposal;
     project: Project;
+    task: Task;
   }> {
     return this.runExclusive(async () => {
       const state = this.requireState();
@@ -3073,7 +3089,10 @@ export class StudioStore {
       const project = state.projects.find(
         (item) => item.id === proposal.projectId,
       );
-      if (project === undefined) {
+      const task = state.tasks.find(
+        (item) => item.id === proposal.taskId,
+      );
+      if (project === undefined || task === undefined) {
         throw new StudioStoreError(
           "project_not_found",
           "合并提案对应的项目不存在",
@@ -3083,6 +3102,7 @@ export class StudioStore {
       return {
         proposal: structuredClone(proposal),
         project: structuredClone(project),
+        task: structuredClone(task),
       };
     });
   }
@@ -3118,6 +3138,21 @@ export class StudioStore {
           mergeCommit: proposal.mergeCommit,
         },
       });
+      await this.save();
+      return structuredClone(proposal);
+    });
+  }
+
+  async setMergePostVerification(
+    proposalId: string,
+    verificationId: string,
+  ): Promise<MergeProposal> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const proposal = this.findMergeProposal(state, proposalId);
+      proposal.postMergeVerificationId = verificationId;
+      proposal.updatedAt = nowIso(this.now);
+      state.updatedAt = proposal.updatedAt;
       await this.save();
       return structuredClone(proposal);
     });
