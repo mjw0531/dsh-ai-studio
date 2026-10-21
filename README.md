@@ -117,8 +117,8 @@ dsh --profile web --no-open --port 0
 - **v0.1**：项目/角色/任务/验收/证据；独立页面；本地持久化；版本适配。
 - **v0.2**：合并提案、批准、打回、合并记录；schema v1→v2 迁移。
 - **v0.3（当前）**：Owner Dashboard；公司级项目组合、老板收件箱、角色负载、风险雷达、交付流。
-- **v0.4**：Agent 派单与结构化回执（artifacts / decisions / contract_deltas / rejected_options）；真实 token/成本台账。
-- **v0.5**：Branch/Decision 的 Scope 隔离、决策升级门禁、Project Book。
+- **v0.4**：Agent 派单与结构化回执；角色“薪资”/模型档位/token 预算；真实成本台账。
+- **v0.5**：Branch/Decision/Scope 隔离、决策升级门禁、Project Book、汇入冲突“董事会”视图。
 - **v0.6**：Git worktree、自动合并/合并队列执行、独立评审。
 - **v1.0**：用工作台完成一个 2.5D MOBA 垂直切片，再抽象为可复用插件。
 
