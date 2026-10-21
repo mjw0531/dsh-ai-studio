@@ -10,6 +10,7 @@ import type {
   CreateRoleInput,
   CreateTaskInput,
   CreateModuleInput,
+  IndependentReview,
   MergeProposal,
   Module,
   Project,
@@ -282,6 +283,14 @@ export class StudioClient {
       { method: "POST", body: command === undefined ? {} : { command } },
     );
     return data.verification;
+  }
+
+  async reviewTask(taskId: string): Promise<IndependentReview> {
+    const data = await this.request<{ review: IndependentReview }>(
+      `/tasks/${encodeURIComponent(taskId)}/review`,
+      { method: "POST" },
+    );
+    return data.review;
   }
 
   async createDecision(input: CreateDecisionInput): Promise<Decision> {

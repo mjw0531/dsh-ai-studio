@@ -134,6 +134,10 @@ _Avoid_: 总任务、发布
 连续失败 2 次后由系统为 Architect 生成的 backlog 任务，目标是重拆任务/契约，而不是继续写业务代码。
 _Avoid_: 重试、修复票
 
+**Independent Review（独立评审）**:
+由验收人角色另开 Agent 会话，只读 diff 与 Host 验证结果，给出 pass/fail 和 findings；代码任务 done 前必须有通过评审。
+_Avoid_: 自测、验收（Review 是验收的一部分）
+
 **Run（运行）**:
 一个 Agent 对某个 Task 的一次尝试；可失败、重试、换人。
 _Avoid_: 任务（Task 可以有很多 Run）

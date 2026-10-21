@@ -128,6 +128,7 @@ export async function apply(ctx: StudioHostContext): Promise<void> {
     getBootPayload: () => bootPayload,
     dispatchTask: (taskId) => dispatcher.dispatch(taskId),
     verifyTask: (taskId, command) => verifier.verify(taskId, command),
+    reviewTask: (taskId) => dispatcher.review(taskId),
     readProjectDoc: (path) => docs.read(path),
   });
 
