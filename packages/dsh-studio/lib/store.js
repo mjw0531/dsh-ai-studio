@@ -6,8 +6,8 @@ import os from "node:os";
 import path from "node:path";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 8;
-var STUDIO_PLUGIN_VERSION = "0.7.0";
+var STUDIO_SCHEMA_VERSION = 9;
+var STUDIO_PLUGIN_VERSION = "0.8.0";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -521,7 +521,7 @@ function buildCompany(state, now) {
   };
 }
 function isProject(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.name === "string" && typeof value.description === "string" && (value.tokenBudget === null || typeof value.tokenBudget === "number") && (value.repoPath === null || typeof value.repoPath === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
+  return isRecord(value) && typeof value.id === "string" && typeof value.name === "string" && typeof value.description === "string" && (value.tokenBudget === null || typeof value.tokenBudget === "number") && (value.repoPath === null || typeof value.repoPath === "string") && (value.prdPath === null || value.prdPath === void 0 || typeof value.prdPath === "string") && (value.invariantsPath === null || value.invariantsPath === void 0 || typeof value.invariantsPath === "string") && (value.modulesPath === null || value.modulesPath === void 0 || typeof value.modulesPath === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
 }
 function isRole(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.name === "string" && typeof value.title === "string" && typeof value.mission === "string" && Array.isArray(value.responsibilities) && Array.isArray(value.nonGoals) && Array.isArray(value.decisionRights) && (value.model === null || typeof value.model === "string") && (value.tokenBudget === null || typeof value.tokenBudget === "number") && (value.dailyTokenBudget === null || typeof value.dailyTokenBudget === "number");
@@ -558,6 +558,9 @@ function isContractChange(value) {
 }
 function isVerification(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.runId === null || typeof value.runId === "string") && typeof value.command === "string" && typeof value.workdir === "string" && typeof value.exitCode === "number" && typeof value.output === "string" && typeof value.passed === "boolean" && typeof value.createdAt === "string";
+}
+function isModule(value) {
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.name === "string" && typeof value.responsibility === "string" && (value.contractPath === null || typeof value.contractPath === "string") && typeof value.contractText === "string" && Array.isArray(value.allowedPaths) && Array.isArray(value.forbiddenPaths) && Array.isArray(value.dependsOn) && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
 }
 function migrateState(value) {
   if (!isRecord(value)) {
@@ -656,15 +659,30 @@ function migrateState(value) {
     };
   }
   if (state.schemaVersion === 7) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 8,
       tasks: state.tasks.map((task) => ({
         ...task,
         module: task.module ?? null,
         contractRef: task.contractRef ?? null,
         kind: task.kind ?? "new"
       }))
+    };
+  }
+  if (state.schemaVersion === 8) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      projects: state.projects.map((project) => ({
+        ...project,
+        prdPath: project.prdPath ?? null,
+        invariantsPath: project.invariantsPath ?? null,
+        modulesPath: project.modulesPath ?? null
+      })),
+      modules: Array.isArray(
+        state.modules
+      ) ? state.modules : []
     };
   }
   return state;
@@ -678,7 +696,7 @@ function assertState(value) {
       `Unsupported Studio schema version: ${String(value.schemaVersion)}`
     );
   }
-  if (!Array.isArray(value.projects) || !Array.isArray(value.roles) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.runs) || !Array.isArray(value.branches) || !Array.isArray(value.contractChanges) || !Array.isArray(value.decisions) || !Array.isArray(value.verifications) || !Array.isArray(value.events)) {
+  if (!Array.isArray(value.projects) || !Array.isArray(value.roles) || !Array.isArray(value.modules) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.runs) || !Array.isArray(value.branches) || !Array.isArray(value.contractChanges) || !Array.isArray(value.decisions) || !Array.isArray(value.verifications) || !Array.isArray(value.events)) {
     throw new Error("Studio state collections are missing");
   }
   if (!value.projects.every(isProject)) {
@@ -686,6 +704,9 @@ function assertState(value) {
   }
   if (!value.roles.every(isRole)) {
     throw new Error("Studio state contains an invalid role");
+  }
+  if (!value.modules.every(isModule)) {
+    throw new Error("Studio state contains an invalid module");
   }
   if (!value.tasks.every(isTask)) {
     throw new Error("Studio state contains an invalid task");
@@ -734,6 +755,7 @@ var StudioStore = class {
       const state = this.requireState();
       const project = this.pickProject(state, projectId);
       const roles = project === null ? [] : state.roles.filter((role) => role.projectId === project.id);
+      const modules = project === null ? [] : state.modules.filter((module) => module.projectId === project.id);
       const tasks = project === null ? [] : state.tasks.filter((task) => task.projectId === project.id);
       const mergeProposals = project === null ? [] : state.mergeProposals.filter(
         (proposal) => proposal.projectId === project.id
@@ -776,6 +798,7 @@ var StudioStore = class {
         activeProjectId: state.activeProjectId,
         project,
         roles,
+        modules,
         tasks,
         mergeProposals,
         runs,
@@ -796,6 +819,7 @@ var StudioStore = class {
           branchBoard: true,
           codeExecution: true,
           verification: true,
+          knowledge: true,
           gitMerge: false
         }
       };
@@ -811,6 +835,9 @@ var StudioStore = class {
         description: optionalText(input.description, "description", 600),
         tokenBudget: optionalTokenBudget(input.tokenBudget, "tokenBudget"),
         repoPath: optionalText(input.repoPath, "repoPath", 1e3) || null,
+        prdPath: null,
+        invariantsPath: null,
+        modulesPath: null,
         createdAt: at,
         updatedAt: at
       };
@@ -836,6 +863,15 @@ var StudioStore = class {
       }
       if (input.repoPath !== void 0) {
         project.repoPath = optionalText(input.repoPath, "repoPath", 1e3) || null;
+      }
+      if (input.prdPath !== void 0) {
+        project.prdPath = optionalText(input.prdPath, "prdPath", 500) || null;
+      }
+      if (input.invariantsPath !== void 0) {
+        project.invariantsPath = optionalText(input.invariantsPath, "invariantsPath", 500) || null;
+      }
+      if (input.modulesPath !== void 0) {
+        project.modulesPath = optionalText(input.modulesPath, "modulesPath", 500) || null;
       }
       const at = nowIso(this.now);
       project.updatedAt = at;
@@ -885,10 +921,14 @@ var StudioStore = class {
           404
         );
       }
+      const module = task.module === null ? void 0 : state.modules.find(
+        (item) => item.projectId === task.projectId && item.name === task.module
+      );
       return {
         task: structuredClone(task),
         role: structuredClone(role),
-        project: structuredClone(project)
+        project: structuredClone(project),
+        module: module === void 0 ? null : structuredClone(module)
       };
     });
   }
@@ -1453,6 +1493,115 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       });
       await this.save();
       return structuredClone(decision);
+    });
+  }
+  async createModule(input) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const project = this.pickProject(state, void 0);
+      if (project === null) {
+        throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
+      }
+      const name = requiredText(input.name, "name", 120);
+      if (state.modules.some(
+        (module2) => module2.projectId === project.id && module2.name === name
+      )) {
+        throw new StudioStoreError(
+          "module_exists",
+          "\u540C\u4E00\u9879\u76EE\u4E0B\u6A21\u5757\u540D\u4E0D\u80FD\u91CD\u590D",
+          409
+        );
+      }
+      const at = nowIso(this.now);
+      const module = {
+        id: newId("module"),
+        projectId: project.id,
+        name,
+        responsibility: optionalText(
+          input.responsibility,
+          "responsibility",
+          2e3
+        ),
+        contractPath: optionalText(input.contractPath, "contractPath", 500) || null,
+        contractText: optionalText(
+          input.contractText,
+          "contractText",
+          8e3
+        ),
+        allowedPaths: textList(input.allowedPaths, "allowedPaths", 30),
+        forbiddenPaths: textList(
+          input.forbiddenPaths,
+          "forbiddenPaths",
+          30
+        ),
+        dependsOn: textList(input.dependsOn, "dependsOn", 20),
+        createdAt: at,
+        updatedAt: at
+      };
+      state.modules.push(module);
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "module.created",
+        at,
+        projectId: project.id,
+        payload: { moduleId: module.id, name: module.name }
+      });
+      await this.save();
+      return structuredClone(module);
+    });
+  }
+  async updateModule(moduleId, input) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const module = state.modules.find((item) => item.id === moduleId);
+      if (module === void 0) {
+        throw new StudioStoreError("module_not_found", "\u6A21\u5757\u4E0D\u5B58\u5728", 404);
+      }
+      if (input.responsibility !== void 0) {
+        module.responsibility = optionalText(
+          input.responsibility,
+          "responsibility",
+          2e3
+        );
+      }
+      if (input.contractPath !== void 0) {
+        module.contractPath = optionalText(input.contractPath, "contractPath", 500) || null;
+      }
+      if (input.contractText !== void 0) {
+        module.contractText = optionalText(
+          input.contractText,
+          "contractText",
+          8e3
+        );
+      }
+      if (input.allowedPaths !== void 0) {
+        module.allowedPaths = textList(
+          input.allowedPaths,
+          "allowedPaths",
+          30
+        );
+      }
+      if (input.forbiddenPaths !== void 0) {
+        module.forbiddenPaths = textList(
+          input.forbiddenPaths,
+          "forbiddenPaths",
+          30
+        );
+      }
+      if (input.dependsOn !== void 0) {
+        module.dependsOn = textList(input.dependsOn, "dependsOn", 20);
+      }
+      const at = nowIso(this.now);
+      module.updatedAt = at;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "module.updated",
+        at,
+        projectId: module.projectId,
+        payload: { moduleId: module.id }
+      });
+      await this.save();
+      return structuredClone(module);
     });
   }
   async createRole(input) {
@@ -2147,6 +2296,9 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       description: "\u7528\u4E00\u6761\u53EF\u73A9\u7684\u6700\u5C0F\u94FE\u8DEF\u9A8C\u8BC1\u5DE5\u4F5C\u53F0\uFF1A\u4EFB\u52A1\u3001\u89D2\u8272\u3001\u9A8C\u6536\u548C\u72B6\u6001\u673A\u3002",
       tokenBudget: null,
       repoPath: null,
+      prdPath: null,
+      invariantsPath: null,
+      modulesPath: null,
       createdAt: at,
       updatedAt: at
     };
@@ -2289,6 +2441,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       activeProjectId: project.id,
       projects: [project],
       roles,
+      modules: [],
       tasks,
       mergeProposals: [],
       runs: [],

@@ -644,14 +644,21 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
     assert.deepEqual(data.runs, []);
     assert.deepEqual(data.decisions, []);
     const migrated = JSON.parse(await readFile(file, "utf8"));
-    assert.equal(migrated.schemaVersion, 8);
+    assert.equal(migrated.schemaVersion, 9);
     assert.ok(migrated.runs.every((run) => run.status !== undefined));
     assert.ok(Array.isArray(migrated.branches));
     assert.ok(Array.isArray(migrated.contractChanges));
     assert.ok(Array.isArray(migrated.verifications));
     assert.ok(
-      migrated.projects.every((project) => project.repoPath === null),
+      migrated.projects.every(
+        (project) =>
+          project.repoPath === null &&
+          project.prdPath === null &&
+          project.invariantsPath === null &&
+          project.modulesPath === null,
+      ),
     );
+    assert.ok(Array.isArray(migrated.modules));
     assert.ok(
       migrated.tasks.every(
         (task) =>

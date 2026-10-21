@@ -7,13 +7,16 @@ import type {
   CompatibilityInfo,
   CreateDecisionInput,
   CreateMergeProposalInput,
+  CreateModuleInput,
   CreateProjectInput,
   CreateRoleInput,
   CreateTaskInput,
   DecideDecisionInput,
   MergeRisk,
+  ProjectDoc,
   TaskStatus,
   TransitionTaskInput,
+  UpdateModuleInput,
   UpdateProjectInput,
   UpdateTaskInput,
   Verification,
@@ -36,6 +39,7 @@ interface StudioRouterOptions {
   getBootPayload: () => unknown;
   dispatchTask: (taskId: string) => Promise<AgentRun>;
   verifyTask: (taskId: string, command?: string) => Promise<Verification>;
+  readProjectDoc: (path: string) => Promise<ProjectDoc>;
 }
 
 interface ParsedRequest {
@@ -202,13 +206,49 @@ function asCreateProject(body: Record<string, unknown>): CreateProjectInput {
 function asUpdateProject(
   body: Record<string, unknown>,
 ): UpdateProjectInput {
+  const optionalPath = (
+    value: unknown,
+    field: string,
+  ): string | null | undefined =>
+    value === undefined
+      ? undefined
+      : value === null
+        ? null
+        : asString(value, field);
   return {
-    repoPath:
-      body.repoPath === undefined
-        ? undefined
-        : body.repoPath === null
-          ? null
-          : asString(body.repoPath, "repoPath"),
+    repoPath: optionalPath(body.repoPath, "repoPath"),
+    prdPath: optionalPath(body.prdPath, "prdPath"),
+    invariantsPath: optionalPath(
+      body.invariantsPath,
+      "invariantsPath",
+    ),
+    modulesPath: optionalPath(body.modulesPath, "modulesPath"),
+  };
+}
+
+function asCreateModule(body: Record<string, unknown>): CreateModuleInput {
+  return {
+    name: asString(body.name, "name"),
+    responsibility: asOptionalString(body.responsibility, "responsibility"),
+    contractPath: asOptionalString(body.contractPath, "contractPath"),
+    contractText: asOptionalString(body.contractText, "contractText"),
+    allowedPaths: asStringArray(body.allowedPaths, "allowedPaths"),
+    forbiddenPaths: asStringArray(body.forbiddenPaths, "forbiddenPaths"),
+    dependsOn: asStringArray(body.dependsOn, "dependsOn"),
+  };
+}
+
+function asUpdateModule(body: Record<string, unknown>): UpdateModuleInput {
+  return {
+    responsibility: asOptionalString(body.responsibility, "responsibility"),
+    contractPath:
+      body.contractPath === null
+        ? null
+        : asOptionalString(body.contractPath, "contractPath"),
+    contractText: asOptionalString(body.contractText, "contractText"),
+    allowedPaths: asStringArray(body.allowedPaths, "allowedPaths"),
+    forbiddenPaths: asStringArray(body.forbiddenPaths, "forbiddenPaths"),
+    dependsOn: asStringArray(body.dependsOn, "dependsOn"),
   };
 }
 
@@ -361,6 +401,7 @@ export class StudioRouter {
     taskId: string,
     command?: string,
   ) => Promise<Verification>;
+  private readonly readProjectDoc: (path: string) => Promise<ProjectDoc>;
 
   constructor(options: StudioRouterOptions) {
     this.store = options.store;
@@ -371,6 +412,7 @@ export class StudioRouter {
     this.getBootPayload = options.getBootPayload;
     this.dispatchTask = options.dispatchTask;
     this.verifyTask = options.verifyTask;
+    this.readProjectDoc = options.readProjectDoc;
   }
 
   async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -541,6 +583,17 @@ export class StudioRouter {
       return;
     }
 
+    if (parsed.pathname === `${API_PREFIX}/project-docs`) {
+      this.requireMethod(parsed, ["GET"]);
+      const docPath = parsed.url.searchParams.get("path");
+      if (docPath === null || docPath.trim() === "") {
+        throw new HttpError(400, "invalid_input", "path 不能为空");
+      }
+      const doc = await this.readProjectDoc(docPath);
+      sendJson(res, 200, { ok: true, doc });
+      return;
+    }
+
     const taskVerify =
       /^\/studio-api\/tasks\/([^/]+)\/verify$/.exec(parsed.pathname);
     if (taskVerify !== null) {
@@ -556,6 +609,30 @@ export class StudioRouter {
         command,
       );
       sendJson(res, 200, { ok: true, verification });
+      return;
+    }
+
+    if (parsed.pathname === `${API_PREFIX}/modules`) {
+      this.requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const module = await this.store.createModule(
+        asCreateModule(await readJson(req)),
+      );
+      sendJson(res, 201, { ok: true, module });
+      return;
+    }
+
+    const moduleMatch = /^\/studio-api\/modules\/([^/]+)$/.exec(
+      parsed.pathname,
+    );
+    if (moduleMatch !== null) {
+      this.requireMethod(parsed, ["PATCH"]);
+      assertJsonRequest(req);
+      const module = await this.store.updateModule(
+        decodeSegment(moduleMatch[1] ?? ""),
+        asUpdateModule(await readJson(req)),
+      );
+      sendJson(res, 200, { ok: true, module });
       return;
     }
 

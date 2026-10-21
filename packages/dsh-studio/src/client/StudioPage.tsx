@@ -30,8 +30,12 @@ import type {
   ContractChange,
   CompanyProjectSummary,
   CreateDecisionInput,
+  CreateModuleInput,
   DecideDecisionInput,
   Decision,
+  Module,
+  Project,
+  ProjectDoc,
   CreateMergeProposalInput,
   CreateProjectInput,
   CreateRoleInput,
@@ -74,6 +78,7 @@ import {
 type Tab =
   | "company"
   | "boardroom"
+  | "knowledge"
   | "mission"
   | "tasks"
   | "merges"
@@ -84,6 +89,7 @@ type ModalState =
   | { kind: "role" }
   | { kind: "project" }
   | { kind: "decision" }
+  | { kind: "module" }
   | { kind: "repo" }
   | null;
 
@@ -98,6 +104,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { id: "company", label: "公司", caption: "Owner Dashboard" },
   { id: "boardroom", label: "董事会", caption: "Decision Board" },
+  { id: "knowledge", label: "知识", caption: "PRD / Modules" },
   { id: "mission", label: "项目", caption: "Mission Control" },
   { id: "tasks", label: "任务", caption: "Task Board" },
   { id: "merges", label: "合并", caption: "Merge Queue" },
@@ -152,6 +159,8 @@ function NavIcon({ tab }: { tab: Tab }) {
       return <IconBuilding width={15} height={15} />;
     case "boardroom":
       return <IconSpark width={15} height={15} />;
+    case "knowledge":
+      return <IconGrid width={15} height={15} />;
     case "mission":
       return <IconGrid width={15} height={15} />;
     case "tasks":
@@ -495,6 +504,54 @@ export function StudioPage() {
     if (ok) setModal(null);
   };
 
+  const updateProjectDocs = async (
+    docs: {
+      prdPath: string | null;
+      invariantsPath: string | null;
+      modulesPath: string | null;
+    },
+  ): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null || data === null || data.project === null) return;
+        await client.updateProject(data.project.id, docs);
+      },
+      "项目文档路径已更新",
+    );
+  };
+
+  const readProjectDoc = async (
+    docPath: string,
+  ): Promise<ProjectDoc | null> => {
+    if (client === null) return null;
+    try {
+      return await client.readProjectDoc(docPath);
+    } catch (error) {
+      setToast({
+        kind: "error",
+        text:
+          error instanceof StudioClientError
+            ? error.message
+            : "文档读取失败",
+      });
+      return null;
+    }
+  };
+
+  const createModule = async (
+    input: CreateModuleInput,
+  ): Promise<boolean> => {
+    const ok = await run(
+      async () => {
+        if (client === null) return;
+        await client.createModule(input);
+      },
+      "模块已创建",
+    );
+    if (ok) setModal(null);
+    return ok;
+  };
+
   const transitionTask = async (
     task: Task,
     status: TaskStatus,
@@ -809,6 +866,17 @@ export function StudioPage() {
               />
             ) : null}
 
+            {tab === "knowledge" ? (
+              <KnowledgeView
+                project={data.project}
+                modules={data.modules}
+                busy={busy}
+                onSaveDocs={updateProjectDocs}
+                onReadDoc={readProjectDoc}
+                onNewModule={() => setModal({ kind: "module" })}
+              />
+            ) : null}
+
             {tab === "mission" ? (
               <MissionView
                 data={data}
@@ -926,6 +994,14 @@ export function StudioPage() {
           busy={busy}
           onCancel={() => setModal(null)}
           onSubmit={(repoPath) => void updateProjectRepo(repoPath)}
+        />
+      ) : null}
+
+      {modal?.kind === "module" ? (
+        <ModuleForm
+          busy={busy}
+          onCancel={() => setModal(null)}
+          onSubmit={(input) => void createModule(input)}
         />
       ) : null}
 
@@ -1633,6 +1709,332 @@ function RiskItem({ label, value }: { label: string; value: number }) {
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
+  );
+}
+
+function KnowledgeView({
+  project,
+  modules,
+  busy,
+  onSaveDocs,
+  onReadDoc,
+  onNewModule,
+}: {
+  project: Project | null;
+  modules: Module[];
+  busy: boolean;
+  onSaveDocs: (docs: {
+    prdPath: string | null;
+    invariantsPath: string | null;
+    modulesPath: string | null;
+  }) => Promise<boolean>;
+  onReadDoc: (path: string) => Promise<ProjectDoc | null>;
+  onNewModule: () => void;
+}) {
+  const [prdPath, setPrdPath] = useState(project?.prdPath ?? "");
+  const [invariantsPath, setInvariantsPath] = useState(
+    project?.invariantsPath ?? "",
+  );
+  const [modulesPath, setModulesPath] = useState(
+    project?.modulesPath ?? "",
+  );
+  const [doc, setDoc] = useState<ProjectDoc | null>(null);
+  const [reading, setReading] = useState(false);
+  useEffect(() => {
+    setPrdPath(project?.prdPath ?? "");
+    setInvariantsPath(project?.invariantsPath ?? "");
+    setModulesPath(project?.modulesPath ?? "");
+  }, [project?.id, project?.prdPath, project?.invariantsPath, project?.modulesPath]);
+  const read = async (path: string): Promise<void> => {
+    if (path.trim() === "") return;
+    setReading(true);
+    const result = await onReadDoc(path.trim());
+    setReading(false);
+    if (result !== null) setDoc(result);
+  };
+  const save = (event: FormEvent): void => {
+    event.preventDefault();
+    void onSaveDocs({
+      prdPath: prdPath.trim() || null,
+      invariantsPath: invariantsPath.trim() || null,
+      modulesPath: modulesPath.trim() || null,
+    });
+  };
+  return (
+    <div className="studio-page">
+      <div className="studio-page-head">
+        <div>
+          <div className="studio-eyebrow">PROJECT KNOWLEDGE</div>
+          <h1>知识层</h1>
+          <p>
+            PRD 是需求唯一事实源；模块契约卡把 Agent 的上下文喂窄。
+            这里只读展示仓库里的文档，不复制第二份正文。
+          </p>
+        </div>
+        <button
+          type="button"
+          className="studio-btn"
+          data-tone="primary"
+          onClick={onNewModule}
+          disabled={busy || project === null}
+        >
+          <IconPlus width={14} height={14} />
+          新建模块
+        </button>
+      </div>
+
+      <div className="studio-knowledge-grid">
+        <section className="studio-panel">
+          <div className="studio-section-label">项目文档</div>
+          <form onSubmit={save} className="studio-form">
+            <div className="studio-field">
+              <label htmlFor="prd-path">PRD 路径</label>
+              <input
+                id="prd-path"
+                value={prdPath}
+                onChange={(event) => setPrdPath(event.target.value)}
+                placeholder="docs/PRD.md"
+              />
+            </div>
+            <div className="studio-field">
+              <label htmlFor="invariants-path">INVARIANTS 路径</label>
+              <input
+                id="invariants-path"
+                value={invariantsPath}
+                onChange={(event) => setInvariantsPath(event.target.value)}
+                placeholder="docs/INVARIANTS.md"
+              />
+            </div>
+            <div className="studio-field">
+              <label htmlFor="modules-path">MODULES 路径</label>
+              <input
+                id="modules-path"
+                value={modulesPath}
+                onChange={(event) => setModulesPath(event.target.value)}
+                placeholder="docs/MODULES.md"
+              />
+            </div>
+            <div className="studio-form-actions">
+              <button
+                type="button"
+                className="studio-btn"
+                data-size="sm"
+                disabled={reading || prdPath.trim() === ""}
+                onClick={() => void read(prdPath)}
+              >
+                读取 PRD
+              </button>
+              <button
+                type="button"
+                className="studio-btn"
+                data-size="sm"
+                disabled={reading || invariantsPath.trim() === ""}
+                onClick={() => void read(invariantsPath)}
+              >
+                读取不变量
+              </button>
+              <button type="submit" className="studio-btn" data-size="sm" data-tone="primary" disabled={busy}>
+                保存路径
+              </button>
+            </div>
+          </form>
+          {doc !== null ? (
+            <div className="studio-doc-view">
+              <div className="studio-doc-head">
+                <span className="studio-mono">{doc.path}</span>
+                <span className="studio-pill" data-tone={doc.exists ? "ok" : "p0"}>
+                  {doc.exists ? "已读取" : "文件不存在"}
+                </span>
+              </div>
+              <pre>{doc.content || "（空文件）"}</pre>
+            </div>
+          ) : null}
+        </section>
+
+        <section className="studio-panel">
+          <div className="studio-section-label">
+            模块契约 · {modules.length}
+          </div>
+          {modules.length === 0 ? (
+            <div className="studio-empty">
+              还没有模块。先建一个模块契约卡，再派单；实现者只加载这张卡。
+            </div>
+          ) : (
+            <div className="studio-module-list">
+              {modules.map((module) => (
+                <article key={module.id} className="studio-module-card">
+                  <div className="studio-module-head">
+                    <strong>{module.name}</strong>
+                    <span className="studio-pill" data-tone="p2">
+                      {module.allowedPaths.length} 允许路径
+                    </span>
+                  </div>
+                  <p>{module.responsibility || "未填写职责"}</p>
+                  {module.contractPath !== null ? (
+                    <button
+                      type="button"
+                      className="studio-link"
+                      disabled={reading}
+                      onClick={() => void read(module.contractPath ?? "")}
+                    >
+                      {module.contractPath}
+                    </button>
+                  ) : null}
+                  {module.contractText !== "" ? (
+                    <pre className="studio-module-contract">
+                      {module.contractText.slice(0, 800)}
+                    </pre>
+                  ) : null}
+                  {module.dependsOn.length > 0 ? (
+                    <div className="studio-faint" style={{ fontSize: 10 }}>
+                      依赖：{module.dependsOn.join("、")}
+                    </div>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function ModuleForm({
+  busy,
+  onCancel,
+  onSubmit,
+}: {
+  busy: boolean;
+  onCancel: () => void;
+  onSubmit: (input: CreateModuleInput) => void;
+}) {
+  const [name, setName] = useState("");
+  const [responsibility, setResponsibility] = useState("");
+  const [contractPath, setContractPath] = useState("");
+  const [contractText, setContractText] = useState("");
+  const [allowedPaths, setAllowedPaths] = useState("");
+  const [forbiddenPaths, setForbiddenPaths] = useState("");
+  const [dependsOn, setDependsOn] = useState("");
+  const [localError, setLocalError] = useState<string | null>(null);
+  const submit = (event: FormEvent): void => {
+    event.preventDefault();
+    if (name.trim() === "") {
+      setLocalError("请填写模块名");
+      return;
+    }
+    setLocalError(null);
+    onSubmit({
+      name: name.trim(),
+      responsibility: responsibility.trim(),
+      contractPath: contractPath.trim() || null,
+      contractText: contractText.trim(),
+      allowedPaths: allowedPaths
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean),
+      forbiddenPaths: forbiddenPaths
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean),
+      dependsOn: dependsOn
+        .split(",")
+        .map((line) => line.trim())
+        .filter(Boolean),
+    });
+  };
+  return (
+    <ModalShell
+      title="新建模块"
+      subtitle="模块契约卡是实现者的上下文边界；改契约本身要走架构师/Owner。"
+      footer={null}
+      onClose={onCancel}
+    >
+      <form onSubmit={submit} className="studio-form">
+        {localError !== null ? (
+          <div className="studio-alert">{localError}</div>
+        ) : null}
+        <div className="studio-field">
+          <label htmlFor="module-name">模块名</label>
+          <input
+            id="module-name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="combat / replay / input"
+          />
+        </div>
+        <div className="studio-field">
+          <label htmlFor="module-responsibility">职责</label>
+          <textarea
+            id="module-responsibility"
+            value={responsibility}
+            onChange={(event) => setResponsibility(event.target.value)}
+            rows={2}
+            placeholder="这个模块负责什么，不负责什么"
+          />
+        </div>
+        <div className="studio-field-row">
+          <div className="studio-field">
+            <label htmlFor="module-contract-path">契约文件路径</label>
+            <input
+              id="module-contract-path"
+              value={contractPath}
+              onChange={(event) => setContractPath(event.target.value)}
+              placeholder="docs/contracts/combat.md"
+            />
+          </div>
+          <div className="studio-field">
+            <label htmlFor="module-depends">依赖模块（逗号）</label>
+            <input
+              id="module-depends"
+              value={dependsOn}
+              onChange={(event) => setDependsOn(event.target.value)}
+              placeholder="replay, input"
+            />
+          </div>
+        </div>
+        <div className="studio-field">
+          <label htmlFor="module-contract-text">契约摘要</label>
+          <textarea
+            id="module-contract-text"
+            value={contractText}
+            onChange={(event) => setContractText(event.target.value)}
+            rows={4}
+            placeholder="接口、输入输出、错误处理、边界"
+          />
+        </div>
+        <div className="studio-field-row">
+          <div className="studio-field">
+            <label htmlFor="module-allowed">允许路径（每行一条）</label>
+            <textarea
+              id="module-allowed"
+              value={allowedPaths}
+              onChange={(event) => setAllowedPaths(event.target.value)}
+              rows={3}
+              placeholder={"src/combat/\ntest/combat/"}
+            />
+          </div>
+          <div className="studio-field">
+            <label htmlFor="module-forbidden">禁止路径（每行一条）</label>
+            <textarea
+              id="module-forbidden"
+              value={forbiddenPaths}
+              onChange={(event) => setForbiddenPaths(event.target.value)}
+              rows={3}
+              placeholder={"src/net/\nassets/"}
+            />
+          </div>
+        </div>
+        <div className="studio-form-actions">
+          <button type="button" className="studio-btn" onClick={onCancel}>
+            取消
+          </button>
+          <button type="submit" className="studio-btn" data-tone="primary" disabled={busy}>
+            创建模块
+          </button>
+        </div>
+      </form>
+    </ModalShell>
   );
 }
 

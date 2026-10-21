@@ -217,6 +217,26 @@ var StudioClient = class {
     );
     return data.project;
   }
+  async createModule(input) {
+    const data = await this.request("/modules", {
+      method: "POST",
+      body: input
+    });
+    return data.module;
+  }
+  async updateModule(moduleId, input) {
+    const data = await this.request(
+      `/modules/${encodeURIComponent(moduleId)}`,
+      { method: "PATCH", body: input }
+    );
+    return data.module;
+  }
+  async readProjectDoc(docPath) {
+    const data = await this.request(
+      `/project-docs?path=${encodeURIComponent(docPath)}`
+    );
+    return data.doc;
+  }
   async selectProject(projectId) {
     const data = await this.request(
       `/projects/${encodeURIComponent(projectId)}/select`,
@@ -470,6 +490,7 @@ var import_jsx_runtime2 = require("react/jsx-runtime");
 var NAV_ITEMS = [
   { id: "company", label: "\u516C\u53F8", caption: "Owner Dashboard" },
   { id: "boardroom", label: "\u8463\u4E8B\u4F1A", caption: "Decision Board" },
+  { id: "knowledge", label: "\u77E5\u8BC6", caption: "PRD / Modules" },
   { id: "mission", label: "\u9879\u76EE", caption: "Mission Control" },
   { id: "tasks", label: "\u4EFB\u52A1", caption: "Task Board" },
   { id: "merges", label: "\u5408\u5E76", caption: "Merge Queue" },
@@ -513,6 +534,8 @@ function NavIcon({ tab }) {
       return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconBuilding, { width: 15, height: 15 });
     case "boardroom":
       return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconSpark, { width: 15, height: 15 });
+    case "knowledge":
+      return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconGrid, { width: 15, height: 15 });
     case "mission":
       return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconGrid, { width: 15, height: 15 });
     case "tasks":
@@ -784,6 +807,38 @@ function StudioPage() {
     );
     if (ok) setModal(null);
   };
+  const updateProjectDocs = async (docs) => {
+    return run(
+      async () => {
+        if (client === null || data === null || data.project === null) return;
+        await client.updateProject(data.project.id, docs);
+      },
+      "\u9879\u76EE\u6587\u6863\u8DEF\u5F84\u5DF2\u66F4\u65B0"
+    );
+  };
+  const readProjectDoc = async (docPath) => {
+    if (client === null) return null;
+    try {
+      return await client.readProjectDoc(docPath);
+    } catch (error2) {
+      setToast({
+        kind: "error",
+        text: error2 instanceof StudioClientError ? error2.message : "\u6587\u6863\u8BFB\u53D6\u5931\u8D25"
+      });
+      return null;
+    }
+  };
+  const createModule = async (input) => {
+    const ok = await run(
+      async () => {
+        if (client === null) return;
+        await client.createModule(input);
+      },
+      "\u6A21\u5757\u5DF2\u521B\u5EFA"
+    );
+    if (ok) setModal(null);
+    return ok;
+  };
   const transitionTask = async (task, status) => {
     await run(
       async () => {
@@ -1015,6 +1070,17 @@ function StudioPage() {
             onDecide: decideDecision
           }
         ) : null,
+        tab === "knowledge" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          KnowledgeView,
+          {
+            project: data.project,
+            modules: data.modules,
+            busy,
+            onSaveDocs: updateProjectDocs,
+            onReadDoc: readProjectDoc,
+            onNewModule: () => setModal({ kind: "module" })
+          }
+        ) : null,
         tab === "mission" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
           MissionView,
           {
@@ -1128,6 +1194,14 @@ function StudioPage() {
         busy,
         onCancel: () => setModal(null),
         onSubmit: (repoPath) => void updateProjectRepo(repoPath)
+      }
+    ) : null,
+    modal?.kind === "module" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+      ModuleForm,
+      {
+        busy,
+        onCancel: () => setModal(null),
+        onSubmit: (input) => void createModule(input)
       }
     ) : null,
     modal?.kind === "decision" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
@@ -1695,6 +1769,312 @@ function RiskItem({ label, value }) {
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: label }),
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: value })
   ] });
+}
+function KnowledgeView({
+  project,
+  modules,
+  busy,
+  onSaveDocs,
+  onReadDoc,
+  onNewModule
+}) {
+  const [prdPath, setPrdPath] = (0, import_react.useState)(project?.prdPath ?? "");
+  const [invariantsPath, setInvariantsPath] = (0, import_react.useState)(
+    project?.invariantsPath ?? ""
+  );
+  const [modulesPath, setModulesPath] = (0, import_react.useState)(
+    project?.modulesPath ?? ""
+  );
+  const [doc, setDoc] = (0, import_react.useState)(null);
+  const [reading, setReading] = (0, import_react.useState)(false);
+  (0, import_react.useEffect)(() => {
+    setPrdPath(project?.prdPath ?? "");
+    setInvariantsPath(project?.invariantsPath ?? "");
+    setModulesPath(project?.modulesPath ?? "");
+  }, [project?.id, project?.prdPath, project?.invariantsPath, project?.modulesPath]);
+  const read = async (path) => {
+    if (path.trim() === "") return;
+    setReading(true);
+    const result = await onReadDoc(path.trim());
+    setReading(false);
+    if (result !== null) setDoc(result);
+  };
+  const save = (event) => {
+    event.preventDefault();
+    void onSaveDocs({
+      prdPath: prdPath.trim() || null,
+      invariantsPath: invariantsPath.trim() || null,
+      modulesPath: modulesPath.trim() || null
+    });
+  };
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-page", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-page-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-eyebrow", children: "PROJECT KNOWLEDGE" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h1", { children: "\u77E5\u8BC6\u5C42" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { children: "PRD \u662F\u9700\u6C42\u552F\u4E00\u4E8B\u5B9E\u6E90\uFF1B\u6A21\u5757\u5951\u7EA6\u5361\u628A Agent \u7684\u4E0A\u4E0B\u6587\u5582\u7A84\u3002 \u8FD9\u91CC\u53EA\u8BFB\u5C55\u793A\u4ED3\u5E93\u91CC\u7684\u6587\u6863\uFF0C\u4E0D\u590D\u5236\u7B2C\u4E8C\u4EFD\u6B63\u6587\u3002" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+        "button",
+        {
+          type: "button",
+          className: "studio-btn",
+          "data-tone": "primary",
+          onClick: onNewModule,
+          disabled: busy || project === null,
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconPlus, { width: 14, height: 14 }),
+            "\u65B0\u5EFA\u6A21\u5757"
+          ]
+        }
+      )
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-knowledge-grid", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "studio-panel", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-section-label", children: "\u9879\u76EE\u6587\u6863" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("form", { onSubmit: save, className: "studio-form", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "prd-path", children: "PRD \u8DEF\u5F84" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "input",
+              {
+                id: "prd-path",
+                value: prdPath,
+                onChange: (event) => setPrdPath(event.target.value),
+                placeholder: "docs/PRD.md"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "invariants-path", children: "INVARIANTS \u8DEF\u5F84" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "input",
+              {
+                id: "invariants-path",
+                value: invariantsPath,
+                onChange: (event) => setInvariantsPath(event.target.value),
+                placeholder: "docs/INVARIANTS.md"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "modules-path", children: "MODULES \u8DEF\u5F84" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "input",
+              {
+                id: "modules-path",
+                value: modulesPath,
+                onChange: (event) => setModulesPath(event.target.value),
+                placeholder: "docs/MODULES.md"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-form-actions", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "studio-btn",
+                "data-size": "sm",
+                disabled: reading || prdPath.trim() === "",
+                onClick: () => void read(prdPath),
+                children: "\u8BFB\u53D6 PRD"
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "studio-btn",
+                "data-size": "sm",
+                disabled: reading || invariantsPath.trim() === "",
+                onClick: () => void read(invariantsPath),
+                children: "\u8BFB\u53D6\u4E0D\u53D8\u91CF"
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "submit", className: "studio-btn", "data-size": "sm", "data-tone": "primary", disabled: busy, children: "\u4FDD\u5B58\u8DEF\u5F84" })
+          ] })
+        ] }),
+        doc !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-doc-view", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-doc-head", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-mono", children: doc.path }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-pill", "data-tone": doc.exists ? "ok" : "p0", children: doc.exists ? "\u5DF2\u8BFB\u53D6" : "\u6587\u4EF6\u4E0D\u5B58\u5728" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("pre", { children: doc.content || "\uFF08\u7A7A\u6587\u4EF6\uFF09" })
+        ] }) : null
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "studio-panel", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-section-label", children: [
+          "\u6A21\u5757\u5951\u7EA6 \xB7 ",
+          modules.length
+        ] }),
+        modules.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-empty", children: "\u8FD8\u6CA1\u6709\u6A21\u5757\u3002\u5148\u5EFA\u4E00\u4E2A\u6A21\u5757\u5951\u7EA6\u5361\uFF0C\u518D\u6D3E\u5355\uFF1B\u5B9E\u73B0\u8005\u53EA\u52A0\u8F7D\u8FD9\u5F20\u5361\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-module-list", children: modules.map((module2) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("article", { className: "studio-module-card", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-module-head", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: module2.name }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "studio-pill", "data-tone": "p2", children: [
+              module2.allowedPaths.length,
+              " \u5141\u8BB8\u8DEF\u5F84"
+            ] })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { children: module2.responsibility || "\u672A\u586B\u5199\u804C\u8D23" }),
+          module2.contractPath !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "button",
+            {
+              type: "button",
+              className: "studio-link",
+              disabled: reading,
+              onClick: () => void read(module2.contractPath ?? ""),
+              children: module2.contractPath
+            }
+          ) : null,
+          module2.contractText !== "" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("pre", { className: "studio-module-contract", children: module2.contractText.slice(0, 800) }) : null,
+          module2.dependsOn.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-faint", style: { fontSize: 10 }, children: [
+            "\u4F9D\u8D56\uFF1A",
+            module2.dependsOn.join("\u3001")
+          ] }) : null
+        ] }, module2.id)) })
+      ] })
+    ] })
+  ] });
+}
+function ModuleForm({
+  busy,
+  onCancel,
+  onSubmit
+}) {
+  const [name2, setName] = (0, import_react.useState)("");
+  const [responsibility, setResponsibility] = (0, import_react.useState)("");
+  const [contractPath, setContractPath] = (0, import_react.useState)("");
+  const [contractText, setContractText] = (0, import_react.useState)("");
+  const [allowedPaths, setAllowedPaths] = (0, import_react.useState)("");
+  const [forbiddenPaths, setForbiddenPaths] = (0, import_react.useState)("");
+  const [dependsOn, setDependsOn] = (0, import_react.useState)("");
+  const [localError, setLocalError] = (0, import_react.useState)(null);
+  const submit = (event) => {
+    event.preventDefault();
+    if (name2.trim() === "") {
+      setLocalError("\u8BF7\u586B\u5199\u6A21\u5757\u540D");
+      return;
+    }
+    setLocalError(null);
+    onSubmit({
+      name: name2.trim(),
+      responsibility: responsibility.trim(),
+      contractPath: contractPath.trim() || null,
+      contractText: contractText.trim(),
+      allowedPaths: allowedPaths.split("\n").map((line) => line.trim()).filter(Boolean),
+      forbiddenPaths: forbiddenPaths.split("\n").map((line) => line.trim()).filter(Boolean),
+      dependsOn: dependsOn.split(",").map((line) => line.trim()).filter(Boolean)
+    });
+  };
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+    ModalShell,
+    {
+      title: "\u65B0\u5EFA\u6A21\u5757",
+      subtitle: "\u6A21\u5757\u5951\u7EA6\u5361\u662F\u5B9E\u73B0\u8005\u7684\u4E0A\u4E0B\u6587\u8FB9\u754C\uFF1B\u6539\u5951\u7EA6\u672C\u8EAB\u8981\u8D70\u67B6\u6784\u5E08/Owner\u3002",
+      footer: null,
+      onClose: onCancel,
+      children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("form", { onSubmit: submit, className: "studio-form", children: [
+        localError !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-alert", children: localError }) : null,
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "module-name", children: "\u6A21\u5757\u540D" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "input",
+            {
+              id: "module-name",
+              value: name2,
+              onChange: (event) => setName(event.target.value),
+              placeholder: "combat / replay / input"
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "module-responsibility", children: "\u804C\u8D23" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "textarea",
+            {
+              id: "module-responsibility",
+              value: responsibility,
+              onChange: (event) => setResponsibility(event.target.value),
+              rows: 2,
+              placeholder: "\u8FD9\u4E2A\u6A21\u5757\u8D1F\u8D23\u4EC0\u4E48\uFF0C\u4E0D\u8D1F\u8D23\u4EC0\u4E48"
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "module-contract-path", children: "\u5951\u7EA6\u6587\u4EF6\u8DEF\u5F84" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "input",
+              {
+                id: "module-contract-path",
+                value: contractPath,
+                onChange: (event) => setContractPath(event.target.value),
+                placeholder: "docs/contracts/combat.md"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "module-depends", children: "\u4F9D\u8D56\u6A21\u5757\uFF08\u9017\u53F7\uFF09" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "input",
+              {
+                id: "module-depends",
+                value: dependsOn,
+                onChange: (event) => setDependsOn(event.target.value),
+                placeholder: "replay, input"
+              }
+            )
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "module-contract-text", children: "\u5951\u7EA6\u6458\u8981" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "textarea",
+            {
+              id: "module-contract-text",
+              value: contractText,
+              onChange: (event) => setContractText(event.target.value),
+              rows: 4,
+              placeholder: "\u63A5\u53E3\u3001\u8F93\u5165\u8F93\u51FA\u3001\u9519\u8BEF\u5904\u7406\u3001\u8FB9\u754C"
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "module-allowed", children: "\u5141\u8BB8\u8DEF\u5F84\uFF08\u6BCF\u884C\u4E00\u6761\uFF09" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "textarea",
+              {
+                id: "module-allowed",
+                value: allowedPaths,
+                onChange: (event) => setAllowedPaths(event.target.value),
+                rows: 3,
+                placeholder: "src/combat/\ntest/combat/"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "module-forbidden", children: "\u7981\u6B62\u8DEF\u5F84\uFF08\u6BCF\u884C\u4E00\u6761\uFF09" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "textarea",
+              {
+                id: "module-forbidden",
+                value: forbiddenPaths,
+                onChange: (event) => setForbiddenPaths(event.target.value),
+                rows: 3,
+                placeholder: "src/net/\nassets/"
+              }
+            )
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-form-actions", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", className: "studio-btn", onClick: onCancel, children: "\u53D6\u6D88" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "submit", className: "studio-btn", "data-tone": "primary", disabled: busy, children: "\u521B\u5EFA\u6A21\u5757" })
+        ] })
+      ] })
+    }
+  );
 }
 function MissionView({
   data,
@@ -4844,6 +5224,73 @@ var studioCss = `
   font-size: 10px;
 }
 .studio-role-salary .studio-mono { color: var(--st-accent); }
+
+.studio-knowledge-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: 14px;
+  align-items: start;
+}
+.studio-doc-view {
+  margin-top: 12px;
+  border: 1px solid var(--st-border);
+  border-radius: 9px;
+  background: var(--st-panel-2);
+  overflow: hidden;
+}
+.studio-doc-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--st-border);
+  font-size: 10px;
+}
+.studio-doc-head .studio-pill { margin-left: auto; }
+.studio-doc-view pre {
+  max-height: 420px;
+  margin: 0;
+  padding: 10px;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: var(--st-muted);
+  font-size: 10px;
+  line-height: 1.6;
+}
+.studio-module-list { display: flex; flex-direction: column; gap: 8px; margin-top: 9px; }
+.studio-module-card {
+  padding: 10px;
+  border: 1px solid var(--st-border);
+  border-radius: 9px;
+  background: var(--st-panel-2);
+}
+.studio-module-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+.studio-module-card p { margin: 6px 0; color: var(--st-muted); font-size: 11px; line-height: 1.55; }
+.studio-module-contract {
+  max-height: 120px;
+  margin: 7px 0 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: var(--st-faint);
+  font-size: 10px;
+  line-height: 1.5;
+}
+.studio-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--st-accent);
+  font-family: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
 
 .studio-diff {
   max-height: 180px;
