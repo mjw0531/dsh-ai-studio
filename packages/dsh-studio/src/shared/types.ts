@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 5;
-export const STUDIO_PLUGIN_VERSION = "0.5.1";
+export const STUDIO_SCHEMA_VERSION = 6;
+export const STUDIO_PLUGIN_VERSION = "0.6.0";
 
 export type TaskStatus =
   | "backlog"
@@ -22,6 +22,7 @@ export interface Project {
   name: string;
   description: string;
   tokenBudget: number | null;
+  repoPath: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -133,6 +134,9 @@ export interface AgentRun {
   taskId: string;
   roleId: string | null;
   branchId: string | null;
+  branchName: string | null;
+  workspacePath: string | null;
+  diffStat: string | null;
   sessionId: string | null;
   status: AgentRunStatus;
   model: string | null;
@@ -355,6 +359,7 @@ export interface BootstrapResponse {
     agentExecution: boolean;
     decisionBoard: boolean;
     branchBoard: boolean;
+    codeExecution: boolean;
     gitMerge: boolean;
   };
 }
@@ -482,6 +487,11 @@ export interface CreateProjectInput {
   name: string;
   description?: string;
   tokenBudget?: number | null;
+  repoPath?: string | null;
+}
+
+export interface UpdateProjectInput {
+  repoPath?: string | null;
 }
 
 export interface CreateRoleInput {

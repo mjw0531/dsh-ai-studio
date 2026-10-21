@@ -41,6 +41,19 @@ await build({
 
 await build({
   absWorkingDir: root,
+  entryPoints: [path.join(root, "src/host/workspace.ts")],
+  outfile: path.join(libDir, "workspace.js"),
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "node22",
+  sourcemap: false,
+  legalComments: "none",
+  logLevel: "info",
+});
+
+await build({
+  absWorkingDir: root,
   entryPoints: [path.join(root, "src/host/compat.ts")],
   outfile: path.join(libDir, "compat.js"),
   bundle: true,

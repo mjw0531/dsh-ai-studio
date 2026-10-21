@@ -8,6 +8,8 @@ import type {
   Task,
 } from "../shared/types.js";
 import type { StudioStore } from "./store.js";
+import { WorkspaceManager } from "./workspace.js";
+import type { TaskWorkspace } from "./workspace.js";
 
 interface MessageContent {
   type: string;
@@ -24,6 +26,7 @@ interface AgentLike {
   session: {
     id: string;
     deriveMessages(): AgentMessage[];
+    append(type: string, data: unknown): void;
   };
   followup(message: {
     role?: "user";
@@ -42,7 +45,7 @@ interface AgentsLike {
     sessionId: string;
     agentOptions?: { provider: string; model: string };
     meta: { cwd: string };
-    setup?: (agentCtx: unknown) => Promise<void>;
+    setup?: (agentCtx: unknown, agent: AgentLike) => Promise<void>;
   }): Promise<AgentHandleLike>;
 }
 
@@ -176,11 +179,27 @@ function normalizeReceipt(raw: unknown, fallback: string): AgentReceipt {
   };
 }
 
-function buildPrompt(context: RunContext): string {
+function buildPrompt(
+  context: RunContext,
+  workspace?: TaskWorkspace,
+): string {
   const { task, role, project } = context;
   const acceptance = task.acceptance
     .map((item, index) => `${String(index + 1)}. ${item.text}`)
     .join("\n");
+  const mode =
+    workspace === undefined
+      ? [
+          "本轮只做分析/规划，不要修改任何文件，不要执行会改变系统状态的命令。",
+        ]
+      : [
+          `代码执行模式：你已在独立 worktree 中工作。`,
+          `仓库：${workspace.repoPath}`,
+          `工作区：${workspace.path}`,
+          `分支：${workspace.branch}`,
+          "可以修改工作区文件、运行测试和构建；不要切换/删除 worktree，不要 merge、push 或修改主工作区。",
+          "完成后必须报告你实际运行过的命令和测试结果。",
+        ];
   return [
     `你是 Studio 工作台里的角色「${role.name}」（${role.title || "未填写职位"}）。`,
     `角色使命：${role.mission || "未填写"}`,
@@ -192,11 +211,11 @@ function buildPrompt(context: RunContext): string {
     `任务：${task.title}`,
     `任务目标：${task.goal || "未填写"}`,
     `优先级：${task.priority}`,
-    `分支：${task.branch ?? "未创建"}`,
+    `分支：${workspace?.branch ?? task.branch ?? "未创建"}`,
     "验收标准：",
     acceptance || "（无）",
     "",
-    "本轮只做分析/规划，不要修改任何文件，不要执行会改变系统状态的命令。",
+    ...mode,
     "请输出一个 JSON 对象（不要输出 JSON 以外的解释），字段如下：",
     '{"summary":"一句话结论","evidence":["可复现的证据/检查结果"],"artifacts":[{"kind":"plan|diff|test|doc","path":"路径或说明"}],"decisions":[{"title":"决策","rationale":"理由","scope":"branch|project"}],"contractDeltas":[{"contract":"契约路径","change":"变更"}],"rejectedOptions":[{"option":"被否决方案","reason":"原因"}],"blockers":["阻塞"]}',
     "没有内容的字段用空数组。不要声称任务已经完成；验收由人类/Verifier 决定。",
@@ -214,6 +233,7 @@ function buildPrompt(context: RunContext): string {
 export class AgentDispatcher {
   private readonly ctx: DispatcherContext;
   private readonly store: StudioStore;
+  private readonly workspaces = new WorkspaceManager();
 
   constructor(ctx: DispatcherContext, store: StudioStore) {
     this.ctx = ctx;
@@ -223,9 +243,13 @@ export class AgentDispatcher {
   async dispatch(taskId: string): Promise<AgentRun> {
     const context = await this.store.getDispatchContext(taskId);
     const selection = await this.resolveModel(context.role);
-    const prompt = buildPrompt(context);
-    const run = await this.store.beginRun(taskId, prompt);
-    void this.execute(run, selection);
+    const workspace =
+      context.project.repoPath === null
+        ? undefined
+        : await this.workspaces.prepare(context.project.repoPath, taskId);
+    const prompt = buildPrompt(context, workspace);
+    const run = await this.store.beginRun(taskId, prompt, workspace);
+    void this.execute(run, selection, workspace);
     return run;
   }
 
@@ -258,15 +282,19 @@ export class AgentDispatcher {
   private async execute(
     run: AgentRun,
     selection: { provider: string; model: string },
+    workspace?: TaskWorkspace,
   ): Promise<void> {
     let handle: AgentHandleLike | null = null;
     try {
       handle = await this.ctx.agents.create({
         sessionId: `run-${randomUUID()}`,
-        meta: { cwd: process.cwd() },
+        meta: { cwd: workspace?.path ?? process.cwd() },
         agentOptions: selection,
-        setup: async (agentCtx) => {
+        setup: async (agentCtx, agent) => {
           await this.ctx.agentPresets.mount(agentCtx);
+          // Unattended Studio runs cannot answer approval prompts. Pin the
+          // session to "never" so tools fail closed instead of hanging.
+          agent.session.append("approval/policy", { policy: "never" });
         },
       });
       await this.store.attachRunSession(
@@ -280,13 +308,13 @@ export class AgentDispatcher {
         source: { kind: "user" },
       });
 
-      const deadline = Date.now() + 120_000;
+      const deadline = Date.now() + (workspace === undefined ? 120_000 : 300_000);
       let output = "";
       let idleTicks = 0;
       while (Date.now() < deadline) {
         output = assistantText(handle.agent.session.deriveMessages());
-        if (output !== "") break;
         if (handle.agent.status === "idle") {
+          if (output !== "") break;
           idleTicks += 1;
           if (idleTicks >= 10) break;
         } else {
@@ -295,7 +323,11 @@ export class AgentDispatcher {
         await new Promise((resolve) => setTimeout(resolve, 400));
       }
       if (output === "") {
-        throw new Error("Agent 在 120 秒内没有产出（没有 assistant 消息）");
+        throw new Error(
+          `Agent 在 ${
+            workspace === undefined ? "120" : "300"
+          } 秒内没有产出（没有 assistant 消息）`,
+        );
       }
       const idleDeadline = Date.now() + 30_000;
       while (handle.agent.status !== "idle" && Date.now() < idleDeadline) {
@@ -306,6 +338,10 @@ export class AgentDispatcher {
         output,
       );
       const measured = this.ctx.tokenMeter.measure(handle.agent.session);
+      const diffStat =
+        workspace === undefined
+          ? null
+          : this.workspaces.diffStat(workspace.path);
       await this.store.completeRun(run.id, {
         output,
         receipt,
@@ -313,6 +349,7 @@ export class AgentDispatcher {
           typeof measured.totalTokens === "number"
             ? measured.totalTokens
             : null,
+        diffStat,
       });
     } catch (error) {
       await this.store

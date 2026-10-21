@@ -14,6 +14,7 @@ import type {
   Role,
   Task,
   TaskStatus,
+  UpdateProjectInput,
   UpdateTaskInput,
 } from "../shared/types.js";
 
@@ -171,6 +172,17 @@ export class StudioClient {
       method: "POST",
       body: input,
     });
+    return data.project;
+  }
+
+  async updateProject(
+    projectId: string,
+    input: UpdateProjectInput,
+  ): Promise<Project> {
+    const data = await this.request<{ project: Project }>(
+      `/projects/${encodeURIComponent(projectId)}`,
+      { method: "PATCH", body: input },
+    );
     return data.project;
   }
 

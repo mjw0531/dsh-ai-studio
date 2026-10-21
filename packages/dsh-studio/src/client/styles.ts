@@ -791,6 +791,21 @@ export const studioCss = `
   font-size: 10px;
   line-height: 1.55;
 }
+.studio-run-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--st-border);
+  border-radius: 7px;
+  background: var(--st-panel-2);
+  font-size: 10px;
+}
+.studio-run-workspace > div { display: flex; gap: 8px; }
+.studio-run-workspace span { color: var(--st-faint); flex: none; }
+.studio-run-workspace code { color: var(--st-accent); overflow-wrap: anywhere; }
+.studio-run-workspace pre { margin: 4px 0 0; white-space: pre-wrap; color: var(--st-muted); }
+
 .studio-receipt { display: flex; flex-direction: column; gap: 8px; }
 .studio-receipt-list { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 6px; font-size: 10px; }
 .studio-receipt-list > span { color: var(--st-faint); }

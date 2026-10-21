@@ -46,6 +46,7 @@ import type {
   Task,
   TaskPriority,
   TaskStatus,
+  UpdateProjectInput,
   UpdateTaskInput,
 } from "../shared/types.js";
 
@@ -634,6 +635,7 @@ function isProject(value: unknown): value is Project {
     typeof value.name === "string" &&
     typeof value.description === "string" &&
     (value.tokenBudget === null || typeof value.tokenBudget === "number") &&
+    (value.repoPath === null || typeof value.repoPath === "string") &&
     typeof value.createdAt === "string" &&
     typeof value.updatedAt === "string"
   );
@@ -674,6 +676,9 @@ function isAgentRun(value: unknown): value is AgentRun {
     typeof value.taskId === "string" &&
     (value.roleId === null || typeof value.roleId === "string") &&
     (value.branchId === null || typeof value.branchId === "string") &&
+    (value.branchName === null || typeof value.branchName === "string") &&
+    (value.workspacePath === null || typeof value.workspacePath === "string") &&
+    (value.diffStat === null || typeof value.diffStat === "string") &&
     (value.sessionId === null || typeof value.sessionId === "string") &&
     isAgentRunStatus(value.status) &&
     (value.model === null || typeof value.model === "string") &&
@@ -840,9 +845,9 @@ function migrateState(value: unknown): StudioState {
     };
   }
   if (state.schemaVersion === 4) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 5,
       runs: state.runs.map((run) => ({
         ...run,
         branchId: run.branchId ?? null,
@@ -862,6 +867,22 @@ function migrateState(value: unknown): StudioState {
           updatedAt: task.updatedAt,
         })),
       contractChanges: [],
+    };
+  }
+  if (state.schemaVersion === 5) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      projects: state.projects.map((project) => ({
+        ...project,
+        repoPath: project.repoPath ?? null,
+      })),
+      runs: state.runs.map((run) => ({
+        ...run,
+        branchName: run.branchName ?? null,
+        workspacePath: run.workspacePath ?? null,
+        diffStat: run.diffStat ?? null,
+      })),
     };
   }
   return state;
@@ -1023,6 +1044,7 @@ export class StudioStore {
           agentExecution: true,
           decisionBoard: true,
           branchBoard: true,
+          codeExecution: true,
           gitMerge: false,
         },
       };
@@ -1038,6 +1060,7 @@ export class StudioStore {
         name: requiredText(input.name, "name", 80),
         description: optionalText(input.description, "description", 600),
         tokenBudget: optionalTokenBudget(input.tokenBudget, "tokenBudget"),
+        repoPath: optionalText(input.repoPath, "repoPath", 1000) || null,
         createdAt: at,
         updatedAt: at,
       };
@@ -1050,6 +1073,34 @@ export class StudioStore {
         payload: { name: project.name },
       });
       state.updatedAt = at;
+      await this.save();
+      return structuredClone(project);
+    });
+  }
+
+  async updateProject(
+    projectId: string,
+    input: UpdateProjectInput,
+  ): Promise<Project> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const project = state.projects.find((item) => item.id === projectId);
+      if (project === undefined) {
+        throw new StudioStoreError("project_not_found", "项目不存在", 404);
+      }
+      if (input.repoPath !== undefined) {
+        project.repoPath =
+          optionalText(input.repoPath, "repoPath", 1000) || null;
+      }
+      const at = nowIso(this.now);
+      project.updatedAt = at;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "project.updated",
+        at,
+        projectId: project.id,
+        payload: { repoPath: project.repoPath },
+      });
       await this.save();
       return structuredClone(project);
     });
@@ -1103,7 +1154,11 @@ export class StudioStore {
     });
   }
 
-  async beginRun(taskId: string, prompt: string): Promise<AgentRun> {
+  async beginRun(
+    taskId: string,
+    prompt: string,
+    workspace?: { path: string; branch: string },
+  ): Promise<AgentRun> {
     return this.runExclusive(async () => {
       const state = this.requireState();
       const task = this.findTask(state, taskId);
@@ -1181,6 +1236,9 @@ export class StudioStore {
       }
 
       const at = nowIso(this.now);
+      if (workspace !== undefined) {
+        task.branch = workspace.branch;
+      }
       const branch = this.ensureBranch(state, task, at);
       const run: AgentRun = {
         id: newId("run"),
@@ -1188,6 +1246,9 @@ export class StudioStore {
         taskId: task.id,
         roleId: role.id,
         branchId: branch.id,
+        branchName: workspace?.branch ?? null,
+        workspacePath: workspace?.path ?? null,
+        diffStat: null,
         sessionId: null,
         status: "queued",
         model: role.model,
@@ -1242,6 +1303,7 @@ export class StudioStore {
       output: string;
       receipt: AgentReceipt | null;
       tokens: number | null;
+      diffStat?: string | null;
     },
   ): Promise<AgentRun> {
     return this.runExclusive(async () => {
@@ -1329,6 +1391,7 @@ export class StudioStore {
       run.output = input.output.slice(0, 30000);
       run.receipt = input.receipt;
       run.tokens = input.tokens;
+      run.diffStat = input.diffStat ?? null;
       run.budgetWarning = warnings.length === 0 ? null : warnings.join("；");
       run.endedAt = at;
       if (task !== undefined) {
@@ -2332,6 +2395,7 @@ export class StudioStore {
       description:
         "用一条可玩的最小链路验证工作台：任务、角色、验收和状态机。",
       tokenBudget: null,
+      repoPath: null,
       createdAt: at,
       updatedAt: at,
     };

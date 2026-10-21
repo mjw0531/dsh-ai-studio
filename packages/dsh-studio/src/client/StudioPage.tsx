@@ -81,6 +81,7 @@ type ModalState =
   | { kind: "role" }
   | { kind: "project" }
   | { kind: "decision" }
+  | { kind: "repo" }
   | null;
 
 type ToastState = { kind: "ok" | "error"; text: string } | null;
@@ -478,6 +479,19 @@ export function StudioPage() {
     if (ok) setModal(null);
   };
 
+  const updateProjectRepo = async (repoPath: string): Promise<void> => {
+    const ok = await run(
+      async () => {
+        if (client === null || data === null || data.project === null) return;
+        await client.updateProject(data.project.id, {
+          repoPath: repoPath.trim() || null,
+        });
+      },
+      "项目仓库已更新",
+    );
+    if (ok) setModal(null);
+  };
+
   const transitionTask = async (
     task: Task,
     status: TaskStatus,
@@ -822,6 +836,7 @@ export function StudioPage() {
                 theme={theme}
                 onTheme={setTheme}
                 onNewProject={() => setModal({ kind: "project" })}
+                onBindRepo={() => setModal({ kind: "repo" })}
                 onReload={() => void load(undefined, false)}
               />
             ) : null}
@@ -836,6 +851,7 @@ export function StudioPage() {
           roles={data.roles}
           mergeProposal={selectedMerge}
           runs={data.runs.filter((run) => run.taskId === selectedTask.id)}
+          codeMode={data.project?.repoPath != null}
           busy={busy}
           onClose={() => setSelectedTaskId(null)}
           onDispatch={() => dispatchTask(selectedTask)}
@@ -881,6 +897,15 @@ export function StudioPage() {
           busy={busy}
           onCancel={() => setModal(null)}
           onSubmit={(input) => void createProject(input)}
+        />
+      ) : null}
+
+      {modal?.kind === "repo" ? (
+        <RepoForm
+          initial={data.project?.repoPath ?? ""}
+          busy={busy}
+          onCancel={() => setModal(null)}
+          onSubmit={(repoPath) => void updateProjectRepo(repoPath)}
         />
       ) : null}
 
@@ -2456,6 +2481,7 @@ function TaskDrawer({
   roles,
   mergeProposal,
   runs,
+  codeMode,
   busy,
   onClose,
   onDispatch,
@@ -2471,6 +2497,7 @@ function TaskDrawer({
   roles: Role[];
   mergeProposal: MergeProposal | null;
   runs: AgentRun[];
+  codeMode: boolean;
   busy: boolean;
   onClose: () => void;
   onDispatch: () => Promise<boolean>;
@@ -2662,6 +2689,7 @@ function TaskDrawer({
             task={task}
             runs={runs}
             busy={busy}
+            codeMode={codeMode}
             onDispatch={onDispatch}
           />
 
@@ -2725,11 +2753,13 @@ function TaskAgentPanel({
   task,
   runs,
   busy,
+  codeMode,
   onDispatch,
 }: {
   task: Task;
   runs: AgentRun[];
   busy: boolean;
+  codeMode: boolean;
   onDispatch: () => Promise<boolean>;
 }) {
   const latest = runs[0] ?? null;
@@ -2741,8 +2771,9 @@ function TaskAgentPanel({
     <section>
       <div className="studio-section-label">Agent 派单</div>
       <div className="studio-action-note" style={{ marginTop: 0 }}>
-        v0.5 仍是分析模式：Agent 读取任务与角色契约，返回结构化回执，不修改文件。
-        项目级决策会自动进入董事会；代码执行/worktree 在 v0.6 接入。
+        {codeMode
+          ? "代码模式：Agent 在独立 worktree 内实现任务、运行测试并把 diff 写入 Run；不会合并或推送。"
+          : "分析模式：还没有绑定代码仓库。Agent 只读任务与契约，返回结构化回执；在设置里绑定仓库即可进入代码模式。"}
       </div>
       <div className="studio-actions" style={{ marginTop: 9 }}>
         <button
@@ -2763,7 +2794,9 @@ function TaskAgentPanel({
           <IconSpark width={13} height={13} />
           {latest?.status === "running" || latest?.status === "queued"
             ? "Agent 执行中…"
-            : "派单分析"}
+            : codeMode
+              ? "派单执行"
+              : "派单分析"}
         </button>
         {latest !== null ? (
           <span className="studio-pill" data-tone={runTone(latest.status)}>
@@ -2822,6 +2855,25 @@ function RunCard({ run }: { run: AgentRun }) {
         {run.status === "running" || run.status === "queued" ? (
           <div className="studio-faint" style={{ fontSize: 11 }}>
             Agent 正在工作；页面每 4 秒刷新一次。
+          </div>
+        ) : null}
+        {run.branchName !== null || run.workspacePath !== null ? (
+          <div className="studio-run-workspace">
+            {run.branchName !== null ? (
+              <div>
+                <span>分支</span>
+                <code>{run.branchName}</code>
+              </div>
+            ) : null}
+            {run.workspacePath !== null ? (
+              <div>
+                <span>工作区</span>
+                <code>{run.workspacePath}</code>
+              </div>
+            ) : null}
+            {run.diffStat !== null && run.diffStat !== "" ? (
+              <pre>{run.diffStat}</pre>
+            ) : null}
           </div>
         ) : null}
         {receipt !== null ? (
@@ -3191,6 +3243,7 @@ function SettingsView({
   theme,
   onTheme,
   onNewProject,
+  onBindRepo,
   onReload,
 }: {
   boot: NonNullable<ReturnType<typeof readStudioBoot>>;
@@ -3198,6 +3251,7 @@ function SettingsView({
   theme: "dark" | "light";
   onTheme: (theme: "dark" | "light") => void;
   onNewProject: () => void;
+  onBindRepo: () => void;
   onReload: () => void;
 }) {
   return (
@@ -3271,6 +3325,33 @@ function SettingsView({
         </section>
 
         <section className="studio-settings-card">
+          <h3>代码仓库</h3>
+          <dl className="studio-kv">
+            <dt>项目</dt>
+            <dd>{data.project?.name ?? "未选择"}</dd>
+            <dt>仓库路径</dt>
+            <dd className="studio-mono">
+              {data.project?.repoPath ?? "未绑定（只做分析）"}
+            </dd>
+          </dl>
+          <p className="studio-hint" style={{ marginTop: 8 }}>
+            绑定 git 仓库后，派单会为每个任务创建独立 worktree 和
+            `studio/&lt;taskId&gt;` 分支；不绑定则只做只读分析。
+          </p>
+          <div style={{ marginTop: 12 }}>
+            <button
+              className="studio-btn"
+              data-size="sm"
+              type="button"
+              onClick={onBindRepo}
+              disabled={data.project === null}
+            >
+              绑定 / 更换仓库
+            </button>
+          </div>
+        </section>
+
+        <section className="studio-settings-card">
           <h3>能力边界</h3>
           <dl className="studio-kv">
             <dt>独立页面</dt>
@@ -3283,6 +3364,8 @@ function SettingsView({
             <dd>{data.features.decisionBoard ? "可用" : "不可用"}</dd>
             <dt>支线/契约</dt>
             <dd>{data.features.branchBoard ? "可用" : "不可用"}</dd>
+            <dt>代码执行</dt>
+            <dd>{data.features.codeExecution ? "可用（worktree）" : "不可用"}</dd>
             <dt>合并治理</dt>
             <dd>
               {data.features.mergeGovernance
@@ -3741,6 +3824,7 @@ function ProjectForm({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [tokenBudget, setTokenBudget] = useState("");
+  const [repoPath, setRepoPath] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
 
   const submit = (event: FormEvent): void => {
@@ -3763,6 +3847,7 @@ function ProjectForm({
       name: name.trim(),
       description: description.trim(),
       tokenBudget: budget,
+      repoPath: repoPath.trim() || null,
     });
   };
 
@@ -3822,6 +3907,79 @@ function ProjectForm({
           />
           <div className="studio-hint">
             这是公司给该项目的 token 上限；实际消耗来自 DSH token meter。
+          </div>
+        </div>
+        <div className="studio-field">
+          <label htmlFor="project-repo">代码仓库（可选）</label>
+          <input
+            id="project-repo"
+            value={repoPath}
+            onChange={(event) => setRepoPath(event.target.value)}
+            placeholder="例如 D:\AIgame"
+          />
+          <div className="studio-hint">
+            绑定 git 仓库后，派单会为每个任务创建独立 worktree 和分支；不绑定则只做分析。
+          </div>
+        </div>
+      </form>
+    </ModalShell>
+  );
+}
+
+function RepoForm({
+  initial,
+  busy,
+  onCancel,
+  onSubmit,
+}: {
+  initial: string;
+  busy: boolean;
+  onCancel: () => void;
+  onSubmit: (repoPath: string) => void;
+}) {
+  const [repoPath, setRepoPath] = useState(initial);
+
+  return (
+    <ModalShell
+      title="绑定代码仓库"
+      subtitle="必须是本机 git 仓库根目录。绑定后派单会在 .worktrees/<taskId> 创建独立工作区。"
+      onClose={onCancel}
+      footer={
+        <div className="studio-modal-foot">
+          <button className="studio-btn" type="button" onClick={onCancel} disabled={busy}>
+            取消
+          </button>
+          <button
+            className="studio-btn"
+            data-variant="primary"
+            type="submit"
+            form="studio-repo-form"
+            disabled={busy}
+          >
+            {busy ? "保存中…" : "保存"}
+          </button>
+        </div>
+      }
+    >
+      <form
+        id="studio-repo-form"
+        className="studio-modal-body"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSubmit(repoPath);
+        }}
+      >
+        <div className="studio-field">
+          <label htmlFor="repo-path">仓库根目录</label>
+          <input
+            id="repo-path"
+            value={repoPath}
+            onChange={(event) => setRepoPath(event.target.value)}
+            placeholder="例如 D:\AIgame"
+            autoFocus
+          />
+          <div className="studio-hint">
+            留空 = 解绑，派单回到只读分析模式。Studio 不会自动 push 或合并。
           </div>
         </div>
       </form>

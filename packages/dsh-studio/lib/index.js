@@ -2,8 +2,8 @@
 import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 5;
-var STUDIO_PLUGIN_VERSION = "0.5.1";
+var STUDIO_SCHEMA_VERSION = 6;
+var STUDIO_PLUGIN_VERSION = "0.6.0";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -142,6 +142,71 @@ function safeOrigin(ctx) {
 
 // src/host/dispatcher.ts
 import { randomUUID } from "node:crypto";
+
+// src/host/workspace.ts
+import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { mkdir } from "node:fs/promises";
+import path2 from "node:path";
+var WorkspaceError = class extends Error {
+  code;
+  constructor(code, message) {
+    super(message);
+    this.code = code;
+  }
+};
+function git(cwd, args) {
+  try {
+    return execFileSync("git", args, {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"]
+    }).trim();
+  } catch (error) {
+    const detail = error instanceof Error && "stderr" in error ? String(error.stderr ?? "") : String(error);
+    throw new WorkspaceError(
+      "git_failed",
+      `git ${args.join(" ")} \u5931\u8D25\uFF1A${detail.slice(0, 800)}`
+    );
+  }
+}
+function sanitize(taskId) {
+  return taskId.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 80);
+}
+var WorkspaceManager = class {
+  async prepare(repoPath, taskId) {
+    const resolved = path2.resolve(repoPath);
+    if (!existsSync(resolved)) {
+      throw new WorkspaceError(
+        "repo_missing",
+        `\u9879\u76EE\u4ED3\u5E93\u4E0D\u5B58\u5728\uFF1A${resolved}`
+      );
+    }
+    const root = git(resolved, ["rev-parse", "--show-toplevel"]);
+    const worktreeRoot = path2.join(root, ".worktrees");
+    const worktreePath = path2.join(worktreeRoot, sanitize(taskId));
+    const branch = `studio/${sanitize(taskId)}`;
+    await mkdir(worktreeRoot, { recursive: true });
+    if (existsSync(worktreePath)) {
+      return { repoPath: root, path: worktreePath, branch };
+    }
+    const branches = git(root, ["branch", "--list", branch]);
+    if (branches === "") {
+      git(root, ["worktree", "add", "-b", branch, worktreePath, "HEAD"]);
+    } else {
+      git(root, ["worktree", "add", worktreePath, branch]);
+    }
+    return { repoPath: root, path: worktreePath, branch };
+  }
+  diffStat(worktreePath) {
+    if (!existsSync(worktreePath)) return "";
+    const status = git(worktreePath, ["status", "--short"]);
+    const stat = git(worktreePath, ["diff", "--stat"]);
+    return [status, stat].filter((line) => line !== "").join("\n").trim();
+  }
+};
+
+// src/host/dispatcher.ts
 function assistantText(messages) {
   const assistant = [...messages].reverse().find((message) => message.role === "assistant");
   if (assistant === void 0) return "";
@@ -211,9 +276,19 @@ function normalizeReceipt(raw, fallback) {
     blockers: stringArray(record.blockers)
   };
 }
-function buildPrompt(context) {
+function buildPrompt(context, workspace) {
   const { task, role, project } = context;
   const acceptance = task.acceptance.map((item, index) => `${String(index + 1)}. ${item.text}`).join("\n");
+  const mode = workspace === void 0 ? [
+    "\u672C\u8F6E\u53EA\u505A\u5206\u6790/\u89C4\u5212\uFF0C\u4E0D\u8981\u4FEE\u6539\u4EFB\u4F55\u6587\u4EF6\uFF0C\u4E0D\u8981\u6267\u884C\u4F1A\u6539\u53D8\u7CFB\u7EDF\u72B6\u6001\u7684\u547D\u4EE4\u3002"
+  ] : [
+    `\u4EE3\u7801\u6267\u884C\u6A21\u5F0F\uFF1A\u4F60\u5DF2\u5728\u72EC\u7ACB worktree \u4E2D\u5DE5\u4F5C\u3002`,
+    `\u4ED3\u5E93\uFF1A${workspace.repoPath}`,
+    `\u5DE5\u4F5C\u533A\uFF1A${workspace.path}`,
+    `\u5206\u652F\uFF1A${workspace.branch}`,
+    "\u53EF\u4EE5\u4FEE\u6539\u5DE5\u4F5C\u533A\u6587\u4EF6\u3001\u8FD0\u884C\u6D4B\u8BD5\u548C\u6784\u5EFA\uFF1B\u4E0D\u8981\u5207\u6362/\u5220\u9664 worktree\uFF0C\u4E0D\u8981 merge\u3001push \u6216\u4FEE\u6539\u4E3B\u5DE5\u4F5C\u533A\u3002",
+    "\u5B8C\u6210\u540E\u5FC5\u987B\u62A5\u544A\u4F60\u5B9E\u9645\u8FD0\u884C\u8FC7\u7684\u547D\u4EE4\u548C\u6D4B\u8BD5\u7ED3\u679C\u3002"
+  ];
   return [
     `\u4F60\u662F Studio \u5DE5\u4F5C\u53F0\u91CC\u7684\u89D2\u8272\u300C${role.name}\u300D\uFF08${role.title || "\u672A\u586B\u5199\u804C\u4F4D"}\uFF09\u3002`,
     `\u89D2\u8272\u4F7F\u547D\uFF1A${role.mission || "\u672A\u586B\u5199"}`,
@@ -225,11 +300,11 @@ function buildPrompt(context) {
     `\u4EFB\u52A1\uFF1A${task.title}`,
     `\u4EFB\u52A1\u76EE\u6807\uFF1A${task.goal || "\u672A\u586B\u5199"}`,
     `\u4F18\u5148\u7EA7\uFF1A${task.priority}`,
-    `\u5206\u652F\uFF1A${task.branch ?? "\u672A\u521B\u5EFA"}`,
+    `\u5206\u652F\uFF1A${workspace?.branch ?? task.branch ?? "\u672A\u521B\u5EFA"}`,
     "\u9A8C\u6536\u6807\u51C6\uFF1A",
     acceptance || "\uFF08\u65E0\uFF09",
     "",
-    "\u672C\u8F6E\u53EA\u505A\u5206\u6790/\u89C4\u5212\uFF0C\u4E0D\u8981\u4FEE\u6539\u4EFB\u4F55\u6587\u4EF6\uFF0C\u4E0D\u8981\u6267\u884C\u4F1A\u6539\u53D8\u7CFB\u7EDF\u72B6\u6001\u7684\u547D\u4EE4\u3002",
+    ...mode,
     "\u8BF7\u8F93\u51FA\u4E00\u4E2A JSON \u5BF9\u8C61\uFF08\u4E0D\u8981\u8F93\u51FA JSON \u4EE5\u5916\u7684\u89E3\u91CA\uFF09\uFF0C\u5B57\u6BB5\u5982\u4E0B\uFF1A",
     '{"summary":"\u4E00\u53E5\u8BDD\u7ED3\u8BBA","evidence":["\u53EF\u590D\u73B0\u7684\u8BC1\u636E/\u68C0\u67E5\u7ED3\u679C"],"artifacts":[{"kind":"plan|diff|test|doc","path":"\u8DEF\u5F84\u6216\u8BF4\u660E"}],"decisions":[{"title":"\u51B3\u7B56","rationale":"\u7406\u7531","scope":"branch|project"}],"contractDeltas":[{"contract":"\u5951\u7EA6\u8DEF\u5F84","change":"\u53D8\u66F4"}],"rejectedOptions":[{"option":"\u88AB\u5426\u51B3\u65B9\u6848","reason":"\u539F\u56E0"}],"blockers":["\u963B\u585E"]}',
     "\u6CA1\u6709\u5185\u5BB9\u7684\u5B57\u6BB5\u7528\u7A7A\u6570\u7EC4\u3002\u4E0D\u8981\u58F0\u79F0\u4EFB\u52A1\u5DF2\u7ECF\u5B8C\u6210\uFF1B\u9A8C\u6536\u7531\u4EBA\u7C7B/Verifier \u51B3\u5B9A\u3002"
@@ -238,6 +313,7 @@ function buildPrompt(context) {
 var AgentDispatcher = class {
   ctx;
   store;
+  workspaces = new WorkspaceManager();
   constructor(ctx, store) {
     this.ctx = ctx;
     this.store = store;
@@ -245,9 +321,10 @@ var AgentDispatcher = class {
   async dispatch(taskId) {
     const context = await this.store.getDispatchContext(taskId);
     const selection = await this.resolveModel(context.role);
-    const prompt = buildPrompt(context);
-    const run = await this.store.beginRun(taskId, prompt);
-    void this.execute(run, selection);
+    const workspace = context.project.repoPath === null ? void 0 : await this.workspaces.prepare(context.project.repoPath, taskId);
+    const prompt = buildPrompt(context, workspace);
+    const run = await this.store.beginRun(taskId, prompt, workspace);
+    void this.execute(run, selection, workspace);
     return run;
   }
   async resolveModel(role) {
@@ -271,15 +348,16 @@ var AgentDispatcher = class {
     if (first !== null) return first;
     throw new Error(`\u6CA1\u6709\u53EF\u7528\u7684\u6A21\u578B\u8DEF\u7531\uFF08\u8BF7\u6C42\u6A21\u578B\uFF1A${wanted}\uFF09`);
   }
-  async execute(run, selection) {
+  async execute(run, selection, workspace) {
     let handle = null;
     try {
       handle = await this.ctx.agents.create({
         sessionId: `run-${randomUUID()}`,
-        meta: { cwd: process.cwd() },
+        meta: { cwd: workspace?.path ?? process.cwd() },
         agentOptions: selection,
-        setup: async (agentCtx) => {
+        setup: async (agentCtx, agent) => {
           await this.ctx.agentPresets.mount(agentCtx);
+          agent.session.append("approval/policy", { policy: "never" });
         }
       });
       await this.store.attachRunSession(
@@ -292,13 +370,13 @@ var AgentDispatcher = class {
         content: [{ type: "text", text: run.prompt }],
         source: { kind: "user" }
       });
-      const deadline = Date.now() + 12e4;
+      const deadline = Date.now() + (workspace === void 0 ? 12e4 : 3e5);
       let output = "";
       let idleTicks = 0;
       while (Date.now() < deadline) {
         output = assistantText(handle.agent.session.deriveMessages());
-        if (output !== "") break;
         if (handle.agent.status === "idle") {
+          if (output !== "") break;
           idleTicks += 1;
           if (idleTicks >= 10) break;
         } else {
@@ -307,7 +385,9 @@ var AgentDispatcher = class {
         await new Promise((resolve) => setTimeout(resolve, 400));
       }
       if (output === "") {
-        throw new Error("Agent \u5728 120 \u79D2\u5185\u6CA1\u6709\u4EA7\u51FA\uFF08\u6CA1\u6709 assistant \u6D88\u606F\uFF09");
+        throw new Error(
+          `Agent \u5728 ${workspace === void 0 ? "120" : "300"} \u79D2\u5185\u6CA1\u6709\u4EA7\u51FA\uFF08\u6CA1\u6709 assistant \u6D88\u606F\uFF09`
+        );
       }
       const idleDeadline = Date.now() + 3e4;
       while (handle.agent.status !== "idle" && Date.now() < idleDeadline) {
@@ -318,10 +398,12 @@ var AgentDispatcher = class {
         output
       );
       const measured = this.ctx.tokenMeter.measure(handle.agent.session);
+      const diffStat = workspace === void 0 ? null : this.workspaces.diffStat(workspace.path);
       await this.store.completeRun(run.id, {
         output,
         receipt,
-        tokens: typeof measured.totalTokens === "number" ? measured.totalTokens : null
+        tokens: typeof measured.totalTokens === "number" ? measured.totalTokens : null,
+        diffStat
       });
     } catch (error) {
       await this.store.failRun(
@@ -338,10 +420,10 @@ var AgentDispatcher = class {
 
 // src/host/store.ts
 import { randomUUID as randomUUID2 } from "node:crypto";
-import { existsSync } from "node:fs";
-import { mkdir, readFile as readFile2, rename, rm, writeFile } from "node:fs/promises";
+import { existsSync as existsSync2 } from "node:fs";
+import { mkdir as mkdir2, readFile as readFile2, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
-import path2 from "node:path";
+import path3 from "node:path";
 var StudioStoreError = class extends Error {
   code;
   status;
@@ -354,8 +436,8 @@ var StudioStoreError = class extends Error {
 };
 function defaultStudioDataDir() {
   const home = process.env.DSH_HOME?.trim();
-  return path2.join(
-    home !== void 0 && home !== "" ? home : path2.join(os.homedir(), ".dsh"),
+  return path3.join(
+    home !== void 0 && home !== "" ? home : path3.join(os.homedir(), ".dsh"),
     "studio"
   );
 }
@@ -822,7 +904,7 @@ function buildCompany(state, now) {
   };
 }
 function isProject(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.name === "string" && typeof value.description === "string" && (value.tokenBudget === null || typeof value.tokenBudget === "number") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
+  return isRecord(value) && typeof value.id === "string" && typeof value.name === "string" && typeof value.description === "string" && (value.tokenBudget === null || typeof value.tokenBudget === "number") && (value.repoPath === null || typeof value.repoPath === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
 }
 function isRole(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.name === "string" && typeof value.title === "string" && typeof value.mission === "string" && Array.isArray(value.responsibilities) && Array.isArray(value.nonGoals) && Array.isArray(value.decisionRights) && (value.model === null || typeof value.model === "string") && (value.tokenBudget === null || typeof value.tokenBudget === "number") && (value.dailyTokenBudget === null || typeof value.dailyTokenBudget === "number");
@@ -831,7 +913,7 @@ function isAgentRunStatus(value) {
   return value === "queued" || value === "running" || value === "succeeded" || value === "failed";
 }
 function isAgentRun(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.branchName === null || typeof value.branchName === "string") && (value.workspacePath === null || typeof value.workspacePath === "string") && (value.diffStat === null || typeof value.diffStat === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
 }
 function isTask(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence);
@@ -896,9 +978,9 @@ function migrateState(value) {
     };
   }
   if (state.schemaVersion === 4) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 5,
       runs: state.runs.map((run) => ({
         ...run,
         branchId: run.branchId ?? null
@@ -916,6 +998,22 @@ function migrateState(value) {
         updatedAt: task.updatedAt
       })),
       contractChanges: []
+    };
+  }
+  if (state.schemaVersion === 5) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      projects: state.projects.map((project) => ({
+        ...project,
+        repoPath: project.repoPath ?? null
+      })),
+      runs: state.runs.map((run) => ({
+        ...run,
+        branchName: run.branchName ?? null,
+        workspacePath: run.workspacePath ?? null,
+        diffStat: run.diffStat ?? null
+      }))
     };
   }
   return state;
@@ -966,7 +1064,7 @@ var StudioStore = class {
   warning = null;
   constructor(options = {}) {
     this.dataDir = options.dataDir ?? defaultStudioDataDir();
-    this.file = path2.join(this.dataDir, "studio.json");
+    this.file = path3.join(this.dataDir, "studio.json");
     this.now = options.now ?? (() => /* @__PURE__ */ new Date());
   }
   async init() {
@@ -1038,6 +1136,7 @@ var StudioStore = class {
           agentExecution: true,
           decisionBoard: true,
           branchBoard: true,
+          codeExecution: true,
           gitMerge: false
         }
       };
@@ -1052,6 +1151,7 @@ var StudioStore = class {
         name: requiredText(input.name, "name", 80),
         description: optionalText(input.description, "description", 600),
         tokenBudget: optionalTokenBudget(input.tokenBudget, "tokenBudget"),
+        repoPath: optionalText(input.repoPath, "repoPath", 1e3) || null,
         createdAt: at,
         updatedAt: at
       };
@@ -1064,6 +1164,29 @@ var StudioStore = class {
         payload: { name: project.name }
       });
       state.updatedAt = at;
+      await this.save();
+      return structuredClone(project);
+    });
+  }
+  async updateProject(projectId, input) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const project = state.projects.find((item) => item.id === projectId);
+      if (project === void 0) {
+        throw new StudioStoreError("project_not_found", "\u9879\u76EE\u4E0D\u5B58\u5728", 404);
+      }
+      if (input.repoPath !== void 0) {
+        project.repoPath = optionalText(input.repoPath, "repoPath", 1e3) || null;
+      }
+      const at = nowIso(this.now);
+      project.updatedAt = at;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "project.updated",
+        at,
+        projectId: project.id,
+        payload: { repoPath: project.repoPath }
+      });
       await this.save();
       return structuredClone(project);
     });
@@ -1110,7 +1233,7 @@ var StudioStore = class {
       };
     });
   }
-  async beginRun(taskId, prompt) {
+  async beginRun(taskId, prompt, workspace) {
     return this.runExclusive(async () => {
       const state = this.requireState();
       const task = this.findTask(state, taskId);
@@ -1173,6 +1296,9 @@ var StudioStore = class {
         );
       }
       const at = nowIso(this.now);
+      if (workspace !== void 0) {
+        task.branch = workspace.branch;
+      }
       const branch = this.ensureBranch(state, task, at);
       const run = {
         id: newId("run"),
@@ -1180,6 +1306,9 @@ var StudioStore = class {
         taskId: task.id,
         roleId: role.id,
         branchId: branch.id,
+        branchName: workspace?.branch ?? null,
+        workspacePath: workspace?.path ?? null,
+        diffStat: null,
         sessionId: null,
         status: "queued",
         model: role.model,
@@ -1287,6 +1416,7 @@ var StudioStore = class {
       run.output = input.output.slice(0, 3e4);
       run.receipt = input.receipt;
       run.tokens = input.tokens;
+      run.diffStat = input.diffStat ?? null;
       run.budgetWarning = warnings.length === 0 ? null : warnings.join("\uFF1B");
       run.endedAt = at;
       if (task !== void 0) {
@@ -2032,8 +2162,8 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
     });
   }
   async load() {
-    await mkdir(this.dataDir, { recursive: true });
-    if (!existsSync(this.file)) {
+    await mkdir2(this.dataDir, { recursive: true });
+    if (!existsSync2(this.file)) {
       this.state = this.seedState();
       await this.save();
       return;
@@ -2187,6 +2317,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       name: "MOBA \u5782\u76F4\u5207\u7247",
       description: "\u7528\u4E00\u6761\u53EF\u73A9\u7684\u6700\u5C0F\u94FE\u8DEF\u9A8C\u8BC1\u5DE5\u4F5C\u53F0\uFF1A\u4EFB\u52A1\u3001\u89D2\u8272\u3001\u9A8C\u6536\u548C\u72B6\u6001\u673A\u3002",
       tokenBudget: null,
+      repoPath: null,
       createdAt: at,
       updatedAt: at
     };
@@ -2486,6 +2617,11 @@ function asCreateProject(body) {
     tokenBudget: asOptionalBudget(body.tokenBudget, "tokenBudget")
   };
 }
+function asUpdateProject(body) {
+  return {
+    repoPath: body.repoPath === void 0 ? void 0 : body.repoPath === null ? null : asString(body.repoPath, "repoPath")
+  };
+}
 function asCreateDecision(body) {
   return {
     title: asString(body.title, "title"),
@@ -2659,6 +2795,17 @@ var StudioRouter = class {
         asCreateProject(await readJson(req))
       );
       sendJson(res, 201, { ok: true, project });
+      return;
+    }
+    const projectMatch = /^\/studio-api\/projects\/([^/]+)$/.exec(parsed.pathname);
+    if (projectMatch !== null) {
+      this.requireMethod(parsed, ["PATCH"]);
+      assertJsonRequest(req);
+      const project = await this.store.updateProject(
+        decodeSegment(projectMatch[1] ?? ""),
+        asUpdateProject(await readJson(req))
+      );
+      sendJson(res, 200, { ok: true, project });
       return;
     }
     const selectProject = /^\/studio-api\/projects\/([^/]+)\/select$/.exec(

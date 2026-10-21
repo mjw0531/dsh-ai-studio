@@ -6,8 +6,8 @@ import os from "node:os";
 import path from "node:path";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 5;
-var STUDIO_PLUGIN_VERSION = "0.5.1";
+var STUDIO_SCHEMA_VERSION = 6;
+var STUDIO_PLUGIN_VERSION = "0.6.0";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -521,7 +521,7 @@ function buildCompany(state, now) {
   };
 }
 function isProject(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.name === "string" && typeof value.description === "string" && (value.tokenBudget === null || typeof value.tokenBudget === "number") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
+  return isRecord(value) && typeof value.id === "string" && typeof value.name === "string" && typeof value.description === "string" && (value.tokenBudget === null || typeof value.tokenBudget === "number") && (value.repoPath === null || typeof value.repoPath === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
 }
 function isRole(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.name === "string" && typeof value.title === "string" && typeof value.mission === "string" && Array.isArray(value.responsibilities) && Array.isArray(value.nonGoals) && Array.isArray(value.decisionRights) && (value.model === null || typeof value.model === "string") && (value.tokenBudget === null || typeof value.tokenBudget === "number") && (value.dailyTokenBudget === null || typeof value.dailyTokenBudget === "number");
@@ -530,7 +530,7 @@ function isAgentRunStatus(value) {
   return value === "queued" || value === "running" || value === "succeeded" || value === "failed";
 }
 function isAgentRun(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.branchName === null || typeof value.branchName === "string") && (value.workspacePath === null || typeof value.workspacePath === "string") && (value.diffStat === null || typeof value.diffStat === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
 }
 function isTask(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence);
@@ -595,9 +595,9 @@ function migrateState(value) {
     };
   }
   if (state.schemaVersion === 4) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 5,
       runs: state.runs.map((run) => ({
         ...run,
         branchId: run.branchId ?? null
@@ -615,6 +615,22 @@ function migrateState(value) {
         updatedAt: task.updatedAt
       })),
       contractChanges: []
+    };
+  }
+  if (state.schemaVersion === 5) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      projects: state.projects.map((project) => ({
+        ...project,
+        repoPath: project.repoPath ?? null
+      })),
+      runs: state.runs.map((run) => ({
+        ...run,
+        branchName: run.branchName ?? null,
+        workspacePath: run.workspacePath ?? null,
+        diffStat: run.diffStat ?? null
+      }))
     };
   }
   return state;
@@ -737,6 +753,7 @@ var StudioStore = class {
           agentExecution: true,
           decisionBoard: true,
           branchBoard: true,
+          codeExecution: true,
           gitMerge: false
         }
       };
@@ -751,6 +768,7 @@ var StudioStore = class {
         name: requiredText(input.name, "name", 80),
         description: optionalText(input.description, "description", 600),
         tokenBudget: optionalTokenBudget(input.tokenBudget, "tokenBudget"),
+        repoPath: optionalText(input.repoPath, "repoPath", 1e3) || null,
         createdAt: at,
         updatedAt: at
       };
@@ -763,6 +781,29 @@ var StudioStore = class {
         payload: { name: project.name }
       });
       state.updatedAt = at;
+      await this.save();
+      return structuredClone(project);
+    });
+  }
+  async updateProject(projectId, input) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const project = state.projects.find((item) => item.id === projectId);
+      if (project === void 0) {
+        throw new StudioStoreError("project_not_found", "\u9879\u76EE\u4E0D\u5B58\u5728", 404);
+      }
+      if (input.repoPath !== void 0) {
+        project.repoPath = optionalText(input.repoPath, "repoPath", 1e3) || null;
+      }
+      const at = nowIso(this.now);
+      project.updatedAt = at;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "project.updated",
+        at,
+        projectId: project.id,
+        payload: { repoPath: project.repoPath }
+      });
       await this.save();
       return structuredClone(project);
     });
@@ -809,7 +850,7 @@ var StudioStore = class {
       };
     });
   }
-  async beginRun(taskId, prompt) {
+  async beginRun(taskId, prompt, workspace) {
     return this.runExclusive(async () => {
       const state = this.requireState();
       const task = this.findTask(state, taskId);
@@ -872,6 +913,9 @@ var StudioStore = class {
         );
       }
       const at = nowIso(this.now);
+      if (workspace !== void 0) {
+        task.branch = workspace.branch;
+      }
       const branch = this.ensureBranch(state, task, at);
       const run = {
         id: newId("run"),
@@ -879,6 +923,9 @@ var StudioStore = class {
         taskId: task.id,
         roleId: role.id,
         branchId: branch.id,
+        branchName: workspace?.branch ?? null,
+        workspacePath: workspace?.path ?? null,
+        diffStat: null,
         sessionId: null,
         status: "queued",
         model: role.model,
@@ -986,6 +1033,7 @@ var StudioStore = class {
       run.output = input.output.slice(0, 3e4);
       run.receipt = input.receipt;
       run.tokens = input.tokens;
+      run.diffStat = input.diffStat ?? null;
       run.budgetWarning = warnings.length === 0 ? null : warnings.join("\uFF1B");
       run.endedAt = at;
       if (task !== void 0) {
@@ -1886,6 +1934,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       name: "MOBA \u5782\u76F4\u5207\u7247",
       description: "\u7528\u4E00\u6761\u53EF\u73A9\u7684\u6700\u5C0F\u94FE\u8DEF\u9A8C\u8BC1\u5DE5\u4F5C\u53F0\uFF1A\u4EFB\u52A1\u3001\u89D2\u8272\u3001\u9A8C\u6536\u548C\u72B6\u6001\u673A\u3002",
       tokenBudget: null,
+      repoPath: null,
       createdAt: at,
       updatedAt: at
     };
