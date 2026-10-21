@@ -57,6 +57,17 @@ var PRIORITY_LABELS = {
   P1: "P1 \u91CD\u8981",
   P2: "P2 \u666E\u901A"
 };
+var MERGE_STATUS_LABELS = {
+  review: "\u5F85\u8BC4\u5BA1",
+  approved: "\u5DF2\u6279\u51C6",
+  rejected: "\u5DF2\u6253\u56DE",
+  merged: "\u5DF2\u5408\u5E76"
+};
+var MERGE_RISK_LABELS = {
+  low: "\u4F4E\u98CE\u9669",
+  medium: "\u4E2D\u98CE\u9669",
+  high: "\u9AD8\u98CE\u9669"
+};
 var ALLOWED_TRANSITIONS = {
   backlog: ["ready"],
   ready: ["backlog", "running"],
@@ -153,6 +164,37 @@ var StudioClient = class {
       { method: "POST", body: { status } }
     );
     return data.task;
+  }
+  async createMergeProposal(taskId, input) {
+    const data = await this.request(
+      `/tasks/${encodeURIComponent(taskId)}/merge-proposal`,
+      { method: "POST", body: input }
+    );
+    return data.proposal;
+  }
+  async approveMergeProposal(proposalId, note) {
+    const data = await this.request(
+      `/merge-proposals/${encodeURIComponent(proposalId)}/approve`,
+      { method: "POST", body: note === void 0 ? {} : { note } }
+    );
+    return data.proposal;
+  }
+  async rejectMergeProposal(proposalId, note) {
+    const data = await this.request(
+      `/merge-proposals/${encodeURIComponent(proposalId)}/reject`,
+      { method: "POST", body: { note } }
+    );
+    return data.proposal;
+  }
+  async completeMergeProposal(proposalId, mergeCommit) {
+    const data = await this.request(
+      `/merge-proposals/${encodeURIComponent(proposalId)}/merge`,
+      {
+        method: "POST",
+        body: mergeCommit === void 0 ? {} : { mergeCommit }
+      }
+    );
+    return data.proposal;
   }
   async request(path, options = {}) {
     const headers = {
@@ -279,6 +321,14 @@ function IconAlert(props) {
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "M12 9v4M12 17h.01" })
   ] });
 }
+function IconGitMerge(props) {
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Base, { ...props, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", { cx: "6", cy: "5", r: "2.2" }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", { cx: "6", cy: "19", r: "2.2" }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", { cx: "18", cy: "12", r: "2.2" }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "M6 7.2v9.6M8.2 5h3.3a4 4 0 0 1 4 4v.8M8.2 19h3.3a4 4 0 0 0 4-4v-.8" })
+  ] });
+}
 function IconSpark(props) {
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Base, { ...props, children: [
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "m12 3 1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6Z" }),
@@ -291,6 +341,7 @@ var import_jsx_runtime2 = require("react/jsx-runtime");
 var NAV_ITEMS = [
   { id: "mission", label: "\u603B\u89C8", caption: "Mission Control" },
   { id: "tasks", label: "\u4EFB\u52A1", caption: "Task Board" },
+  { id: "merges", label: "\u5408\u5E76", caption: "Merge Queue" },
   { id: "team", label: "\u56E2\u961F", caption: "Roles" },
   { id: "settings", label: "\u8BBE\u7F6E", caption: "Runtime" }
 ];
@@ -331,6 +382,8 @@ function NavIcon({ tab }) {
       return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconGrid, { width: 15, height: 15 });
     case "tasks":
       return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconKanban, { width: 15, height: 15 });
+    case "merges":
+      return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconGitMerge, { width: 15, height: 15 });
     case "team":
       return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconUsers, { width: 15, height: 15 });
     case "settings":
@@ -343,6 +396,22 @@ function StatusPill({ status }) {
 }
 function PriorityPill({ priority }) {
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-pill", "data-tone": priority.toLowerCase(), children: priority });
+}
+function mergeTone(status) {
+  if (status === "merged") return "ok";
+  if (status === "approved") return "p1";
+  if (status === "rejected") return "p0";
+  return "accent";
+}
+function MergePill({ proposal }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "studio-pill", "data-tone": mergeTone(proposal.status), children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconGitMerge, { width: 10, height: 10 }),
+    MERGE_STATUS_LABELS[proposal.status]
+  ] });
+}
+function latestMergeForTask(proposals, taskId) {
+  const matching = proposals.filter((proposal) => proposal.taskId === taskId).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  return matching.find((proposal) => proposal.status !== "rejected") ?? matching[0] ?? null;
 }
 function StatCard({
   label,
@@ -467,7 +536,8 @@ function StudioPage() {
   }
   const project = data.project;
   const reviewCount = data.tasks.filter((task) => task.status === "review").length;
-  const taskCountForNav = tab === "tasks" ? data.stats.total : data.stats.total;
+  const mergeCount = data.stats.mergeReview + data.stats.mergeApproved;
+  const selectedMerge = selectedTask === null ? null : latestMergeForTask(data.mergeProposals, selectedTask.id);
   const createTask = async (input) => {
     const ok = await run(
       async () => {
@@ -534,6 +604,42 @@ function StudioPage() {
         await client.updateTask(task.id, { evidence });
       },
       "\u8BC1\u636E\u5DF2\u8BB0\u5F55"
+    );
+  };
+  const createMerge = async (task, input) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.createMergeProposal(task.id, input);
+      },
+      "\u5408\u5E76\u63D0\u6848\u5DF2\u63D0\u4EA4"
+    );
+  };
+  const approveMerge = async (proposal, note) => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.approveMergeProposal(proposal.id, note);
+      },
+      "\u5408\u5E76\u63D0\u6848\u5DF2\u6279\u51C6"
+    );
+  };
+  const rejectMerge = async (proposal, note) => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.rejectMergeProposal(proposal.id, note);
+      },
+      "\u5408\u5E76\u63D0\u6848\u5DF2\u6253\u56DE"
+    );
+  };
+  const completeMerge = async (proposal, mergeCommit) => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.completeMergeProposal(proposal.id, mergeCommit);
+      },
+      "\u5DF2\u8BB0\u5F55\u5408\u5E76\u5B8C\u6210"
     );
   };
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-root", "data-theme": theme, children: [
@@ -604,7 +710,7 @@ function StudioPage() {
             children: [
               /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(NavIcon, { tab: item.id }),
               /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: item.label }),
-              item.id === "mission" && reviewCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-nav-count", children: reviewCount }) : item.id === "tasks" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-nav-count", children: taskCountForNav }) : item.id === "team" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-nav-count", children: data.roles.length }) : null
+              item.id === "mission" && reviewCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-nav-count", children: reviewCount }) : item.id === "tasks" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-nav-count", children: data.stats.total }) : item.id === "merges" && mergeCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-nav-count", children: mergeCount }) : item.id === "team" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-nav-count", children: data.roles.length }) : null
             ]
           },
           item.id
@@ -649,6 +755,17 @@ function StudioPage() {
             onOpenTask: setSelectedTaskId
           }
         ) : null,
+        tab === "merges" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          MergeView,
+          {
+            data,
+            busy,
+            onOpenTask: setSelectedTaskId,
+            onApprove: (proposal, note) => void approveMerge(proposal, note),
+            onReject: (proposal, note) => void rejectMerge(proposal, note),
+            onComplete: (proposal, commit) => void completeMerge(proposal, commit)
+          }
+        ) : null,
         tab === "team" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
           TeamView,
           {
@@ -674,11 +791,24 @@ function StudioPage() {
       {
         task: selectedTask,
         roles: data.roles,
+        mergeProposal: selectedMerge,
         busy,
         onClose: () => setSelectedTaskId(null),
         onTransition: (status) => void transitionTask(selectedTask, status),
         onToggleAcceptance: (id) => void toggleAcceptance(selectedTask, id),
-        onAddEvidence: (text) => addEvidence(selectedTask, text)
+        onAddEvidence: (text) => addEvidence(selectedTask, text),
+        onCreateMerge: (input) => createMerge(selectedTask, input),
+        onApproveMerge: (note) => {
+          if (selectedMerge !== null) void approveMerge(selectedMerge, note);
+        },
+        onRejectMerge: (note) => {
+          if (selectedMerge !== null) void rejectMerge(selectedMerge, note);
+        },
+        onCompleteMerge: (commit) => {
+          if (selectedMerge !== null) {
+            void completeMerge(selectedMerge, commit);
+          }
+        }
       },
       selectedTask.id
     ) : null,
@@ -725,7 +855,11 @@ function MissionView({
   const ready = data.tasks.filter(
     (task) => task.status === "running" && allAccepted(task)
   );
+  const mergeNeeds = data.mergeProposals.filter(
+    (proposal) => proposal.status === "review" || proposal.status === "approved"
+  );
   const needs = [...review, ...blocked, ...ready].slice(0, 5);
+  const totalNeeds = mergeNeeds.length + needs.length;
   const acceptanceRate = data.stats.acceptanceTotal === 0 ? 0 : Math.round(
     data.stats.acceptanceDone / data.stats.acceptanceTotal * 100
   );
@@ -774,6 +908,15 @@ function MissionView({
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
         StatCard,
         {
+          label: "\u5F85\u5408\u5E76",
+          value: String(data.stats.mergeReview + data.stats.mergeApproved),
+          note: `${String(data.stats.mergeMerged)} \u4E2A\u5DF2\u5408\u5E76`,
+          tone: data.stats.mergeApproved > 0 ? "warn" : data.stats.mergeReview > 0 ? "danger" : void 0
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        StatCard,
+        {
           label: "\u8FDB\u884C\u4E2D",
           value: String(data.stats.running),
           note: `${String(ready.length)} \u4E2A\u5DF2\u6EE1\u8DB3\u9A8C\u6536\u6761\u4EF6`
@@ -805,45 +948,88 @@ function MissionView({
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-panel-head", children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconSpark, { width: 14, height: 14 }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h3", { children: "\u9700\u8981\u4F60" }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-muted", children: needs.length === 0 ? "\u5F53\u524D\u6CA1\u6709\u963B\u585E\u9879" : `${String(needs.length)} \u9879` })
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-muted", children: totalNeeds === 0 ? "\u5F53\u524D\u6CA1\u6709\u963B\u585E\u9879" : `${String(totalNeeds)} \u9879` })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-panel-body", children: needs.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-empty", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-panel-body", children: totalNeeds === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-empty", children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: "\u8282\u594F\u6B63\u5E38" }),
-          "\u6CA1\u6709\u5F85\u9A8C\u6536\u3001\u963B\u585E\u6216\u53EF\u63D0\u4EA4\u9A8C\u6536\u7684\u4EFB\u52A1\u3002"
-        ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-needs", children: needs.map((task) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
-          "button",
-          {
-            type: "button",
-            className: "studio-need",
-            onClick: () => onOpenTask(task.id),
-            children: [
-              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-                "span",
-                {
-                  className: "studio-need-mark",
-                  "data-tone": task.status === "blocked" ? "danger" : task.status === "review" ? "accent" : "warn"
-                }
-              ),
-              /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { children: [
-                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-need-title", children: task.title }),
-                /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "studio-need-meta", children: [
-                  task.status === "review" ? "\u7B49\u5F85\u9A8C\u6536" : task.status === "blocked" ? "\u963B\u585E\u5F85\u5904\u7406" : "\u53EF\u63D0\u4EA4\u9A8C\u6536",
-                  " \xB7 ",
-                  roleName(data.roles, task.ownerRoleId)
-                ] })
-              ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-                IconChevronRight,
-                {
-                  className: "studio-need-arrow",
-                  width: 14,
-                  height: 14
-                }
-              )
-            ]
-          },
-          task.id
-        )) }) })
+          "\u6CA1\u6709\u5F85\u9A8C\u6536\u3001\u5F85\u5408\u5E76\u3001\u963B\u585E\u6216\u53EF\u63D0\u4EA4\u9A8C\u6536\u7684\u4E8B\u9879\u3002"
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-needs", children: [
+          mergeNeeds.map((proposal) => {
+            const task = data.tasks.find(
+              (item) => item.id === proposal.taskId
+            );
+            return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+              "button",
+              {
+                type: "button",
+                className: "studio-need",
+                onClick: () => onOpenTask(proposal.taskId),
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                    "span",
+                    {
+                      className: "studio-need-mark",
+                      "data-tone": proposal.status === "approved" ? "warn" : "accent"
+                    }
+                  ),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-need-title", children: task?.title ?? "\u5408\u5E76\u63D0\u6848" }),
+                    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "studio-need-meta", children: [
+                      proposal.status === "approved" ? "\u5DF2\u6279\u51C6\uFF0C\u7B49\u5F85\u5408\u5E76" : "\u5408\u5E76\u63D0\u6848\u5F85\u8BC4\u5BA1",
+                      " \xB7 ",
+                      proposal.branch,
+                      " \u2192 ",
+                      proposal.base
+                    ] })
+                  ] }),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                    IconChevronRight,
+                    {
+                      className: "studio-need-arrow",
+                      width: 14,
+                      height: 14
+                    }
+                  )
+                ]
+              },
+              proposal.id
+            );
+          }),
+          needs.map((task) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+            "button",
+            {
+              type: "button",
+              className: "studio-need",
+              onClick: () => onOpenTask(task.id),
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                  "span",
+                  {
+                    className: "studio-need-mark",
+                    "data-tone": task.status === "blocked" ? "danger" : task.status === "review" ? "accent" : "warn"
+                  }
+                ),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-need-title", children: task.title }),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "studio-need-meta", children: [
+                    task.status === "review" ? "\u7B49\u5F85\u9A8C\u6536" : task.status === "blocked" ? "\u963B\u585E\u5F85\u5904\u7406" : "\u53EF\u63D0\u4EA4\u9A8C\u6536",
+                    " \xB7 ",
+                    roleName(data.roles, task.ownerRoleId)
+                  ] })
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                  IconChevronRight,
+                  {
+                    className: "studio-need-arrow",
+                    width: 14,
+                    height: 14
+                  }
+                )
+              ]
+            },
+            task.id
+          ))
+        ] }) })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "studio-panel", children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-panel-head", children: [
@@ -871,6 +1057,7 @@ function MissionView({
         {
           tasks: data.tasks,
           roles: data.roles,
+          mergeProposals: data.mergeProposals,
           onOpenTask
         }
       ) })
@@ -934,9 +1121,196 @@ function TasksView({
       {
         tasks,
         roles: data.roles,
+        mergeProposals: data.mergeProposals,
         onOpenTask
       }
     )
+  ] });
+}
+function MergeView({
+  data,
+  busy,
+  onOpenTask,
+  onApprove,
+  onReject,
+  onComplete
+}) {
+  const proposals = [...data.mergeProposals].sort((left, right) => {
+    const order = { review: 0, approved: 1, rejected: 2, merged: 3 };
+    const byStatus = order[left.status] - order[right.status];
+    return byStatus !== 0 ? byStatus : right.createdAt.localeCompare(left.createdAt);
+  });
+  const rejected = data.mergeProposals.filter(
+    (proposal) => proposal.status === "rejected"
+  ).length;
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-page-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-eyebrow", children: "Merge Queue" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h1", { className: "studio-title", children: "\u5408\u5E76\u6CBB\u7406" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { className: "studio-subtitle", children: "\u5206\u652F\u4E0D\u4F1A\u81EA\u5DF1\u6C47\u5165\u4E3B\u5E72\u3002\u6BCF\u4E2A\u63D0\u6848\u90FD\u8981\u6709\u6458\u8981\u3001\u98CE\u9669\u3001\u56DE\u6EDA\u548C\u8BC4\u5BA1\u8BB0\u5F55\uFF1BStudio \u8BB0\u5F55\u6CBB\u7406\u72B6\u6001\uFF0CGit \u547D\u4EE4\u7531\u4EBA\u6216 Integrator \u6267\u884C\u3002" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-head-actions", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "studio-pill", "data-tone": "accent", children: [
+          "\u5F85\u8BC4\u5BA1 ",
+          data.stats.mergeReview
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "studio-pill", "data-tone": "p1", children: [
+          "\u5F85\u5408\u5E76 ",
+          data.stats.mergeApproved
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "studio-pill", "data-tone": "ok", children: [
+          "\u5DF2\u5408\u5E76 ",
+          data.stats.mergeMerged
+        ] })
+      ] })
+    ] }),
+    proposals.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-empty", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: "\u8FD8\u6CA1\u6709\u5408\u5E76\u63D0\u6848" }),
+      "\u4EFB\u52A1\u5B8C\u6210\u9A8C\u6536\u5E76\u8BB0\u5F55\u8BC1\u636E\u540E\uFF0C\u5728 Task Room \u7684\u300C\u5408\u5E76\u6CBB\u7406\u300D\u91CC\u63D0\u4EA4\u7B2C\u4E00\u4E2A\u63D0\u6848\u3002"
+    ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-merge-list", children: [
+      proposals.map((proposal) => {
+        const task = data.tasks.find(
+          (item) => item.id === proposal.taskId
+        );
+        return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          MergeProposalCard,
+          {
+            proposal,
+            task: task ?? null,
+            busy,
+            onOpenTask,
+            onApprove,
+            onReject,
+            onComplete
+          },
+          proposal.id
+        );
+      }),
+      rejected > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-action-note", children: [
+        "\u6709 ",
+        rejected,
+        " \u4E2A\u63D0\u6848\u88AB\u6253\u56DE\uFF1B\u4EFB\u52A1\u56DE\u5230\u6267\u884C\u4E2D\uFF0C\u4FEE\u6539\u540E\u53EF\u91CD\u65B0\u63D0\u4EA4\u3002"
+      ] }) : null
+    ] })
+  ] });
+}
+function MergeProposalCard({
+  proposal,
+  task,
+  busy,
+  onOpenTask,
+  onApprove,
+  onReject,
+  onComplete
+}) {
+  const [note, setNote] = (0, import_react.useState)("");
+  const [commit, setCommit] = (0, import_react.useState)("");
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("article", { className: "studio-merge-card", "data-status": proposal.status, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-merge-top", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(MergePill, { proposal }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-pill", "data-tone": "p2", children: MERGE_RISK_LABELS[proposal.risk] }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "studio-muted", style: { marginLeft: "auto" }, children: [
+        proposal.branch,
+        " \u2192 ",
+        proposal.base
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-merge-title", children: [
+      task === null ? proposal.taskId : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", onClick: () => onOpenTask(proposal.taskId), children: task.title }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-mono", children: proposal.id })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("dl", { className: "studio-kv", style: { marginTop: 9 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u53D8\u66F4\u6458\u8981" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: proposal.summary }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u56DE\u6EDA\u65B9\u6848" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: proposal.rollback }),
+      proposal.reviewNote !== "" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u8BC4\u5BA1\u5907\u6CE8" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: proposal.reviewNote })
+      ] }) : null,
+      proposal.mergeCommit !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u5408\u5E76\u63D0\u4EA4" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { className: "studio-mono", children: proposal.mergeCommit })
+      ] }) : null,
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u521B\u5EFA" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: formatDate(proposal.createdAt) })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-merge-command", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-faint", children: "\u4EBA\u5DE5\u6267\u884C\uFF1A" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("code", { children: [
+        "git switch ",
+        proposal.base,
+        " && git merge --no-ff ",
+        proposal.branch
+      ] })
+    ] }),
+    proposal.status === "review" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-merge-actions", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        "input",
+        {
+          value: note,
+          onChange: (event) => setNote(event.target.value),
+          placeholder: "\u8BC4\u5BA1\u5907\u6CE8\uFF08\u6253\u56DE\u65F6\u5FC5\u586B\uFF09",
+          disabled: busy
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-actions", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+          "button",
+          {
+            type: "button",
+            className: "studio-btn",
+            "data-variant": "primary",
+            "data-size": "sm",
+            disabled: busy,
+            onClick: () => onApprove(proposal, note.trim() || void 0),
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconCheck, { width: 13, height: 13 }),
+              "\u6279\u51C6"
+            ]
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          "button",
+          {
+            type: "button",
+            className: "studio-btn",
+            "data-variant": "danger",
+            "data-size": "sm",
+            disabled: busy || note.trim() === "",
+            title: note.trim() === "" ? "\u6253\u56DE\u5FC5\u987B\u5199\u6E05\u695A\u539F\u56E0" : "\u6253\u56DE\u5E76\u9000\u56DE\u6267\u884C",
+            onClick: () => onReject(proposal, note.trim()),
+            children: "\u6253\u56DE"
+          }
+        )
+      ] })
+    ] }) : proposal.status === "approved" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-merge-actions", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        "input",
+        {
+          value: commit,
+          onChange: (event) => setCommit(event.target.value),
+          placeholder: "\u5408\u5E76\u63D0\u4EA4 SHA\uFF08\u53EF\u9009\uFF09",
+          disabled: busy
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+        "button",
+        {
+          type: "button",
+          className: "studio-btn",
+          "data-variant": "primary",
+          "data-size": "sm",
+          disabled: busy,
+          onClick: () => onComplete(proposal, commit.trim() || void 0),
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconCheck, { width: 13, height: 13 }),
+            "\u6807\u8BB0\u5DF2\u5408\u5E76"
+          ]
+        }
+      )
+    ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-action-note", children: proposal.status === "merged" ? `\u5DF2\u5408\u5E76${proposal.mergedAt !== null ? ` \xB7 ${formatDate(proposal.mergedAt)}` : ""}` : "\u5DF2\u6253\u56DE\uFF1B\u4EFB\u52A1\u56DE\u5230\u6267\u884C\u4E2D\uFF0C\u4FEE\u6539\u540E\u53EF\u91CD\u65B0\u63D0\u4EA4\u3002" })
   ] });
 }
 function TeamView({
@@ -1038,6 +1412,7 @@ function Roster({
 function TaskBoard({
   tasks,
   roles,
+  mergeProposals,
   onOpenTask
 }) {
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-board-wrap", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-board", children: TASK_STATUS_ORDER.map((status) => {
@@ -1059,6 +1434,10 @@ function TaskBoard({
         {
           task,
           roles,
+          mergeProposal: latestMergeForTask(
+            mergeProposals,
+            task.id
+          ),
           onOpen: onOpenTask
         },
         task.id
@@ -1069,6 +1448,7 @@ function TaskBoard({
 function TaskCard({
   task,
   roles,
+  mergeProposal,
   onOpen
 }) {
   const done = acceptanceDone(task);
@@ -1083,7 +1463,8 @@ function TaskCard({
       children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-task-top", children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(PriorityPill, { priority: task.priority }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(StatusPill, { status: task.status })
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(StatusPill, { status: task.status }),
+          mergeProposal !== null && mergeProposal.status !== "rejected" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(MergePill, { proposal: mergeProposal }) : null
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-task-title", children: task.title }),
         task.goal ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-task-goal", children: task.goal }) : null,
@@ -1104,11 +1485,16 @@ function TaskCard({
 function TaskDrawer({
   task,
   roles,
+  mergeProposal,
   busy,
   onClose,
   onTransition,
   onToggleAcceptance,
-  onAddEvidence
+  onAddEvidence,
+  onCreateMerge,
+  onApproveMerge,
+  onRejectMerge,
+  onCompleteMerge
 }) {
   const [evidenceText, setEvidenceText] = (0, import_react.useState)("");
   const done = acceptanceDone(task);
@@ -1144,7 +1530,8 @@ function TaskDrawer({
               /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { children: [
                 /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-actions", style: { marginBottom: 8 }, children: [
                   /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(StatusPill, { status: task.status }),
-                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(PriorityPill, { priority: task.priority })
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(PriorityPill, { priority: task.priority }),
+                  mergeProposal !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(MergePill, { proposal: mergeProposal }) : null
                 ] }),
                 /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h2", { children: task.title }),
                 /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-muted", children: [
@@ -1274,6 +1661,18 @@ function TaskDrawer({
                   /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { className: "studio-mono", children: task.id })
                 ] })
               ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                TaskMergePanel,
+                {
+                  task,
+                  proposal: mergeProposal,
+                  busy,
+                  onCreate: onCreateMerge,
+                  onApprove: onApproveMerge,
+                  onReject: onRejectMerge,
+                  onComplete: onCompleteMerge
+                }
+              ),
               /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { children: [
                 /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-section-label", children: "\u63A8\u8FDB\u4EFB\u52A1" }),
                 transitions.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-faint", style: { fontSize: 11 }, children: "\u4EFB\u52A1\u5DF2\u5B8C\u6210\uFF0C\u4E0D\u80FD\u7EE7\u7EED\u63A8\u8FDB\u3002\u9700\u8981\u65B0\u5DE5\u4F5C\u8BF7\u521B\u5EFA\u540E\u7EED\u4EFB\u52A1\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-actions", children: transitions.map((status) => {
@@ -1296,7 +1695,7 @@ function TaskDrawer({
                     status
                   );
                 }) }),
-                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-action-note", children: "v0.1 \u662F\u63A7\u5236\u9762\uFF1A\u72B6\u6001\u4E0E\u9A8C\u6536\u5DF2\u7ECF\u6301\u4E45\u5316\uFF1BAgent \u6D3E\u5355\u3001worktree \u548C\u5408\u5E76\u961F\u5217\u5728\u4E0B\u4E00\u9636\u6BB5\u63A5\u5165\u3002" })
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-action-note", children: "v0.2 \u5DF2\u63A5\u5165\u5408\u5E76\u6CBB\u7406\uFF1A\u63D0\u6848\u3001\u8BC4\u5BA1\u3001\u6279\u51C6\u3001\u5408\u5E76\u8BB0\u5F55\u90FD\u4F1A\u6301\u4E45\u5316\uFF1BGit \u547D\u4EE4\u4ECD\u7531\u4EBA\u6267\u884C\u3002" })
               ] })
             ] })
           ]
@@ -1304,6 +1703,247 @@ function TaskDrawer({
       )
     }
   );
+}
+function TaskMergePanel({
+  task,
+  proposal,
+  busy,
+  onCreate,
+  onApprove,
+  onReject,
+  onComplete
+}) {
+  const [summary, setSummary] = (0, import_react.useState)("");
+  const [branch, setBranch] = (0, import_react.useState)(task.branch ?? "");
+  const [base, setBase] = (0, import_react.useState)("main");
+  const [risk, setRisk] = (0, import_react.useState)("medium");
+  const [rollback, setRollback] = (0, import_react.useState)("");
+  const [reviewNote, setReviewNote] = (0, import_react.useState)("");
+  const [mergeCommit, setMergeCommit] = (0, import_react.useState)("");
+  const [localError, setLocalError] = (0, import_react.useState)(null);
+  const complete = allAccepted(task);
+  const hasEvidence = task.evidence.length > 0;
+  const reviewable = task.status === "done";
+  const canSubmit = reviewable && complete && hasEvidence && branch.trim() !== "" && summary.trim() !== "" && rollback.trim() !== "";
+  const activeProposal = proposal !== null && proposal.status !== "rejected" ? proposal : null;
+  const submit = async (event) => {
+    event.preventDefault();
+    if (!canSubmit) {
+      setLocalError("\u5148\u5B8C\u6210\u9A8C\u6536\u3001\u8BB0\u5F55\u8BC1\u636E\uFF0C\u5E76\u586B\u5199\u5206\u652F\u3001\u6458\u8981\u548C\u56DE\u6EDA\u65B9\u6848\u3002");
+      return;
+    }
+    setLocalError(null);
+    const ok = await onCreate({
+      branch: branch.trim(),
+      base: base.trim() || "main",
+      risk,
+      summary: summary.trim(),
+      rollback: rollback.trim()
+    });
+    if (ok) {
+      setSummary("");
+      setRollback("");
+    }
+  };
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-section-label", children: "\u5408\u5E76\u6CBB\u7406" }),
+    activeProposal === null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+      proposal !== null && proposal.status === "rejected" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-alert", "data-tone": "warn", style: { marginBottom: 10 }, children: [
+        "\u4E0A\u6B21\u5408\u5E76\u63D0\u6848\u88AB\u6253\u56DE\uFF1A",
+        proposal.reviewNote || "\u672A\u586B\u5199\u539F\u56E0"
+      ] }) : null,
+      !reviewable ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-faint", style: { fontSize: 11 }, children: "\u4EFB\u52A1\u9A8C\u6536\u901A\u8FC7\u540E\uFF0C\u624D\u80FD\u63D0\u4EA4\u5408\u5E76\u63D0\u6848\u3002" }) : !complete || !hasEvidence ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-faint", style: { fontSize: 11 }, children: "\u5148\u5B8C\u6210\u5168\u90E8\u9A8C\u6536\u9879\u5E76\u8BB0\u5F55\u81F3\u5C11\u4E00\u6761\u8BC1\u636E\uFF0C\u624D\u80FD\u63D0\u4EA4\u5408\u5E76\u63D0\u6848\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("form", { onSubmit: (event) => void submit(event), className: "studio-merge-form", children: [
+        localError !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-alert", children: localError }) : null,
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "merge-branch", children: "\u5206\u652F" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "input",
+              {
+                id: "merge-branch",
+                value: branch,
+                onChange: (event) => setBranch(event.target.value),
+                placeholder: "task/003-ability"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "merge-base", children: "\u76EE\u6807\u5206\u652F" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "input",
+              {
+                id: "merge-base",
+                value: base,
+                onChange: (event) => setBase(event.target.value),
+                placeholder: "main"
+              }
+            )
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "merge-risk", children: "\u98CE\u9669" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+            "select",
+            {
+              id: "merge-risk",
+              value: risk,
+              onChange: (event) => setRisk(event.target.value),
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "low", children: MERGE_RISK_LABELS.low }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "medium", children: MERGE_RISK_LABELS.medium }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "high", children: MERGE_RISK_LABELS.high })
+              ]
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "merge-summary", children: "\u53D8\u66F4\u6458\u8981" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "textarea",
+            {
+              id: "merge-summary",
+              value: summary,
+              onChange: (event) => setSummary(event.target.value),
+              placeholder: "\u6539\u4E86\u4EC0\u4E48\u3001\u5F71\u54CD\u54EA\u4E9B\u5951\u7EA6/\u6A21\u5757"
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "merge-rollback", children: "\u56DE\u6EDA\u65B9\u6848" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "textarea",
+            {
+              id: "merge-rollback",
+              value: rollback,
+              onChange: (event) => setRollback(event.target.value),
+              placeholder: "\u51FA\u95EE\u9898\u65F6\u600E\u4E48\u56DE\u6EDA\uFF1F"
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-actions", style: { marginTop: 10 }, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+          "button",
+          {
+            type: "submit",
+            className: "studio-btn",
+            "data-variant": "primary",
+            "data-size": "sm",
+            disabled: busy || !canSubmit,
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconGitMerge, { width: 13, height: 13 }),
+              "\u63D0\u4EA4\u5408\u5E76\u63D0\u6848"
+            ]
+          }
+        ) }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-action-note", children: "Studio \u53EA\u8BB0\u5F55\u6CBB\u7406\u72B6\u6001\uFF0C\u4E0D\u6267\u884C Git\u3002\u5408\u5E76\u547D\u4EE4\u7531\u4EBA\u6216 Integrator \u6267\u884C\u3002" })
+      ] })
+    ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-merge-card", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-merge-top", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(MergePill, { proposal: activeProposal }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-pill", "data-tone": "p2", children: MERGE_RISK_LABELS[activeProposal.risk] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "studio-muted", style: { marginLeft: "auto" }, children: [
+            activeProposal.branch,
+            " \u2192 ",
+            activeProposal.base
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("dl", { className: "studio-kv", style: { marginTop: 10 }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u53D8\u66F4\u6458\u8981" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: activeProposal.summary }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u56DE\u6EDA\u65B9\u6848" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: activeProposal.rollback }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u8BC4\u5BA1\u5907\u6CE8" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: activeProposal.reviewNote || "\u65E0" }),
+          activeProposal.mergeCommit !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u5408\u5E76\u63D0\u4EA4" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { className: "studio-mono", children: activeProposal.mergeCommit })
+          ] }) : null,
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u521B\u5EFA" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: formatDate(activeProposal.createdAt) }),
+          activeProposal.mergedAt !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u5408\u5E76\u65F6\u95F4" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: formatDate(activeProposal.mergedAt) })
+          ] }) : null
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-merge-command", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-faint", children: "\u4EBA\u5DE5\u6267\u884C\uFF1A" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("code", { children: [
+            "git switch ",
+            activeProposal.base,
+            " && git merge --no-ff",
+            " ",
+            activeProposal.branch
+          ] })
+        ] })
+      ] }),
+      activeProposal.status === "review" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-merge-actions", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          "input",
+          {
+            value: reviewNote,
+            onChange: (event) => setReviewNote(event.target.value),
+            placeholder: "\u8BC4\u5BA1\u5907\u6CE8\uFF08\u6253\u56DE\u65F6\u5FC5\u586B\uFF09",
+            disabled: busy
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-actions", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+            "button",
+            {
+              type: "button",
+              className: "studio-btn",
+              "data-variant": "primary",
+              "data-size": "sm",
+              disabled: busy,
+              onClick: () => onApprove(reviewNote.trim() || void 0),
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconCheck, { width: 13, height: 13 }),
+                "\u6279\u51C6"
+              ]
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "button",
+            {
+              type: "button",
+              className: "studio-btn",
+              "data-variant": "danger",
+              "data-size": "sm",
+              disabled: busy || reviewNote.trim() === "",
+              title: reviewNote.trim() === "" ? "\u6253\u56DE\u5FC5\u987B\u5199\u6E05\u695A\u539F\u56E0" : "\u6253\u56DE\u5E76\u9000\u56DE\u6267\u884C",
+              onClick: () => onReject(reviewNote.trim()),
+              children: "\u6253\u56DE"
+            }
+          )
+        ] })
+      ] }) : activeProposal.status === "approved" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-merge-actions", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          "input",
+          {
+            value: mergeCommit,
+            onChange: (event) => setMergeCommit(event.target.value),
+            placeholder: "\u5408\u5E76\u63D0\u4EA4 SHA\uFF08\u53EF\u9009\uFF09",
+            disabled: busy
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+          "button",
+          {
+            type: "button",
+            className: "studio-btn",
+            "data-variant": "primary",
+            "data-size": "sm",
+            disabled: busy,
+            onClick: () => onComplete(mergeCommit.trim() || void 0),
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconCheck, { width: 13, height: 13 }),
+              "\u6807\u8BB0\u5DF2\u5408\u5E76"
+            ]
+          }
+        )
+      ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-action-note", children: "\u5408\u5E76\u5DF2\u5B8C\u6210\uFF1B\u5982\u9700\u7EE7\u7EED\u53D8\u66F4\uFF0C\u8BF7\u521B\u5EFA\u540E\u7EED\u4EFB\u52A1\u3002" })
+    ] })
+  ] });
 }
 function RecentEvents({ events }) {
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "studio-panel", children: [
@@ -1397,12 +2037,14 @@ function SettingsView({
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.independentPage ? "\u53EF\u7528" : "\u4E0D\u53EF\u7528" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u6587\u4EF6\u6301\u4E45\u5316" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.filePersistence ? "\u53EF\u7528" : "\u4E0D\u53EF\u7528" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u5408\u5E76\u6CBB\u7406" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.mergeGovernance ? "\u53EF\u7528\uFF08\u8BB0\u5F55\u8BC4\u5BA1\uFF0C\u4EBA\u5DE5\u6267\u884C Git\uFF09" : "\u4E0D\u53EF\u7528" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "Agent \u6267\u884C" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { className: "studio-faint", children: "\u4E0B\u4E00\u9636\u6BB5" }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "Git \u5206\u652F/\u5408\u5E76" }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { className: "studio-faint", children: "\u4E0B\u4E00\u9636\u6BB5" })
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "Git \u81EA\u52A8\u5408\u5E76" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { className: "studio-faint", children: data.features.gitMerge ? "\u5DF2\u542F\u7528" : "\u672A\u542F\u7528\uFF08\u6709\u610F\uFF09" })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { className: "studio-hint", style: { marginTop: 10 }, children: "v0.1 \u53EA\u4F7F\u7528 DSH Web Server \u8DEF\u7531\u3001client slots \u548C React\uFF0C\u4E0D\u4F9D\u8D56\u79C1\u6709 Remote \u751F\u6210\u5668\uFF1B\u5BBF\u4E3B\u80FD\u529B\u7F3A\u5931\u65F6\u4F1A\u663E\u793A\u9519\u8BEF\u800C\u4E0D\u662F\u767D\u5C4F\u3002" })
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { className: "studio-hint", style: { marginTop: 10 }, children: "v0.2 \u53EA\u4F7F\u7528 DSH Web Server \u8DEF\u7531\u3001client slots \u548C React\uFF0C\u4E0D\u4F9D\u8D56\u79C1\u6709 Remote \u751F\u6210\u5668\uFF1B\u5408\u5E76\u547D\u4EE4\u7531\u4EBA\u6267\u884C\uFF0CStudio \u4E0D\u505A\u4E0D\u53EF\u9006\u7684 Git \u64CD\u4F5C\u3002" })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "studio-settings-card", children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h3", { children: "\u754C\u9762" }),
@@ -2196,7 +2838,7 @@ var studioCss = `
 
 .studio-grid-stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 20px;
 }
@@ -2529,6 +3171,71 @@ var studioCss = `
 
 .studio-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .studio-action-note { color: var(--st-faint); font-size: 10px; margin-top: 6px; }
+
+.studio-merge-list { display: flex; flex-direction: column; gap: 10px; }
+.studio-merge-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 650;
+  flex-wrap: wrap;
+}
+.studio-merge-title button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--st-text);
+  font-weight: 650;
+  text-align: left;
+}
+.studio-merge-title button:hover { color: var(--st-accent); }
+.studio-merge-title .studio-mono { color: var(--st-faint); font-weight: 400; }
+.studio-merge-card[data-status="approved"] { border-color: rgba(240, 180, 95, 0.28); }
+.studio-merge-card[data-status="merged"] { border-color: rgba(91, 214, 162, 0.25); }
+.studio-merge-form { display: flex; flex-direction: column; gap: 10px; }
+.studio-merge-card {
+  padding: 12px;
+  border: 1px solid var(--st-border);
+  border-radius: 10px;
+  background: var(--st-panel);
+}
+.studio-merge-top { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.studio-merge-command {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  padding: 8px 9px;
+  border: 1px solid var(--st-border);
+  border-radius: 8px;
+  background: var(--st-bg-soft);
+  overflow-wrap: anywhere;
+}
+.studio-merge-command code {
+  color: var(--st-accent);
+  font-family: var(--dsh-font-family-mono, ui-monospace, SFMono-Regular, Consolas, monospace);
+  font-size: 10px;
+}
+.studio-merge-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 10px;
+}
+.studio-merge-actions > input {
+  width: 100%;
+  border: 1px solid var(--st-border);
+  border-radius: 8px;
+  background: var(--st-panel);
+  color: var(--st-text);
+  padding: 7px 9px;
+  outline: none;
+  font-size: 11px;
+}
+.studio-merge-actions > input:focus { border-color: var(--st-accent); box-shadow: 0 0 0 3px var(--st-accent-soft); }
 
 .studio-modal-overlay { display: grid; place-items: center; padding: 20px; }
 .studio-modal {

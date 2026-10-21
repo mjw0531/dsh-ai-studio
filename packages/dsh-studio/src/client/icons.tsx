@@ -120,6 +120,17 @@ export function IconAlert(props: IconProps) {
   );
 }
 
+export function IconGitMerge(props: IconProps) {
+  return (
+    <Base {...props}>
+      <circle cx="6" cy="5" r="2.2" />
+      <circle cx="6" cy="19" r="2.2" />
+      <circle cx="18" cy="12" r="2.2" />
+      <path d="M6 7.2v9.6M8.2 5h3.3a4 4 0 0 1 4 4v.8M8.2 19h3.3a4 4 0 0 0 4-4v-.8" />
+    </Base>
+  );
+}
+
 export function IconSpark(props: IconProps) {
   return (
     <Base {...props}>

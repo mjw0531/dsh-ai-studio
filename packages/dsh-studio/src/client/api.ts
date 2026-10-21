@@ -1,9 +1,11 @@
 import type {
   ApiErrorBody,
   BootstrapResponse,
+  CreateMergeProposalInput,
   CreateProjectInput,
   CreateRoleInput,
   CreateTaskInput,
+  MergeProposal,
   Project,
   Role,
   Task,
@@ -128,6 +130,53 @@ export class StudioClient {
       { method: "POST", body: { status } },
     );
     return data.task;
+  }
+
+  async createMergeProposal(
+    taskId: string,
+    input: CreateMergeProposalInput,
+  ): Promise<MergeProposal> {
+    const data = await this.request<{ proposal: MergeProposal }>(
+      `/tasks/${encodeURIComponent(taskId)}/merge-proposal`,
+      { method: "POST", body: input },
+    );
+    return data.proposal;
+  }
+
+  async approveMergeProposal(
+    proposalId: string,
+    note?: string,
+  ): Promise<MergeProposal> {
+    const data = await this.request<{ proposal: MergeProposal }>(
+      `/merge-proposals/${encodeURIComponent(proposalId)}/approve`,
+      { method: "POST", body: note === undefined ? {} : { note } },
+    );
+    return data.proposal;
+  }
+
+  async rejectMergeProposal(
+    proposalId: string,
+    note: string,
+  ): Promise<MergeProposal> {
+    const data = await this.request<{ proposal: MergeProposal }>(
+      `/merge-proposals/${encodeURIComponent(proposalId)}/reject`,
+      { method: "POST", body: { note } },
+    );
+    return data.proposal;
+  }
+
+  async completeMergeProposal(
+    proposalId: string,
+    mergeCommit?: string,
+  ): Promise<MergeProposal> {
+    const data = await this.request<{ proposal: MergeProposal }>(
+      `/merge-proposals/${encodeURIComponent(proposalId)}/merge`,
+      {
+        method: "POST",
+        body: mergeCommit === undefined ? {} : { mergeCommit },
+      },
+    );
+    return data.proposal;
   }
 
   private async request<T>(
