@@ -2,8 +2,8 @@
 import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 3;
-var STUDIO_PLUGIN_VERSION = "0.4.0";
+var STUDIO_SCHEMA_VERSION = 4;
+var STUDIO_PLUGIN_VERSION = "0.5.0";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -544,7 +544,9 @@ function buildCompany(state, now) {
     acceptanceTotal: 0,
     runs: 0,
     runningRuns: 0,
-    tokensUsed: 0
+    tokensUsed: 0,
+    pendingDecisions: 0,
+    decidedDecisions: 0
   };
   for (const project of state.projects) {
     const projectTasks = state.tasks.filter(
@@ -558,6 +560,9 @@ function buildCompany(state, now) {
     );
     const projectRuns = state.runs.filter(
       (run) => run.projectId === project.id
+    );
+    const projectDecisions = state.decisions.filter(
+      (decision) => decision.projectId === project.id
     );
     const roleById = new Map(projectRoles.map((role) => [role.id, role]));
     const stats = statsFor(projectTasks, projectProposals);
@@ -722,6 +727,27 @@ function buildCompany(state, now) {
       (sum, run) => sum + (run.tokens ?? 0),
       0
     );
+    totals.pendingDecisions += projectDecisions.filter(
+      (decision) => decision.status === "pending"
+    ).length;
+    totals.decidedDecisions += projectDecisions.filter(
+      (decision) => decision.status !== "pending"
+    ).length;
+    for (const decision of projectDecisions) {
+      if (decision.status !== "pending") continue;
+      projectNeeds.push({
+        id: `need-decision-${decision.id}`,
+        kind: "decision",
+        severity: "warning",
+        projectId: project.id,
+        projectName: project.name,
+        taskId: decision.taskId,
+        proposalId: null,
+        title: `\u5F85\u88C1\u51B3\uFF1A${decision.title}`,
+        detail: decision.recommendation === "" ? "\u9700\u8981 Owner \u5728\u8463\u4E8B\u4F1A\u6279\u51C6\u6216\u62D2\u7EDD" : decision.recommendation,
+        ageHours: hoursSince(decision.createdAt, now)
+      });
+    }
     for (const role of projectRoles) {
       const assigned = projectTasks.filter(
         (task) => task.ownerRoleId === role.id
@@ -816,6 +842,12 @@ function isMergeRisk(value) {
 function isMergeProposal(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && typeof value.branch === "string" && typeof value.base === "string" && typeof value.summary === "string" && isMergeRisk(value.risk) && typeof value.rollback === "string" && (value.status === "review" || value.status === "approved" || value.status === "rejected" || value.status === "merged") && typeof value.reviewNote === "string" && (value.mergeCommit === null || typeof value.mergeCommit === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && (value.mergedAt === null || typeof value.mergedAt === "string");
 }
+function isDecisionStatus(value) {
+  return value === "pending" || value === "approved" || value === "rejected";
+}
+function isDecision(value) {
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && (value.taskId === null || typeof value.taskId === "string") && (value.runId === null || typeof value.runId === "string") && typeof value.title === "string" && typeof value.context === "string" && Array.isArray(value.options) && typeof value.recommendation === "string" && isDecisionStatus(value.status) && typeof value.decision === "string" && typeof value.note === "string" && typeof value.decidedBy === "string" && (value.tokenCost === null || typeof value.tokenCost === "number") && typeof value.createdAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string");
+}
 function migrateState(value) {
   if (!isRecord(value)) {
     throw new Error("Studio state must be an object");
@@ -829,9 +861,9 @@ function migrateState(value) {
     };
   }
   if (state.schemaVersion === 2) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 3,
       projects: state.projects.map((project) => ({
         ...project,
         tokenBudget: project.tokenBudget ?? null
@@ -847,6 +879,13 @@ function migrateState(value) {
       ) ? state.runs : []
     };
   }
+  if (state.schemaVersion === 3) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      decisions: []
+    };
+  }
   return state;
 }
 function assertState(value) {
@@ -858,7 +897,7 @@ function assertState(value) {
       `Unsupported Studio schema version: ${String(value.schemaVersion)}`
     );
   }
-  if (!Array.isArray(value.projects) || !Array.isArray(value.roles) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.runs) || !Array.isArray(value.events)) {
+  if (!Array.isArray(value.projects) || !Array.isArray(value.roles) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.runs) || !Array.isArray(value.decisions) || !Array.isArray(value.events)) {
     throw new Error("Studio state collections are missing");
   }
   if (!value.projects.every(isProject)) {
@@ -875,6 +914,9 @@ function assertState(value) {
   }
   if (!value.runs.every(isAgentRun)) {
     throw new Error("Studio state contains an invalid agent run");
+  }
+  if (!value.decisions.every(isDecision)) {
+    throw new Error("Studio state contains an invalid decision");
   }
 }
 var StudioStore = class {
@@ -909,6 +951,13 @@ var StudioStore = class {
       const runs = project === null ? [] : state.runs.filter((run) => run.projectId === project.id).sort(
         (left, right) => right.startedAt.localeCompare(left.startedAt)
       );
+      const decisions = project === null ? [] : state.decisions.filter((decision) => decision.projectId === project.id).sort((left, right) => {
+        if (left.status !== right.status) {
+          if (left.status === "pending") return -1;
+          if (right.status === "pending") return 1;
+        }
+        return right.createdAt.localeCompare(left.createdAt);
+      });
       const events = [...state.events].filter((event) => project === null || event.projectId === project.id).slice(-30).reverse();
       const now = this.now();
       return {
@@ -931,6 +980,7 @@ var StudioStore = class {
         tasks,
         mergeProposals,
         runs,
+        decisions,
         stats: statsFor(tasks, mergeProposals),
         events,
         company: buildCompany(state, now),
@@ -940,6 +990,7 @@ var StudioStore = class {
           mergeGovernance: true,
           ownerDashboard: true,
           agentExecution: true,
+          decisionBoard: true,
           gitMerge: false
         }
       };
@@ -1204,6 +1255,45 @@ var StudioStore = class {
         }
         task.updatedAt = at;
       }
+      if (input.receipt !== null) {
+        for (const proposed of input.receipt.decisions) {
+          if (proposed.scope !== "project") continue;
+          if (state.decisions.some(
+            (item) => item.runId === run.id && item.title === proposed.title
+          )) {
+            continue;
+          }
+          const decision = {
+            id: newId("dec"),
+            projectId: run.projectId,
+            taskId: run.taskId,
+            runId: run.id,
+            title: proposed.title,
+            context: proposed.rationale,
+            options: [],
+            recommendation: proposed.rationale,
+            status: "pending",
+            decision: "",
+            note: "",
+            decidedBy: "",
+            tokenCost: input.tokens,
+            createdAt: at,
+            decidedAt: null
+          };
+          state.decisions.push(decision);
+          this.recordEvent(state, {
+            type: "decision.proposed",
+            at,
+            projectId: run.projectId,
+            taskId: run.taskId,
+            payload: {
+              decisionId: decision.id,
+              runId: run.id,
+              title: decision.title
+            }
+          });
+        }
+      }
       state.updatedAt = at;
       this.recordEvent(state, {
         type: "agent.completed",
@@ -1247,6 +1337,108 @@ var StudioStore = class {
       });
       await this.save();
       return structuredClone(run);
+    });
+  }
+  async createDecision(input) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const project = this.pickProject(state, void 0);
+      if (project === null) {
+        throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
+      }
+      let taskId = null;
+      if (input.taskId !== void 0 && input.taskId !== null) {
+        const task = this.findTask(state, input.taskId);
+        if (task.projectId !== project.id) {
+          throw new StudioStoreError(
+            "task_not_found",
+            "\u4EFB\u52A1\u4E0D\u5C5E\u4E8E\u5F53\u524D\u9879\u76EE",
+            404
+          );
+        }
+        taskId = task.id;
+      }
+      const at = nowIso(this.now);
+      const decision = {
+        id: newId("dec"),
+        projectId: project.id,
+        taskId,
+        runId: null,
+        title: requiredText(input.title, "title", 200),
+        context: optionalText(input.context, "context", 4e3),
+        options: [],
+        recommendation: optionalText(
+          input.recommendation,
+          "recommendation",
+          2e3
+        ),
+        status: "pending",
+        decision: "",
+        note: "",
+        decidedBy: "",
+        tokenCost: null,
+        createdAt: at,
+        decidedAt: null
+      };
+      state.decisions.push(decision);
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "decision.created",
+        at,
+        projectId: project.id,
+        taskId,
+        payload: { decisionId: decision.id, title: decision.title }
+      });
+      await this.save();
+      return structuredClone(decision);
+    });
+  }
+  async decideDecision(decisionId, input) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const decision = state.decisions.find(
+        (item) => item.id === decisionId
+      );
+      if (decision === void 0) {
+        throw new StudioStoreError(
+          "decision_not_found",
+          "\u51B3\u7B56\u4E0D\u5B58\u5728",
+          404
+        );
+      }
+      if (decision.status !== "pending") {
+        throw new StudioStoreError(
+          "decision_decided",
+          "\u8FD9\u6761\u51B3\u7B56\u5DF2\u7ECF\u6709\u7ED3\u8BBA",
+          409
+        );
+      }
+      if (input.status !== "approved" && input.status !== "rejected") {
+        throw new StudioStoreError(
+          "invalid_input",
+          "\u51B3\u7B56\u72B6\u6001\u53EA\u80FD\u662F approved \u6216 rejected"
+        );
+      }
+      const at = nowIso(this.now);
+      decision.status = input.status;
+      decision.decision = optionalText(input.decision, "decision", 4e3);
+      decision.note = optionalText(input.note, "note", 2e3);
+      decision.decidedBy = "Owner";
+      decision.decidedAt = at;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: input.status === "approved" ? "decision.approved" : "decision.rejected",
+        at,
+        projectId: decision.projectId,
+        taskId: decision.taskId,
+        payload: {
+          decisionId: decision.id,
+          decision: decision.decision,
+          note: decision.note
+        }
+      });
+      await this.save();
+      return structuredClone(decision);
     });
   }
   async createRole(input) {
@@ -1957,6 +2149,7 @@ var StudioStore = class {
       tasks,
       mergeProposals: [],
       runs: [],
+      decisions: [],
       events: [
         {
           id: "evt-demo",
@@ -2099,6 +2292,28 @@ function asCreateProject(body) {
     name: asString(body.name, "name"),
     description: asOptionalString(body.description, "description"),
     tokenBudget: asOptionalBudget(body.tokenBudget, "tokenBudget")
+  };
+}
+function asCreateDecision(body) {
+  return {
+    title: asString(body.title, "title"),
+    context: asOptionalString(body.context, "context"),
+    recommendation: asOptionalString(body.recommendation, "recommendation"),
+    taskId: body.taskId === null || body.taskId === void 0 ? null : asString(body.taskId, "taskId")
+  };
+}
+function asDecideDecision(body) {
+  if (body.status !== "approved" && body.status !== "rejected") {
+    throw new HttpError(
+      400,
+      "invalid_input",
+      "status \u53EA\u80FD\u662F approved \u6216 rejected"
+    );
+  }
+  return {
+    status: body.status,
+    decision: asOptionalString(body.decision, "decision"),
+    note: asOptionalString(body.note, "note")
   };
 }
 function asCreateRole(body) {
@@ -2328,6 +2543,26 @@ var StudioRouter = class {
         decodeSegment(taskDispatch[1] ?? "")
       );
       sendJson(res, 202, { ok: true, run });
+      return;
+    }
+    if (parsed.pathname === `${API_PREFIX}/decisions`) {
+      this.requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const decision = await this.store.createDecision(
+        asCreateDecision(await readJson(req))
+      );
+      sendJson(res, 201, { ok: true, decision });
+      return;
+    }
+    const decisionDecide = /^\/studio-api\/decisions\/([^/]+)\/decide$/.exec(parsed.pathname);
+    if (decisionDecide !== null) {
+      this.requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const decision = await this.store.decideDecision(
+        decodeSegment(decisionDecide[1] ?? ""),
+        asDecideDecision(await readJson(req))
+      );
+      sendJson(res, 200, { ok: true, decision });
       return;
     }
     const taskMerge = /^\/studio-api\/tasks\/([^/]+)\/merge-proposal$/.exec(parsed.pathname);
