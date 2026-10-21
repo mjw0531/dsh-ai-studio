@@ -1213,6 +1213,11 @@ function BoardroomView({
                     >
                       {DECISION_STATUS_LABELS[decision.status]}
                     </span>
+                    {!decision.reversible ? (
+                      <span className="studio-pill" data-tone="p0">
+                        不可逆
+                      </span>
+                    ) : null}
                     <strong>{decision.title}</strong>
                     <span className="studio-faint" style={{ marginLeft: "auto" }}>
                       {decision.decidedAt === null
@@ -1229,6 +1234,12 @@ function BoardroomView({
                     <div className="studio-faint" style={{ fontSize: 10 }}>
                       理由：{decision.note}
                     </div>
+                  ) : null}
+                  {decision.adrDraft !== null ? (
+                    <details className="studio-adr">
+                      <summary>查看 ADR 草稿</summary>
+                      <pre>{decision.adrDraft}</pre>
+                    </details>
                   ) : null}
                 </div>
               ))}
@@ -3224,6 +3235,10 @@ function TaskDrawer({
             task={task}
             runs={runs}
             reviews={reviews}
+            ownerModel={
+              roles.find((role) => role.id === task.ownerRoleId)?.model ??
+              null
+            }
             busy={busy}
             onReview={onReview}
           />
@@ -3298,12 +3313,14 @@ function TaskReviewPanel({
   task,
   runs,
   reviews,
+  ownerModel,
   busy,
   onReview,
 }: {
   task: Task;
   runs: AgentRun[];
   reviews: IndependentReview[];
+  ownerModel: string | null;
   busy: boolean;
   onReview: () => Promise<boolean>;
 }) {
@@ -3353,6 +3370,13 @@ function TaskReviewPanel({
                 </span>
               </div>
               <p>{latest.summary}</p>
+              {ownerModel !== null &&
+              latest.model !== null &&
+              ownerModel === latest.model ? (
+                <div className="studio-alert" data-tone="warn">
+                  评审与实现使用同一模型（{latest.model}），可能存在共享盲点。
+                </div>
+              ) : null}
               {latest.findings.length > 0 ? (
                 <ul>
                   {latest.findings.slice(0, 8).map((finding, index) => (

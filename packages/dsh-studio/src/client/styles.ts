@@ -730,6 +730,21 @@ export const studioCss = `
 .studio-decision-head strong { color: var(--st-text); font-size: 13px; }
 .studio-decision-meta { color: var(--st-faint); font-size: 10px; }
 .studio-decision-context { color: var(--st-muted); font-size: 11px; line-height: 1.6; white-space: pre-wrap; }
+.studio-adr { margin-top: 7px; font-size: 10px; }
+.studio-adr summary { color: var(--st-accent); cursor: pointer; }
+.studio-adr pre {
+  max-height: 240px;
+  margin: 7px 0 0;
+  padding: 9px;
+  overflow: auto;
+  white-space: pre-wrap;
+  border: 1px solid var(--st-border);
+  border-radius: 8px;
+  background: var(--st-panel-2);
+  color: var(--st-muted);
+  font-size: 10px;
+  line-height: 1.55;
+}
 .studio-decision-rec {
   padding: 9px 10px;
   border-left: 2px solid var(--st-accent);

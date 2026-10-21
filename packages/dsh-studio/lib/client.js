@@ -1379,6 +1379,7 @@ function BoardroomView({
                   children: DECISION_STATUS_LABELS[decision.status]
                 }
               ),
+              !decision.reversible ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-pill", "data-tone": "p0", children: "\u4E0D\u53EF\u9006" }) : null,
               /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: decision.title }),
               /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-faint", style: { marginLeft: "auto" }, children: decision.decidedAt === null ? "" : formatDate(decision.decidedAt) })
             ] }),
@@ -1389,6 +1390,10 @@ function BoardroomView({
             decision.note !== "" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-faint", style: { fontSize: 10 }, children: [
               "\u7406\u7531\uFF1A",
               decision.note
+            ] }) : null,
+            decision.adrDraft !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("details", { className: "studio-adr", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("summary", { children: "\u67E5\u770B ADR \u8349\u7A3F" }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("pre", { children: decision.adrDraft })
             ] }) : null
           ]
         },
@@ -3077,6 +3082,7 @@ function TaskDrawer({
                   task,
                   runs,
                   reviews,
+                  ownerModel: roles.find((role) => role.id === task.ownerRoleId)?.model ?? null,
                   busy,
                   onReview
                 }
@@ -3133,6 +3139,7 @@ function TaskReviewPanel({
   task,
   runs,
   reviews,
+  ownerModel,
   busy,
   onReview
 }) {
@@ -3180,6 +3187,11 @@ function TaskReviewPanel({
               ] })
             ] }),
             /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { children: latest.summary }),
+            ownerModel !== null && latest.model !== null && ownerModel === latest.model ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-alert", "data-tone": "warn", children: [
+              "\u8BC4\u5BA1\u4E0E\u5B9E\u73B0\u4F7F\u7528\u540C\u4E00\u6A21\u578B\uFF08",
+              latest.model,
+              "\uFF09\uFF0C\u53EF\u80FD\u5B58\u5728\u5171\u4EAB\u76F2\u70B9\u3002"
+            ] }) : null,
             latest.findings.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("ul", { children: latest.findings.slice(0, 8).map((finding, index) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("li", { children: finding }, `${String(index)}-${finding}`)) }) : null
           ]
         }
@@ -5397,6 +5409,21 @@ var studioCss = `
 .studio-decision-head strong { color: var(--st-text); font-size: 13px; }
 .studio-decision-meta { color: var(--st-faint); font-size: 10px; }
 .studio-decision-context { color: var(--st-muted); font-size: 11px; line-height: 1.6; white-space: pre-wrap; }
+.studio-adr { margin-top: 7px; font-size: 10px; }
+.studio-adr summary { color: var(--st-accent); cursor: pointer; }
+.studio-adr pre {
+  max-height: 240px;
+  margin: 7px 0 0;
+  padding: 9px;
+  overflow: auto;
+  white-space: pre-wrap;
+  border: 1px solid var(--st-border);
+  border-radius: 8px;
+  background: var(--st-panel-2);
+  color: var(--st-muted);
+  font-size: 10px;
+  line-height: 1.55;
+}
 .studio-decision-rec {
   padding: 9px 10px;
   border-left: 2px solid var(--st-accent);

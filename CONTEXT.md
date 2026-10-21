@@ -154,6 +154,10 @@ _Avoid_: 重要决策（所有决策都重要，但只有部分不可逆）
 人批准提案后，由 Host 在干净仓库、当前 base 分支上执行的 `git merge --no-ff`；冲突自动 abort，不 push。
 _Avoid_: 自动合并、自动发布
 
+**ADR Draft（ADR 草稿）**:
+不可逆决策批准后生成的 Markdown 草稿，保存在 Decision 记录；写文件必须由人确认。
+_Avoid_: ADR 自动落盘
+
 **Run（运行）**:
 一个 Agent 对某个 Task 的一次尝试；可失败、重试、换人。
 _Avoid_: 任务（Task 可以有很多 Run）
