@@ -19,11 +19,13 @@ import type {
   AgentRun,
   AgentRunStatus,
   BootstrapResponse,
+  Branch,
   CompanyHealth,
   CompanyProjectSummary,
   CompanyRisk,
   CompanySummary,
   CompanyTotals,
+  ContractChange,
   CreateDecisionInput,
   DecideDecisionInput,
   Decision,
@@ -671,6 +673,7 @@ function isAgentRun(value: unknown): value is AgentRun {
     typeof value.projectId === "string" &&
     typeof value.taskId === "string" &&
     (value.roleId === null || typeof value.roleId === "string") &&
+    (value.branchId === null || typeof value.branchId === "string") &&
     (value.sessionId === null || typeof value.sessionId === "string") &&
     isAgentRunStatus(value.status) &&
     (value.model === null || typeof value.model === "string") &&
@@ -757,6 +760,45 @@ function isDecision(value: unknown): value is Decision {
   );
 }
 
+function isBranchStatus(value: unknown): value is Branch["status"] {
+  return (
+    value === "open" ||
+    value === "review" ||
+    value === "merged" ||
+    value === "abandoned"
+  );
+}
+
+function isBranch(value: unknown): value is Branch {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.projectId === "string" &&
+    (value.taskId === null || typeof value.taskId === "string") &&
+    typeof value.name === "string" &&
+    typeof value.goal === "string" &&
+    (value.roleId === null || typeof value.roleId === "string") &&
+    Array.isArray(value.contractKeys) &&
+    isBranchStatus(value.status) &&
+    typeof value.createdAt === "string" &&
+    typeof value.updatedAt === "string"
+  );
+}
+
+function isContractChange(value: unknown): value is ContractChange {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.projectId === "string" &&
+    typeof value.branchId === "string" &&
+    (value.taskId === null || typeof value.taskId === "string") &&
+    (value.runId === null || typeof value.runId === "string") &&
+    typeof value.contract === "string" &&
+    typeof value.change === "string" &&
+    typeof value.createdAt === "string"
+  );
+}
+
 function migrateState(value: unknown): StudioState {
   if (!isRecord(value)) {
     throw new Error("Studio state must be an object");
@@ -791,10 +833,35 @@ function migrateState(value: unknown): StudioState {
     };
   }
   if (state.schemaVersion === 3) {
+    state = {
+      ...state,
+      schemaVersion: 4,
+      decisions: [],
+    };
+  }
+  if (state.schemaVersion === 4) {
     return {
       ...state,
       schemaVersion: STUDIO_SCHEMA_VERSION,
-      decisions: [],
+      runs: state.runs.map((run) => ({
+        ...run,
+        branchId: run.branchId ?? null,
+      })),
+      branches: state.tasks
+        .filter((task) => task.branch !== null)
+        .map((task) => ({
+          id: `branch-${task.id}`,
+          projectId: task.projectId,
+          taskId: task.id,
+          name: task.branch as string,
+          goal: task.goal,
+          roleId: task.ownerRoleId,
+          contractKeys: [],
+          status: task.status === "review" ? "review" as const : "open" as const,
+          createdAt: task.createdAt,
+          updatedAt: task.updatedAt,
+        })),
+      contractChanges: [],
     };
   }
   return state;
@@ -815,6 +882,8 @@ function assertState(value: unknown): asserts value is StudioState {
     !Array.isArray(value.tasks) ||
     !Array.isArray(value.mergeProposals) ||
     !Array.isArray(value.runs) ||
+    !Array.isArray(value.branches) ||
+    !Array.isArray(value.contractChanges) ||
     !Array.isArray(value.decisions) ||
     !Array.isArray(value.events)
   ) {
@@ -834,6 +903,12 @@ function assertState(value: unknown): asserts value is StudioState {
   }
   if (!value.runs.every(isAgentRun)) {
     throw new Error("Studio state contains an invalid agent run");
+  }
+  if (!value.branches.every(isBranch)) {
+    throw new Error("Studio state contains an invalid branch");
+  }
+  if (!value.contractChanges.every(isContractChange)) {
+    throw new Error("Studio state contains an invalid contract change");
   }
   if (!value.decisions.every(isDecision)) {
     throw new Error("Studio state contains an invalid decision");
@@ -886,6 +961,18 @@ export class StudioStore {
             .sort((left, right) =>
               right.startedAt.localeCompare(left.startedAt),
             );
+      const branches = project === null
+        ? []
+        : state.branches
+            .filter((branch) => branch.projectId === project.id)
+            .sort((left, right) =>
+              right.updatedAt.localeCompare(left.updatedAt),
+            );
+      const contractChanges = project === null
+        ? []
+        : state.contractChanges.filter(
+            (change) => change.projectId === project.id,
+          );
       const decisions = project === null
         ? []
         : state.decisions
@@ -922,6 +1009,8 @@ export class StudioStore {
         tasks,
         mergeProposals,
         runs,
+        branches,
+        contractChanges,
         decisions,
         stats: statsFor(tasks, mergeProposals),
         events,
@@ -933,6 +1022,7 @@ export class StudioStore {
           ownerDashboard: true,
           agentExecution: true,
           decisionBoard: true,
+          branchBoard: true,
           gitMerge: false,
         },
       };
@@ -1091,11 +1181,13 @@ export class StudioStore {
       }
 
       const at = nowIso(this.now);
+      const branch = this.ensureBranch(state, task, at);
       const run: AgentRun = {
         id: newId("run"),
         projectId: task.projectId,
         taskId: task.id,
         roleId: role.id,
+        branchId: branch.id,
         sessionId: null,
         status: "queued",
         model: role.model,
@@ -1253,6 +1345,121 @@ export class StudioStore {
           if (task.status === "running") task.status = "review";
         }
         task.updatedAt = at;
+      }
+      if (input.receipt !== null) {
+        let branch =
+          run.branchId === null
+            ? undefined
+            : state.branches.find((item) => item.id === run.branchId);
+        if (branch === undefined && task !== undefined) {
+          branch = this.ensureBranch(state, task, at);
+          run.branchId = branch.id;
+        }
+        if (branch !== undefined) {
+          branch.status = "review";
+          branch.updatedAt = at;
+          for (const delta of input.receipt.contractDeltas) {
+            const contract = delta.contract.trim();
+            const change = delta.change.trim();
+            if (contract === "" || change === "") continue;
+            if (!branch.contractKeys.includes(contract)) {
+              branch.contractKeys.push(contract);
+            }
+            const conflict = state.contractChanges.find(
+              (item) =>
+                item.projectId === run.projectId &&
+                item.contract === contract &&
+                item.branchId !== branch.id &&
+                item.change !== change,
+            );
+            if (
+              !state.contractChanges.some(
+                (item) =>
+                  item.branchId === branch.id &&
+                  item.contract === contract &&
+                  item.change === change,
+              )
+            ) {
+              state.contractChanges.push({
+                id: newId("contract"),
+                projectId: run.projectId,
+                branchId: branch.id,
+                taskId: run.taskId,
+                runId: run.id,
+                contract,
+                change,
+                createdAt: at,
+              });
+              this.recordEvent(state, {
+                type: "contract.changed",
+                at,
+                projectId: run.projectId,
+                taskId: run.taskId,
+                payload: {
+                  branchId: branch.id,
+                  contract,
+                  change,
+                  runId: run.id,
+                },
+              });
+            }
+            if (conflict === undefined) continue;
+            const title = `契约冲突：${contract.slice(0, 160)}`;
+            if (
+              state.decisions.some(
+                (item) => item.runId === run.id && item.title === title,
+              )
+            ) {
+              continue;
+            }
+            const otherBranch = state.branches.find(
+              (item) => item.id === conflict.branchId,
+            );
+            const decision: Decision = {
+              id: newId("dec"),
+              projectId: run.projectId,
+              taskId: run.taskId,
+              runId: run.id,
+              title,
+              context: `${branch.name}: ${change}\n${
+                otherBranch?.name ?? conflict.branchId
+              }: ${conflict.change}`,
+              options: [
+                {
+                  label: `采用 ${branch.name} 的变更`,
+                  tradeoff: change,
+                },
+                {
+                  label: `采用 ${otherBranch?.name ?? "另一支线"} 的变更`,
+                  tradeoff: conflict.change,
+                },
+              ],
+              recommendation:
+                "同一契约出现两条不同变更。请由 Owner/Architect 裁决；在裁决前不要合并任意一条支线。",
+              status: "pending",
+              decision: "",
+              note: "",
+              decidedBy: "",
+              tokenCost: input.tokens,
+              createdAt: at,
+              decidedAt: null,
+            };
+            state.decisions.push(decision);
+            this.recordEvent(state, {
+              type: "decision.escalated",
+              at,
+              projectId: run.projectId,
+              taskId: run.taskId,
+              payload: {
+                decisionId: decision.id,
+                contract,
+                branchId: branch.id,
+                otherBranchId: conflict.branchId,
+                runId: run.id,
+              },
+            });
+          }
+        }
       }
       if (input.receipt !== null) {
         for (const proposed of input.receipt.decisions) {
@@ -2004,6 +2211,43 @@ export class StudioStore {
     return state.projects[0] ?? null;
   }
 
+  private ensureBranch(
+    state: StudioState,
+    task: Task,
+    at: string,
+  ): Branch {
+    const name = task.branch ?? `task/${task.id}`;
+    if (task.branch === null) task.branch = name;
+    let branch = state.branches.find(
+      (item) =>
+        item.projectId === task.projectId && item.name === name,
+    );
+    if (branch === undefined) {
+      branch = {
+        id: `branch-${task.id}`,
+        projectId: task.projectId,
+        taskId: task.id,
+        name,
+        goal: task.goal,
+        roleId: task.ownerRoleId,
+        contractKeys: [],
+        status: "open",
+        createdAt: at,
+        updatedAt: at,
+      };
+      state.branches.push(branch);
+    } else {
+      branch.taskId = task.id;
+      branch.goal = task.goal;
+      branch.roleId = task.ownerRoleId;
+      if (branch.status === "abandoned" || branch.status === "merged") {
+        branch.status = "open";
+      }
+      branch.updatedAt = at;
+    }
+    return branch;
+  }
+
   private findTask(state: StudioState, taskId: string): Task {
     const task = state.tasks.find((item) => item.id === taskId);
     if (task === undefined) {
@@ -2249,6 +2493,21 @@ export class StudioStore {
       tasks,
       mergeProposals: [],
       runs: [],
+      branches: tasks
+        .filter((task) => task.branch !== null)
+        .map((task) => ({
+          id: `branch-${task.id}`,
+          projectId: task.projectId,
+          taskId: task.id,
+          name: task.branch as string,
+          goal: task.goal,
+          roleId: task.ownerRoleId,
+          contractKeys: [],
+          status: task.status === "review" ? "review" as const : "open" as const,
+          createdAt: task.createdAt,
+          updatedAt: task.updatedAt,
+        })),
+      contractChanges: [],
       decisions: [],
       events: [
         {

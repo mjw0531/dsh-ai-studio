@@ -89,6 +89,12 @@ var DECISION_STATUS_LABELS = {
   approved: "\u5DF2\u6279\u51C6",
   rejected: "\u5DF2\u62D2\u7EDD"
 };
+var BRANCH_STATUS_LABELS = {
+  open: "\u8FDB\u884C\u4E2D",
+  review: "\u5F85\u6C47\u5165",
+  merged: "\u5DF2\u6C47\u5165",
+  abandoned: "\u5DF2\u653E\u5F03"
+};
 var ALLOWED_TRANSITIONS = {
   backlog: ["ready"],
   ready: ["backlog", "running"],
@@ -1838,6 +1844,24 @@ function MissionView({
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "studio-panel", style: { marginBottom: 16 }, children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-panel-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconGitMerge, { width: 14, height: 14 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h3", { children: "\u652F\u7EBF" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "studio-muted", children: [
+          data.branches.length,
+          " \u6761 \xB7 \u5951\u7EA6\u53D8\u66F4\u4F1A\u81EA\u52A8\u68C0\u6D4B\u51B2\u7A81"
+        ] })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-panel-body", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        BranchPanel,
+        {
+          branches: data.branches,
+          contractChanges: data.contractChanges,
+          tasks: data.tasks
+        }
+      ) })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "studio-panel", style: { marginBottom: 16 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-panel-head", children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconKanban, { width: 14, height: 14 }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h3", { children: "\u4EFB\u52A1\u677F" }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "studio-muted", children: [
@@ -2208,6 +2232,43 @@ function Roster({
         "\u8FDB\u884C\u4E2D"
       ] })
     ] }, role.id);
+  }) });
+}
+function BranchPanel({
+  branches,
+  contractChanges,
+  tasks
+}) {
+  if (branches.length === 0) {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-empty", style: { padding: 18 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: "\u8FD8\u6CA1\u6709\u652F\u7EBF" }),
+      "\u521B\u5EFA\u5E26\u5206\u652F\u540D\u7684\u4EFB\u52A1\uFF0C\u6216\u6D3E\u5355\u4E00\u6B21\uFF1BStudio \u4F1A\u81EA\u52A8\u767B\u8BB0\u652F\u7EBF\u5E76\u8DDF\u8E2A\u5951\u7EA6\u53D8\u66F4\u3002"
+    ] });
+  }
+  const taskById = new Map(tasks.map((task) => [task.id, task]));
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-branch-list", children: branches.map((branch) => {
+    const changes = contractChanges.filter(
+      (change) => change.branchId === branch.id
+    );
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("article", { className: "studio-branch-card", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-branch-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-mono", children: branch.name }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-pill", "data-tone": "accent", children: BRANCH_STATUS_LABELS[branch.status] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "studio-faint", style: { marginLeft: "auto" }, children: [
+          changes.length,
+          " \u4E2A\u5951\u7EA6\u53D8\u66F4"
+        ] })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-branch-goal", children: branch.goal || "\u6CA1\u6709\u5199\u652F\u7EBF\u76EE\u6807\u3002" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-branch-meta", children: [
+        branch.taskId === null ? "\u672A\u7ED1\u5B9A\u4EFB\u52A1" : taskById.get(branch.taskId)?.title ?? branch.taskId,
+        branch.contractKeys.length > 0 ? ` \xB7 \u5951\u7EA6\uFF1A${branch.contractKeys.join("\u3001")}` : " \xB7 \u8FD8\u6CA1\u6709\u5951\u7EA6\u53D8\u66F4"
+      ] }),
+      changes.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-branch-changes", children: changes.slice(-3).map((change) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-mono", children: change.contract }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: change.change })
+      ] }, change.id)) }) : null
+    ] }, branch.id);
   }) });
 }
 function TaskBoard({
@@ -2960,6 +3021,8 @@ function SettingsView({
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.ownerDashboard ? "\u53EF\u7528" : "\u4E0D\u53EF\u7528" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u8463\u4E8B\u4F1A" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.decisionBoard ? "\u53EF\u7528" : "\u4E0D\u53EF\u7528" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u652F\u7EBF/\u5951\u7EA6" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.branchBoard ? "\u53EF\u7528" : "\u4E0D\u53EF\u7528" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u5408\u5E76\u6CBB\u7406" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.mergeGovernance ? "\u53EF\u7528\uFF08\u8BB0\u5F55\u8BC4\u5BA1\uFF0C\u4EBA\u5DE5\u6267\u884C Git\uFF09" : "\u4E0D\u53EF\u7528" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "Agent \u6D3E\u5355" }),
@@ -4378,6 +4441,29 @@ var studioCss = `
 .studio-merge-title .studio-mono { color: var(--st-faint); font-weight: 400; }
 .studio-merge-card[data-status="approved"] { border-color: rgba(240, 180, 95, 0.28); }
 .studio-merge-card[data-status="merged"] { border-color: rgba(91, 214, 162, 0.25); }
+.studio-branch-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+}
+.studio-branch-card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px;
+  border: 1px solid var(--st-border);
+  border-radius: 9px;
+  background: var(--st-panel-2);
+}
+.studio-branch-head { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.studio-branch-head .studio-mono { overflow: hidden; color: var(--st-text); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.studio-branch-head .studio-faint { font-size: 9px; }
+.studio-branch-goal { color: var(--st-muted); font-size: 11px; line-height: 1.55; }
+.studio-branch-meta { color: var(--st-faint); font-size: 10px; }
+.studio-branch-changes { display: flex; flex-direction: column; gap: 4px; padding-top: 6px; border-top: 1px solid var(--st-border); font-size: 10px; }
+.studio-branch-changes > div { display: flex; gap: 6px; color: var(--st-muted); }
+.studio-branch-changes .studio-mono { color: var(--st-accent); flex: none; }
+
 .studio-decision-list { display: flex; flex-direction: column; gap: 10px; }
 .studio-decision-card {
   display: flex;

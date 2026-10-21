@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 4;
-export const STUDIO_PLUGIN_VERSION = "0.5.0";
+export const STUDIO_SCHEMA_VERSION = 5;
+export const STUDIO_PLUGIN_VERSION = "0.5.1";
 
 export type TaskStatus =
   | "backlog"
@@ -132,6 +132,7 @@ export interface AgentRun {
   projectId: string;
   taskId: string;
   roleId: string | null;
+  branchId: string | null;
   sessionId: string | null;
   status: AgentRunStatus;
   model: string | null;
@@ -143,6 +144,32 @@ export interface AgentRun {
   error: string | null;
   startedAt: string;
   endedAt: string | null;
+}
+
+export type BranchStatus = "open" | "review" | "merged" | "abandoned";
+
+export interface Branch {
+  id: string;
+  projectId: string;
+  taskId: string | null;
+  name: string;
+  goal: string;
+  roleId: string | null;
+  contractKeys: string[];
+  status: BranchStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ContractChange {
+  id: string;
+  projectId: string;
+  branchId: string;
+  taskId: string | null;
+  runId: string | null;
+  contract: string;
+  change: string;
+  createdAt: string;
 }
 
 export type DecisionStatus = "pending" | "approved" | "rejected";
@@ -190,6 +217,8 @@ export interface StudioState {
   tasks: Task[];
   mergeProposals: MergeProposal[];
   runs: AgentRun[];
+  branches: Branch[];
+  contractChanges: ContractChange[];
   decisions: Decision[];
   events: StudioEvent[];
 }
@@ -312,6 +341,8 @@ export interface BootstrapResponse {
   tasks: Task[];
   mergeProposals: MergeProposal[];
   runs: AgentRun[];
+  branches: Branch[];
+  contractChanges: ContractChange[];
   decisions: Decision[];
   stats: StudioStats;
   events: StudioEvent[];
@@ -323,6 +354,7 @@ export interface BootstrapResponse {
     ownerDashboard: boolean;
     agentExecution: boolean;
     decisionBoard: boolean;
+    branchBoard: boolean;
     gitMerge: boolean;
   };
 }
@@ -400,6 +432,13 @@ export const DECISION_STATUS_LABELS: Record<DecisionStatus, string> = {
   pending: "待裁决",
   approved: "已批准",
   rejected: "已拒绝",
+};
+
+export const BRANCH_STATUS_LABELS: Record<BranchStatus, string> = {
+  open: "进行中",
+  review: "待汇入",
+  merged: "已汇入",
+  abandoned: "已放弃",
 };
 
 /**
