@@ -2,8 +2,8 @@
 import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 6;
-var STUDIO_PLUGIN_VERSION = "0.6.0";
+var STUDIO_SCHEMA_VERSION = 7;
+var STUDIO_PLUGIN_VERSION = "0.6.1";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -323,9 +323,9 @@ var AgentDispatcher = class {
     const selection = await this.resolveModel(context.role);
     const workspace = context.project.repoPath === null ? void 0 : await this.workspaces.prepare(context.project.repoPath, taskId);
     const prompt = buildPrompt(context, workspace);
-    const run = await this.store.beginRun(taskId, prompt, workspace);
-    void this.execute(run, selection, workspace);
-    return run;
+    const run2 = await this.store.beginRun(taskId, prompt, workspace);
+    void this.execute(run2, selection, workspace);
+    return run2;
   }
   async resolveModel(role) {
     const fallback = this.ctx.agentDefaultModel.currentSelection();
@@ -348,7 +348,7 @@ var AgentDispatcher = class {
     if (first !== null) return first;
     throw new Error(`\u6CA1\u6709\u53EF\u7528\u7684\u6A21\u578B\u8DEF\u7531\uFF08\u8BF7\u6C42\u6A21\u578B\uFF1A${wanted}\uFF09`);
   }
-  async execute(run, selection, workspace) {
+  async execute(run2, selection, workspace) {
     let handle = null;
     try {
       handle = await this.ctx.agents.create({
@@ -361,13 +361,13 @@ var AgentDispatcher = class {
         }
       });
       await this.store.attachRunSession(
-        run.id,
+        run2.id,
         handle.agent.session.id,
         selection.model
       );
       handle.agent.followup({
         role: "user",
-        content: [{ type: "text", text: run.prompt }],
+        content: [{ type: "text", text: run2.prompt }],
         source: { kind: "user" }
       });
       const deadline = Date.now() + (workspace === void 0 ? 12e4 : 3e5);
@@ -399,7 +399,7 @@ var AgentDispatcher = class {
       );
       const measured = this.ctx.tokenMeter.measure(handle.agent.session);
       const diffStat = workspace === void 0 ? null : this.workspaces.diffStat(workspace.path);
-      await this.store.completeRun(run.id, {
+      await this.store.completeRun(run2.id, {
         output,
         receipt,
         tokens: typeof measured.totalTokens === "number" ? measured.totalTokens : null,
@@ -407,7 +407,7 @@ var AgentDispatcher = class {
       });
     } catch (error) {
       await this.store.failRun(
-        run.id,
+        run2.id,
         error instanceof Error ? error.message : String(error)
       ).catch(() => void 0);
     } finally {
@@ -641,7 +641,7 @@ function buildCompany(state, now) {
       (role) => role.projectId === project.id
     );
     const projectRuns = state.runs.filter(
-      (run) => run.projectId === project.id
+      (run2) => run2.projectId === project.id
     );
     const projectDecisions = state.decisions.filter(
       (decision) => decision.projectId === project.id
@@ -803,10 +803,10 @@ function buildCompany(state, now) {
     totals.acceptanceTotal += stats.acceptanceTotal;
     totals.runs += projectRuns.length;
     totals.runningRuns += projectRuns.filter(
-      (run) => run.status === "running"
+      (run2) => run2.status === "running"
     ).length;
     totals.tokensUsed += projectRuns.reduce(
-      (sum, run) => sum + (run.tokens ?? 0),
+      (sum, run2) => sum + (run2.tokens ?? 0),
       0
     );
     totals.pendingDecisions += projectDecisions.filter(
@@ -916,13 +916,13 @@ function isAgentRun(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.branchName === null || typeof value.branchName === "string") && (value.workspacePath === null || typeof value.workspacePath === "string") && (value.diffStat === null || typeof value.diffStat === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
 }
 function isTask(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence);
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence) && (value.verifyCommand === null || value.verifyCommand === void 0 || typeof value.verifyCommand === "string");
 }
 function isMergeRisk(value) {
   return value === "low" || value === "medium" || value === "high";
 }
 function isMergeProposal(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && typeof value.branch === "string" && typeof value.base === "string" && typeof value.summary === "string" && isMergeRisk(value.risk) && typeof value.rollback === "string" && (value.status === "review" || value.status === "approved" || value.status === "rejected" || value.status === "merged") && typeof value.reviewNote === "string" && (value.mergeCommit === null || typeof value.mergeCommit === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && (value.mergedAt === null || typeof value.mergedAt === "string");
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && typeof value.branch === "string" && typeof value.base === "string" && typeof value.summary === "string" && isMergeRisk(value.risk) && typeof value.rollback === "string" && (value.status === "review" || value.status === "approved" || value.status === "rejected" || value.status === "merged") && typeof value.reviewNote === "string" && (value.mergeCommit === null || typeof value.mergeCommit === "string") && (value.diffStat === null || value.diffStat === void 0 || typeof value.diffStat === "string") && (Array.isArray(value.changedFiles) || value.changedFiles === void 0) && (value.verificationId === null || value.verificationId === void 0 || typeof value.verificationId === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && (value.mergedAt === null || typeof value.mergedAt === "string");
 }
 function isDecisionStatus(value) {
   return value === "pending" || value === "approved" || value === "rejected";
@@ -938,6 +938,9 @@ function isBranch(value) {
 }
 function isContractChange(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.branchId === "string" && (value.taskId === null || typeof value.taskId === "string") && (value.runId === null || typeof value.runId === "string") && typeof value.contract === "string" && typeof value.change === "string" && typeof value.createdAt === "string";
+}
+function isVerification(value) {
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.runId === null || typeof value.runId === "string") && typeof value.command === "string" && typeof value.workdir === "string" && typeof value.exitCode === "number" && typeof value.output === "string" && typeof value.passed === "boolean" && typeof value.createdAt === "string";
 }
 function migrateState(value) {
   if (!isRecord(value)) {
@@ -981,9 +984,9 @@ function migrateState(value) {
     state = {
       ...state,
       schemaVersion: 5,
-      runs: state.runs.map((run) => ({
-        ...run,
-        branchId: run.branchId ?? null
+      runs: state.runs.map((run2) => ({
+        ...run2,
+        branchId: run2.branchId ?? null
       })),
       branches: state.tasks.filter((task) => task.branch !== null).map((task) => ({
         id: `branch-${task.id}`,
@@ -1001,19 +1004,38 @@ function migrateState(value) {
     };
   }
   if (state.schemaVersion === 5) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 6,
       projects: state.projects.map((project) => ({
         ...project,
         repoPath: project.repoPath ?? null
       })),
-      runs: state.runs.map((run) => ({
-        ...run,
-        branchName: run.branchName ?? null,
-        workspacePath: run.workspacePath ?? null,
-        diffStat: run.diffStat ?? null
+      runs: state.runs.map((run2) => ({
+        ...run2,
+        branchName: run2.branchName ?? null,
+        workspacePath: run2.workspacePath ?? null,
+        diffStat: run2.diffStat ?? null
       }))
+    };
+  }
+  if (state.schemaVersion === 6) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      tasks: state.tasks.map((task) => ({
+        ...task,
+        verifyCommand: task.verifyCommand ?? null
+      })),
+      mergeProposals: state.mergeProposals.map((proposal) => ({
+        ...proposal,
+        diffStat: proposal.diffStat ?? null,
+        changedFiles: Array.isArray(proposal.changedFiles) ? proposal.changedFiles : [],
+        verificationId: proposal.verificationId ?? null
+      })),
+      verifications: Array.isArray(
+        state.verifications
+      ) ? state.verifications : []
     };
   }
   return state;
@@ -1027,7 +1049,7 @@ function assertState(value) {
       `Unsupported Studio schema version: ${String(value.schemaVersion)}`
     );
   }
-  if (!Array.isArray(value.projects) || !Array.isArray(value.roles) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.runs) || !Array.isArray(value.branches) || !Array.isArray(value.contractChanges) || !Array.isArray(value.decisions) || !Array.isArray(value.events)) {
+  if (!Array.isArray(value.projects) || !Array.isArray(value.roles) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.runs) || !Array.isArray(value.branches) || !Array.isArray(value.contractChanges) || !Array.isArray(value.decisions) || !Array.isArray(value.verifications) || !Array.isArray(value.events)) {
     throw new Error("Studio state collections are missing");
   }
   if (!value.projects.every(isProject)) {
@@ -1050,6 +1072,9 @@ function assertState(value) {
   }
   if (!value.contractChanges.every(isContractChange)) {
     throw new Error("Studio state contains an invalid contract change");
+  }
+  if (!value.verifications.every(isVerification)) {
+    throw new Error("Studio state contains an invalid verification");
   }
   if (!value.decisions.every(isDecision)) {
     throw new Error("Studio state contains an invalid decision");
@@ -1084,7 +1109,7 @@ var StudioStore = class {
       const mergeProposals = project === null ? [] : state.mergeProposals.filter(
         (proposal) => proposal.projectId === project.id
       );
-      const runs = project === null ? [] : state.runs.filter((run) => run.projectId === project.id).sort(
+      const runs = project === null ? [] : state.runs.filter((run2) => run2.projectId === project.id).sort(
         (left, right) => right.startedAt.localeCompare(left.startedAt)
       );
       const branches = project === null ? [] : state.branches.filter((branch) => branch.projectId === project.id).sort(
@@ -1092,6 +1117,9 @@ var StudioStore = class {
       );
       const contractChanges = project === null ? [] : state.contractChanges.filter(
         (change) => change.projectId === project.id
+      );
+      const verifications = project === null ? [] : state.verifications.filter((verification) => verification.projectId === project.id).sort(
+        (left, right) => right.createdAt.localeCompare(left.createdAt)
       );
       const decisions = project === null ? [] : state.decisions.filter((decision) => decision.projectId === project.id).sort((left, right) => {
         if (left.status !== right.status) {
@@ -1125,6 +1153,7 @@ var StudioStore = class {
         branches,
         contractChanges,
         decisions,
+        verifications,
         stats: statsFor(tasks, mergeProposals),
         events,
         company: buildCompany(state, now),
@@ -1137,6 +1166,7 @@ var StudioStore = class {
           decisionBoard: true,
           branchBoard: true,
           codeExecution: true,
+          verification: true,
           gitMerge: false
         }
       };
@@ -1233,6 +1263,21 @@ var StudioStore = class {
       };
     });
   }
+  async getTaskVerificationContext(taskId) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const task = this.findTask(state, taskId);
+      const run2 = [...state.runs].filter(
+        (item) => item.taskId === taskId && item.workspacePath !== null
+      ).sort(
+        (left, right) => right.startedAt.localeCompare(left.startedAt)
+      )[0];
+      return {
+        task: structuredClone(task),
+        run: run2 === void 0 ? null : structuredClone(run2)
+      };
+    });
+  }
   async beginRun(taskId, prompt, workspace) {
     return this.runExclusive(async () => {
       const state = this.requireState();
@@ -1262,7 +1307,7 @@ var StudioStore = class {
           404
         );
       }
-      const projectSpent = state.runs.filter((run2) => run2.projectId === project.id).reduce((sum, run2) => sum + (run2.tokens ?? 0), 0);
+      const projectSpent = state.runs.filter((run3) => run3.projectId === project.id).reduce((sum, run3) => sum + (run3.tokens ?? 0), 0);
       if (project.tokenBudget !== null && projectSpent >= project.tokenBudget) {
         throw new StudioStoreError(
           "budget_exceeded",
@@ -1272,7 +1317,7 @@ var StudioStore = class {
           409
         );
       }
-      const roleSpent = state.runs.filter((run2) => run2.roleId === role.id).reduce((sum, run2) => sum + (run2.tokens ?? 0), 0);
+      const roleSpent = state.runs.filter((run3) => run3.roleId === role.id).reduce((sum, run3) => sum + (run3.tokens ?? 0), 0);
       if (role.tokenBudget !== null && roleSpent >= role.tokenBudget) {
         throw new StudioStoreError(
           "budget_exceeded",
@@ -1284,8 +1329,8 @@ var StudioStore = class {
       }
       const today = nowIso(this.now).slice(0, 10);
       const dailySpent = state.runs.filter(
-        (run2) => run2.roleId === role.id && run2.startedAt.slice(0, 10) === today
-      ).reduce((sum, run2) => sum + (run2.tokens ?? 0), 0);
+        (run3) => run3.roleId === role.id && run3.startedAt.slice(0, 10) === today
+      ).reduce((sum, run3) => sum + (run3.tokens ?? 0), 0);
       if (role.dailyTokenBudget !== null && dailySpent >= role.dailyTokenBudget) {
         throw new StudioStoreError(
           "budget_exceeded",
@@ -1300,7 +1345,7 @@ var StudioStore = class {
         task.branch = workspace.branch;
       }
       const branch = this.ensureBranch(state, task, at);
-      const run = {
+      const run2 = {
         id: newId("run"),
         projectId: task.projectId,
         taskId: task.id,
@@ -1321,7 +1366,7 @@ var StudioStore = class {
         startedAt: at,
         endedAt: null
       };
-      state.runs.push(run);
+      state.runs.push(run2);
       task.status = "running";
       task.updatedAt = at;
       state.updatedAt = at;
@@ -1331,47 +1376,47 @@ var StudioStore = class {
         projectId: task.projectId,
         taskId: task.id,
         payload: {
-          runId: run.id,
+          runId: run2.id,
           roleId: role.id,
           model: role.model
         }
       });
       await this.save();
-      return structuredClone(run);
+      return structuredClone(run2);
     });
   }
   async attachRunSession(runId, sessionId, model) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const run = state.runs.find((item) => item.id === runId);
-      if (run === void 0) return;
-      run.sessionId = sessionId;
-      if (model !== void 0) run.model = model;
-      run.status = "running";
+      const run2 = state.runs.find((item) => item.id === runId);
+      if (run2 === void 0) return;
+      run2.sessionId = sessionId;
+      if (model !== void 0) run2.model = model;
+      run2.status = "running";
       await this.save();
     });
   }
   async completeRun(runId, input) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const run = state.runs.find((item) => item.id === runId);
-      if (run === void 0) {
+      const run2 = state.runs.find((item) => item.id === runId);
+      if (run2 === void 0) {
         throw new StudioStoreError("run_not_found", "Agent Run \u4E0D\u5B58\u5728", 404);
       }
       const at = nowIso(this.now);
-      const task = state.tasks.find((item) => item.id === run.taskId);
+      const task = state.tasks.find((item) => item.id === run2.taskId);
       const project = state.projects.find(
-        (item) => item.id === run.projectId
+        (item) => item.id === run2.projectId
       );
-      const role = state.roles.find((item) => item.id === run.roleId);
+      const role = state.roles.find((item) => item.id === run2.roleId);
       const receiptComplete = input.receipt !== null && typeof input.receipt.summary === "string" && input.receipt.summary.trim() !== "" && Array.isArray(input.receipt.evidence) && input.receipt.evidence.length > 0;
       if (!receiptComplete) {
-        run.status = "failed";
-        run.output = input.output.slice(0, 3e4);
-        run.receipt = input.receipt;
-        run.tokens = input.tokens;
-        run.error = "\u56DE\u6267\u4E0D\u5B8C\u6574\uFF1A\u5FC5\u987B\u5305\u542B\u975E\u7A7A summary \u548C\u81F3\u5C11\u4E00\u6761 evidence\uFF0C\u4EFB\u52A1\u4E0D\u80FD\u8FDB\u5165 review";
-        run.endedAt = at;
+        run2.status = "failed";
+        run2.output = input.output.slice(0, 3e4);
+        run2.receipt = input.receipt;
+        run2.tokens = input.tokens;
+        run2.error = "\u56DE\u6267\u4E0D\u5B8C\u6574\uFF1A\u5FC5\u987B\u5305\u542B\u975E\u7A7A summary \u548C\u81F3\u5C11\u4E00\u6761 evidence\uFF0C\u4EFB\u52A1\u4E0D\u80FD\u8FDB\u5165 review";
+        run2.endedAt = at;
         if (task !== void 0 && task.status === "running") {
           task.status = "ready";
           task.updatedAt = at;
@@ -1380,22 +1425,22 @@ var StudioStore = class {
         this.recordEvent(state, {
           type: "agent.failed",
           at,
-          projectId: run.projectId,
-          taskId: run.taskId,
+          projectId: run2.projectId,
+          taskId: run2.taskId,
           payload: {
-            runId: run.id,
-            error: run.error,
-            tokens: run.tokens
+            runId: run2.id,
+            error: run2.error,
+            tokens: run2.tokens
           }
         });
         await this.save();
-        return structuredClone(run);
+        return structuredClone(run2);
       }
       const spentProject = state.runs.filter(
-        (item) => item.projectId === run.projectId && item.id !== run.id
+        (item) => item.projectId === run2.projectId && item.id !== run2.id
       ).reduce((sum, item) => sum + (item.tokens ?? 0), 0);
       const spentRole = state.runs.filter(
-        (item) => item.roleId === run.roleId && item.id !== run.id
+        (item) => item.roleId === run2.roleId && item.id !== run2.id
       ).reduce((sum, item) => sum + (item.tokens ?? 0), 0);
       const warnings = [];
       if (project !== void 0 && project.tokenBudget !== null && input.tokens !== null && spentProject + input.tokens > project.tokenBudget) {
@@ -1412,13 +1457,13 @@ var StudioStore = class {
           )}`
         );
       }
-      run.status = "succeeded";
-      run.output = input.output.slice(0, 3e4);
-      run.receipt = input.receipt;
-      run.tokens = input.tokens;
-      run.diffStat = input.diffStat ?? null;
-      run.budgetWarning = warnings.length === 0 ? null : warnings.join("\uFF1B");
-      run.endedAt = at;
+      run2.status = "succeeded";
+      run2.output = input.output.slice(0, 3e4);
+      run2.receipt = input.receipt;
+      run2.tokens = input.tokens;
+      run2.diffStat = input.diffStat ?? null;
+      run2.budgetWarning = warnings.length === 0 ? null : warnings.join("\uFF1B");
+      run2.endedAt = at;
       if (task !== void 0) {
         if (input.receipt !== null) {
           const existing = new Set(task.evidence.map((item) => item.text));
@@ -1435,10 +1480,10 @@ var StudioStore = class {
         task.updatedAt = at;
       }
       if (input.receipt !== null) {
-        let branch = run.branchId === null ? void 0 : state.branches.find((item) => item.id === run.branchId);
+        let branch = run2.branchId === null ? void 0 : state.branches.find((item) => item.id === run2.branchId);
         if (branch === void 0 && task !== void 0) {
           branch = this.ensureBranch(state, task, at);
-          run.branchId = branch.id;
+          run2.branchId = branch.id;
         }
         if (branch !== void 0) {
           branch.status = "review";
@@ -1451,17 +1496,17 @@ var StudioStore = class {
               branch.contractKeys.push(contract);
             }
             const conflict = state.contractChanges.find(
-              (item) => item.projectId === run.projectId && item.contract === contract && item.branchId !== branch.id && item.change !== change
+              (item) => item.projectId === run2.projectId && item.contract === contract && item.branchId !== branch.id && item.change !== change
             );
             if (!state.contractChanges.some(
               (item) => item.branchId === branch.id && item.contract === contract && item.change === change
             )) {
               state.contractChanges.push({
                 id: newId("contract"),
-                projectId: run.projectId,
+                projectId: run2.projectId,
                 branchId: branch.id,
-                taskId: run.taskId,
-                runId: run.id,
+                taskId: run2.taskId,
+                runId: run2.id,
                 contract,
                 change,
                 createdAt: at
@@ -1469,20 +1514,20 @@ var StudioStore = class {
               this.recordEvent(state, {
                 type: "contract.changed",
                 at,
-                projectId: run.projectId,
-                taskId: run.taskId,
+                projectId: run2.projectId,
+                taskId: run2.taskId,
                 payload: {
                   branchId: branch.id,
                   contract,
                   change,
-                  runId: run.id
+                  runId: run2.id
                 }
               });
             }
             if (conflict === void 0) continue;
             const title = `\u5951\u7EA6\u51B2\u7A81\uFF1A${contract.slice(0, 160)}`;
             if (state.decisions.some(
-              (item) => item.runId === run.id && item.title === title
+              (item) => item.runId === run2.id && item.title === title
             )) {
               continue;
             }
@@ -1491,9 +1536,9 @@ var StudioStore = class {
             );
             const decision = {
               id: newId("dec"),
-              projectId: run.projectId,
-              taskId: run.taskId,
-              runId: run.id,
+              projectId: run2.projectId,
+              taskId: run2.taskId,
+              runId: run2.id,
               title,
               context: `${branch.name}: ${change}
 ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
@@ -1520,14 +1565,14 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
             this.recordEvent(state, {
               type: "decision.escalated",
               at,
-              projectId: run.projectId,
-              taskId: run.taskId,
+              projectId: run2.projectId,
+              taskId: run2.taskId,
               payload: {
                 decisionId: decision.id,
                 contract,
                 branchId: branch.id,
                 otherBranchId: conflict.branchId,
-                runId: run.id
+                runId: run2.id
               }
             });
           }
@@ -1537,15 +1582,15 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         for (const proposed of input.receipt.decisions) {
           if (proposed.scope !== "project") continue;
           if (state.decisions.some(
-            (item) => item.runId === run.id && item.title === proposed.title
+            (item) => item.runId === run2.id && item.title === proposed.title
           )) {
             continue;
           }
           const decision = {
             id: newId("dec"),
-            projectId: run.projectId,
-            taskId: run.taskId,
-            runId: run.id,
+            projectId: run2.projectId,
+            taskId: run2.taskId,
+            runId: run2.id,
             title: proposed.title,
             context: proposed.rationale,
             options: [],
@@ -1562,11 +1607,11 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           this.recordEvent(state, {
             type: "decision.proposed",
             at,
-            projectId: run.projectId,
-            taskId: run.taskId,
+            projectId: run2.projectId,
+            taskId: run2.taskId,
             payload: {
               decisionId: decision.id,
-              runId: run.id,
+              runId: run2.id,
               title: decision.title
             }
           });
@@ -1576,31 +1621,31 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       this.recordEvent(state, {
         type: "agent.completed",
         at,
-        projectId: run.projectId,
-        taskId: run.taskId,
+        projectId: run2.projectId,
+        taskId: run2.taskId,
         payload: {
-          runId: run.id,
-          tokens: run.tokens,
+          runId: run2.id,
+          tokens: run2.tokens,
           receipt: input.receipt !== null,
-          budgetWarning: run.budgetWarning
+          budgetWarning: run2.budgetWarning
         }
       });
       await this.save();
-      return structuredClone(run);
+      return structuredClone(run2);
     });
   }
   async failRun(runId, error) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const run = state.runs.find((item) => item.id === runId);
-      if (run === void 0) {
+      const run2 = state.runs.find((item) => item.id === runId);
+      if (run2 === void 0) {
         throw new StudioStoreError("run_not_found", "Agent Run \u4E0D\u5B58\u5728", 404);
       }
       const at = nowIso(this.now);
-      run.status = "failed";
-      run.error = error.slice(0, 4e3);
-      run.endedAt = at;
-      const task = state.tasks.find((item) => item.id === run.taskId);
+      run2.status = "failed";
+      run2.error = error.slice(0, 4e3);
+      run2.endedAt = at;
+      const task = state.tasks.find((item) => item.id === run2.taskId);
       if (task !== void 0 && task.status === "running") {
         task.status = "ready";
         task.updatedAt = at;
@@ -1609,12 +1654,62 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       this.recordEvent(state, {
         type: "agent.failed",
         at,
-        projectId: run.projectId,
-        taskId: run.taskId,
-        payload: { runId: run.id, error: run.error }
+        projectId: run2.projectId,
+        taskId: run2.taskId,
+        payload: { runId: run2.id, error: run2.error }
       });
       await this.save();
-      return structuredClone(run);
+      return structuredClone(run2);
+    });
+  }
+  async recordVerification(taskId, input) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const task = this.findTask(state, taskId);
+      const at = nowIso(this.now);
+      const run2 = input.runId ? state.runs.find((item) => item.id === input.runId) : [...state.runs].filter(
+        (item) => item.taskId === taskId && item.workspacePath !== null
+      ).sort(
+        (left, right) => right.startedAt.localeCompare(left.startedAt)
+      )[0];
+      const verification = {
+        id: newId("verify"),
+        projectId: task.projectId,
+        taskId,
+        runId: run2?.id ?? null,
+        command: requiredText(input.command, "command", 500),
+        workdir: requiredText(input.workdir, "workdir", 1e3),
+        exitCode: input.exitCode,
+        output: input.output.slice(0, 2e4),
+        passed: input.passed,
+        createdAt: at
+      };
+      state.verifications.push(verification);
+      if (input.passed) {
+        const text = `\u9A8C\u8BC1\u901A\u8FC7\uFF1A\`${verification.command}\`\uFF08exit 0\uFF09`;
+        if (!task.evidence.some((item) => item.text === text)) {
+          task.evidence.push({
+            id: newId("ev"),
+            text,
+            createdAt: at
+          });
+        }
+      }
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: input.passed ? "verification.passed" : "verification.failed",
+        at,
+        projectId: task.projectId,
+        taskId,
+        payload: {
+          verificationId: verification.id,
+          command: verification.command,
+          exitCode: verification.exitCode,
+          runId: verification.runId
+        }
+      });
+      await this.save();
+      return structuredClone(verification);
     });
   }
   async createDecision(input) {
@@ -1841,6 +1936,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         acceptance: normalizeAcceptance(input.acceptance ?? []),
         evidence: [],
         branch: optionalText(input.branch, "branch", 160) || null,
+        verifyCommand: optionalText(input.verifyCommand, "verifyCommand", 500) || null,
         createdAt: at,
         updatedAt: at
       };
@@ -1904,6 +2000,9 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       }
       if (input.branch !== void 0) {
         task.branch = optionalText(input.branch, "branch", 160) || null;
+      }
+      if (input.verifyCommand !== void 0) {
+        task.verifyCommand = optionalText(input.verifyCommand, "verifyCommand", 500) || null;
       }
       task.updatedAt = at;
       state.updatedAt = at;
@@ -2023,6 +2122,13 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         throw new StudioStoreError("invalid_input", "risk \u5FC5\u987B\u662F low/medium/high");
       }
       const at = nowIso(this.now);
+      const latestRun = [...state.runs].filter((run2) => run2.taskId === task.id).sort(
+        (left, right) => right.startedAt.localeCompare(left.startedAt)
+      )[0];
+      const latestVerification = [...state.verifications].filter((verification) => verification.taskId === task.id).sort(
+        (left, right) => right.createdAt.localeCompare(left.createdAt)
+      )[0];
+      const changedFiles = latestRun?.diffStat === null || latestRun?.diffStat === void 0 ? [] : latestRun.diffStat.split("\n").filter((line) => /^[ MARC?]{1,2} \S/.test(line)).map((line) => line.slice(3).trim()).filter(Boolean);
       const proposal = {
         id: newId("merge"),
         projectId: task.projectId,
@@ -2035,6 +2141,9 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         status: "review",
         reviewNote: "",
         mergeCommit: null,
+        diffStat: latestRun?.diffStat ?? null,
+        changedFiles,
+        verificationId: latestVerification?.id ?? null,
         createdAt: at,
         updatedAt: at,
         decidedAt: null,
@@ -2386,6 +2495,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       acceptance: items,
       evidence: [],
       branch,
+      verifyCommand: null,
       createdAt: at,
       updatedAt: at
     });
@@ -2473,6 +2583,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       })),
       contractChanges: [],
       decisions: [],
+      verifications: [],
       events: [
         {
           id: "evt-demo",
@@ -2730,6 +2841,7 @@ var StudioRouter = class {
   connection;
   getBootPayload;
   dispatchTask;
+  verifyTask;
   constructor(options) {
     this.store = options.store;
     this.token = options.token;
@@ -2738,6 +2850,7 @@ var StudioRouter = class {
     this.connection = options.connection;
     this.getBootPayload = options.getBootPayload;
     this.dispatchTask = options.dispatchTask;
+    this.verifyTask = options.verifyTask;
   }
   async handle(req, res) {
     const parsed = this.parse(req);
@@ -2878,10 +2991,23 @@ var StudioRouter = class {
     const taskDispatch = /^\/studio-api\/tasks\/([^/]+)\/dispatch$/.exec(parsed.pathname);
     if (taskDispatch !== null) {
       this.requireMethod(parsed, ["POST"]);
-      const run = await this.dispatchTask(
+      const run2 = await this.dispatchTask(
         decodeSegment(taskDispatch[1] ?? "")
       );
-      sendJson(res, 202, { ok: true, run });
+      sendJson(res, 202, { ok: true, run: run2 });
+      return;
+    }
+    const taskVerify = /^\/studio-api\/tasks\/([^/]+)\/verify$/.exec(parsed.pathname);
+    if (taskVerify !== null) {
+      this.requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const body = await readJson(req);
+      const command = body.command === void 0 ? void 0 : asOptionalString(body.command, "command");
+      const verification = await this.verifyTask(
+        decodeSegment(taskVerify[1] ?? ""),
+        command
+      );
+      sendJson(res, 200, { ok: true, verification });
       return;
     }
     if (parsed.pathname === `${API_PREFIX}/decisions`) {
@@ -2988,6 +3114,53 @@ function handleRouterError(res, error) {
   sendError(res, 500, "internal_error", message);
 }
 
+// src/host/verify.ts
+import { exec } from "node:child_process";
+import { promisify } from "node:util";
+var run = promisify(exec);
+var VerificationService = class {
+  store;
+  constructor(store) {
+    this.store = store;
+  }
+  async verify(taskId, command) {
+    const context = await this.store.getTaskVerificationContext(taskId);
+    if (context.run === null || context.run.workspacePath === null) {
+      throw new StudioStoreError(
+        "workspace_required",
+        "\u8FD9\u4E2A\u4EFB\u52A1\u8FD8\u6CA1\u6709\u53EF\u9A8C\u8BC1\u7684 worktree\uFF1B\u5148\u6D3E\u5355\u6267\u884C\u4E00\u6B21",
+        409
+      );
+    }
+    const resolved = (command?.trim() || context.task.verifyCommand || "").trim() || "npm test";
+    const workdir = context.run.workspacePath;
+    let output = "";
+    let exitCode = 1;
+    try {
+      const result = await run(resolved, {
+        cwd: workdir,
+        timeout: 18e4,
+        maxBuffer: 2 * 1024 * 1024,
+        windowsHide: true
+      });
+      output = `${result.stdout}${result.stderr}`;
+      exitCode = 0;
+    } catch (error) {
+      const failed = error;
+      output = `${failed.stdout ?? ""}${failed.stderr ?? ""}${failed.message ?? ""}`;
+      exitCode = typeof failed.code === "number" ? failed.code : 1;
+    }
+    return this.store.recordVerification(taskId, {
+      command: resolved,
+      workdir,
+      exitCode,
+      output,
+      passed: exitCode === 0,
+      runId: context.run.id
+    });
+  }
+};
+
 // src/host/index.ts
 var name = "dsh-studio";
 var inject = [
@@ -3015,6 +3188,7 @@ async function apply(ctx) {
     ctx,
     store
   );
+  const verifier = new VerificationService(store);
   const token = randomBytes(24).toString("hex");
   const startedAt = (/* @__PURE__ */ new Date()).toISOString();
   const bootPayload = {
@@ -3032,7 +3206,8 @@ async function apply(ctx) {
     compatibility,
     connection: ctx.connection,
     getBootPayload: () => bootPayload,
-    dispatchTask: (taskId) => dispatcher.dispatch(taskId)
+    dispatchTask: (taskId) => dispatcher.dispatch(taskId),
+    verifyTask: (taskId, command) => verifier.verify(taskId, command)
   });
   const install = () => {
     const disposeRoute = ctx.webServer.register({

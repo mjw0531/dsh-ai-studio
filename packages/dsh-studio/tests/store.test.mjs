@@ -582,12 +582,16 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
     assert.deepEqual(data.runs, []);
     assert.deepEqual(data.decisions, []);
     const migrated = JSON.parse(await readFile(file, "utf8"));
-    assert.equal(migrated.schemaVersion, 6);
+    assert.equal(migrated.schemaVersion, 7);
     assert.ok(migrated.runs.every((run) => run.status !== undefined));
     assert.ok(Array.isArray(migrated.branches));
     assert.ok(Array.isArray(migrated.contractChanges));
+    assert.ok(Array.isArray(migrated.verifications));
     assert.ok(
       migrated.projects.every((project) => project.repoPath === null),
+    );
+    assert.ok(
+      migrated.tasks.every((task) => task.verifyCommand === null),
     );
   });
 });

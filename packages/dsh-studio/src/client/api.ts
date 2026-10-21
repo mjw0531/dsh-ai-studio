@@ -16,6 +16,7 @@ import type {
   TaskStatus,
   UpdateProjectInput,
   UpdateTaskInput,
+  Verification,
 } from "../shared/types.js";
 
 export interface StudioBoot {
@@ -243,6 +244,14 @@ export class StudioClient {
       { method: "POST", body: {} },
     );
     return data.run;
+  }
+
+  async verifyTask(taskId: string, command?: string): Promise<Verification> {
+    const data = await this.request<{ verification: Verification }>(
+      `/tasks/${encodeURIComponent(taskId)}/verify`,
+      { method: "POST", body: command === undefined ? {} : { command } },
+    );
+    return data.verification;
   }
 
   async createDecision(input: CreateDecisionInput): Promise<Decision> {

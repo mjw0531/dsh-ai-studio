@@ -12,6 +12,7 @@ import { AgentDispatcher } from "./dispatcher.js";
 import type { DispatcherContext } from "./dispatcher.js";
 import { handleRouterError, StudioRouter } from "./router.js";
 import { StudioStore } from "./store.js";
+import { VerificationService } from "./verify.js";
 
 /** Cordis plugin name shown in Loader logs. */
 export const name = "dsh-studio";
@@ -104,6 +105,7 @@ export async function apply(ctx: StudioHostContext): Promise<void> {
     ctx as unknown as DispatcherContext,
     store,
   );
+  const verifier = new VerificationService(store);
 
   const token = randomBytes(24).toString("hex");
   const startedAt = new Date().toISOString();
@@ -123,6 +125,7 @@ export async function apply(ctx: StudioHostContext): Promise<void> {
     connection: ctx.connection,
     getBootPayload: () => bootPayload,
     dispatchTask: (taskId) => dispatcher.dispatch(taskId),
+    verifyTask: (taskId, command) => verifier.verify(taskId, command),
   });
 
   const install = (): (() => void) => {

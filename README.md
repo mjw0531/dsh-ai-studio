@@ -2,7 +2,7 @@
 
 一套构建在 **DeepSeek Harness（DSH）** 之上的多角色 AI 工作台：把「一个聊天窗口」变成一间**有公司仪表盘、Agent 派单、token 预算、决策董事会、支线/契约冲突、worktree 代码执行、项目、角色、任务、验收、合并治理**的工作室。
 
-> 当前状态：**v0.6.0 可运行**。已完成公司级 Owner Dashboard、Agent 派单与结构化回执、角色模型/token 预算、DSH token 计量、决策董事会、支线/契约冲突自动升级、git worktree 代码执行与 diff 记录、项目/角色/任务/验收/证据持久化、合并治理，并在 DSH `0.2.1-rc.2` 上完成 Web/桌面验证。
+> 当前状态：**v0.6.1 可运行**。已完成公司级 Owner Dashboard、Agent 派单与结构化回执、角色模型/token 预算、DSH token 计量、决策董事会、支线/契约冲突自动升级、git worktree 代码执行与 diff 记录、Host 独立验证、项目/角色/任务/验收/证据持久化、合并治理，并在 DSH `0.2.1-rc.2` 上完成 Web/桌面验证。
 
 ![Studio Decision Boardroom](docs/images/decision-boardroom.png)
 
@@ -12,6 +12,7 @@
 - **决策董事会**：Agent 的项目级决策自动进入待裁决；Owner 批准/拒绝并记录结论与理由，Agent 不能替 Owner 拍板。
 - **支线/契约冲突**：派单自动登记支线；两条支线改同一契约且内容不同时，自动升级为待裁决决策。
 - **worktree 代码执行**：项目绑定 git 仓库后，每个任务自动创建独立 worktree 和分支；Agent 在里面改代码，Run 记录 diff，主工作区不被直接修改。
+- **Host 独立验证**：Task Room 的验证命令由 Host 在 worktree 内执行，记录退出码/输出并写 evidence；不依赖 Agent 会话，也不会自动通过验收。
 - **Agent 分析派单**：Task Room 把任务派给负责人角色，Agent 返回结构化回执；回执缺 `summary`/`evidence` 时任务退回可开始，不能进入验收。
 - **薪资与预算**：角色配置模型、单任务/每日 token 预算；项目配置总 token 预算。
 - **独立工作台页面**：DSH 侧栏点击「工作台」，进入公司仪表盘，不占用聊天会话。
@@ -87,6 +88,7 @@ docs/
   00-设计蓝图.md          # 产品/工作流/领域模型/路线
   01-对话补充与产品方向.md # 对象模型、决策升级、竞品参照、Owner Dashboard
   02-后续迭代.md          # v0.4-v1.0 的执行面、Scope、Git 与狗粮计划
+  03-工作流评审与补充.md  # DSH/Kimi 对话对比与工作流缺口
   adr/                   # 架构决策
 CONTEXT.md               # 术语表
 tools/                   # CDP 端到端验证脚本
@@ -102,6 +104,7 @@ tools/                   # CDP 端到端验证脚本
 - [ADR-0006：项目级决策进入董事会](docs/adr/0006-decision-boardroom.md)
 - [ADR-0007：支线自动登记与契约冲突升级](docs/adr/0007-branch-contract-escalation.md)
 - [ADR-0008：代码执行放在每 Task 的 worktree](docs/adr/0008-code-execution-in-worktrees.md)
+- [ADR-0009：Host 独立验证](docs/adr/0009-host-verification.md)
 
 ## 开发
 
@@ -130,8 +133,9 @@ dsh --profile web --no-open --port 0
 - **v0.4**：Agent 分析派单与结构化回执；角色模型/token 预算；项目预算；DSH token 计量。
 - **v0.5**：决策董事会；Agent 项目级决策进入待裁决；Owner 批准/拒绝与结论记录。
 - **v0.5.1**：支线持久化、契约变更记录、跨支线同契约冲突自动升级。
-- **v0.6（当前）**：项目绑定 git 仓库、每 Task worktree/branch、Agent 代码编辑与 diff 记录。
-- **v0.7**：代码测试执行修复（Windows ACL）、真实 diff 合并评审、Scope 强隔离、Project Book。
+- **v0.6**：项目绑定 git 仓库、每 Task worktree/branch、Agent 代码编辑与 diff 记录。
+- **v0.6.1（当前）**：Host 独立验证、验证 evidence、Merge Proposal 的 diff/变更文件/验证结果。
+- **v0.7**：PRD/模块契约/INVARIANTS、ticket 类型与失败上限、集成验收、真实 diff 合并评审。
 - **v1.0**：用工作台完成一个 2.5D MOBA 垂直切片，再抽象为可复用插件。
 
 详细迭代计划见 [后续迭代](docs/02-后续迭代.md)。

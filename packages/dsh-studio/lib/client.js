@@ -262,6 +262,13 @@ var StudioClient = class {
     );
     return data.run;
   }
+  async verifyTask(taskId, command) {
+    const data = await this.request(
+      `/tasks/${encodeURIComponent(taskId)}/verify`,
+      { method: "POST", body: command === void 0 ? {} : { command } }
+    );
+    return data.verification;
+  }
   async createDecision(input) {
     const data = await this.request("/decisions", {
       method: "POST",
@@ -820,6 +827,15 @@ function StudioPage() {
       "\u5DF2\u6D3E\u5355\uFF0CAgent \u5F00\u59CB\u5206\u6790\uFF1B\u5B8C\u6210\u540E\u4F1A\u81EA\u52A8\u5237\u56DE\u6267"
     );
   };
+  const verifyTask = async (task, command) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.verifyTask(task.id, command);
+      },
+      "\u9A8C\u8BC1\u547D\u4EE4\u5DF2\u6267\u884C"
+    );
+  };
   const createDecision = async (input) => {
     const ok = await run(
       async () => {
@@ -1050,10 +1066,14 @@ function StudioPage() {
         roles: data.roles,
         mergeProposal: selectedMerge,
         runs: data.runs.filter((run2) => run2.taskId === selectedTask.id),
+        verifications: data.verifications.filter(
+          (verification) => verification.taskId === selectedTask.id
+        ),
         codeMode: data.project?.repoPath != null,
         busy,
         onClose: () => setSelectedTaskId(null),
         onDispatch: () => dispatchTask(selectedTask),
+        onVerify: (command) => verifyTask(selectedTask, command),
         onTransition: (status) => void transitionTask(selectedTask, status),
         onToggleAcceptance: (id) => void toggleAcceptance(selectedTask, id),
         onAddEvidence: (text) => addEvidence(selectedTask, text),
@@ -2379,10 +2399,12 @@ function TaskDrawer({
   roles,
   mergeProposal,
   runs,
+  verifications,
   codeMode,
   busy,
   onClose,
   onDispatch,
+  onVerify,
   onTransition,
   onToggleAcceptance,
   onAddEvidence,
@@ -2567,10 +2589,23 @@ function TaskDrawer({
                 }
               ),
               /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                TaskVerificationPanel,
+                {
+                  task,
+                  runs,
+                  verifications,
+                  busy,
+                  onVerify
+                }
+              ),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
                 TaskMergePanel,
                 {
                   task,
                   proposal: mergeProposal,
+                  verification: mergeProposal?.verificationId === null || mergeProposal?.verificationId === void 0 ? null : verifications.find(
+                    (item) => item.id === mergeProposal.verificationId
+                  ) ?? null,
                   busy,
                   onCreate: onCreateMerge,
                   onApprove: onApproveMerge,
@@ -2608,6 +2643,68 @@ function TaskDrawer({
       )
     }
   );
+}
+function TaskVerificationPanel({
+  task,
+  runs,
+  verifications,
+  busy,
+  onVerify
+}) {
+  const [command, setCommand] = (0, import_react.useState)(
+    task.verifyCommand ?? "npm test"
+  );
+  const latest = verifications[0] ?? null;
+  const workspaceRun = runs.find((run) => run.workspacePath !== null);
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-section-label", children: "\u72EC\u7ACB\u9A8C\u8BC1" }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-action-note", style: { marginTop: 0 }, children: "\u7531 Studio Host \u5728\u4EFB\u52A1 worktree \u5185\u76F4\u63A5\u6267\u884C\uFF0C\u4E0D\u7ECF\u8FC7 Agent \u4F1A\u8BDD\u3002 \u9A8C\u8BC1\u901A\u8FC7\u4F1A\u5199\u5165 evidence\uFF0C\u4F46\u4E0D\u4F1A\u81EA\u52A8\u901A\u8FC7\u9A8C\u6536\u3002" }),
+    workspaceRun === void 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-faint", style: { fontSize: 11, marginTop: 9 }, children: "\u8FD8\u6CA1\u6709\u5E26 worktree \u7684 Run\uFF1B\u5148\u6D3E\u5355\u6267\u884C\u4E00\u6B21\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-verify-form", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          "input",
+          {
+            value: command,
+            onChange: (event) => setCommand(event.target.value),
+            "aria-label": "\u9A8C\u8BC1\u547D\u4EE4",
+            placeholder: "npm test"
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+          "button",
+          {
+            type: "button",
+            className: "studio-btn",
+            "data-size": "sm",
+            disabled: busy || command.trim() === "",
+            onClick: () => void onVerify(command.trim()),
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconCheck, { width: 13, height: 13 }),
+              "\u8FD0\u884C\u9A8C\u8BC1"
+            ]
+          }
+        )
+      ] }),
+      latest === null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-faint", style: { fontSize: 11, marginTop: 8 }, children: "\u8FD8\u6CA1\u6709\u9A8C\u8BC1\u8BB0\u5F55\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+        "div",
+        {
+          className: "studio-verification",
+          "data-passed": latest.passed,
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-verification-head", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-pill", "data-tone": latest.passed ? "ok" : "p0", children: latest.passed ? "\u901A\u8FC7" : "\u5931\u8D25" }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("code", { children: latest.command }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "studio-faint", children: [
+                "exit ",
+                latest.exitCode
+              ] })
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("pre", { children: latest.output.slice(0, 4e3) || "\uFF08\u65E0\u8F93\u51FA\uFF09" })
+          ]
+        }
+      )
+    ] })
+  ] });
 }
 function TaskAgentPanel({
   task,
@@ -2731,6 +2828,7 @@ function ReceiptList({ label, items }) {
 function TaskMergePanel({
   task,
   proposal,
+  verification,
   busy,
   onCreate,
   onApprove,
@@ -2876,6 +2974,29 @@ function TaskMergePanel({
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: activeProposal.summary }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u56DE\u6EDA\u65B9\u6848" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: activeProposal.rollback }),
+          activeProposal.changedFiles.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u53D8\u66F4\u6587\u4EF6" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { className: "studio-mono", children: activeProposal.changedFiles.join("\u3001") })
+          ] }) : null,
+          activeProposal.diffStat !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "Diff" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("pre", { className: "studio-diff", children: activeProposal.diffStat }) })
+          ] }) : null,
+          verification !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u72EC\u7ACB\u9A8C\u8BC1" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("dd", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                "span",
+                {
+                  className: "studio-pill",
+                  "data-tone": verification.passed ? "ok" : "p0",
+                  children: verification.passed ? "\u901A\u8FC7" : "\u5931\u8D25"
+                }
+              ),
+              " ",
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("code", { children: verification.command })
+            ] })
+          ] }) : null,
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u8BC4\u5BA1\u5907\u6CE8" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: activeProposal.reviewNote || "\u65E0" }),
           activeProposal.mergeCommit !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
@@ -3091,6 +3212,8 @@ function SettingsView({
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.branchBoard ? "\u53EF\u7528" : "\u4E0D\u53EF\u7528" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u4EE3\u7801\u6267\u884C" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.codeExecution ? "\u53EF\u7528\uFF08worktree\uFF09" : "\u4E0D\u53EF\u7528" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u72EC\u7ACB\u9A8C\u8BC1" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.verification ? "\u53EF\u7528\uFF08Host \u6267\u884C\uFF09" : "\u4E0D\u53EF\u7528" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u5408\u5E76\u6CBB\u7406" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.mergeGovernance ? "\u53EF\u7528\uFF08\u8BB0\u5F55\u8BC4\u5BA1\uFF0C\u4EBA\u5DE5\u6267\u884C Git\uFF09" : "\u4E0D\u53EF\u7528" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "Agent \u6D3E\u5355" }),
@@ -3193,6 +3316,7 @@ function TaskForm({
   );
   const [acceptanceText, setAcceptanceText] = (0, import_react.useState)("");
   const [branch, setBranch] = (0, import_react.useState)("");
+  const [verifyCommand, setVerifyCommand] = (0, import_react.useState)("npm test");
   const [localError, setLocalError] = (0, import_react.useState)(null);
   const submit = (event) => {
     event.preventDefault();
@@ -3217,7 +3341,8 @@ function TaskForm({
       ownerRoleId: ownerRoleId || null,
       reviewerRoleId: reviewerRoleId || null,
       acceptance,
-      branch: branch.trim() || null
+      branch: branch.trim() || null,
+      verifyCommand: verifyCommand.trim() || null
     });
   };
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
@@ -3296,6 +3421,19 @@ function TaskForm({
               }
             )
           ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "task-verify", children: "\u9A8C\u8BC1\u547D\u4EE4\uFF08\u53EF\u9009\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "input",
+            {
+              id: "task-verify",
+              value: verifyCommand,
+              onChange: (event) => setVerifyCommand(event.target.value),
+              placeholder: "npm test"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-hint", children: "\u7531 Studio Host \u5728 worktree \u5185\u72EC\u7ACB\u6267\u884C\uFF1B\u901A\u8FC7\u4F1A\u5199 evidence\uFF0C\u4F46\u4E0D\u81EA\u52A8\u901A\u8FC7\u9A8C\u6536\u3002" })
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field-row", children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
@@ -4640,6 +4778,52 @@ var studioCss = `
   font-size: 10px;
 }
 .studio-role-salary .studio-mono { color: var(--st-accent); }
+
+.studio-diff {
+  max-height: 180px;
+  margin: 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: var(--st-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.studio-verify-form { display: flex; gap: 7px; margin-top: 9px; }
+.studio-verify-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--st-border);
+  border-radius: 7px;
+  background: var(--st-panel-2);
+  color: var(--st-text);
+  font-family: var(--dsh-font-family-mono, ui-monospace, Consolas, monospace);
+  font-size: 10px;
+}
+.studio-verification {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 9px;
+  border: 1px solid var(--st-border);
+  border-radius: 8px;
+  background: var(--st-panel-2);
+}
+.studio-verification[data-passed="false"] { border-color: rgba(255, 117, 133, 0.25); }
+.studio-verification-head { display: flex; align-items: center; gap: 7px; font-size: 10px; }
+.studio-verification-head code { color: var(--st-accent); overflow-wrap: anywhere; }
+.studio-verification-head .studio-faint { margin-left: auto; }
+.studio-verification pre {
+  margin: 0;
+  max-height: 180px;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: var(--st-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
 
 .studio-run-list { display: flex; flex-direction: column; gap: 6px; margin-top: 9px; }
 .studio-run-card {
