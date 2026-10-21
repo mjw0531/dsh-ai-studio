@@ -249,6 +249,60 @@ test("rejecting a merge returns the task to execution", async () => {
   });
 });
 
+test("builds the company-level owner dashboard", async () => {
+  await withStore(async (store) => {
+    const data = await store.bootstrap();
+    const company = data.company;
+    assert.equal(company.totals.projects, 1);
+    assert.equal(company.totals.activeProjects, 1);
+    assert.equal(company.totals.tasks, 5);
+    assert.equal(company.projects.length, 1);
+    assert.equal(company.projects[0].health, "attention");
+    assert.ok(company.needs.some((need) => need.kind === "missing_evidence"));
+    assert.ok(company.roles.some((role) => role.roleName === "Builder"));
+    assert.ok(company.recentEvents.length > 0);
+    assert.ok(company.totals.acceptanceTotal > 0);
+  });
+});
+
+test("includes an empty project in the company portfolio", async () => {
+  await withStore(async (store) => {
+    const project = await store.createProject({ name: "空项目" });
+    const data = await store.bootstrap();
+    assert.equal(data.company.totals.projects, 2);
+    assert.ok(
+      data.company.needs.some(
+        (need) =>
+          need.kind === "project_setup" && need.projectId === project.id,
+      ),
+    );
+    assert.ok(
+      data.company.projects.some(
+        (summary) => summary.project.id === project.id,
+      ),
+    );
+  });
+});
+
+test("surfaces a pending merge in the owner inbox", async () => {
+  await withStore(async (store) => {
+    const task = await readyTask(store);
+    await store.createMergeProposal(task.id, {
+      summary: "合并治理",
+      rollback: "revert",
+      risk: "high",
+    });
+    const data = await store.bootstrap();
+    assert.equal(data.company.totals.mergePending, 1);
+    assert.ok(
+      data.company.needs.some(
+        (need) => need.kind === "merge_review" && need.taskId === task.id,
+      ),
+    );
+    assert.ok(data.company.risk.missingEvidence >= 1);
+  });
+});
+
 test("migrates a schema v1 file by adding merge proposals", async () => {
   await withStore(async (store, dir) => {
     const file = path.join(dir, "studio.json");

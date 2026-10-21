@@ -16,6 +16,11 @@ import {
 import type {
   AcceptanceItem,
   BootstrapResponse,
+  CompanyHealth,
+  CompanyProjectSummary,
+  CompanyRisk,
+  CompanySummary,
+  CompanyTotals,
   CreateMergeProposalInput,
   CreateProjectInput,
   CreateRoleInput,
@@ -23,8 +28,10 @@ import type {
   EvidenceItem,
   MergeProposal,
   MergeRisk,
+  OwnerNeed,
   Project,
   Role,
+  RoleLoadSummary,
   StudioEvent,
   StudioState,
   StudioStats,
@@ -220,6 +227,336 @@ function statsFor(
   return stats;
 }
 
+const STALE_TASK_HOURS = 72;
+const AGING_MERGE_HOURS = 48;
+
+function hoursSince(iso: string, now: Date): number | null {
+  const at = Date.parse(iso);
+  if (Number.isNaN(at)) return null;
+  return Math.max(0, (now.getTime() - at) / 3_600_000);
+}
+
+function latestIso(values: Array<string | null | undefined>): string | null {
+  let latest: string | null = null;
+  let latestAt = Number.NEGATIVE_INFINITY;
+  for (const value of values) {
+    if (value === null || value === undefined) continue;
+    const at = Date.parse(value);
+    if (Number.isNaN(at) || at <= latestAt) continue;
+    latest = value;
+    latestAt = at;
+  }
+  return latest;
+}
+
+/**
+ * Company-level projection: every project, every owner-facing exception, and
+ * the aggregate numbers the Owner Dashboard needs. It is derived from the same
+ * durable state, so it never becomes a second source of truth.
+ */
+function buildCompany(state: StudioState, now: Date): CompanySummary {
+  const projects: CompanyProjectSummary[] = [];
+  const needs: OwnerNeed[] = [];
+  const roles: RoleLoadSummary[] = [];
+  const risk: CompanyRisk = {
+    staleTasks: 0,
+    agingMerges: 0,
+    missingEvidence: 0,
+    blocked: 0,
+    unowned: 0,
+  };
+  const totals: CompanyTotals = {
+    projects: 0,
+    activeProjects: 0,
+    tasks: 0,
+    openTasks: 0,
+    inReview: 0,
+    blocked: 0,
+    mergePending: 0,
+    merged: 0,
+    done: 0,
+    acceptanceDone: 0,
+    acceptanceTotal: 0,
+  };
+
+  for (const project of state.projects) {
+    const projectTasks = state.tasks.filter(
+      (task) => task.projectId === project.id,
+    );
+    const projectProposals = state.mergeProposals.filter(
+      (proposal) => proposal.projectId === project.id,
+    );
+    const projectRoles = state.roles.filter(
+      (role) => role.projectId === project.id,
+    );
+    const roleById = new Map(projectRoles.map((role) => [role.id, role]));
+    const stats = statsFor(projectTasks, projectProposals);
+    const projectNeeds: OwnerNeed[] = [];
+    const openTasks = projectTasks.filter((task) => task.status !== "done");
+    const activeTasks = projectTasks.filter(
+      (task) => task.status === "running" || task.status === "review",
+    );
+    const activeRoleIds = new Set(
+      activeTasks
+        .map((task) => task.ownerRoleId)
+        .filter((id): id is string => id !== null),
+    );
+
+    for (const task of projectTasks) {
+      const owner = task.ownerRoleId === null
+        ? null
+        : roleById.get(task.ownerRoleId);
+      const acceptanceDone = task.acceptance.filter((item) => item.done).length;
+      const age = hoursSince(task.updatedAt, now);
+
+      if (task.status === "blocked") {
+        risk.blocked += 1;
+        totals.blocked += 1;
+        projectNeeds.push({
+          id: `need-${project.id}-${task.id}-blocked`,
+          kind: "task_blocked",
+          severity: "critical",
+          projectId: project.id,
+          projectName: project.name,
+          taskId: task.id,
+          proposalId: null,
+          title: `任务阻塞：${task.title}`,
+          detail: "需要解除阻塞、重新规划，或由你决定是否暂停",
+          ageHours: age === null ? null : Math.round(age),
+        });
+      }
+
+      if (task.status === "review" && task.evidence.length === 0) {
+        risk.missingEvidence += 1;
+        projectNeeds.push({
+          id: `need-${project.id}-${task.id}-evidence`,
+          kind: "missing_evidence",
+          severity: "warning",
+          projectId: project.id,
+          projectName: project.name,
+          taskId: task.id,
+          proposalId: null,
+          title: `缺证据：${task.title}`,
+          detail: "验收前至少需要一条可复现的测试、命令或 replay",
+          ageHours: age === null ? null : Math.round(age),
+        });
+      } else if (task.status === "review") {
+        projectNeeds.push({
+          id: `need-${project.id}-${task.id}-review`,
+          kind: "task_review",
+          severity: "warning",
+          projectId: project.id,
+          projectName: project.name,
+          taskId: task.id,
+          proposalId: null,
+          title: `待验收：${task.title}`,
+          detail: `${owner?.name ?? "未指派"} · 验收 ${String(acceptanceDone)}/${String(task.acceptance.length)}`,
+          ageHours: age === null ? null : Math.round(age),
+        });
+      }
+
+      if (
+        task.status !== "done" &&
+        age !== null &&
+        age > STALE_TASK_HOURS
+      ) {
+        risk.staleTasks += 1;
+        if (task.status !== "blocked" && task.status !== "review") {
+          projectNeeds.push({
+            id: `need-${project.id}-${task.id}-stale`,
+            kind: "stale_task",
+            severity: "warning",
+            projectId: project.id,
+            projectName: project.name,
+            taskId: task.id,
+            proposalId: null,
+            title: `任务停滞：${task.title}`,
+            detail: `已经 ${String(Math.round(age))} 小时没有更新`,
+            ageHours: Math.round(age),
+          });
+        }
+      }
+
+      if (
+        task.status !== "done" &&
+        task.status !== "backlog" &&
+        task.ownerRoleId === null
+      ) {
+        risk.unowned += 1;
+        projectNeeds.push({
+          id: `need-${project.id}-${task.id}-unowned`,
+          kind: "unowned_task",
+          severity: "info",
+          projectId: project.id,
+          projectName: project.name,
+          taskId: task.id,
+          proposalId: null,
+          title: `无人负责：${task.title}`,
+          detail: "任务已进入执行区，但没有负责人",
+          ageHours: age === null ? null : Math.round(age),
+        });
+      }
+    }
+
+    for (const proposal of projectProposals) {
+      if (proposal.status !== "review" && proposal.status !== "approved") {
+        continue;
+      }
+      const task = projectTasks.find((item) => item.id === proposal.taskId);
+      const age = hoursSince(proposal.createdAt, now);
+      if (age !== null && age > AGING_MERGE_HOURS) {
+        risk.agingMerges += 1;
+      }
+      projectNeeds.push({
+        id: `need-${project.id}-${proposal.id}-merge`,
+        kind: proposal.status === "review" ? "merge_review" : "merge_approved",
+        severity: "warning",
+        projectId: project.id,
+        projectName: project.name,
+        taskId: proposal.taskId,
+        proposalId: proposal.id,
+        title:
+          proposal.status === "review"
+            ? `合并待评审：${task?.title ?? proposal.taskId}`
+            : `合并已批准，等待执行：${task?.title ?? proposal.taskId}`,
+        detail: `${proposal.branch} → ${proposal.base} · ${proposal.risk}`,
+        ageHours: age === null ? null : Math.round(age),
+      });
+    }
+
+    if (projectRoles.length === 0) {
+      projectNeeds.push({
+        id: `need-${project.id}-setup`,
+        kind: "project_setup",
+        severity: "info",
+        projectId: project.id,
+        projectName: project.name,
+        taskId: null,
+        proposalId: null,
+        title: `项目还没配置角色：${project.name}`,
+        detail: "至少需要一个角色，任务才有负责人和验收人",
+        ageHours: null,
+      });
+    } else if (projectTasks.length === 0) {
+      projectNeeds.push({
+        id: `need-${project.id}-empty`,
+        kind: "project_setup",
+        severity: "info",
+        projectId: project.id,
+        projectName: project.name,
+        taskId: null,
+        proposalId: null,
+        title: `项目还没有任务：${project.name}`,
+        detail: "创建第一条带验收标准的任务，项目才开始运转",
+        ageHours: null,
+      });
+    }
+
+    const isActive =
+      projectTasks.some(
+        (task) => task.status !== "backlog" && task.status !== "done",
+      ) ||
+      projectProposals.some(
+        (proposal) =>
+          proposal.status === "review" || proposal.status === "approved",
+      );
+    if (isActive) totals.activeProjects += 1;
+    totals.projects += 1;
+    totals.tasks += stats.total;
+    totals.openTasks += openTasks.length;
+    totals.inReview += stats.review;
+    totals.mergePending += stats.mergeReview + stats.mergeApproved;
+    totals.merged += stats.mergeMerged;
+    totals.done += stats.done;
+    totals.acceptanceDone += stats.acceptanceDone;
+    totals.acceptanceTotal += stats.acceptanceTotal;
+
+    for (const role of projectRoles) {
+      const assigned = projectTasks.filter(
+        (task) => task.ownerRoleId === role.id,
+      );
+      const active = assigned.filter(
+        (task) => task.status === "running" || task.status === "review",
+      ).length;
+      const review = assigned.filter((task) => task.status === "review").length;
+      const open = assigned.filter((task) => task.status !== "done").length;
+      roles.push({
+        roleId: role.id,
+        roleName: role.name,
+        roleTitle: role.title,
+        projectId: project.id,
+        projectName: project.name,
+        activeTasks: active,
+        reviewTasks: review,
+        openTasks: open,
+        state: active >= 3 ? "overloaded" : active >= 1 ? "busy" : "idle",
+      });
+    }
+
+    const health: CompanyHealth =
+      projectNeeds.some((need) => need.severity === "critical")
+        ? "critical"
+        : projectNeeds.length > 0
+          ? "attention"
+          : "steady";
+    const lastActivityAt = latestIso([
+      project.updatedAt,
+      ...projectTasks.map((task) => task.updatedAt),
+      ...projectProposals.map((proposal) => proposal.updatedAt),
+      ...state.events
+        .filter((event) => event.projectId === project.id)
+        .map((event) => event.at),
+    ]);
+
+    projects.push({
+      project,
+      stats,
+      roleCount: projectRoles.length,
+      activeRoleCount: activeRoleIds.size,
+      openTasks: openTasks.length,
+      health,
+      lastActivityAt,
+      openNeeds: projectNeeds.length,
+    });
+    needs.push(...projectNeeds);
+  }
+
+  const healthRank: Record<CompanyHealth, number> = {
+    critical: 0,
+    attention: 1,
+    steady: 2,
+  };
+  projects.sort((left, right) => {
+    const byHealth = healthRank[left.health] - healthRank[right.health];
+    if (byHealth !== 0) return byHealth;
+    return (right.lastActivityAt ?? "").localeCompare(
+      left.lastActivityAt ?? "",
+    );
+  });
+  const severityRank: Record<OwnerNeed["severity"], number> = {
+    critical: 0,
+    warning: 1,
+    info: 2,
+  };
+  needs.sort((left, right) => {
+    const bySeverity =
+      severityRank[left.severity] - severityRank[right.severity];
+    if (bySeverity !== 0) return bySeverity;
+    return (right.ageHours ?? 0) - (left.ageHours ?? 0);
+  });
+  roles.sort((left, right) => right.activeTasks - left.activeTasks);
+
+  return {
+    totals,
+    projects,
+    needs: needs.slice(0, 30),
+    roles,
+    risk,
+    recentEvents: [...state.events].slice(-20).reverse(),
+    generatedAt: now.toISOString(),
+  };
+}
+
 function isProject(value: unknown): value is Project {
   return (
     isRecord(value) &&
@@ -380,6 +717,7 @@ export class StudioStore {
         .filter((event) => project === null || event.projectId === project.id)
         .slice(-30)
         .reverse();
+      const now = this.now();
       return {
         app: {
           pluginVersion: STUDIO_PLUGIN_VERSION,
@@ -391,7 +729,7 @@ export class StudioStore {
           },
           dataDir: this.dataDir,
           schemaVersion: STUDIO_SCHEMA_VERSION,
-          serverTime: nowIso(this.now),
+          serverTime: now.toISOString(),
         },
         projects: [...state.projects],
         activeProjectId: state.activeProjectId,
@@ -401,10 +739,12 @@ export class StudioStore {
         mergeProposals,
         stats: statsFor(tasks, mergeProposals),
         events,
+        company: buildCompany(state, now),
         features: {
           independentPage: true,
           filePersistence: true,
           mergeGovernance: true,
+          ownerDashboard: true,
           agentExecution: false,
           gitMerge: false,
         },

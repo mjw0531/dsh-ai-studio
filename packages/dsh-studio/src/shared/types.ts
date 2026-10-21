@@ -5,7 +5,7 @@
  */
 
 export const STUDIO_SCHEMA_VERSION = 2;
-export const STUDIO_PLUGIN_VERSION = "0.2.1";
+export const STUDIO_PLUGIN_VERSION = "0.3.0";
 
 export type TaskStatus =
   | "backlog"
@@ -124,6 +124,86 @@ export interface StudioStats {
   mergeMerged: number;
 }
 
+export type CompanyHealth = "steady" | "attention" | "critical";
+export type OwnerNeedKind =
+  | "merge_review"
+  | "merge_approved"
+  | "task_review"
+  | "task_blocked"
+  | "missing_evidence"
+  | "stale_task"
+  | "unowned_task"
+  | "project_setup";
+export type OwnerNeedSeverity = "critical" | "warning" | "info";
+
+export interface OwnerNeed {
+  id: string;
+  kind: OwnerNeedKind;
+  severity: OwnerNeedSeverity;
+  projectId: string;
+  projectName: string;
+  taskId: string | null;
+  proposalId: string | null;
+  title: string;
+  detail: string;
+  ageHours: number | null;
+}
+
+export interface CompanyProjectSummary {
+  project: Project;
+  stats: StudioStats;
+  roleCount: number;
+  activeRoleCount: number;
+  openTasks: number;
+  health: CompanyHealth;
+  lastActivityAt: string | null;
+  openNeeds: number;
+}
+
+export interface RoleLoadSummary {
+  roleId: string;
+  roleName: string;
+  roleTitle: string;
+  projectId: string;
+  projectName: string;
+  activeTasks: number;
+  reviewTasks: number;
+  openTasks: number;
+  state: "idle" | "busy" | "overloaded";
+}
+
+export interface CompanyRisk {
+  staleTasks: number;
+  agingMerges: number;
+  missingEvidence: number;
+  blocked: number;
+  unowned: number;
+}
+
+export interface CompanyTotals {
+  projects: number;
+  activeProjects: number;
+  tasks: number;
+  openTasks: number;
+  inReview: number;
+  blocked: number;
+  mergePending: number;
+  merged: number;
+  done: number;
+  acceptanceDone: number;
+  acceptanceTotal: number;
+}
+
+export interface CompanySummary {
+  totals: CompanyTotals;
+  projects: CompanyProjectSummary[];
+  needs: OwnerNeed[];
+  roles: RoleLoadSummary[];
+  risk: CompanyRisk;
+  recentEvents: StudioEvent[];
+  generatedAt: string;
+}
+
 export interface BootstrapResponse {
   app: {
     pluginVersion: string;
@@ -142,10 +222,12 @@ export interface BootstrapResponse {
   mergeProposals: MergeProposal[];
   stats: StudioStats;
   events: StudioEvent[];
+  company: CompanySummary;
   features: {
     independentPage: boolean;
     filePersistence: boolean;
     mergeGovernance: boolean;
+    ownerDashboard: boolean;
     agentExecution: boolean;
     gitMerge: boolean;
   };
@@ -200,6 +282,18 @@ export const MERGE_STATUS_ORDER: MergeStatus[] = [
   "rejected",
   "merged",
 ];
+
+export const COMPANY_HEALTH_LABELS: Record<CompanyHealth, string> = {
+  steady: "稳态",
+  attention: "需关注",
+  critical: "有阻塞",
+};
+
+export const ROLE_LOAD_LABELS: Record<RoleLoadSummary["state"], string> = {
+  idle: "空闲",
+  busy: "在忙",
+  overloaded: "过载",
+};
 
 /**
  * 允许的任务状态迁移。Agent 永远不能自己把任务推进到 done：

@@ -68,6 +68,16 @@ var MERGE_RISK_LABELS = {
   medium: "\u4E2D\u98CE\u9669",
   high: "\u9AD8\u98CE\u9669"
 };
+var COMPANY_HEALTH_LABELS = {
+  steady: "\u7A33\u6001",
+  attention: "\u9700\u5173\u6CE8",
+  critical: "\u6709\u963B\u585E"
+};
+var ROLE_LOAD_LABELS = {
+  idle: "\u7A7A\u95F2",
+  busy: "\u5728\u5FD9",
+  overloaded: "\u8FC7\u8F7D"
+};
 var ALLOWED_TRANSITIONS = {
   backlog: ["ready"],
   ready: ["backlog", "running"],
@@ -377,6 +387,13 @@ function IconAlert(props) {
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "M12 9v4M12 17h.01" })
   ] });
 }
+function IconBuilding(props) {
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Base, { ...props, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "M4 21V5.5A1.5 1.5 0 0 1 5.5 4h7A1.5 1.5 0 0 1 14 5.5V21" }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "M14 10h4.5A1.5 1.5 0 0 1 20 11.5V21" }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "M2 21h20M7 8h4M7 12h4M7 16h4M17 14h1M17 18h1" })
+  ] });
+}
 function IconGitMerge(props) {
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Base, { ...props, children: [
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", { cx: "6", cy: "5", r: "2.2" }),
@@ -395,7 +412,8 @@ function IconSpark(props) {
 // src/client/StudioPage.tsx
 var import_jsx_runtime2 = require("react/jsx-runtime");
 var NAV_ITEMS = [
-  { id: "mission", label: "\u603B\u89C8", caption: "Mission Control" },
+  { id: "company", label: "\u516C\u53F8", caption: "Owner Dashboard" },
+  { id: "mission", label: "\u9879\u76EE", caption: "Mission Control" },
   { id: "tasks", label: "\u4EFB\u52A1", caption: "Task Board" },
   { id: "merges", label: "\u5408\u5E76", caption: "Merge Queue" },
   { id: "team", label: "\u56E2\u961F", caption: "Roles" },
@@ -434,6 +452,8 @@ function roleTitle(roles, id) {
 }
 function NavIcon({ tab }) {
   switch (tab) {
+    case "company":
+      return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconBuilding, { width: 15, height: 15 });
     case "mission":
       return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconGrid, { width: 15, height: 15 });
     case "tasks":
@@ -494,7 +514,7 @@ function StudioPage() {
   const [loading, setLoading] = (0, import_react.useState)(true);
   const [busy, setBusy] = (0, import_react.useState)(false);
   const [error, setError] = (0, import_react.useState)(null);
-  const [tab, setTab] = (0, import_react.useState)("mission");
+  const [tab, setTab] = (0, import_react.useState)("company");
   const [selectedTaskId, setSelectedTaskId] = (0, import_react.useState)(null);
   const [modal, setModal] = (0, import_react.useState)(null);
   const [toast, setToast] = (0, import_react.useState)(null);
@@ -530,6 +550,12 @@ function StudioPage() {
       if (!silent) setLoading(true);
       try {
         const next = await client.bootstrap(projectId);
+        if (next.company === void 0) {
+          throw new StudioClientError(
+            "host_outdated",
+            "Studio Host \u8FD8\u662F\u65E7\u7248\u672C\uFF0C\u7F3A\u5C11\u516C\u53F8\u4EEA\u8868\u76D8\u6570\u636E\u3002\u8BF7\u5B8C\u5168\u9000\u51FA\u5E76\u91CD\u542F DSH\uFF0C\u518D\u6253\u5F00\u5DE5\u4F5C\u53F0\u3002"
+          );
+        }
         setData(next);
         setError(null);
       } catch (cause) {
@@ -581,18 +607,41 @@ function StudioPage() {
   );
   const selectProject = (0, import_react.useCallback)(
     async (projectId) => {
-      if (client === null) return;
+      if (client === null) return false;
       setBusy(true);
       try {
         await client.selectProject(projectId);
         await load(projectId, true);
+        return true;
       } catch (cause) {
         setToast({ kind: "error", text: errorText(cause) });
+        return false;
       } finally {
         setBusy(false);
       }
     },
     [client, load]
+  );
+  const openCompanyProject = (0, import_react.useCallback)(
+    async (projectId) => {
+      if (projectId !== data?.activeProjectId) {
+        const ok = await selectProject(projectId);
+        if (!ok) return;
+      }
+      setTab("mission");
+    },
+    [data?.activeProjectId, selectProject]
+  );
+  const openCompanyNeed = (0, import_react.useCallback)(
+    async (need) => {
+      if (need.projectId !== data?.activeProjectId) {
+        const ok = await selectProject(need.projectId);
+        if (!ok) return;
+      }
+      setTab("mission");
+      if (need.taskId !== null) setSelectedTaskId(need.taskId);
+    },
+    [data?.activeProjectId, selectProject]
   );
   const selectedTask = data?.tasks.find((task) => task.id === selectedTaskId) ?? null;
   if (!bootChecked) return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(LoadingState, {});
@@ -791,17 +840,18 @@ function StudioPage() {
             children: [
               /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(NavIcon, { tab: item.id }),
               /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: item.label }),
-              item.id === "mission" && reviewCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-nav-count", children: reviewCount }) : item.id === "tasks" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-nav-count", children: data.stats.total }) : item.id === "merges" && mergeCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-nav-count", children: mergeCount }) : item.id === "team" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-nav-count", children: data.roles.length }) : null
+              item.id === "company" && data.company.needs.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-nav-count", children: data.company.needs.length }) : item.id === "mission" && reviewCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-nav-count", children: reviewCount }) : item.id === "tasks" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-nav-count", children: data.stats.total }) : item.id === "merges" && mergeCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-nav-count", children: mergeCount }) : item.id === "team" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-nav-count", children: data.roles.length }) : null
             ]
           },
           item.id
         )),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-nav-footer", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: project?.name ?? "\u672A\u9009\u62E9\u9879\u76EE" }),
-          data.stats.total,
-          " \u4E2A\u4EFB\u52A1 \xB7 ",
-          data.roles.length,
-          " \u4E2A\u89D2\u8272"
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: tab === "company" ? "\u8D5B\u535A\u516C\u53F8" : project?.name ?? "\u672A\u9009\u62E9\u9879\u76EE" }),
+          tab === "company" ? `${String(data.company.totals.projects)} \u4E2A\u9879\u76EE \xB7 ${String(
+            data.company.totals.openTasks
+          )} \u4E2A\u672A\u5B8C\u6210` : `${String(data.stats.total)} \u4E2A\u4EFB\u52A1 \xB7 ${String(
+            data.roles.length
+          )} \u4E2A\u89D2\u8272`
         ] })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("main", { className: "studio-main", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-main-inner", children: [
@@ -820,6 +870,16 @@ function StudioPage() {
           )
         ] }) : null,
         data.app.warning !== null && data.app.warning !== void 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-alert", "data-tone": "warn", children: data.app.warning }) : null,
+        tab === "company" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          CompanyView,
+          {
+            data,
+            busy,
+            onOpenProject: (projectId) => void openCompanyProject(projectId),
+            onOpenNeed: (need) => void openCompanyNeed(need),
+            onNewProject: () => setModal({ kind: "project" })
+          }
+        ) : null,
         tab === "mission" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
           MissionView,
           {
@@ -922,6 +982,318 @@ function StudioPage() {
       toast.kind === "ok" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconCheck, { width: 14, height: 14 }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconAlert, { width: 14, height: 14 }),
       toast.text
     ] }) : null
+  ] });
+}
+function CompanyView({
+  data,
+  busy,
+  onOpenProject,
+  onOpenNeed,
+  onNewProject
+}) {
+  const company = data.company;
+  const acceptanceRate = company.totals.acceptanceTotal === 0 ? 0 : Math.round(
+    company.totals.acceptanceDone / company.totals.acceptanceTotal * 100
+  );
+  const projectNameById = new Map(
+    company.projects.map((summary) => [
+      summary.project.id,
+      summary.project.name
+    ])
+  );
+  const maxRoleLoad = Math.max(
+    1,
+    ...company.roles.map((role) => role.activeTasks)
+  );
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-page-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-eyebrow", children: "Owner Dashboard" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h1", { className: "studio-title", children: "\u8D5B\u535A\u516C\u53F8" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { className: "studio-subtitle", children: "\u8001\u677F\u89C6\u89D2\uFF1A\u9879\u76EE\u7EC4\u5408\u662F\u5426\u5065\u5EB7\u3001\u54EA\u91CC\u9700\u8981\u4F60\u62CD\u677F\u3001\u4EA7\u80FD\u82B1\u5728\u54EA\u3002 \u8FD9\u91CC\u53EA\u5C55\u793A\u771F\u5B9E\u63A7\u5236\u9762\u6570\u636E\uFF1B\u9884\u7B97\u4E0E token \u6210\u672C\u5728 Agent \u6267\u884C\u63A5\u5165\u524D\u660E\u786E\u663E\u793A\u201C\u5F85\u63A5\u5165\u201D\u3002" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-head-actions", children: data.activeProjectId !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+        "button",
+        {
+          className: "studio-btn",
+          type: "button",
+          disabled: busy,
+          onClick: () => onOpenProject(data.activeProjectId),
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconGrid, { width: 14, height: 14 }),
+            "\u5F53\u524D\u9879\u76EE"
+          ]
+        }
+      ) : /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+        "button",
+        {
+          className: "studio-btn",
+          "data-variant": "primary",
+          type: "button",
+          onClick: onNewProject,
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconPlus, { width: 14, height: 14 }),
+            "\u65B0\u5EFA\u9879\u76EE"
+          ]
+        }
+      ) })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-grid-stats", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        StatCard,
+        {
+          label: "\u9879\u76EE",
+          value: `${String(company.totals.activeProjects)}/${String(
+            company.totals.projects
+          )}`,
+          note: "\u6D3B\u8DC3 / \u603B\u6570"
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        StatCard,
+        {
+          label: "\u672A\u5B8C\u6210",
+          value: String(company.totals.openTasks),
+          note: `${String(company.totals.inReview)} \u4E2A\u5F85\u9A8C\u6536`
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        StatCard,
+        {
+          label: "\u9700\u8981\u4F60",
+          value: String(company.needs.length),
+          note: "\u51B3\u7B56 / \u963B\u585E / \u8001\u5316",
+          tone: company.needs.length > 0 ? "warn" : void 0
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        StatCard,
+        {
+          label: "\u5F85\u5408\u5E76",
+          value: String(company.totals.mergePending),
+          note: `${String(company.totals.merged)} \u4E2A\u5DF2\u5408\u5E76`
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        StatCard,
+        {
+          label: "\u9A8C\u6536\u5B8C\u6210\u7387",
+          value: `${String(acceptanceRate)}%`,
+          note: `${String(company.totals.acceptanceDone)} / ${String(
+            company.totals.acceptanceTotal
+          )} \u6761\u5DF2\u52FE\u9009`,
+          tone: acceptanceRate === 100 ? "ok" : void 0
+        }
+      )
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-split", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "studio-panel", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-panel-head", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconSpark, { width: 14, height: 14 }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h3", { children: "\u8001\u677F\u6536\u4EF6\u7BB1" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-muted", children: company.needs.length === 0 ? "\u6CA1\u6709\u9700\u8981\u4F60\u5904\u7406\u7684\u4E8B\u9879" : `${String(company.needs.length)} \u9879` })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-panel-body", children: company.needs.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-empty", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: "\u6CA1\u6709\u9700\u8981\u4F60\u62CD\u677F\u7684\u4E8B" }),
+          "\u6240\u6709\u4EFB\u52A1\u548C\u5408\u5E76\u63D0\u6848\u90FD\u5728\u81EA\u52A8\u6D41\u8F6C\u4E2D\u3002"
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-needs", children: company.needs.slice(0, 8).map((need) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+          "button",
+          {
+            type: "button",
+            className: "studio-need",
+            onClick: () => onOpenNeed(need),
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                "span",
+                {
+                  className: "studio-need-mark",
+                  "data-tone": need.severity === "critical" ? "danger" : need.severity === "warning" ? "accent" : "info"
+                }
+              ),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-need-title", children: need.title }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "studio-need-meta", children: [
+                  need.projectName,
+                  " \xB7 ",
+                  need.detail,
+                  need.ageHours !== null ? ` \xB7 ${String(need.ageHours)}h` : ""
+                ] })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                IconChevronRight,
+                {
+                  className: "studio-need-arrow",
+                  width: 14,
+                  height: 14
+                }
+              )
+            ]
+          },
+          need.id
+        )) }) })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "studio-panel", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-panel-head", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconUsers, { width: 14, height: 14 }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h3", { children: "\u73B0\u91D1\u4E0E\u4EA7\u80FD" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "studio-muted", children: [
+            company.roles.length,
+            " \u4E2A\u89D2\u8272"
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-panel-body", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-company-placeholder", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-section-label", children: "\u9884\u7B97 / \u6210\u672C" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: "\u5F85\u63A5\u5165" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { children: "Agent \u6267\u884C\u4E0E token \u8BA1\u91CF\u63A5\u5165\u540E\u81EA\u52A8\u8BA1\u7B97\u3002\u73B0\u5728\u4E0D\u7F16\u9020\u91D1\u989D\uFF0C \u53EA\u5C55\u793A\u771F\u5B9E\u7684\u4EFB\u52A1\u548C\u89D2\u8272\u8D1F\u8F7D\u3002" })
+          ] }),
+          company.roles.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-empty", style: { marginTop: 12 }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: "\u8FD8\u6CA1\u6709\u89D2\u8272" }),
+            "\u5EFA\u4E00\u4E2A Lead\u3001Builder \u548C Verifier\uFF0C\u4EFB\u52A1\u624D\u6709\u8D1F\u8D23\u4EBA\u3002"
+          ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-role-load", children: company.roles.slice(0, 6).map((role) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            RoleLoadRow,
+            {
+              role,
+              max: maxRoleLoad
+            },
+            `${role.projectId}-${role.roleId}`
+          )) })
+        ] })
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "studio-panel", style: { marginBottom: 16 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-panel-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconBuilding, { width: 14, height: 14 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h3", { children: "\u9879\u76EE\u7EC4\u5408" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "studio-muted", children: [
+          company.projects.length,
+          " \u4E2A\u9879\u76EE \xB7 \u70B9\u51FB\u9879\u76EE\u8FDB\u5165 Mission Control"
+        ] })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-table-wrap", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("table", { className: "studio-table", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("tr", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("th", { children: "\u9879\u76EE" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("th", { children: "\u5065\u5EB7" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("th", { children: "\u4EFB\u52A1" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("th", { children: "\u9A8C\u6536" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("th", { children: "\u5408\u5E76" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("th", { children: "\u89D2\u8272" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("th", { children: "\u6700\u8FD1\u6D3B\u52A8" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("th", { "aria-label": "\u64CD\u4F5C" })
+        ] }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("tbody", { children: company.projects.map((summary) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          ProjectRow,
+          {
+            summary,
+            onOpen: onOpenProject
+          },
+          summary.project.id
+        )) })
+      ] }) })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-company-bottom", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "studio-panel", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-panel-head", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconAlert, { width: 14, height: 14 }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h3", { children: "\u98CE\u9669\u96F7\u8FBE" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-muted", children: "\u9700\u8981\u7ED3\u6784\u5316\u5173\u6CE8" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-panel-body", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-risk-grid", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(RiskItem, { label: "\u505C\u6EDE\u4EFB\u52A1", value: company.risk.staleTasks }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(RiskItem, { label: "\u8001\u5316\u5408\u5E76", value: company.risk.agingMerges }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(RiskItem, { label: "\u7F3A\u8BC1\u636E", value: company.risk.missingEvidence }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(RiskItem, { label: "\u963B\u585E", value: company.risk.blocked }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(RiskItem, { label: "\u65E0\u4EBA\u8D1F\u8D23", value: company.risk.unowned })
+        ] }) })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "studio-panel", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-panel-head", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconGitMerge, { width: 14, height: 14 }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h3", { children: "\u4EA4\u4ED8\u6D41" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-muted", children: "\u8DE8\u9879\u76EE\u6700\u8FD1\u4E8B\u4EF6" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-panel-body", children: company.recentEvents.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-faint", style: { fontSize: 11 }, children: "\u8FD8\u6CA1\u6709\u4EA4\u4ED8\u4E8B\u4EF6\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-events", children: company.recentEvents.slice(0, 10).map((event) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-event", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-event-dot" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-mono", children: event.type }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "studio-faint", children: [
+              " ",
+              "\xB7",
+              " ",
+              event.projectId === null ? "\u516C\u53F8" : projectNameById.get(event.projectId) ?? event.projectId
+            ] })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-event-time", children: formatDate(event.at) })
+        ] }, event.id)) }) })
+      ] })
+    ] })
+  ] });
+}
+function ProjectRow({
+  summary,
+  onOpen
+}) {
+  const { stats, project } = summary;
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("tr", { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("td", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-table-project", children: project.name }),
+      project.description !== "" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-table-sub", children: project.description }) : null
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: `studio-health studio-health-${summary.health}`, children: COMPANY_HEALTH_LABELS[summary.health] }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("td", { children: [
+      summary.openTasks,
+      "/",
+      stats.total,
+      " \u672A\u5B8C\u6210"
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("td", { children: [
+      stats.acceptanceDone,
+      "/",
+      stats.acceptanceTotal
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("td", { children: [
+      "\u5F85 ",
+      stats.mergeReview + stats.mergeApproved,
+      " \xB7 \u5DF2 ",
+      stats.mergeMerged
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("td", { children: [
+      summary.roleCount,
+      " \u4EBA",
+      summary.activeRoleCount > 0 ? ` \xB7 ${String(summary.activeRoleCount)} \u5728\u5FD9` : ""
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("td", { className: "studio-table-time", children: summary.lastActivityAt === null ? "\u65E0" : formatDate(summary.lastActivityAt) }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+      "button",
+      {
+        type: "button",
+        className: "studio-btn",
+        "data-size": "sm",
+        onClick: () => onOpen(project.id),
+        children: "\u6253\u5F00"
+      }
+    ) })
+  ] });
+}
+function RoleLoadRow({
+  role,
+  max
+}) {
+  const width = role.activeTasks === 0 ? 0 : Math.max(8, Math.round(role.activeTasks / max * 100));
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-role-load-row", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-role-load-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: role.roleName }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-faint", children: role.projectName }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-role-load-state", "data-state": role.state, children: ROLE_LOAD_LABELS[role.state] }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: role.activeTasks })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-role-load-track", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { style: { width: `${String(width)}%` } }) })
+  ] });
+}
+function RiskItem({ label, value }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-risk-item", "data-active": value > 0, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: label }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: value })
   ] });
 }
 function MissionView({
@@ -1776,7 +2148,7 @@ function TaskDrawer({
                     status
                   );
                 }) }),
-                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-action-note", children: "v0.2 \u5DF2\u63A5\u5165\u5408\u5E76\u6CBB\u7406\uFF1A\u63D0\u6848\u3001\u8BC4\u5BA1\u3001\u6279\u51C6\u3001\u5408\u5E76\u8BB0\u5F55\u90FD\u4F1A\u6301\u4E45\u5316\uFF1BGit \u547D\u4EE4\u4ECD\u7531\u4EBA\u6267\u884C\u3002" })
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-action-note", children: "v0.3 \u5DF2\u63A5\u5165\u516C\u53F8\u4EEA\u8868\u76D8\u4E0E\u5408\u5E76\u6CBB\u7406\uFF1A\u63D0\u6848\u3001\u8BC4\u5BA1\u3001\u6279\u51C6\u3001\u5408\u5E76\u8BB0\u5F55\u90FD\u4F1A\u6301\u4E45\u5316\uFF1BGit \u547D\u4EE4\u4ECD\u7531\u4EBA\u6267\u884C\u3002" })
               ] })
             ] })
           ]
@@ -2118,6 +2490,8 @@ function SettingsView({
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.independentPage ? "\u53EF\u7528" : "\u4E0D\u53EF\u7528" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u6587\u4EF6\u6301\u4E45\u5316" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.filePersistence ? "\u53EF\u7528" : "\u4E0D\u53EF\u7528" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u516C\u53F8\u4EEA\u8868\u76D8" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.ownerDashboard ? "\u53EF\u7528" : "\u4E0D\u53EF\u7528" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u5408\u5E76\u6CBB\u7406" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: data.features.mergeGovernance ? "\u53EF\u7528\uFF08\u8BB0\u5F55\u8BC4\u5BA1\uFF0C\u4EBA\u5DE5\u6267\u884C Git\uFF09" : "\u4E0D\u53EF\u7528" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "Agent \u6267\u884C" }),
@@ -2125,7 +2499,7 @@ function SettingsView({
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "Git \u81EA\u52A8\u5408\u5E76" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { className: "studio-faint", children: data.features.gitMerge ? "\u5DF2\u542F\u7528" : "\u672A\u542F\u7528\uFF08\u6709\u610F\uFF09" })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { className: "studio-hint", style: { marginTop: 10 }, children: "v0.2 \u53EA\u4F7F\u7528 DSH Web Server \u8DEF\u7531\u3001client slots \u548C React\uFF0C\u4E0D\u4F9D\u8D56\u79C1\u6709 Remote \u751F\u6210\u5668\uFF1B\u5408\u5E76\u547D\u4EE4\u7531\u4EBA\u6267\u884C\uFF0CStudio \u4E0D\u505A\u4E0D\u53EF\u9006\u7684 Git \u64CD\u4F5C\u3002" })
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { className: "studio-hint", style: { marginTop: 10 }, children: "v0.3 \u53EA\u4F7F\u7528 DSH Web Server \u8DEF\u7531\u3001client slots \u548C React\uFF0C\u4E0D\u4F9D\u8D56\u79C1\u6709 Remote \u751F\u6210\u5668\uFF1B\u5408\u5E76\u547D\u4EE4\u7531\u4EBA\u6267\u884C\uFF0CStudio \u4E0D\u505A\u4E0D\u53EF\u9006\u7684 Git \u64CD\u4F5C\u3002" })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "studio-settings-card", children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h3", { children: "\u754C\u9762" }),
@@ -3063,6 +3437,7 @@ var studioCss = `
 .studio-need-mark { width: 4px; align-self: stretch; border-radius: 999px; background: var(--st-warn); flex: none; }
 .studio-need-mark[data-tone="danger"] { background: var(--st-danger); }
 .studio-need-mark[data-tone="accent"] { background: var(--st-accent); }
+.studio-need-mark[data-tone="info"] { background: var(--st-muted); }
 .studio-need-title { display: block; font-weight: 650; font-size: 12px; }
 .studio-need-meta { display: block; margin-top: 2px; color: var(--st-muted); font-size: 11px; }
 .studio-need-arrow { margin-left: auto; color: var(--st-faint); align-self: center; }
@@ -3443,6 +3818,136 @@ var studioCss = `
 }
 @keyframes studio-spin { to { transform: rotate(360deg); } }
 
+.studio-company-bottom {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.studio-table-wrap { overflow-x: auto; }
+.studio-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 860px;
+  font-size: 11px;
+}
+.studio-table th {
+  padding: 10px 12px;
+  color: var(--st-faint);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--st-border);
+}
+.studio-table td {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--st-border);
+  color: var(--st-muted);
+  vertical-align: top;
+  white-space: nowrap;
+}
+.studio-table tr:last-child td { border-bottom: 0; }
+.studio-table tbody tr:hover td { background: var(--st-panel-2); }
+.studio-table-project { color: var(--st-text); font-weight: 650; font-size: 12px; }
+.studio-table-sub {
+  max-width: 260px;
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--st-faint);
+  font-size: 10px;
+  text-overflow: ellipsis;
+}
+.studio-table-time { color: var(--st-faint); font-size: 10px; }
+
+.studio-health {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--st-border);
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.studio-health-steady { color: var(--st-ok); background: var(--st-ok-soft); border-color: rgba(91, 214, 162, 0.2); }
+.studio-health-attention { color: var(--st-warn); background: var(--st-warn-soft); border-color: rgba(240, 180, 95, 0.2); }
+.studio-health-critical { color: var(--st-danger); background: var(--st-danger-soft); border-color: rgba(255, 117, 133, 0.2); }
+
+.studio-company-placeholder {
+  padding: 11px 12px;
+  border: 1px dashed var(--st-border-strong);
+  border-radius: 10px;
+  background: var(--st-bg-soft);
+}
+.studio-company-placeholder strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--st-warn);
+  font-size: 14px;
+}
+.studio-company-placeholder p {
+  margin: 4px 0 0;
+  color: var(--st-muted);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.studio-role-load { display: flex; flex-direction: column; gap: 10px; margin-top: 13px; }
+.studio-role-load-row { display: flex; flex-direction: column; gap: 5px; }
+.studio-role-load-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--st-text);
+  font-size: 11px;
+}
+.studio-role-load-head .studio-faint { font-size: 9px; }
+.studio-role-load-head strong { margin-left: auto; color: var(--st-text); font-size: 12px; }
+.studio-role-load-state {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--st-panel-3);
+  color: var(--st-muted);
+  font-size: 9px;
+}
+.studio-role-load-state[data-state="busy"] { color: var(--st-accent); background: var(--st-accent-soft); }
+.studio-role-load-state[data-state="overloaded"] { color: var(--st-warn); background: var(--st-warn-soft); }
+.studio-role-load-track {
+  height: 3px;
+  border-radius: 999px;
+  background: var(--st-panel-3);
+  overflow: hidden;
+}
+.studio-role-load-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--st-accent), var(--st-accent-2));
+}
+
+.studio-risk-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+.studio-risk-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--st-border);
+  border-radius: 9px;
+  background: var(--st-panel-2);
+}
+.studio-risk-item span { color: var(--st-faint); font-size: 9px; }
+.studio-risk-item strong { color: var(--st-text); font-size: 18px; line-height: 1; }
+.studio-risk-item[data-active="true"] { border-color: rgba(240, 180, 95, 0.25); }
+.studio-risk-item[data-active="true"] strong { color: var(--st-warn); }
+
 .studio-toast {
   position: fixed;
   right: 22px;
@@ -3478,7 +3983,9 @@ var studioCss = `
 
 @media (max-width: 1180px) {
   .studio-split { grid-template-columns: 1fr; }
+  .studio-company-bottom { grid-template-columns: 1fr; }
   .studio-grid-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .studio-risk-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 @media (max-width: 860px) {
@@ -3495,6 +4002,7 @@ var studioCss = `
   .studio-head-actions { margin-left: 0; }
   .studio-field-row { grid-template-columns: 1fr; }
   .studio-title { font-size: 20px; }
+  .studio-risk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 `;
 

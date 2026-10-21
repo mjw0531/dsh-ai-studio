@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 2;
-var STUDIO_PLUGIN_VERSION = "0.2.1";
+var STUDIO_PLUGIN_VERSION = "0.3.0";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -294,6 +294,287 @@ function statsFor(tasks, proposals = []) {
   }
   return stats;
 }
+var STALE_TASK_HOURS = 72;
+var AGING_MERGE_HOURS = 48;
+function hoursSince(iso, now) {
+  const at = Date.parse(iso);
+  if (Number.isNaN(at)) return null;
+  return Math.max(0, (now.getTime() - at) / 36e5);
+}
+function latestIso(values) {
+  let latest = null;
+  let latestAt = Number.NEGATIVE_INFINITY;
+  for (const value of values) {
+    if (value === null || value === void 0) continue;
+    const at = Date.parse(value);
+    if (Number.isNaN(at) || at <= latestAt) continue;
+    latest = value;
+    latestAt = at;
+  }
+  return latest;
+}
+function buildCompany(state, now) {
+  const projects = [];
+  const needs = [];
+  const roles = [];
+  const risk = {
+    staleTasks: 0,
+    agingMerges: 0,
+    missingEvidence: 0,
+    blocked: 0,
+    unowned: 0
+  };
+  const totals = {
+    projects: 0,
+    activeProjects: 0,
+    tasks: 0,
+    openTasks: 0,
+    inReview: 0,
+    blocked: 0,
+    mergePending: 0,
+    merged: 0,
+    done: 0,
+    acceptanceDone: 0,
+    acceptanceTotal: 0
+  };
+  for (const project of state.projects) {
+    const projectTasks = state.tasks.filter(
+      (task) => task.projectId === project.id
+    );
+    const projectProposals = state.mergeProposals.filter(
+      (proposal) => proposal.projectId === project.id
+    );
+    const projectRoles = state.roles.filter(
+      (role) => role.projectId === project.id
+    );
+    const roleById = new Map(projectRoles.map((role) => [role.id, role]));
+    const stats = statsFor(projectTasks, projectProposals);
+    const projectNeeds = [];
+    const openTasks = projectTasks.filter((task) => task.status !== "done");
+    const activeTasks = projectTasks.filter(
+      (task) => task.status === "running" || task.status === "review"
+    );
+    const activeRoleIds = new Set(
+      activeTasks.map((task) => task.ownerRoleId).filter((id) => id !== null)
+    );
+    for (const task of projectTasks) {
+      const owner = task.ownerRoleId === null ? null : roleById.get(task.ownerRoleId);
+      const acceptanceDone = task.acceptance.filter((item) => item.done).length;
+      const age = hoursSince(task.updatedAt, now);
+      if (task.status === "blocked") {
+        risk.blocked += 1;
+        totals.blocked += 1;
+        projectNeeds.push({
+          id: `need-${project.id}-${task.id}-blocked`,
+          kind: "task_blocked",
+          severity: "critical",
+          projectId: project.id,
+          projectName: project.name,
+          taskId: task.id,
+          proposalId: null,
+          title: `\u4EFB\u52A1\u963B\u585E\uFF1A${task.title}`,
+          detail: "\u9700\u8981\u89E3\u9664\u963B\u585E\u3001\u91CD\u65B0\u89C4\u5212\uFF0C\u6216\u7531\u4F60\u51B3\u5B9A\u662F\u5426\u6682\u505C",
+          ageHours: age === null ? null : Math.round(age)
+        });
+      }
+      if (task.status === "review" && task.evidence.length === 0) {
+        risk.missingEvidence += 1;
+        projectNeeds.push({
+          id: `need-${project.id}-${task.id}-evidence`,
+          kind: "missing_evidence",
+          severity: "warning",
+          projectId: project.id,
+          projectName: project.name,
+          taskId: task.id,
+          proposalId: null,
+          title: `\u7F3A\u8BC1\u636E\uFF1A${task.title}`,
+          detail: "\u9A8C\u6536\u524D\u81F3\u5C11\u9700\u8981\u4E00\u6761\u53EF\u590D\u73B0\u7684\u6D4B\u8BD5\u3001\u547D\u4EE4\u6216 replay",
+          ageHours: age === null ? null : Math.round(age)
+        });
+      } else if (task.status === "review") {
+        projectNeeds.push({
+          id: `need-${project.id}-${task.id}-review`,
+          kind: "task_review",
+          severity: "warning",
+          projectId: project.id,
+          projectName: project.name,
+          taskId: task.id,
+          proposalId: null,
+          title: `\u5F85\u9A8C\u6536\uFF1A${task.title}`,
+          detail: `${owner?.name ?? "\u672A\u6307\u6D3E"} \xB7 \u9A8C\u6536 ${String(acceptanceDone)}/${String(task.acceptance.length)}`,
+          ageHours: age === null ? null : Math.round(age)
+        });
+      }
+      if (task.status !== "done" && age !== null && age > STALE_TASK_HOURS) {
+        risk.staleTasks += 1;
+        if (task.status !== "blocked" && task.status !== "review") {
+          projectNeeds.push({
+            id: `need-${project.id}-${task.id}-stale`,
+            kind: "stale_task",
+            severity: "warning",
+            projectId: project.id,
+            projectName: project.name,
+            taskId: task.id,
+            proposalId: null,
+            title: `\u4EFB\u52A1\u505C\u6EDE\uFF1A${task.title}`,
+            detail: `\u5DF2\u7ECF ${String(Math.round(age))} \u5C0F\u65F6\u6CA1\u6709\u66F4\u65B0`,
+            ageHours: Math.round(age)
+          });
+        }
+      }
+      if (task.status !== "done" && task.status !== "backlog" && task.ownerRoleId === null) {
+        risk.unowned += 1;
+        projectNeeds.push({
+          id: `need-${project.id}-${task.id}-unowned`,
+          kind: "unowned_task",
+          severity: "info",
+          projectId: project.id,
+          projectName: project.name,
+          taskId: task.id,
+          proposalId: null,
+          title: `\u65E0\u4EBA\u8D1F\u8D23\uFF1A${task.title}`,
+          detail: "\u4EFB\u52A1\u5DF2\u8FDB\u5165\u6267\u884C\u533A\uFF0C\u4F46\u6CA1\u6709\u8D1F\u8D23\u4EBA",
+          ageHours: age === null ? null : Math.round(age)
+        });
+      }
+    }
+    for (const proposal of projectProposals) {
+      if (proposal.status !== "review" && proposal.status !== "approved") {
+        continue;
+      }
+      const task = projectTasks.find((item) => item.id === proposal.taskId);
+      const age = hoursSince(proposal.createdAt, now);
+      if (age !== null && age > AGING_MERGE_HOURS) {
+        risk.agingMerges += 1;
+      }
+      projectNeeds.push({
+        id: `need-${project.id}-${proposal.id}-merge`,
+        kind: proposal.status === "review" ? "merge_review" : "merge_approved",
+        severity: "warning",
+        projectId: project.id,
+        projectName: project.name,
+        taskId: proposal.taskId,
+        proposalId: proposal.id,
+        title: proposal.status === "review" ? `\u5408\u5E76\u5F85\u8BC4\u5BA1\uFF1A${task?.title ?? proposal.taskId}` : `\u5408\u5E76\u5DF2\u6279\u51C6\uFF0C\u7B49\u5F85\u6267\u884C\uFF1A${task?.title ?? proposal.taskId}`,
+        detail: `${proposal.branch} \u2192 ${proposal.base} \xB7 ${proposal.risk}`,
+        ageHours: age === null ? null : Math.round(age)
+      });
+    }
+    if (projectRoles.length === 0) {
+      projectNeeds.push({
+        id: `need-${project.id}-setup`,
+        kind: "project_setup",
+        severity: "info",
+        projectId: project.id,
+        projectName: project.name,
+        taskId: null,
+        proposalId: null,
+        title: `\u9879\u76EE\u8FD8\u6CA1\u914D\u7F6E\u89D2\u8272\uFF1A${project.name}`,
+        detail: "\u81F3\u5C11\u9700\u8981\u4E00\u4E2A\u89D2\u8272\uFF0C\u4EFB\u52A1\u624D\u6709\u8D1F\u8D23\u4EBA\u548C\u9A8C\u6536\u4EBA",
+        ageHours: null
+      });
+    } else if (projectTasks.length === 0) {
+      projectNeeds.push({
+        id: `need-${project.id}-empty`,
+        kind: "project_setup",
+        severity: "info",
+        projectId: project.id,
+        projectName: project.name,
+        taskId: null,
+        proposalId: null,
+        title: `\u9879\u76EE\u8FD8\u6CA1\u6709\u4EFB\u52A1\uFF1A${project.name}`,
+        detail: "\u521B\u5EFA\u7B2C\u4E00\u6761\u5E26\u9A8C\u6536\u6807\u51C6\u7684\u4EFB\u52A1\uFF0C\u9879\u76EE\u624D\u5F00\u59CB\u8FD0\u8F6C",
+        ageHours: null
+      });
+    }
+    const isActive = projectTasks.some(
+      (task) => task.status !== "backlog" && task.status !== "done"
+    ) || projectProposals.some(
+      (proposal) => proposal.status === "review" || proposal.status === "approved"
+    );
+    if (isActive) totals.activeProjects += 1;
+    totals.projects += 1;
+    totals.tasks += stats.total;
+    totals.openTasks += openTasks.length;
+    totals.inReview += stats.review;
+    totals.mergePending += stats.mergeReview + stats.mergeApproved;
+    totals.merged += stats.mergeMerged;
+    totals.done += stats.done;
+    totals.acceptanceDone += stats.acceptanceDone;
+    totals.acceptanceTotal += stats.acceptanceTotal;
+    for (const role of projectRoles) {
+      const assigned = projectTasks.filter(
+        (task) => task.ownerRoleId === role.id
+      );
+      const active = assigned.filter(
+        (task) => task.status === "running" || task.status === "review"
+      ).length;
+      const review = assigned.filter((task) => task.status === "review").length;
+      const open = assigned.filter((task) => task.status !== "done").length;
+      roles.push({
+        roleId: role.id,
+        roleName: role.name,
+        roleTitle: role.title,
+        projectId: project.id,
+        projectName: project.name,
+        activeTasks: active,
+        reviewTasks: review,
+        openTasks: open,
+        state: active >= 3 ? "overloaded" : active >= 1 ? "busy" : "idle"
+      });
+    }
+    const health = projectNeeds.some((need) => need.severity === "critical") ? "critical" : projectNeeds.length > 0 ? "attention" : "steady";
+    const lastActivityAt = latestIso([
+      project.updatedAt,
+      ...projectTasks.map((task) => task.updatedAt),
+      ...projectProposals.map((proposal) => proposal.updatedAt),
+      ...state.events.filter((event) => event.projectId === project.id).map((event) => event.at)
+    ]);
+    projects.push({
+      project,
+      stats,
+      roleCount: projectRoles.length,
+      activeRoleCount: activeRoleIds.size,
+      openTasks: openTasks.length,
+      health,
+      lastActivityAt,
+      openNeeds: projectNeeds.length
+    });
+    needs.push(...projectNeeds);
+  }
+  const healthRank = {
+    critical: 0,
+    attention: 1,
+    steady: 2
+  };
+  projects.sort((left, right) => {
+    const byHealth = healthRank[left.health] - healthRank[right.health];
+    if (byHealth !== 0) return byHealth;
+    return (right.lastActivityAt ?? "").localeCompare(
+      left.lastActivityAt ?? ""
+    );
+  });
+  const severityRank = {
+    critical: 0,
+    warning: 1,
+    info: 2
+  };
+  needs.sort((left, right) => {
+    const bySeverity = severityRank[left.severity] - severityRank[right.severity];
+    if (bySeverity !== 0) return bySeverity;
+    return (right.ageHours ?? 0) - (left.ageHours ?? 0);
+  });
+  roles.sort((left, right) => right.activeTasks - left.activeTasks);
+  return {
+    totals,
+    projects,
+    needs: needs.slice(0, 30),
+    roles,
+    risk,
+    recentEvents: [...state.events].slice(-20).reverse(),
+    generatedAt: now.toISOString()
+  };
+}
 function isProject(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.name === "string" && typeof value.description === "string" && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
 }
@@ -377,6 +658,7 @@ var StudioStore = class {
         (proposal) => proposal.projectId === project.id
       );
       const events = [...state.events].filter((event) => project === null || event.projectId === project.id).slice(-30).reverse();
+      const now = this.now();
       return {
         app: {
           pluginVersion: STUDIO_PLUGIN_VERSION,
@@ -388,7 +670,7 @@ var StudioStore = class {
           },
           dataDir: this.dataDir,
           schemaVersion: STUDIO_SCHEMA_VERSION,
-          serverTime: nowIso(this.now)
+          serverTime: now.toISOString()
         },
         projects: [...state.projects],
         activeProjectId: state.activeProjectId,
@@ -398,10 +680,12 @@ var StudioStore = class {
         mergeProposals,
         stats: statsFor(tasks, mergeProposals),
         events,
+        company: buildCompany(state, now),
         features: {
           independentPage: true,
           filePersistence: true,
           mergeGovernance: true,
+          ownerDashboard: true,
           agentExecution: false,
           gitMerge: false
         }

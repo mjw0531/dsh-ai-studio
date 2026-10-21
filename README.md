@@ -1,14 +1,15 @@
 # AI 工作台（Studio）
 
-一套构建在 **DeepSeek Harness（DSH）** 之上的多角色 AI 工作台：把「一个聊天窗口」变成一间**有项目、有角色、有任务、有验收、有合并治理**的工作室。
+一套构建在 **DeepSeek Harness（DSH）** 之上的多角色 AI 工作台：把「一个聊天窗口」变成一间**有公司仪表盘、项目、角色、任务、验收、合并治理**的工作室。
 
-> 当前状态：**v0.2.1 可运行**。已完成 DSH 插件安装、独立页面、项目/角色/任务/验收/证据的本地持久化、合并提案/批准/打回/合并记录，并在 DSH `0.2.1-rc.2` 上做了端到端验证；0.2.1 补上了桌面端启动参数回退。
+> 当前状态：**v0.3.0 可运行**。已完成公司级 Owner Dashboard、项目/角色/任务/验收/证据的本地持久化、合并提案/批准/打回/合并记录，并在 DSH `0.2.1-rc.2` 上完成 Web 与桌面端验证。
 
-![Studio Mission Control](docs/images/mission-control.png)
+![Studio Owner Dashboard](docs/images/owner-dashboard.png)
 
 ## 现在能做什么
 
-- **独立工作台页面**：DSH 侧栏点击「工作台」，进入 Mission Control，不占用聊天会话。
+- **公司仪表盘**：跨项目组合、老板收件箱、角色负载、风险雷达、交付流；预算/成本在 Agent 执行接入前明确显示“待接入”。
+- **独立工作台页面**：DSH 侧栏点击「工作台」，进入公司仪表盘，不占用聊天会话。
 - **项目**：创建/切换项目，任务和角色归属项目。
 - **角色**：使命、职位、职责、决策权；为后续编译成 DSH Agent Preset 做准备。
 - **任务**：目标、负责人、验收人、优先级、分支、验收标准、证据。
@@ -55,15 +56,15 @@ dsh --profile web
 ```text
 DSH Web/Desktop
   ├─ 独立页面（client plugin）
-  │    Mission Control / Task Room / Merge Queue / Team / Settings
+  │    Owner Dashboard / Mission Control / Task Room / Merge Queue / Team / Settings
   └─ Host plugin
        ├─ /studio-api（同源、Bearer token、JSON）
        ├─ 文件存储（$DSH_HOME/studio/studio.json）
        ├─ 版本适配（app-boot → 安装包清单 → env）
-       └─ 状态机 / 验收门禁 / 合并治理
+       └─ 状态机 / 验收门禁 / 合并治理 / 公司聚合
 ```
 
-- Host 半是普通 Cordis 插件，只依赖 `ctx.webServer`。
+- Host 半是普通 Cordis 插件，依赖 `ctx.webServer` 与 `ctx.connection.admit()` 的认证边界。
 - Client 半注册一个 `main` 面板和一个 `sidebar.panellist` 入口。
 - 不依赖 DSH 私有 Remote 代码生成；API 是一层很薄的同源 HTTP JSON。
 - 领域逻辑在 `src/shared` 和 `src/host/store.ts`，未来替换传输层不影响数据模型。
@@ -79,6 +80,7 @@ packages/dsh-studio/     # 可安装的 DSH 插件
 docs/
   00-设计蓝图.md          # 产品/工作流/领域模型/路线
   01-对话补充与产品方向.md # 对象模型、决策升级、竞品参照、Owner Dashboard
+  02-后续迭代.md          # v0.4-v1.0 的执行面、Scope、Git 与狗粮计划
   adr/                   # 架构决策
 CONTEXT.md               # 术语表
 tools/                   # CDP 端到端验证脚本
@@ -89,6 +91,7 @@ tools/                   # CDP 端到端验证脚本
 - [ADR-0001：自建编排层](docs/adr/0001-studio-owns-orchestration.md)
 - [ADR-0002：同源 HTTP + token](docs/adr/0002-same-origin-http-and-token.md)
 - [ADR-0003：合并治理只记录状态](docs/adr/0003-record-only-merge-governance.md)
+- [ADR-0004：公司仪表盘是派生投影](docs/adr/0004-company-is-a-derived-projection.md)
 
 ## 开发
 
@@ -112,11 +115,14 @@ dsh --profile web --no-open --port 0
 ## 路线
 
 - **v0.1**：项目/角色/任务/验收/证据；独立页面；本地持久化；版本适配。
-- **v0.2（当前）**：合并提案、批准、打回、合并记录；schema v1→v2 迁移。
-- **v0.3**：Agent 派单与回执；角色卡编译 DSH Agent Preset；Task Room 嵌入会话。
-- **v0.4**：Git worktree、自动合并/合并队列执行、独立评审。
-- **v0.5**：Project Book、权限/预算、决策 Inbox、审计视图。
+- **v0.2**：合并提案、批准、打回、合并记录；schema v1→v2 迁移。
+- **v0.3（当前）**：Owner Dashboard；公司级项目组合、老板收件箱、角色负载、风险雷达、交付流。
+- **v0.4**：Agent 派单与结构化回执（artifacts / decisions / contract_deltas / rejected_options）；真实 token/成本台账。
+- **v0.5**：Branch/Decision 的 Scope 隔离、决策升级门禁、Project Book。
+- **v0.6**：Git worktree、自动合并/合并队列执行、独立评审。
 - **v1.0**：用工作台完成一个 2.5D MOBA 垂直切片，再抽象为可复用插件。
+
+详细迭代计划见 [后续迭代](docs/02-后续迭代.md)。
 
 ## 核心原则
 
