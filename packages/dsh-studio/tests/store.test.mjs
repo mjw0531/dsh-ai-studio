@@ -836,7 +836,7 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
     assert.deepEqual(data.runs, []);
     assert.deepEqual(data.decisions, []);
     const migrated = JSON.parse(await readFile(file, "utf8"));
-    assert.equal(migrated.schemaVersion, 13);
+    assert.equal(migrated.schemaVersion, 14);
     assert.ok(migrated.runs.every((run) => run.status !== undefined));
     assert.ok(Array.isArray(migrated.reviews));
     assert.ok(Array.isArray(migrated.branches));

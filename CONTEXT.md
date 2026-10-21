@@ -158,6 +158,10 @@ _Avoid_: 自动合并、自动发布
 不可逆决策批准后生成的 Markdown 草稿，保存在 Decision 记录；写文件必须由人确认。
 _Avoid_: ADR 自动落盘
 
+**Post-Merge Verification（合并后回归）**:
+Git merge 成功后在 repo 上执行任务的验证命令；记录 pass/fail，失败只警告，不自动回滚。
+_Avoid_: 自动回滚
+
 **Run（运行）**:
 一个 Agent 对某个 Task 的一次尝试；可失败、重试、换人。
 _Avoid_: 任务（Task 可以有很多 Run）

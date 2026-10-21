@@ -16,6 +16,23 @@ var StudioStoreError = class extends Error {
 
 // src/host/verify.ts
 var run = promisify(exec);
+async function runVerificationCommand(command, workdir) {
+  try {
+    const result = await run(command, {
+      cwd: workdir,
+      timeout: 18e4,
+      maxBuffer: 2 * 1024 * 1024,
+      windowsHide: true
+    });
+    return { output: `${result.stdout}${result.stderr}`, exitCode: 0 };
+  } catch (error) {
+    const failed = error;
+    return {
+      output: `${failed.stdout ?? ""}${failed.stderr ?? ""}${failed.message ?? ""}`,
+      exitCode: typeof failed.code === "number" ? failed.code : 1
+    };
+  }
+}
 var VerificationService = class {
   store;
   constructor(store) {
@@ -32,22 +49,10 @@ var VerificationService = class {
     }
     const resolved = (command?.trim() || context.task.verifyCommand || "").trim() || "npm test";
     const workdir = context.run.workspacePath;
-    let output = "";
-    let exitCode = 1;
-    try {
-      const result = await run(resolved, {
-        cwd: workdir,
-        timeout: 18e4,
-        maxBuffer: 2 * 1024 * 1024,
-        windowsHide: true
-      });
-      output = `${result.stdout}${result.stderr}`;
-      exitCode = 0;
-    } catch (error) {
-      const failed = error;
-      output = `${failed.stdout ?? ""}${failed.stderr ?? ""}${failed.message ?? ""}`;
-      exitCode = typeof failed.code === "number" ? failed.code : 1;
-    }
+    const { output, exitCode } = await runVerificationCommand(
+      resolved,
+      workdir
+    );
     return this.store.recordVerification(taskId, {
       command: resolved,
       workdir,
@@ -59,5 +64,6 @@ var VerificationService = class {
   }
 };
 export {
-  VerificationService
+  VerificationService,
+  runVerificationCommand
 };

@@ -2,8 +2,8 @@
 import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 13;
-var STUDIO_PLUGIN_VERSION = "1.5.0";
+var STUDIO_SCHEMA_VERSION = 14;
+var STUDIO_PLUGIN_VERSION = "1.6.0";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -1033,7 +1033,7 @@ function isMergeRisk(value) {
   return value === "low" || value === "medium" || value === "high";
 }
 function isMergeProposal(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && typeof value.branch === "string" && typeof value.base === "string" && typeof value.summary === "string" && isMergeRisk(value.risk) && typeof value.rollback === "string" && (value.status === "review" || value.status === "approved" || value.status === "rejected" || value.status === "merged") && typeof value.reviewNote === "string" && (value.mergeCommit === null || typeof value.mergeCommit === "string") && (value.diffStat === null || value.diffStat === void 0 || typeof value.diffStat === "string") && (Array.isArray(value.changedFiles) || value.changedFiles === void 0) && (value.verificationId === null || value.verificationId === void 0 || typeof value.verificationId === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && (value.mergedAt === null || typeof value.mergedAt === "string");
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && typeof value.branch === "string" && typeof value.base === "string" && typeof value.summary === "string" && isMergeRisk(value.risk) && typeof value.rollback === "string" && (value.status === "review" || value.status === "approved" || value.status === "rejected" || value.status === "merged") && typeof value.reviewNote === "string" && (value.mergeCommit === null || typeof value.mergeCommit === "string") && (value.diffStat === null || value.diffStat === void 0 || typeof value.diffStat === "string") && (Array.isArray(value.changedFiles) || value.changedFiles === void 0) && (value.verificationId === null || value.verificationId === void 0 || typeof value.verificationId === "string") && (value.postMergeVerificationId === null || value.postMergeVerificationId === void 0 || typeof value.postMergeVerificationId === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && (value.mergedAt === null || typeof value.mergedAt === "string");
 }
 function isDecisionStatus(value) {
   return value === "pending" || value === "approved" || value === "rejected";
@@ -1217,12 +1217,22 @@ function migrateState(value) {
     };
   }
   if (state.schemaVersion === 12) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 13,
       decisions: state.decisions.map((decision) => ({
         ...decision,
         adrDraft: decision.adrDraft ?? null
+      }))
+    };
+  }
+  if (state.schemaVersion === 13) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      mergeProposals: state.mergeProposals.map((proposal) => ({
+        ...proposal,
+        postMergeVerificationId: proposal.postMergeVerificationId ?? null
       }))
     };
   }
@@ -2800,6 +2810,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         diffStat: latestRun?.diffStat ?? null,
         changedFiles,
         verificationId: latestVerification?.id ?? null,
+        postMergeVerificationId: null,
         createdAt: at,
         updatedAt: at,
         decidedAt: null,
@@ -2902,7 +2913,10 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       const project = state.projects.find(
         (item) => item.id === proposal.projectId
       );
-      if (project === void 0) {
+      const task = state.tasks.find(
+        (item) => item.id === proposal.taskId
+      );
+      if (project === void 0 || task === void 0) {
         throw new StudioStoreError(
           "project_not_found",
           "\u5408\u5E76\u63D0\u6848\u5BF9\u5E94\u7684\u9879\u76EE\u4E0D\u5B58\u5728",
@@ -2911,7 +2925,8 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       }
       return {
         proposal: structuredClone(proposal),
-        project: structuredClone(project)
+        project: structuredClone(project),
+        task: structuredClone(task)
       };
     });
   }
@@ -2942,6 +2957,17 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           mergeCommit: proposal.mergeCommit
         }
       });
+      await this.save();
+      return structuredClone(proposal);
+    });
+  }
+  async setMergePostVerification(proposalId, verificationId) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const proposal = this.findMergeProposal(state, proposalId);
+      proposal.postMergeVerificationId = verificationId;
+      proposal.updatedAt = nowIso(this.now);
+      state.updatedAt = proposal.updatedAt;
       await this.save();
       return structuredClone(proposal);
     });
@@ -3443,6 +3469,60 @@ var DocsService = class {
 
 // src/host/merge.ts
 import { execFile } from "node:child_process";
+
+// src/host/verify.ts
+import { exec } from "node:child_process";
+import { promisify } from "node:util";
+var run = promisify(exec);
+async function runVerificationCommand(command, workdir) {
+  try {
+    const result = await run(command, {
+      cwd: workdir,
+      timeout: 18e4,
+      maxBuffer: 2 * 1024 * 1024,
+      windowsHide: true
+    });
+    return { output: `${result.stdout}${result.stderr}`, exitCode: 0 };
+  } catch (error) {
+    const failed = error;
+    return {
+      output: `${failed.stdout ?? ""}${failed.stderr ?? ""}${failed.message ?? ""}`,
+      exitCode: typeof failed.code === "number" ? failed.code : 1
+    };
+  }
+}
+var VerificationService = class {
+  store;
+  constructor(store) {
+    this.store = store;
+  }
+  async verify(taskId, command) {
+    const context = await this.store.getTaskVerificationContext(taskId);
+    if (context.run === null || context.run.workspacePath === null) {
+      throw new StudioStoreError(
+        "workspace_required",
+        "\u8FD9\u4E2A\u4EFB\u52A1\u8FD8\u6CA1\u6709\u53EF\u9A8C\u8BC1\u7684 worktree\uFF1B\u5148\u6D3E\u5355\u6267\u884C\u4E00\u6B21",
+        409
+      );
+    }
+    const resolved = (command?.trim() || context.task.verifyCommand || "").trim() || "npm test";
+    const workdir = context.run.workspacePath;
+    const { output, exitCode } = await runVerificationCommand(
+      resolved,
+      workdir
+    );
+    return this.store.recordVerification(taskId, {
+      command: resolved,
+      workdir,
+      exitCode,
+      output,
+      passed: exitCode === 0,
+      runId: context.run.id
+    });
+  }
+};
+
+// src/host/merge.ts
 function git2(cwd, args) {
   return new Promise((resolve, reject) => {
     execFile(
@@ -3481,9 +3561,7 @@ var GitMergeService = class {
     this.store = store;
   }
   async execute(proposalId) {
-    const { proposal, project } = await this.store.getMergeContext(
-      proposalId
-    );
+    const { proposal, project, task } = await this.store.getMergeContext(proposalId);
     if (proposal.status !== "approved") {
       throw new StudioStoreError(
         "merge_not_approved",
@@ -3556,7 +3634,24 @@ var GitMergeService = class {
       throw error;
     }
     const commit = (await git2(repo, ["rev-parse", "HEAD"])).stdout.trim();
-    return this.store.completeMergeProposal(proposalId, commit);
+    const merged = await this.store.completeMergeProposal(
+      proposalId,
+      commit
+    );
+    const command = task.verifyCommand?.trim() || "npm test";
+    const result = await runVerificationCommand(command, repo);
+    const verification = await this.store.recordVerification(task.id, {
+      command,
+      workdir: repo,
+      exitCode: result.exitCode,
+      output: result.output,
+      passed: result.exitCode === 0,
+      runId: null
+    });
+    return this.store.setMergePostVerification(
+      merged.id,
+      verification.id
+    );
   }
 };
 
@@ -4184,53 +4279,6 @@ function handleRouterError(res, error) {
   const message = error instanceof Error ? error.message : String(error);
   sendError(res, 500, "internal_error", message);
 }
-
-// src/host/verify.ts
-import { exec } from "node:child_process";
-import { promisify } from "node:util";
-var run = promisify(exec);
-var VerificationService = class {
-  store;
-  constructor(store) {
-    this.store = store;
-  }
-  async verify(taskId, command) {
-    const context = await this.store.getTaskVerificationContext(taskId);
-    if (context.run === null || context.run.workspacePath === null) {
-      throw new StudioStoreError(
-        "workspace_required",
-        "\u8FD9\u4E2A\u4EFB\u52A1\u8FD8\u6CA1\u6709\u53EF\u9A8C\u8BC1\u7684 worktree\uFF1B\u5148\u6D3E\u5355\u6267\u884C\u4E00\u6B21",
-        409
-      );
-    }
-    const resolved = (command?.trim() || context.task.verifyCommand || "").trim() || "npm test";
-    const workdir = context.run.workspacePath;
-    let output = "";
-    let exitCode = 1;
-    try {
-      const result = await run(resolved, {
-        cwd: workdir,
-        timeout: 18e4,
-        maxBuffer: 2 * 1024 * 1024,
-        windowsHide: true
-      });
-      output = `${result.stdout}${result.stderr}`;
-      exitCode = 0;
-    } catch (error) {
-      const failed = error;
-      output = `${failed.stdout ?? ""}${failed.stderr ?? ""}${failed.message ?? ""}`;
-      exitCode = typeof failed.code === "number" ? failed.code : 1;
-    }
-    return this.store.recordVerification(taskId, {
-      command: resolved,
-      workdir,
-      exitCode,
-      output,
-      passed: exitCode === 0,
-      runId: context.run.id
-    });
-  }
-};
 
 // src/host/index.ts
 var name = "dsh-studio";

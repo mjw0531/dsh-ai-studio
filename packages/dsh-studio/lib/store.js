@@ -6,8 +6,8 @@ import os from "node:os";
 import path from "node:path";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 13;
-var STUDIO_PLUGIN_VERSION = "1.5.0";
+var STUDIO_SCHEMA_VERSION = 14;
+var STUDIO_PLUGIN_VERSION = "1.6.0";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -539,7 +539,7 @@ function isMergeRisk(value) {
   return value === "low" || value === "medium" || value === "high";
 }
 function isMergeProposal(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && typeof value.branch === "string" && typeof value.base === "string" && typeof value.summary === "string" && isMergeRisk(value.risk) && typeof value.rollback === "string" && (value.status === "review" || value.status === "approved" || value.status === "rejected" || value.status === "merged") && typeof value.reviewNote === "string" && (value.mergeCommit === null || typeof value.mergeCommit === "string") && (value.diffStat === null || value.diffStat === void 0 || typeof value.diffStat === "string") && (Array.isArray(value.changedFiles) || value.changedFiles === void 0) && (value.verificationId === null || value.verificationId === void 0 || typeof value.verificationId === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && (value.mergedAt === null || typeof value.mergedAt === "string");
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && typeof value.branch === "string" && typeof value.base === "string" && typeof value.summary === "string" && isMergeRisk(value.risk) && typeof value.rollback === "string" && (value.status === "review" || value.status === "approved" || value.status === "rejected" || value.status === "merged") && typeof value.reviewNote === "string" && (value.mergeCommit === null || typeof value.mergeCommit === "string") && (value.diffStat === null || value.diffStat === void 0 || typeof value.diffStat === "string") && (Array.isArray(value.changedFiles) || value.changedFiles === void 0) && (value.verificationId === null || value.verificationId === void 0 || typeof value.verificationId === "string") && (value.postMergeVerificationId === null || value.postMergeVerificationId === void 0 || typeof value.postMergeVerificationId === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && (value.mergedAt === null || typeof value.mergedAt === "string");
 }
 function isDecisionStatus(value) {
   return value === "pending" || value === "approved" || value === "rejected";
@@ -723,12 +723,22 @@ function migrateState(value) {
     };
   }
   if (state.schemaVersion === 12) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 13,
       decisions: state.decisions.map((decision) => ({
         ...decision,
         adrDraft: decision.adrDraft ?? null
+      }))
+    };
+  }
+  if (state.schemaVersion === 13) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      mergeProposals: state.mergeProposals.map((proposal) => ({
+        ...proposal,
+        postMergeVerificationId: proposal.postMergeVerificationId ?? null
       }))
     };
   }
@@ -2306,6 +2316,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         diffStat: latestRun?.diffStat ?? null,
         changedFiles,
         verificationId: latestVerification?.id ?? null,
+        postMergeVerificationId: null,
         createdAt: at,
         updatedAt: at,
         decidedAt: null,
@@ -2408,7 +2419,10 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       const project = state.projects.find(
         (item) => item.id === proposal.projectId
       );
-      if (project === void 0) {
+      const task = state.tasks.find(
+        (item) => item.id === proposal.taskId
+      );
+      if (project === void 0 || task === void 0) {
         throw new StudioStoreError(
           "project_not_found",
           "\u5408\u5E76\u63D0\u6848\u5BF9\u5E94\u7684\u9879\u76EE\u4E0D\u5B58\u5728",
@@ -2417,7 +2431,8 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       }
       return {
         proposal: structuredClone(proposal),
-        project: structuredClone(project)
+        project: structuredClone(project),
+        task: structuredClone(task)
       };
     });
   }
@@ -2448,6 +2463,17 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           mergeCommit: proposal.mergeCommit
         }
       });
+      await this.save();
+      return structuredClone(proposal);
+    });
+  }
+  async setMergePostVerification(proposalId, verificationId) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const proposal = this.findMergeProposal(state, proposalId);
+      proposal.postMergeVerificationId = verificationId;
+      proposal.updatedAt = nowIso(this.now);
+      state.updatedAt = proposal.updatedAt;
       await this.save();
       return structuredClone(proposal);
     });
