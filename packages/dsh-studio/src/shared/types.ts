@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 7;
-export const STUDIO_PLUGIN_VERSION = "0.6.1";
+export const STUDIO_SCHEMA_VERSION = 8;
+export const STUDIO_PLUGIN_VERSION = "0.7.0";
 
 export type TaskStatus =
   | "backlog"
@@ -16,6 +16,7 @@ export type TaskStatus =
   | "done";
 
 export type TaskPriority = "P0" | "P1" | "P2";
+export type TaskKind = "new" | "fix";
 
 export interface Project {
   id: string;
@@ -71,6 +72,9 @@ export interface Task {
   evidence: EvidenceItem[];
   branch: string | null;
   verifyCommand: string | null;
+  module: string | null;
+  contractRef: string | null;
+  kind: TaskKind;
   createdAt: string;
   updatedAt: string;
 }
@@ -408,6 +412,11 @@ export const TASK_STATUS_ORDER: TaskStatus[] = [
   "done",
 ];
 
+export const TASK_KIND_LABELS: Record<TaskKind, string> = {
+  new: "新建型",
+  fix: "改修型",
+};
+
 export const PRIORITY_LABELS: Record<TaskPriority, string> = {
   P0: "P0 紧急",
   P1: "P1 重要",
@@ -535,6 +544,9 @@ export interface CreateTaskInput {
   acceptance?: string[];
   branch?: string | null;
   verifyCommand?: string | null;
+  module?: string | null;
+  contractRef?: string | null;
+  kind?: TaskKind;
 }
 
 export interface VerifyTaskInput {
@@ -551,6 +563,9 @@ export interface UpdateTaskInput {
   evidence?: EvidenceItem[];
   branch?: string | null;
   verifyCommand?: string | null;
+  module?: string | null;
+  contractRef?: string | null;
+  kind?: TaskKind;
 }
 
 export interface TransitionTaskInput {

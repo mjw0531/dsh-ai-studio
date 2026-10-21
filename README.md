@@ -2,7 +2,7 @@
 
 一套构建在 **DeepSeek Harness（DSH）** 之上的多角色 AI 工作台：把「一个聊天窗口」变成一间**有公司仪表盘、Agent 派单、token 预算、决策董事会、支线/契约冲突、worktree 代码执行、项目、角色、任务、验收、合并治理**的工作室。
 
-> 当前状态：**v0.6.1 可运行**。已完成公司级 Owner Dashboard、Agent 派单与结构化回执、角色模型/token 预算、DSH token 计量、决策董事会、支线/契约冲突自动升级、git worktree 代码执行与 diff 记录、Host 独立验证、项目/角色/任务/验收/证据持久化、合并治理，并在 DSH `0.2.1-rc.2` 上完成 Web/桌面验证。
+> 当前状态：**v0.7.0 可运行**。已完成公司级 Owner Dashboard、Agent 派单与结构化回执、角色模型/token 预算、DSH token 计量、决策董事会、支线/契约冲突自动升级、git worktree 代码执行、Host 独立验证、失败 2 次自动升级、合并前验证门禁、项目/角色/任务/验收/证据持久化、合并治理，并在 DSH `0.2.1-rc.2` 上完成 Web/桌面验证。
 
 ![Studio Decision Boardroom](docs/images/decision-boardroom.png)
 
@@ -13,6 +13,7 @@
 - **支线/契约冲突**：派单自动登记支线；两条支线改同一契约且内容不同时，自动升级为待裁决决策。
 - **worktree 代码执行**：项目绑定 git 仓库后，每个任务自动创建独立 worktree 和分支；Agent 在里面改代码，Run 记录 diff，主工作区不被直接修改。
 - **Host 独立验证**：Task Room 的验证命令由 Host 在 worktree 内执行，记录退出码/输出并写 evidence；不依赖 Agent 会话，也不会自动通过验收。
+- **工作流护栏**：Task 记录模块/契约/票类型；连续失败 2 次自动 blocked 并升级决策；代码项目没有通过的验证不能提交合并提案。
 - **Agent 分析派单**：Task Room 把任务派给负责人角色，Agent 返回结构化回执；回执缺 `summary`/`evidence` 时任务退回可开始，不能进入验收。
 - **薪资与预算**：角色配置模型、单任务/每日 token 预算；项目配置总 token 预算。
 - **独立工作台页面**：DSH 侧栏点击「工作台」，进入公司仪表盘，不占用聊天会话。
@@ -134,8 +135,9 @@ dsh --profile web --no-open --port 0
 - **v0.5**：决策董事会；Agent 项目级决策进入待裁决；Owner 批准/拒绝与结论记录。
 - **v0.5.1**：支线持久化、契约变更记录、跨支线同契约冲突自动升级。
 - **v0.6**：项目绑定 git 仓库、每 Task worktree/branch、Agent 代码编辑与 diff 记录。
-- **v0.6.1（当前）**：Host 独立验证、验证 evidence、Merge Proposal 的 diff/变更文件/验证结果。
-- **v0.7**：PRD/模块契约/INVARIANTS、ticket 类型与失败上限、集成验收、真实 diff 合并评审。
+- **v0.6.1**：Host 独立验证、验证 evidence、Merge Proposal 的 diff/变更文件/验证结果。
+- **v0.7（当前）**：Task 模块/契约/票类型、失败 2 次自动升级、代码项目合并前验证门禁。
+- **v0.8**：PRD/INVARIANTS/MODULES、独立验收 AI、集成 ticket/playtest gate、真实 diff 合并评审。
 - **v1.0**：用工作台完成一个 2.5D MOBA 垂直切片，再抽象为可复用插件。
 
 详细迭代计划见 [后续迭代](docs/02-后续迭代.md)。

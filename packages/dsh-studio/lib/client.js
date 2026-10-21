@@ -52,6 +52,10 @@ var TASK_STATUS_ORDER = [
   "review",
   "done"
 ];
+var TASK_KIND_LABELS = {
+  new: "\u65B0\u5EFA\u578B",
+  fix: "\u6539\u4FEE\u578B"
+};
 var PRIORITY_LABELS = {
   P0: "P0 \u7D27\u6025",
   P1: "P1 \u91CD\u8981",
@@ -2558,6 +2562,17 @@ function TaskDrawer({
               /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { children: [
                 /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-section-label", children: "\u4E0A\u4E0B\u6587" }),
                 /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("dl", { className: "studio-kv", children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u7968\u7C7B\u578B" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: TASK_KIND_LABELS[task.kind] }),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u6A21\u5757" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { className: "studio-mono", children: task.module ?? "\u672A\u6307\u5B9A" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u5951\u7EA6" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { className: "studio-mono", children: task.contractRef ?? "\u672A\u6307\u5B9A" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u5931\u8D25\u6B21\u6570" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("dd", { children: [
+                    runs.filter((run) => run.status === "failed").length,
+                    " / 2"
+                  ] }),
                   /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u5206\u652F" }),
                   /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { className: "studio-mono", children: task.branch ?? "\u672A\u521B\u5EFA" }),
                   /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u8D1F\u8D23\u4EBA" }),
@@ -2606,6 +2621,7 @@ function TaskDrawer({
                   verification: mergeProposal?.verificationId === null || mergeProposal?.verificationId === void 0 ? null : verifications.find(
                     (item) => item.id === mergeProposal.verificationId
                   ) ?? null,
+                  codeMode,
                   busy,
                   onCreate: onCreateMerge,
                   onApprove: onApproveMerge,
@@ -2829,6 +2845,7 @@ function TaskMergePanel({
   task,
   proposal,
   verification,
+  codeMode,
   busy,
   onCreate,
   onApprove,
@@ -2875,6 +2892,7 @@ function TaskMergePanel({
         proposal.reviewNote || "\u672A\u586B\u5199\u539F\u56E0"
       ] }) : null,
       !reviewable ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-faint", style: { fontSize: 11 }, children: "\u4EFB\u52A1\u9A8C\u6536\u901A\u8FC7\u540E\uFF0C\u624D\u80FD\u63D0\u4EA4\u5408\u5E76\u63D0\u6848\u3002" }) : !complete || !hasEvidence ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-faint", style: { fontSize: 11 }, children: "\u5148\u5B8C\u6210\u5168\u90E8\u9A8C\u6536\u9879\u5E76\u8BB0\u5F55\u81F3\u5C11\u4E00\u6761\u8BC1\u636E\uFF0C\u624D\u80FD\u63D0\u4EA4\u5408\u5E76\u63D0\u6848\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("form", { onSubmit: (event) => void submit(event), className: "studio-merge-form", children: [
+        codeMode && verification === null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-alert", "data-tone": "warn", children: "\u4EE3\u7801\u9879\u76EE\u9700\u8981\u5148\u8DD1\u4E00\u6B21\u901A\u8FC7\u7684\u300C\u72EC\u7ACB\u9A8C\u8BC1\u300D\uFF0C\u624D\u80FD\u63D0\u4EA4\u5408\u5E76\u63D0\u6848\u3002" }) : null,
         localError !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-alert", children: localError }) : null,
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field-row", children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
@@ -3317,6 +3335,9 @@ function TaskForm({
   const [acceptanceText, setAcceptanceText] = (0, import_react.useState)("");
   const [branch, setBranch] = (0, import_react.useState)("");
   const [verifyCommand, setVerifyCommand] = (0, import_react.useState)("npm test");
+  const [moduleName, setModuleName] = (0, import_react.useState)("");
+  const [contractRef, setContractRef] = (0, import_react.useState)("");
+  const [kind, setKind] = (0, import_react.useState)("new");
   const [localError, setLocalError] = (0, import_react.useState)(null);
   const submit = (event) => {
     event.preventDefault();
@@ -3342,7 +3363,10 @@ function TaskForm({
       reviewerRoleId: reviewerRoleId || null,
       acceptance,
       branch: branch.trim() || null,
-      verifyCommand: verifyCommand.trim() || null
+      verifyCommand: verifyCommand.trim() || null,
+      module: moduleName.trim() || null,
+      contractRef: contractRef.trim() || null,
+      kind
     });
   };
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
@@ -3434,6 +3458,48 @@ function TaskForm({
             }
           ),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-hint", children: "\u7531 Studio Host \u5728 worktree \u5185\u72EC\u7ACB\u6267\u884C\uFF1B\u901A\u8FC7\u4F1A\u5199 evidence\uFF0C\u4F46\u4E0D\u81EA\u52A8\u901A\u8FC7\u9A8C\u6536\u3002" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "task-kind", children: "\u7968\u7C7B\u578B" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+              "select",
+              {
+                id: "task-kind",
+                value: kind,
+                onChange: (event) => setKind(event.target.value),
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "new", children: TASK_KIND_LABELS.new }),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "fix", children: TASK_KIND_LABELS.fix })
+                ]
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "task-module", children: "\u6A21\u5757" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "input",
+              {
+                id: "task-module",
+                value: moduleName,
+                onChange: (event) => setModuleName(event.target.value),
+                placeholder: "combat / input / replay"
+              }
+            )
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "task-contract", children: "\u5951\u7EA6\u5F15\u7528" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "input",
+            {
+              id: "task-contract",
+              value: contractRef,
+              onChange: (event) => setContractRef(event.target.value),
+              placeholder: "docs/contracts/replay-v1.md"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-hint", children: "\u5B9E\u73B0\u8005\u53EA\u5E94\u4FEE\u6539\u8FD9\u4E2A\u5951\u7EA6\u5141\u8BB8\u7684\u8303\u56F4\uFF1B\u6539\u5951\u7EA6\u672C\u8EAB\u8981\u8D70\u67B6\u6784\u5E08/Owner\u3002" })
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field-row", children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [

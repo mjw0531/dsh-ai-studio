@@ -2,8 +2,8 @@
 import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 7;
-var STUDIO_PLUGIN_VERSION = "0.6.1";
+var STUDIO_SCHEMA_VERSION = 8;
+var STUDIO_PLUGIN_VERSION = "0.7.0";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -287,6 +287,7 @@ function buildPrompt(context, workspace) {
     `\u5DE5\u4F5C\u533A\uFF1A${workspace.path}`,
     `\u5206\u652F\uFF1A${workspace.branch}`,
     "\u53EF\u4EE5\u4FEE\u6539\u5DE5\u4F5C\u533A\u6587\u4EF6\u3001\u8FD0\u884C\u6D4B\u8BD5\u548C\u6784\u5EFA\uFF1B\u4E0D\u8981\u5207\u6362/\u5220\u9664 worktree\uFF0C\u4E0D\u8981 merge\u3001push \u6216\u4FEE\u6539\u4E3B\u5DE5\u4F5C\u533A\u3002",
+    "\u53EA\u4FEE\u6539\u6A21\u5757/\u5951\u7EA6\u5141\u8BB8\u7684\u8303\u56F4\uFF1B\u9700\u8981\u6539\u5951\u7EA6\u672C\u8EAB\u65F6\uFF0C\u5728\u56DE\u6267\u91CC\u63D0\u51FA decision\uFF0C\u4E0D\u8981\u76F4\u63A5\u6539\u5951\u7EA6\u3002",
     "\u5B8C\u6210\u540E\u5FC5\u987B\u62A5\u544A\u4F60\u5B9E\u9645\u8FD0\u884C\u8FC7\u7684\u547D\u4EE4\u548C\u6D4B\u8BD5\u7ED3\u679C\u3002"
   ];
   return [
@@ -300,6 +301,9 @@ function buildPrompt(context, workspace) {
     `\u4EFB\u52A1\uFF1A${task.title}`,
     `\u4EFB\u52A1\u76EE\u6807\uFF1A${task.goal || "\u672A\u586B\u5199"}`,
     `\u4F18\u5148\u7EA7\uFF1A${task.priority}`,
+    `\u7968\u7C7B\u578B\uFF1A${task.kind === "fix" ? "\u6539\u4FEE\u578B\uFF08\u5148\u8BCA\u65AD\u518D\u6539\uFF09" : "\u65B0\u5EFA\u578B\uFF08red\u2192green\uFF09"}`,
+    `\u6A21\u5757\uFF1A${task.module ?? "\u672A\u6307\u5B9A"}`,
+    `\u5951\u7EA6\uFF1A${task.contractRef ?? "\u672A\u6307\u5B9A"}`,
     `\u5206\u652F\uFF1A${workspace?.branch ?? task.branch ?? "\u672A\u521B\u5EFA"}`,
     "\u9A8C\u6536\u6807\u51C6\uFF1A",
     acceptance || "\uFF08\u65E0\uFF09",
@@ -916,7 +920,7 @@ function isAgentRun(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.branchName === null || typeof value.branchName === "string") && (value.workspacePath === null || typeof value.workspacePath === "string") && (value.diffStat === null || typeof value.diffStat === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
 }
 function isTask(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence) && (value.verifyCommand === null || value.verifyCommand === void 0 || typeof value.verifyCommand === "string");
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence) && (value.verifyCommand === null || value.verifyCommand === void 0 || typeof value.verifyCommand === "string") && (value.module === null || value.module === void 0 || typeof value.module === "string") && (value.contractRef === null || value.contractRef === void 0 || typeof value.contractRef === "string") && (value.kind === void 0 || value.kind === "new" || value.kind === "fix");
 }
 function isMergeRisk(value) {
   return value === "low" || value === "medium" || value === "high";
@@ -1020,9 +1024,9 @@ function migrateState(value) {
     };
   }
   if (state.schemaVersion === 6) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 7,
       tasks: state.tasks.map((task) => ({
         ...task,
         verifyCommand: task.verifyCommand ?? null
@@ -1036,6 +1040,18 @@ function migrateState(value) {
       verifications: Array.isArray(
         state.verifications
       ) ? state.verifications : []
+    };
+  }
+  if (state.schemaVersion === 7) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      tasks: state.tasks.map((task) => ({
+        ...task,
+        module: task.module ?? null,
+        contractRef: task.contractRef ?? null,
+        kind: task.kind ?? "new"
+      }))
     };
   }
   return state;
@@ -1421,6 +1437,15 @@ var StudioStore = class {
           task.status = "ready";
           task.updatedAt = at;
         }
+        if (task !== void 0) {
+          this.escalateRepeatedFailure(
+            state,
+            task,
+            at,
+            run2.error,
+            run2
+          );
+        }
         state.updatedAt = at;
         this.recordEvent(state, {
           type: "agent.failed",
@@ -1649,6 +1674,9 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       if (task !== void 0 && task.status === "running") {
         task.status = "ready";
         task.updatedAt = at;
+      }
+      if (task !== void 0) {
+        this.escalateRepeatedFailure(state, task, at, run2.error, run2);
       }
       state.updatedAt = at;
       this.recordEvent(state, {
@@ -1937,6 +1965,9 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         evidence: [],
         branch: optionalText(input.branch, "branch", 160) || null,
         verifyCommand: optionalText(input.verifyCommand, "verifyCommand", 500) || null,
+        module: optionalText(input.module, "module", 120) || null,
+        contractRef: optionalText(input.contractRef, "contractRef", 300) || null,
+        kind: input.kind === "fix" ? "fix" : "new",
         createdAt: at,
         updatedAt: at
       };
@@ -2003,6 +2034,15 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       }
       if (input.verifyCommand !== void 0) {
         task.verifyCommand = optionalText(input.verifyCommand, "verifyCommand", 500) || null;
+      }
+      if (input.module !== void 0) {
+        task.module = optionalText(input.module, "module", 120) || null;
+      }
+      if (input.contractRef !== void 0) {
+        task.contractRef = optionalText(input.contractRef, "contractRef", 300) || null;
+      }
+      if (input.kind !== void 0) {
+        task.kind = input.kind === "fix" ? "fix" : "new";
       }
       task.updatedAt = at;
       state.updatedAt = at;
@@ -2101,6 +2141,21 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           "\u63D0\u4EA4\u5408\u5E76\u63D0\u6848\u524D\u81F3\u5C11\u8BB0\u5F55\u4E00\u6761\u8BC1\u636E",
           409
         );
+      }
+      const project = state.projects.find(
+        (item) => item.id === task.projectId
+      );
+      if (project?.repoPath !== null && project?.repoPath !== void 0) {
+        const passed = state.verifications.some(
+          (item) => item.taskId === task.id && item.passed
+        );
+        if (!passed) {
+          throw new StudioStoreError(
+            "verification_required",
+            "\u4EE3\u7801\u9879\u76EE\u63D0\u4EA4\u5408\u5E76\u63D0\u6848\u524D\u5FC5\u987B\u6709\u4E00\u6761\u901A\u8FC7\u7684\u72EC\u7ACB\u9A8C\u8BC1",
+            409
+          );
+        }
       }
       const active = state.mergeProposals.find(
         (proposal2) => proposal2.taskId === task.id && (proposal2.status === "review" || proposal2.status === "approved" || proposal2.status === "merged")
@@ -2334,6 +2389,58 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
     }
     return state.projects[0] ?? null;
   }
+  escalateRepeatedFailure(state, task, at, reason, run2) {
+    const failures = state.runs.filter(
+      (item) => item.taskId === task.id && item.status === "failed"
+    ).length;
+    if (failures < 2 || task.status === "done") return;
+    task.status = "blocked";
+    task.updatedAt = at;
+    const title = `\u8FDE\u7EED\u5931\u8D25\uFF1A${task.title.slice(0, 160)}`;
+    if (state.decisions.some(
+      (item) => item.taskId === task.id && item.title === title
+    )) {
+      return;
+    }
+    const decision = {
+      id: newId("dec"),
+      projectId: task.projectId,
+      taskId: task.id,
+      runId: run2.id,
+      title,
+      context: `${String(failures)} \u6B21\u5931\u8D25\uFF1B\u6700\u540E\u4E00\u6B21\uFF1A${reason}`,
+      options: [
+        {
+          label: "\u9000\u56DE Architect \u91CD\u62C6\u4EFB\u52A1/\u5951\u7EA6",
+          tradeoff: "\u505C\u6B62\u539F\u5730\u91CD\u8BD5\uFF0C\u5148\u4FEE\u4EFB\u52A1\u5B9A\u4E49\u6216\u5951\u7EA6"
+        },
+        {
+          label: "\u7EE7\u7EED\u91CD\u8BD5",
+          tradeoff: "\u4FDD\u7559\u5F53\u524D\u4EFB\u52A1\uFF0C\u4F46\u9700\u8981\u65B0\u7684\u8BC1\u636E"
+        }
+      ],
+      recommendation: "\u540C\u4E00\u4EFB\u52A1\u8FDE\u7EED\u5931\u8D25 2 \u6B21\uFF0C\u6309\u5DE5\u4F5C\u6D41\u5E94\u9000\u56DE\u67B6\u6784\u5E08\u91CD\u62C6\uFF0C\u4E0D\u5141\u8BB8\u7B2C\u4E09\u6B21\u539F\u5730\u91CD\u8BD5\u3002",
+      status: "pending",
+      decision: "",
+      note: "",
+      decidedBy: "",
+      tokenCost: run2.tokens,
+      createdAt: at,
+      decidedAt: null
+    };
+    state.decisions.push(decision);
+    this.recordEvent(state, {
+      type: "decision.escalated",
+      at,
+      projectId: task.projectId,
+      taskId: task.id,
+      payload: {
+        decisionId: decision.id,
+        failures,
+        runId: run2.id
+      }
+    });
+  }
   ensureBranch(state, task, at) {
     const name2 = task.branch ?? `task/${task.id}`;
     if (task.branch === null) task.branch = name2;
@@ -2496,6 +2603,9 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       evidence: [],
       branch,
       verifyCommand: null,
+      module: null,
+      contractRef: null,
+      kind: "new",
       createdAt: at,
       updatedAt: at
     });

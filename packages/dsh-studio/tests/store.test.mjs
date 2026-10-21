@@ -567,6 +567,68 @@ test("escalates a cross-branch contract conflict to the boardroom", async () => 
   });
 });
 
+test("blocks a task and escalates after two failed runs", async () => {
+  await withStore(async (store) => {
+    const data = await store.bootstrap();
+    const owner = data.roles[0];
+    const reviewer = data.roles[1];
+    assert.ok(owner && reviewer);
+    const task = await store.createTask({
+      title: "连续失败任务",
+      acceptance: ["有回执"],
+      ownerRoleId: owner.id,
+      reviewerRoleId: reviewer.id,
+      module: "combat",
+      contractRef: "docs/contracts/combat.md",
+      kind: "fix",
+    });
+    await store.transitionTask(task.id, "ready");
+    for (let index = 0; index < 2; index += 1) {
+      const run = await store.beginRun(task.id, "失败测试");
+      await store.failRun(run.id, `failure ${String(index + 1)}`);
+    }
+    const after = await store.bootstrap();
+    assert.equal(
+      after.tasks.find((item) => item.id === task.id)?.status,
+      "blocked",
+    );
+    assert.equal(after.decisions.length, 1);
+    assert.match(after.decisions[0].title, /连续失败/);
+    assert.equal(after.decisions[0].status, "pending");
+  });
+});
+
+test("requires a passing verification before merging a code project", async () => {
+  await withStore(async (store, dir) => {
+    const data = await store.bootstrap();
+    await store.updateProject(data.project.id, { repoPath: "D:\\AIgame" });
+    const task = await readyTask(store, "需要验证的合并");
+    await assert.rejects(
+      () =>
+        store.createMergeProposal(task.id, {
+          summary: "合并",
+          rollback: "revert",
+        }),
+      (error) =>
+        error instanceof StudioStoreError &&
+        error.code === "verification_required",
+    );
+    await store.recordVerification(task.id, {
+      command: "npm test",
+      workdir: dir,
+      exitCode: 0,
+      output: "ok",
+      passed: true,
+    });
+    const proposal = await store.createMergeProposal(task.id, {
+      summary: "合并",
+      rollback: "revert",
+    });
+    assert.equal(proposal.status, "review");
+    assert.ok(proposal.verificationId);
+  });
+});
+
 test("migrates a schema v1 file by adding merge proposals", async () => {
   await withStore(async (store, dir) => {
     const file = path.join(dir, "studio.json");
@@ -582,7 +644,7 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
     assert.deepEqual(data.runs, []);
     assert.deepEqual(data.decisions, []);
     const migrated = JSON.parse(await readFile(file, "utf8"));
-    assert.equal(migrated.schemaVersion, 7);
+    assert.equal(migrated.schemaVersion, 8);
     assert.ok(migrated.runs.every((run) => run.status !== undefined));
     assert.ok(Array.isArray(migrated.branches));
     assert.ok(Array.isArray(migrated.contractChanges));
@@ -591,7 +653,13 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
       migrated.projects.every((project) => project.repoPath === null),
     );
     assert.ok(
-      migrated.tasks.every((task) => task.verifyCommand === null),
+      migrated.tasks.every(
+        (task) =>
+          task.verifyCommand === null &&
+          task.module === null &&
+          task.contractRef === null &&
+          task.kind === "new",
+      ),
     );
   });
 });
