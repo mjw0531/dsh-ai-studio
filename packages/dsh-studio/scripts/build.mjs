@@ -80,6 +80,19 @@ await build({
 
 await build({
   absWorkingDir: root,
+  entryPoints: [path.join(root, "src/host/merge.ts")],
+  outfile: path.join(libDir, "merge.js"),
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "node22",
+  sourcemap: false,
+  legalComments: "none",
+  logLevel: "info",
+});
+
+await build({
+  absWorkingDir: root,
   entryPoints: [path.join(root, "src/host/compat.ts")],
   outfile: path.join(libDir, "compat.js"),
   bundle: true,

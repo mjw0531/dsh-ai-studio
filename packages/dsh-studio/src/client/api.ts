@@ -345,6 +345,14 @@ export class StudioClient {
     return data.proposal;
   }
 
+  async executeMerge(proposalId: string): Promise<MergeProposal> {
+    const data = await this.request<{ proposal: MergeProposal }>(
+      `/merge-proposals/${encodeURIComponent(proposalId)}/execute`,
+      { method: "POST", body: {} },
+    );
+    return data.proposal;
+  }
+
   async completeMergeProposal(
     proposalId: string,
     mergeCommit?: string,

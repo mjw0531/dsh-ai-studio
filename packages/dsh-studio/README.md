@@ -2,7 +2,7 @@
 
 > 即装即用的 DeepSeek Harness AI 工作台：**公司仪表盘、Agent 派单、token 预算、决策董事会、支线/契约冲突、worktree 代码执行、项目、角色、任务、验收、合并治理**，一个独立页面。
 
-当前版本 **1.3.0**，已在 **DSH 0.2.1-rc.2** 上完成端到端验证（Web/桌面安装、页面渲染、任务创建、验收门禁、合并治理、公司仪表盘、Agent 派单与结构化回执、token 计量、董事会、支线/契约冲突自动升级、git worktree 代码编辑、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、重启持久化）。
+当前版本 **1.4.0**，已在 **DSH 0.2.1-rc.2** 上完成端到端验证（Web/桌面安装、页面渲染、任务创建、验收门禁、合并治理、公司仪表盘、Agent 派单与结构化回执、token 计量、董事会、支线/契约冲突自动升级、git worktree 代码编辑、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、人工触发的 Git merge、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、重启持久化）。
 
 ![Studio Decision Boardroom](docs/decision-boardroom.png)
 
@@ -26,6 +26,7 @@ Studio 把 DSH 从「一个会话」扩展成「一间工作室」：
 - **自动集成分期**：每完成 3 个任务自动生成一张 backlog 集成/playtest ticket（打包可玩 + 人玩 10 分钟），不会自动派单。
 - **文档同步门禁**：项目绑定 PRD/INVARIANTS/MODULES 时，任务 done 前必须勾选“文档已同步”。
 - **不可逆决策**：Decision 可标记不可逆；批准时必须写结论和理由。
+- **人工触发 Git merge**：已批准提案可在 Task Room 执行真实 `git merge --no-ff`；要求当前在 base、工作区干净、分支存在；冲突自动 abort，不自动 push。
 - **角色薪资与预算**：角色可配置模型和单任务/每日 token 预算；项目可配置总 token 预算。
 - **项目**：一个项目边界，下面有角色和任务。
 - **角色**：持久的职责契约（使命、职责、决策权），不是人设卡。
@@ -74,7 +75,7 @@ cd D:\AI工作台\packages\dsh-studio
 pnpm pack
 ```
 
-把生成的 `ai-workbench-dsh-studio-1.3.0.tgz` 发给对方，在 **Add plugin** 里填 tarball 路径即可。
+把生成的 `ai-workbench-dsh-studio-1.4.0.tgz` 发给对方，在 **Add plugin** 里填 tarball 路径即可。
 
 ## 使用
 
@@ -150,7 +151,7 @@ packages/dsh-studio/
   cordis.patch.yml
 ```
 
-## 当前边界（v1.3）
+## 当前边界（v1.4）
 
 - ✅ 项目/角色/任务/验收/证据/事件持久化。
 - ✅ 独立页面、侧栏入口、主题、响应式。
@@ -171,7 +172,8 @@ packages/dsh-studio/
 - ✅ 自动集成分期：每 3 个完成任务生成一张 backlog 集成票；不自动派单、不替代单任务验收。
 - ✅ 文档同步门禁：项目有知识文档时 done 前必须勾选“文档已同步”。
 - ✅ 不可逆决策：Decision 标记不可逆后，批准必须写结论和理由。
-- ⏳ 真实 Git merge、Ticket 工序细化、评审模型同族风险提示。
+- ✅ 人工触发 Git merge：已批准提案 + 干净 repo + 当前 base + 分支存在；冲突自动 abort；不自动 push。
+- ⏳ Ticket 工序细化、决策→ADR 草稿、评审模型同族风险提示。
 - ⏳ 运行中 token 硬停、金额报价。
 - ⏳ Git merge 执行/合并队列（当前仍只记录治理状态，命令由人执行）。
 - ⏳ Project Book 检索、角色/Scope 强隔离。
