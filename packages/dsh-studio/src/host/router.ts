@@ -265,6 +265,7 @@ function asCreateDecision(
       body.taskId === null || body.taskId === undefined
         ? null
         : asString(body.taskId, "taskId"),
+    reversible: body.reversible !== false,
   };
 }
 
@@ -406,6 +407,12 @@ function asUpdateTask(body: Record<string, unknown>): UpdateTaskInput {
       throw new HttpError(400, "invalid_input", "integration 必须是布尔值");
     }
     result.integration = body.integration;
+  }
+  if (body.docsSynced !== undefined) {
+    if (typeof body.docsSynced !== "boolean") {
+      throw new HttpError(400, "invalid_input", "docsSynced 必须是布尔值");
+    }
+    result.docsSynced = body.docsSynced;
   }
   return result;
 }

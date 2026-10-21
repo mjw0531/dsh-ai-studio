@@ -1,7 +1,7 @@
 {
   "name": "@ai-workbench/dsh-studio",
-  "version": "1.2.0",
-  "description": "Install-and-use AI workbench for DeepSeek Harness: owner dashboard, Agent dispatch, token budgets, decision boardroom, branch/contract conflicts, worktree code execution, host verification, independent AI review, automatic integration gates, workflow guardrails, project knowledge and module contracts, contract scope guard, integration and re-split tickets, projects, tasks, acceptance, and merge governance on an independent page.",
+  "version": "1.3.0",
+  "description": "Install-and-use AI workbench for DeepSeek Harness: owner dashboard, Agent dispatch, token budgets, decision boardroom, branch/contract conflicts, worktree code execution, host verification, independent AI review, automatic integration gates, docs sync and irreversible decision gates, workflow guardrails, project knowledge and module contracts, contract scope guard, integration and re-split tickets, projects, tasks, acceptance, and merge governance on an independent page.",
   "license": "MIT",
   "type": "module",
   "main": "lib/index.js",

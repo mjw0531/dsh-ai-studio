@@ -6,8 +6,8 @@ import os from "node:os";
 import path from "node:path";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 11;
-var STUDIO_PLUGIN_VERSION = "1.2.0";
+var STUDIO_SCHEMA_VERSION = 12;
+var STUDIO_PLUGIN_VERSION = "1.3.0";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -533,7 +533,7 @@ function isAgentRun(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.branchName === null || typeof value.branchName === "string") && (value.workspacePath === null || typeof value.workspacePath === "string") && (value.diffStat === null || typeof value.diffStat === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
 }
 function isTask(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence) && (value.verifyCommand === null || value.verifyCommand === void 0 || typeof value.verifyCommand === "string") && (value.module === null || value.module === void 0 || typeof value.module === "string") && (value.contractRef === null || value.contractRef === void 0 || typeof value.contractRef === "string") && (value.kind === void 0 || value.kind === "new" || value.kind === "fix") && (value.integration === void 0 || typeof value.integration === "boolean") && (value.originTaskId === null || value.originTaskId === void 0 || typeof value.originTaskId === "string");
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence) && (value.verifyCommand === null || value.verifyCommand === void 0 || typeof value.verifyCommand === "string") && (value.module === null || value.module === void 0 || typeof value.module === "string") && (value.contractRef === null || value.contractRef === void 0 || typeof value.contractRef === "string") && (value.kind === void 0 || value.kind === "new" || value.kind === "fix") && (value.integration === void 0 || typeof value.integration === "boolean") && (value.originTaskId === null || value.originTaskId === void 0 || typeof value.originTaskId === "string") && (value.docsSynced === void 0 || typeof value.docsSynced === "boolean");
 }
 function isMergeRisk(value) {
   return value === "low" || value === "medium" || value === "high";
@@ -545,7 +545,7 @@ function isDecisionStatus(value) {
   return value === "pending" || value === "approved" || value === "rejected";
 }
 function isDecision(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && (value.taskId === null || typeof value.taskId === "string") && (value.runId === null || typeof value.runId === "string") && typeof value.title === "string" && typeof value.context === "string" && Array.isArray(value.options) && typeof value.recommendation === "string" && isDecisionStatus(value.status) && typeof value.decision === "string" && typeof value.note === "string" && typeof value.decidedBy === "string" && (value.tokenCost === null || typeof value.tokenCost === "number") && typeof value.createdAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string");
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && (value.taskId === null || typeof value.taskId === "string") && (value.runId === null || typeof value.runId === "string") && typeof value.title === "string" && typeof value.context === "string" && Array.isArray(value.options) && typeof value.recommendation === "string" && (value.reversible === void 0 || typeof value.reversible === "boolean") && isDecisionStatus(value.status) && typeof value.decision === "string" && typeof value.note === "string" && typeof value.decidedBy === "string" && (value.tokenCost === null || typeof value.tokenCost === "number") && typeof value.createdAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string");
 }
 function isBranchStatus(value) {
   return value === "open" || value === "review" || value === "merged" || value === "abandoned";
@@ -700,12 +700,26 @@ function migrateState(value) {
     };
   }
   if (state.schemaVersion === 10) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 11,
       reviews: Array.isArray(
         state.reviews
       ) ? state.reviews : []
+    };
+  }
+  if (state.schemaVersion === 11) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      tasks: state.tasks.map((task) => ({
+        ...task,
+        docsSynced: task.docsSynced ?? false
+      })),
+      decisions: state.decisions.map((decision) => ({
+        ...decision,
+        reversible: decision.reversible ?? true
+      }))
     };
   }
   return state;
@@ -1341,6 +1355,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
                 }
               ],
               recommendation: "\u540C\u4E00\u5951\u7EA6\u51FA\u73B0\u4E24\u6761\u4E0D\u540C\u53D8\u66F4\u3002\u8BF7\u7531 Owner/Architect \u88C1\u51B3\uFF1B\u5728\u88C1\u51B3\u524D\u4E0D\u8981\u5408\u5E76\u4EFB\u610F\u4E00\u6761\u652F\u7EBF\u3002",
+              reversible: true,
               status: "pending",
               decision: "",
               note: "",
@@ -1383,6 +1398,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
             context: proposed.rationale,
             options: [],
             recommendation: proposed.rationale,
+            reversible: true,
             status: "pending",
             decision: "",
             note: "",
@@ -1512,6 +1528,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
             }
           ],
           recommendation: "\u5B9E\u73B0\u8005\u4E0D\u80FD\u76F4\u63A5\u6539\u5951\u7EA6\u6216\u7981\u6B62\u8DEF\u5F84\uFF1B\u9700\u8981\u5951\u7EA6\u53D8\u66F4\u65F6\uFF0C\u5E94\u7531 Architect/Owner \u5148\u66F4\u65B0\u5951\u7EA6\uFF0C\u518D\u91CD\u65B0\u6D3E\u5355\u3002",
+          reversible: true,
           status: "pending",
           decision: "",
           note: "",
@@ -1616,6 +1633,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           "recommendation",
           2e3
         ),
+        reversible: input.reversible !== false,
         status: "pending",
         decision: "",
         note: "",
@@ -1661,6 +1679,13 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         throw new StudioStoreError(
           "invalid_input",
           "\u51B3\u7B56\u72B6\u6001\u53EA\u80FD\u662F approved \u6216 rejected"
+        );
+      }
+      if (decision.reversible === false && input.status === "approved" && optionalText(input.decision, "decision", 4e3) === "") {
+        throw new StudioStoreError(
+          "decision_reason_required",
+          "\u4E0D\u53EF\u9006\u51B3\u7B56\u6279\u51C6\u65F6\u5FC5\u987B\u5199\u660E\u7ED3\u8BBA\u548C\u7406\u7531",
+          409
         );
       }
       const at = nowIso(this.now);
@@ -1922,6 +1947,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         kind: input.kind === "fix" ? "fix" : "new",
         integration: input.integration === true,
         originTaskId: optionalText(input.originTaskId, "originTaskId", 120) || null,
+        docsSynced: false,
         createdAt: at,
         updatedAt: at
       };
@@ -2001,6 +2027,9 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       if (input.integration !== void 0) {
         task.integration = input.integration === true;
       }
+      if (input.docsSynced !== void 0) {
+        task.docsSynced = input.docsSynced === true;
+      }
       task.updatedAt = at;
       state.updatedAt = at;
       this.recordEvent(state, {
@@ -2063,6 +2092,14 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           throw new StudioStoreError(
             "review_required",
             "\u4EE3\u7801\u4EFB\u52A1\u5B8C\u6210\u524D\u5FC5\u987B\u6709\u4E00\u6B21\u901A\u8FC7\u7684\u72EC\u7ACB\u8BC4\u5BA1",
+            409
+          );
+        }
+        const hasDocs = project !== void 0 && (project.prdPath !== null || project.invariantsPath !== null || project.modulesPath !== null);
+        if (hasDocs && !task.docsSynced) {
+          throw new StudioStoreError(
+            "docs_sync_required",
+            "\u9879\u76EE\u5DF2\u7ED1\u5B9A PRD/INVARIANTS/MODULES\uFF0C\u5B8C\u6210\u524D\u5FC5\u987B\u786E\u8BA4\u6587\u6863\u5DF2\u540C\u6B65",
             409
           );
         }
@@ -2131,6 +2168,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       kind: "new",
       integration: true,
       originTaskId: null,
+      docsSynced: false,
       createdAt: at,
       updatedAt: at
     };
@@ -2465,6 +2503,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           kind: "fix",
           integration: false,
           originTaskId: task.id,
+          docsSynced: false,
           createdAt: at,
           updatedAt: at
         };
@@ -2505,6 +2544,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         }
       ],
       recommendation: "\u540C\u4E00\u4EFB\u52A1\u8FDE\u7EED\u5931\u8D25 2 \u6B21\uFF0C\u6309\u5DE5\u4F5C\u6D41\u5E94\u9000\u56DE\u67B6\u6784\u5E08\u91CD\u62C6\uFF0C\u4E0D\u5141\u8BB8\u7B2C\u4E09\u6B21\u539F\u5730\u91CD\u8BD5\u3002",
+      reversible: true,
       status: "pending",
       decision: "",
       note: "",
@@ -2696,6 +2736,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       kind: "new",
       integration: false,
       originTaskId: null,
+      docsSynced: false,
       createdAt: at,
       updatedAt: at
     });

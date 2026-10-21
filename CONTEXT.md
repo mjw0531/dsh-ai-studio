@@ -142,6 +142,14 @@ _Avoid_: 自测、验收（Review 是验收的一部分）
 每完成 3 个任务自动生成的 backlog 集成/playtest ticket；要求打包可玩并人玩 10 分钟，不自动派单。
 _Avoid_: 自动发布、总验收
 
+**Docs Sync（文档同步）**:
+项目绑定 PRD/INVARIANTS/MODULES 时，任务 done 前由执行者/验收者确认文档已更新；只是勾选，不自动改写文档。
+_Avoid_: 文档自动生成
+
+**Irreversible Decision（不可逆决策）**:
+`reversible=false` 的项目级决策；批准时必须写明结论和理由，不能只点同意。
+_Avoid_: 重要决策（所有决策都重要，但只有部分不可逆）
+
 **Run（运行）**:
 一个 Agent 对某个 Task 的一次尝试；可失败、重试、换人。
 _Avoid_: 任务（Task 可以有很多 Run）

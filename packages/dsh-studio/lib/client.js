@@ -867,6 +867,17 @@ function StudioPage() {
       "\u9A8C\u6536\u9879\u5DF2\u66F4\u65B0"
     );
   };
+  const toggleDocsSynced = async (task) => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.updateTask(task.id, {
+          docsSynced: !task.docsSynced
+        });
+      },
+      task.docsSynced ? "\u5DF2\u53D6\u6D88\u6587\u6863\u540C\u6B65\u6807\u8BB0" : "\u5DF2\u6807\u8BB0\u6587\u6863\u540C\u6B65"
+    );
+  };
   const addEvidence = async (task, text) => {
     const evidence = [
       ...task.evidence,
@@ -1164,6 +1175,7 @@ function StudioPage() {
         onDispatch: () => dispatchTask(selectedTask),
         onVerify: (command) => verifyTask(selectedTask, command),
         onReview: () => reviewTask(selectedTask),
+        onToggleDocs: () => toggleDocsSynced(selectedTask),
         onTransition: (status) => void transitionTask(selectedTask, status),
         onToggleAcceptance: (id) => void toggleAcceptance(selectedTask, id),
         onAddEvidence: (text) => addEvidence(selectedTask, text),
@@ -1383,6 +1395,7 @@ function DecisionCard({
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("article", { className: "studio-decision-card", "data-status": "pending", children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-decision-head", children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-pill", "data-tone": "warn", children: "\u5F85\u88C1\u51B3" }),
+      !decision.reversible ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-pill", "data-tone": "p0", children: "\u4E0D\u53EF\u9006" }) : null,
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: decision.title }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-faint", style: { marginLeft: "auto" }, children: formatDate(decision.createdAt) })
     ] }),
@@ -2812,6 +2825,7 @@ function TaskDrawer({
   onDispatch,
   onVerify,
   onReview,
+  onToggleDocs,
   onTransition,
   onToggleAcceptance,
   onAddEvidence,
@@ -3001,7 +3015,19 @@ function TaskDrawer({
                   /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { children: formatDate(task.updatedAt) }),
                   /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u4EFB\u52A1 ID" }),
                   /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { className: "studio-mono", children: task.id })
-                ] })
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("label", { className: "studio-check", style: { marginTop: 10 }, children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                    "input",
+                    {
+                      type: "checkbox",
+                      checked: task.docsSynced,
+                      onChange: () => void onToggleDocs()
+                    }
+                  ),
+                  "\u6587\u6863\u5DF2\u540C\u6B65\uFF08PRD / ADR / CONTEXT\uFF09"
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-hint", children: "\u9879\u76EE\u7ED1\u5B9A\u4E86\u77E5\u8BC6\u6587\u6863\u65F6\uFF0C\u5B8C\u6210\u524D\u5FC5\u987B\u786E\u8BA4\u6587\u6863\u5DF2\u540C\u6B65\u3002" })
               ] }),
               /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
                 TaskAgentPanel,
@@ -4388,6 +4414,7 @@ function DecisionForm({
   const [context, setContext] = (0, import_react.useState)("");
   const [recommendation, setRecommendation] = (0, import_react.useState)("");
   const [taskId, setTaskId] = (0, import_react.useState)("");
+  const [reversible, setReversible] = (0, import_react.useState)(true);
   const [localError, setLocalError] = (0, import_react.useState)(null);
   const submit = (event) => {
     event.preventDefault();
@@ -4400,7 +4427,8 @@ function DecisionForm({
       title: title.trim(),
       context: context.trim(),
       recommendation: recommendation.trim(),
-      taskId: taskId === "" ? null : taskId
+      taskId: taskId === "" ? null : taskId,
+      reversible
     });
   };
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
@@ -4485,6 +4513,17 @@ function DecisionForm({
               ]
             }
           )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("label", { className: "studio-check", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "input",
+            {
+              type: "checkbox",
+              checked: !reversible,
+              onChange: (event) => setReversible(!event.target.checked)
+            }
+          ),
+          "\u4E0D\u53EF\u9006\u51B3\u7B56\uFF08\u6279\u51C6\u65F6\u5FC5\u987B\u5199\u660E\u7ED3\u8BBA\u548C\u7406\u7531\uFF09"
         ] })
       ] })
     }
