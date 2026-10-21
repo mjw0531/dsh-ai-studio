@@ -6,7 +6,8 @@ Studio 是 DSH 的即装即用工作台插件。改领域词、工作流或接�
 
 - **完成门禁**：任务进入 `done` 前，所有 acceptance 必须为 done，且至少有一条 evidence。不要在 UI 或 API 里绕过 `StudioStore.transitionTask`。
 - **合并门禁**：只有 `done` 任务能提交合并提案；提案必须经过 `review → approved → merged`。`merged` 是治理记录，不是 Git 事实；不要在未经明确设计的情况下自动执行 `git merge`。打回提案会把任务退回 `running`。
-- **v0.2 边界**：Host 只依赖 `ctx.webServer`；Client 只依赖 `ctx.slots`、`ctx.layout` 和平台 React。不要引入 DSH 私有 Remote 代码生成器，也不要把 `features.agentExecution` / `features.gitMerge` 改成 true 来假装功能已接入。
+- **v0.2 边界**：Host 只依赖 `ctx.webServer` 的路由/结构化 index injection 与 `ctx.connection.admit()`；Client 只依赖 `ctx.slots`、`ctx.layout` 和平台 React。不要引入 DSH 私有 Remote 代码生成器，也不要把 `features.agentExecution` / `features.gitMerge` 改成 true 来假装功能已接入。
+- **桌面启动参数**：桌面渲染器是 `dsh-app://` 自定义 scheme，不能依赖 DSH Cookie 或 startup injection 的热更新。保留 `/studio-api/boot` 的桌面 origin 回退；它只发放进程级 token，绝不能把数据接口改成免 token。
 - **鉴权**：`/studio-api` 除 `/health` 外都必须校验进程内随机 Bearer token；token 只注入当前页面，不写日志、不进数据文件。
 - **数据兼容**：`StudioState.schemaVersion` 变更必须提供迁移或明确的破坏性说明；`studio.json` 是本地事实来源，损坏时备份而不是静默覆盖。
 - **术语**：使用 `Role`（角色契约）、`Agent`（运行实例）、`Task`、`Branch`、`Acceptance`、`Evidence`；不要把世界书/人物卡/群聊当成本项目的领域词。

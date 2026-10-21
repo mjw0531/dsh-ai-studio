@@ -14,8 +14,8 @@ import { StudioStore } from "./store.js";
 /** Cordis plugin name shown in Loader logs. */
 export const name = "dsh-studio";
 
-/** The Web-only v0.1 surface needs the HTTP route registry. */
-export const inject = ["webServer"];
+/** The Web/Desktop surface needs the HTTP route registry, browser auth, and index injection. */
+export const inject = ["webServer", "connection"];
 
 interface WebServerLike {
   register(route: {
@@ -23,8 +23,11 @@ interface WebServerLike {
     path: string;
     handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void>;
   }): () => void;
-  tapIndex(transform: (html: string) => string): () => void;
   getOrigin?(): string;
+}
+
+interface ConnectionLike {
+  admit(request: Request): { peer?: unknown; rejection?: number };
 }
 
 interface LoggerLike {
@@ -35,7 +38,12 @@ interface LoggerLike {
 
 interface StudioHostContext {
   webServer: WebServerLike;
+  connection: ConnectionLike;
   logger?: LoggerLike;
+  on?(
+    event: "webserver/index-inject",
+    listener: (rows: unknown[]) => void,
+  ): () => void;
   effect?(
     execute: () => (() => void) | Promise<() => void>,
     label?: string,
@@ -51,19 +59,13 @@ interface BootPayload {
   dataDir: string;
 }
 
-function injectBoot(html: string, payload: BootPayload): string {
-  const json = JSON.stringify(payload).replaceAll("<", "\\u003c");
-  const script = `<script>globalThis.__DSH_STUDIO__=${json}</script>`;
-  const at = html.indexOf("</head>");
-  if (at === -1) return `${script}${html}`;
-  return `${html.slice(0, at)}${script}${html.slice(at)}`;
-}
-
 /**
  * Mount the Studio HTTP API and the boot payload consumed by the browser half.
  *
- * The host half deliberately owns no model-facing tool yet: v0.1 is the
- * independent workbench page and its durable project/task state.
+ * The boot payload is a structured `global` index-injection row rather than a
+ * raw `tapIndex` transform. The Web SPA and the Desktop shell both collect the
+ * structured table; the Desktop shell does not run raw index taps because it
+ * does not serve the index through `dsh-host-webserver`'s fallback.
  */
 export async function apply(ctx: StudioHostContext): Promise<void> {
   const runtime = await readRuntimeInfo();
@@ -72,10 +74,11 @@ export async function apply(ctx: StudioHostContext): Promise<void> {
   if (
     !capabilities.webServer ||
     typeof ctx.webServer.register !== "function" ||
-    typeof ctx.webServer.tapIndex !== "function"
+    typeof ctx.on !== "function" ||
+    typeof ctx.connection?.admit !== "function"
   ) {
     ctx.logger?.error(
-      "dsh-studio: this DSH build does not expose ctx.webServer.register/tapIndex; the Studio page stays unmounted.",
+      "dsh-studio: this DSH build does not expose webServer.register + connection.admit; the Studio page stays unmounted.",
     );
     return;
   }
@@ -85,11 +88,21 @@ export async function apply(ctx: StudioHostContext): Promise<void> {
 
   const token = randomBytes(24).toString("hex");
   const startedAt = new Date().toISOString();
+  const bootPayload: BootPayload = {
+    token,
+    basePath: "/studio-api",
+    pluginVersion: STUDIO_PLUGIN_VERSION,
+    dshVersion: runtime.version,
+    startedAt,
+    dataDir: store.dataDir,
+  };
   const router = new StudioRouter({
     store,
     token,
     dshVersion: runtime.version,
     compatibility,
+    connection: ctx.connection,
+    getBootPayload: () => bootPayload,
   });
 
   const install = (): (() => void) => {
@@ -108,24 +121,21 @@ export async function apply(ctx: StudioHostContext): Promise<void> {
         }
       },
     });
-    const disposeIndex = ctx.webServer.tapIndex((html) =>
-      injectBoot(html, {
-        token,
-        basePath: "/studio-api",
-        pluginVersion: STUDIO_PLUGIN_VERSION,
-        dshVersion: runtime.version,
-        startedAt,
-        dataDir: store.dataDir,
-      }),
-    );
+    const disposeInjection = ctx.on?.("webserver/index-inject", (rows) => {
+      rows.push({
+        kind: "global",
+        name: "__DSH_STUDIO__",
+        value: bootPayload,
+      });
+    });
     return () => {
       disposeRoute();
-      disposeIndex();
+      disposeInjection?.();
     };
   };
 
   if (typeof ctx.effect === "function") {
-    ctx.effect(install, "dsh-studio: http + boot payload");
+    ctx.effect(install, "dsh-studio: route + boot payload");
   } else {
     install();
   }

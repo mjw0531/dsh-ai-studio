@@ -2,7 +2,7 @@
 
 > 即装即用的 DeepSeek Harness AI 工作台：**项目、角色、任务、验收、合并治理**，一个独立页面。
 
-当前版本 **0.2.0**，已在 **DSH 0.2.1-rc.2** 上完成端到端验证（Web profile 实际安装、页面渲染、任务创建、验收门禁、合并提案/批准/合并、重启持久化）。
+当前版本 **0.2.1**，已在 **DSH 0.2.1-rc.2** 上完成端到端验证（Web profile 实际安装、页面渲染、任务创建、验收门禁、合并提案/批准/合并、重启持久化）；桌面端增加了启动参数回退路径。
 
 ![Studio Mission Control](docs/mission-control.png)
 
@@ -32,6 +32,7 @@ Studio 把 DSH 从「一个会话」扩展成「一间工作室」：
 
 3. 安装完成后点 **Enable now**。
 4. 刷新页面；左侧栏出现 **工作台**。
+5. 如果打开工作台显示「没有返回启动参数」，请**完全退出并重新打开 DSH**。桌面端的 Host 启动参数表是在应用启动时收集的，热安装后需要重启一次 Host；0.2.1 的 Boot 回退路径会让后续刷新不再依赖这次重启。
 
 > 如果 DSH 不让你直接选目录，先在终端打包，再在 Add plugin 里填 tarball 路径：
 >
@@ -56,7 +57,7 @@ cd D:\AI工作台\packages\dsh-studio
 pnpm pack
 ```
 
-把生成的 `ai-workbench-dsh-studio-0.2.0.tgz` 发给对方，在 **Add plugin** 里填 tarball 路径即可。
+把生成的 `ai-workbench-dsh-studio-0.2.1.tgz` 发给对方，在 **Add plugin** 里填 tarball 路径即可。
 
 ## 使用
 
@@ -91,14 +92,16 @@ Task Room 里，验收项、证据和状态推进是同一份事实：没勾完�
 - 不存储模型密钥；不要手动把 token 贴到聊天/日志里。
 - 数据损坏时会备份为 `studio.json.corrupt-<timestamp>`，并重建演示数据。
 - 旧 schema（v1）会自动迁移到 v2：只增加 `mergeProposals` 集合，不改已有项目/角色/任务。
+- 桌面渲染器运行在 `dsh-app://` 上，因此 `/studio-api/boot` 会对 `dsh-app://` / `null` origin 反射 CORS 并发放进程级 token；数据接口仍然只认这个 token。Web 端的 Boot 路由继续走 DSH 会话认证。
 
 ## 版本兼容策略
 
 - `package.json` 的 `engines.dsh` 写成 `>=0.2.1-rc.2`，未来版本不会被硬拒绝。
-- Host 只使用 `ctx.webServer.register()` / `tapIndex()`；Client 只使用 `ctx.slots`、`ctx.layout` 和平台 React。
+- Host 使用 `ctx.webServer.register()`、结构化 `webserver/index-inject`、`ctx.connection.admit()`；Client 使用 `ctx.slots`、`ctx.layout` 和平台 React。
+- 启动参数有三条路径：页面注入 → 已认证的 `/studio-api/boot` → 桌面自定义 origin 的 Boot 回退（只发放进程级 token，数据接口仍需 token）。
 - DSH 版本读取顺序：`@deepseek-ai/dsh-app-boot` → 安装包清单 → 环境变量 → `unknown`。
 - 页面会显示兼容状态；能力缺失时显示错误提示，不白屏。
-- 如果未来 DSH 改掉 `webServer` 或 slots，只需替换 `src/host` / `src/client` 的少量适配代码，领域逻辑不动。
+- 如果未来 DSH 改掉 `webServer`、index injection 或 slots，只需替换 `src/host` / `src/client` 的少量适配代码，领域逻辑不动。
 
 ## 开发
 
