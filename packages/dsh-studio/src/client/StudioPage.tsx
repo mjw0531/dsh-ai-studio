@@ -8,22 +8,28 @@ import type { FormEvent, ReactNode } from "react";
 
 import {
   ALLOWED_TRANSITIONS,
+  COMPANY_HEALTH_LABELS,
   MERGE_RISK_LABELS,
   MERGE_STATUS_LABELS,
   PRIORITY_LABELS,
+  ROLE_LOAD_LABELS,
   TASK_STATUS_LABELS,
   TASK_STATUS_ORDER,
   TRANSITION_LABELS,
 } from "../shared/types.js";
 import type {
   BootstrapResponse,
+  CompanyHealth,
+  CompanyProjectSummary,
   CreateMergeProposalInput,
   CreateProjectInput,
   CreateRoleInput,
   CreateTaskInput,
   MergeProposal,
   MergeRisk,
+  OwnerNeed,
   Role,
+  RoleLoadSummary,
   Task,
   TaskPriority,
   TaskStatus,
@@ -37,6 +43,7 @@ import {
 import type { StudioBoot } from "./api.js";
 import {
   IconAlert,
+  IconBuilding,
   IconCheck,
   IconChevronRight,
   IconGitMerge,
@@ -51,7 +58,7 @@ import {
   IconX,
 } from "./icons.js";
 
-type Tab = "mission" | "tasks" | "merges" | "team" | "settings";
+type Tab = "company" | "mission" | "tasks" | "merges" | "team" | "settings";
 type ModalState =
   | { kind: "task" }
   | { kind: "role" }
@@ -67,7 +74,8 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: "mission", label: "总览", caption: "Mission Control" },
+  { id: "company", label: "公司", caption: "Owner Dashboard" },
+  { id: "mission", label: "项目", caption: "Mission Control" },
   { id: "tasks", label: "任务", caption: "Task Board" },
   { id: "merges", label: "合并", caption: "Merge Queue" },
   { id: "team", label: "团队", caption: "Roles" },
@@ -117,6 +125,8 @@ function roleTitle(roles: Role[], id: string | null): string {
 
 function NavIcon({ tab }: { tab: Tab }) {
   switch (tab) {
+    case "company":
+      return <IconBuilding width={15} height={15} />;
     case "mission":
       return <IconGrid width={15} height={15} />;
     case "tasks":
@@ -217,7 +227,7 @@ export function StudioPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("mission");
+  const [tab, setTab] = useState<Tab>("company");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalState>(null);
   const [toast, setToast] = useState<ToastState>(null);
@@ -257,6 +267,15 @@ export function StudioPage() {
       if (!silent) setLoading(true);
       try {
         const next = await client.bootstrap(projectId);
+        if (
+          (next as BootstrapResponse & { company?: unknown }).company ===
+          undefined
+        ) {
+          throw new StudioClientError(
+            "host_outdated",
+            "Studio Host 还是旧版本，缺少公司仪表盘数据。请完全退出并重启 DSH，再打开工作台。",
+          );
+        }
         setData(next);
         setError(null);
       } catch (cause) {
@@ -315,19 +334,44 @@ export function StudioPage() {
   );
 
   const selectProject = useCallback(
-    async (projectId: string): Promise<void> => {
-      if (client === null) return;
+    async (projectId: string): Promise<boolean> => {
+      if (client === null) return false;
       setBusy(true);
       try {
         await client.selectProject(projectId);
         await load(projectId, true);
+        return true;
       } catch (cause) {
         setToast({ kind: "error", text: errorText(cause) });
+        return false;
       } finally {
         setBusy(false);
       }
     },
     [client, load],
+  );
+
+  const openCompanyProject = useCallback(
+    async (projectId: string): Promise<void> => {
+      if (projectId !== data?.activeProjectId) {
+        const ok = await selectProject(projectId);
+        if (!ok) return;
+      }
+      setTab("mission");
+    },
+    [data?.activeProjectId, selectProject],
+  );
+
+  const openCompanyNeed = useCallback(
+    async (need: OwnerNeed): Promise<void> => {
+      if (need.projectId !== data?.activeProjectId) {
+        const ok = await selectProject(need.projectId);
+        if (!ok) return;
+      }
+      setTab("mission");
+      if (need.taskId !== null) setSelectedTaskId(need.taskId);
+    },
+    [data?.activeProjectId, selectProject],
   );
 
   const selectedTask =
@@ -578,7 +622,11 @@ export function StudioPage() {
             >
               <NavIcon tab={item.id} />
               <span>{item.label}</span>
-              {item.id === "mission" && reviewCount > 0 ? (
+              {item.id === "company" && data.company.needs.length > 0 ? (
+                <span className="studio-nav-count">
+                  {data.company.needs.length}
+                </span>
+              ) : item.id === "mission" && reviewCount > 0 ? (
                 <span className="studio-nav-count">{reviewCount}</span>
               ) : item.id === "tasks" ? (
                 <span className="studio-nav-count">{data.stats.total}</span>
@@ -591,8 +639,18 @@ export function StudioPage() {
           ))}
 
           <div className="studio-nav-footer">
-            <strong>{project?.name ?? "未选择项目"}</strong>
-            {data.stats.total} 个任务 · {data.roles.length} 个角色
+            <strong>
+              {tab === "company"
+                ? "赛博公司"
+                : (project?.name ?? "未选择项目")}
+            </strong>
+            {tab === "company"
+              ? `${String(data.company.totals.projects)} 个项目 · ${String(
+                  data.company.totals.openTasks,
+                )} 个未完成`
+              : `${String(data.stats.total)} 个任务 · ${String(
+                  data.roles.length,
+                )} 个角色`}
           </div>
         </nav>
 
@@ -616,6 +674,16 @@ export function StudioPage() {
               <div className="studio-alert" data-tone="warn">
                 {data.app.warning}
               </div>
+            ) : null}
+
+            {tab === "company" ? (
+              <CompanyView
+                data={data}
+                busy={busy}
+                onOpenProject={(projectId) => void openCompanyProject(projectId)}
+                onOpenNeed={(need) => void openCompanyNeed(need)}
+                onNewProject={() => setModal({ kind: "project" })}
+              />
             ) : null}
 
             {tab === "mission" ? (
@@ -731,6 +799,386 @@ export function StudioPage() {
           {toast.text}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function CompanyView({
+  data,
+  busy,
+  onOpenProject,
+  onOpenNeed,
+  onNewProject,
+}: {
+  data: BootstrapResponse;
+  busy: boolean;
+  onOpenProject: (projectId: string) => void;
+  onOpenNeed: (need: OwnerNeed) => void;
+  onNewProject: () => void;
+}) {
+  const company = data.company;
+  const acceptanceRate =
+    company.totals.acceptanceTotal === 0
+      ? 0
+      : Math.round(
+          (company.totals.acceptanceDone / company.totals.acceptanceTotal) *
+            100,
+        );
+  const projectNameById = new Map(
+    company.projects.map((summary) => [
+      summary.project.id,
+      summary.project.name,
+    ]),
+  );
+  const maxRoleLoad = Math.max(
+    1,
+    ...company.roles.map((role) => role.activeTasks),
+  );
+
+  return (
+    <>
+      <div className="studio-page-head">
+        <div>
+          <div className="studio-eyebrow">Owner Dashboard</div>
+          <h1 className="studio-title">赛博公司</h1>
+          <p className="studio-subtitle">
+            老板视角：项目组合是否健康、哪里需要你拍板、产能花在哪。
+            这里只展示真实控制面数据；预算与 token 成本在 Agent 执行接入前明确显示“待接入”。
+          </p>
+        </div>
+        <div className="studio-head-actions">
+          {data.activeProjectId !== null ? (
+            <button
+              className="studio-btn"
+              type="button"
+              disabled={busy}
+              onClick={() => onOpenProject(data.activeProjectId as string)}
+            >
+              <IconGrid width={14} height={14} />
+              当前项目
+            </button>
+          ) : (
+            <button
+              className="studio-btn"
+              data-variant="primary"
+              type="button"
+              onClick={onNewProject}
+            >
+              <IconPlus width={14} height={14} />
+              新建项目
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="studio-grid-stats">
+        <StatCard
+          label="项目"
+          value={`${String(company.totals.activeProjects)}/${String(
+            company.totals.projects,
+          )}`}
+          note="活跃 / 总数"
+        />
+        <StatCard
+          label="未完成"
+          value={String(company.totals.openTasks)}
+          note={`${String(company.totals.inReview)} 个待验收`}
+        />
+        <StatCard
+          label="需要你"
+          value={String(company.needs.length)}
+          note="决策 / 阻塞 / 老化"
+          tone={company.needs.length > 0 ? "warn" : undefined}
+        />
+        <StatCard
+          label="待合并"
+          value={String(company.totals.mergePending)}
+          note={`${String(company.totals.merged)} 个已合并`}
+        />
+        <StatCard
+          label="验收完成率"
+          value={`${String(acceptanceRate)}%`}
+          note={`${String(company.totals.acceptanceDone)} / ${String(
+            company.totals.acceptanceTotal,
+          )} 条已勾选`}
+          tone={acceptanceRate === 100 ? "ok" : undefined}
+        />
+      </div>
+
+      <div className="studio-split">
+        <section className="studio-panel">
+          <div className="studio-panel-head">
+            <IconSpark width={14} height={14} />
+            <h3>老板收件箱</h3>
+            <span className="studio-muted">
+              {company.needs.length === 0
+                ? "没有需要你处理的事项"
+                : `${String(company.needs.length)} 项`}
+            </span>
+          </div>
+          <div className="studio-panel-body">
+            {company.needs.length === 0 ? (
+              <div className="studio-empty">
+                <strong>没有需要你拍板的事</strong>
+                所有任务和合并提案都在自动流转中。
+              </div>
+            ) : (
+              <div className="studio-needs">
+                {company.needs.slice(0, 8).map((need) => (
+                  <button
+                    key={need.id}
+                    type="button"
+                    className="studio-need"
+                    onClick={() => onOpenNeed(need)}
+                  >
+                    <span
+                      className="studio-need-mark"
+                      data-tone={
+                        need.severity === "critical"
+                          ? "danger"
+                          : need.severity === "warning"
+                            ? "accent"
+                            : "info"
+                      }
+                    />
+                    <span>
+                      <span className="studio-need-title">{need.title}</span>
+                      <span className="studio-need-meta">
+                        {need.projectName} · {need.detail}
+                        {need.ageHours !== null
+                          ? ` · ${String(need.ageHours)}h`
+                          : ""}
+                      </span>
+                    </span>
+                    <IconChevronRight
+                      className="studio-need-arrow"
+                      width={14}
+                      height={14}
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="studio-panel">
+          <div className="studio-panel-head">
+            <IconUsers width={14} height={14} />
+            <h3>现金与产能</h3>
+            <span className="studio-muted">{company.roles.length} 个角色</span>
+          </div>
+          <div className="studio-panel-body">
+            <div className="studio-company-placeholder">
+              <div className="studio-section-label">预算 / 成本</div>
+              <strong>待接入</strong>
+              <p>
+                Agent 执行与 token 计量接入后自动计算。现在不编造金额，
+                只展示真实的任务和角色负载。
+              </p>
+            </div>
+            {company.roles.length === 0 ? (
+              <div className="studio-empty" style={{ marginTop: 12 }}>
+                <strong>还没有角色</strong>
+                建一个 Lead、Builder 和 Verifier，任务才有负责人。
+              </div>
+            ) : (
+              <div className="studio-role-load">
+                {company.roles.slice(0, 6).map((role) => (
+                  <RoleLoadRow
+                    key={`${role.projectId}-${role.roleId}`}
+                    role={role}
+                    max={maxRoleLoad}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
+
+      <section className="studio-panel" style={{ marginBottom: 16 }}>
+        <div className="studio-panel-head">
+          <IconBuilding width={14} height={14} />
+          <h3>项目组合</h3>
+          <span className="studio-muted">
+            {company.projects.length} 个项目 · 点击项目进入 Mission Control
+          </span>
+        </div>
+        <div className="studio-table-wrap">
+          <table className="studio-table">
+            <thead>
+              <tr>
+                <th>项目</th>
+                <th>健康</th>
+                <th>任务</th>
+                <th>验收</th>
+                <th>合并</th>
+                <th>角色</th>
+                <th>最近活动</th>
+                <th aria-label="操作" />
+              </tr>
+            </thead>
+            <tbody>
+              {company.projects.map((summary) => (
+                <ProjectRow
+                  key={summary.project.id}
+                  summary={summary}
+                  onOpen={onOpenProject}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div className="studio-company-bottom">
+        <section className="studio-panel">
+          <div className="studio-panel-head">
+            <IconAlert width={14} height={14} />
+            <h3>风险雷达</h3>
+            <span className="studio-muted">需要结构化关注</span>
+          </div>
+          <div className="studio-panel-body">
+            <div className="studio-risk-grid">
+              <RiskItem label="停滞任务" value={company.risk.staleTasks} />
+              <RiskItem label="老化合并" value={company.risk.agingMerges} />
+              <RiskItem label="缺证据" value={company.risk.missingEvidence} />
+              <RiskItem label="阻塞" value={company.risk.blocked} />
+              <RiskItem label="无人负责" value={company.risk.unowned} />
+            </div>
+          </div>
+        </section>
+
+        <section className="studio-panel">
+          <div className="studio-panel-head">
+            <IconGitMerge width={14} height={14} />
+            <h3>交付流</h3>
+            <span className="studio-muted">跨项目最近事件</span>
+          </div>
+          <div className="studio-panel-body">
+            {company.recentEvents.length === 0 ? (
+              <div className="studio-faint" style={{ fontSize: 11 }}>
+                还没有交付事件。
+              </div>
+            ) : (
+              <div className="studio-events">
+                {company.recentEvents.slice(0, 10).map((event) => (
+                  <div key={event.id} className="studio-event">
+                    <span className="studio-event-dot" />
+                    <span>
+                      <span className="studio-mono">{event.type}</span>
+                      <span className="studio-faint">
+                        {" "}
+                        ·{" "}
+                        {event.projectId === null
+                          ? "公司"
+                          : (projectNameById.get(event.projectId) ??
+                            event.projectId)}
+                      </span>
+                    </span>
+                    <span className="studio-event-time">
+                      {formatDate(event.at)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
+    </>
+  );
+}
+
+function ProjectRow({
+  summary,
+  onOpen,
+}: {
+  summary: CompanyProjectSummary;
+  onOpen: (projectId: string) => void;
+}) {
+  const { stats, project } = summary;
+  return (
+    <tr>
+      <td>
+        <div className="studio-table-project">{project.name}</div>
+        {project.description !== "" ? (
+          <div className="studio-table-sub">{project.description}</div>
+        ) : null}
+      </td>
+      <td>
+        <span className={`studio-health studio-health-${summary.health}`}>
+          {COMPANY_HEALTH_LABELS[summary.health]}
+        </span>
+      </td>
+      <td>
+        {summary.openTasks}/{stats.total} 未完成
+      </td>
+      <td>
+        {stats.acceptanceDone}/{stats.acceptanceTotal}
+      </td>
+      <td>
+        待 {stats.mergeReview + stats.mergeApproved} · 已 {stats.mergeMerged}
+      </td>
+      <td>
+        {summary.roleCount} 人
+        {summary.activeRoleCount > 0
+          ? ` · ${String(summary.activeRoleCount)} 在忙`
+          : ""}
+      </td>
+      <td className="studio-table-time">
+        {summary.lastActivityAt === null
+          ? "无"
+          : formatDate(summary.lastActivityAt)}
+      </td>
+      <td>
+        <button
+          type="button"
+          className="studio-btn"
+          data-size="sm"
+          onClick={() => onOpen(project.id)}
+        >
+          打开
+        </button>
+      </td>
+    </tr>
+  );
+}
+
+function RoleLoadRow({
+  role,
+  max,
+}: {
+  role: RoleLoadSummary;
+  max: number;
+}) {
+  const width =
+    role.activeTasks === 0
+      ? 0
+      : Math.max(8, Math.round((role.activeTasks / max) * 100));
+  return (
+    <div className="studio-role-load-row">
+      <div className="studio-role-load-head">
+        <span>{role.roleName}</span>
+        <span className="studio-faint">{role.projectName}</span>
+        <span className="studio-role-load-state" data-state={role.state}>
+          {ROLE_LOAD_LABELS[role.state]}
+        </span>
+        <strong>{role.activeTasks}</strong>
+      </div>
+      <div className="studio-role-load-track">
+        <span style={{ width: `${String(width)}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function RiskItem({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="studio-risk-item" data-active={value > 0}>
+      <span>{label}</span>
+      <strong>{value}</strong>
     </div>
   );
 }
@@ -1749,7 +2197,7 @@ function TaskDrawer({
               </div>
             )}
             <div className="studio-action-note">
-              v0.2 已接入合并治理：提案、评审、批准、合并记录都会持久化；Git 命令仍由人执行。
+              v0.3 已接入公司仪表盘与合并治理：提案、评审、批准、合并记录都会持久化；Git 命令仍由人执行。
             </div>
           </section>
         </div>
@@ -2146,6 +2594,8 @@ function SettingsView({
             <dd>{data.features.independentPage ? "可用" : "不可用"}</dd>
             <dt>文件持久化</dt>
             <dd>{data.features.filePersistence ? "可用" : "不可用"}</dd>
+            <dt>公司仪表盘</dt>
+            <dd>{data.features.ownerDashboard ? "可用" : "不可用"}</dd>
             <dt>合并治理</dt>
             <dd>
               {data.features.mergeGovernance
@@ -2160,7 +2610,7 @@ function SettingsView({
             </dd>
           </dl>
           <p className="studio-hint" style={{ marginTop: 10 }}>
-            v0.2 只使用 DSH Web Server 路由、client slots 和 React，不依赖私有
+            v0.3 只使用 DSH Web Server 路由、client slots 和 React，不依赖私有
             Remote 生成器；合并命令由人执行，Studio 不做不可逆的 Git 操作。
           </p>
         </section>

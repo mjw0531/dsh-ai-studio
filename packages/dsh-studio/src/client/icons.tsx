@@ -120,6 +120,16 @@ export function IconAlert(props: IconProps) {
   );
 }
 
+export function IconBuilding(props: IconProps) {
+  return (
+    <Base {...props}>
+      <path d="M4 21V5.5A1.5 1.5 0 0 1 5.5 4h7A1.5 1.5 0 0 1 14 5.5V21" />
+      <path d="M14 10h4.5A1.5 1.5 0 0 1 20 11.5V21" />
+      <path d="M2 21h20M7 8h4M7 12h4M7 16h4M17 14h1M17 18h1" />
+    </Base>
+  );
+}
+
 export function IconGitMerge(props: IconProps) {
   return (
     <Base {...props}>

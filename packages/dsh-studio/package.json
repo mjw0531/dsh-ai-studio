@@ -1,7 +1,7 @@
 {
   "name": "@ai-workbench/dsh-studio",
-  "version": "0.2.1",
-  "description": "Install-and-use AI workbench for DeepSeek Harness: projects, roles, tasks, acceptance, and an independent Mission Control page.",
+  "version": "0.3.0",
+  "description": "Install-and-use AI workbench for DeepSeek Harness: owner dashboard, projects, roles, tasks, acceptance, and merge governance on an independent page.",
   "license": "MIT",
   "type": "module",
   "main": "lib/index.js",
