@@ -790,6 +790,34 @@ test("requires a reason when approving an irreversible decision", async () => {
   });
 });
 
+test("escalates a failed post-merge regression once", async () => {
+  await withStore(async (store) => {
+    const data = await store.bootstrap();
+    const task = await store.createTask({
+      title: "回归失败任务",
+      acceptance: ["完成"],
+      ownerRoleId: data.roles[0].id,
+      reviewerRoleId: data.roles[1].id,
+    });
+    const input = {
+      taskId: task.id,
+      proposalId: "merge-test",
+      mergeCommit: "abc123",
+      command: "npm test",
+      exitCode: 1,
+      output: "1 failing test",
+    };
+    const decision = await store.createPostMergeDecision(input);
+    assert.ok(decision);
+    assert.equal(decision.status, "pending");
+    assert.match(decision.title, /合并后回归失败/);
+    assert.match(decision.context, /abc123/);
+    assert.match(decision.recommendation, /回滚|修复/);
+    const duplicate = await store.createPostMergeDecision(input);
+    assert.equal(duplicate, null);
+  });
+});
+
 test("requires a passing verification before merging a code project", async () => {
   await withStore(async (store, dir) => {
     const data = await store.bootstrap();

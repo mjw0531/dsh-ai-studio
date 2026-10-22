@@ -2200,6 +2200,78 @@ export class StudioStore {
     });
   }
 
+  async createPostMergeDecision(input: {
+    taskId: string;
+    proposalId: string;
+    mergeCommit: string;
+    command: string;
+    exitCode: number;
+    output: string;
+  }): Promise<Decision | null> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const task = this.findTask(state, input.taskId);
+      const title = `合并后回归失败：${task.title.slice(0, 140)}`;
+      if (
+        state.decisions.some(
+          (item) => item.taskId === task.id && item.title === title,
+        )
+      ) {
+        return null;
+      }
+      const at = nowIso(this.now);
+      const decision: Decision = {
+        id: newId("dec"),
+        projectId: task.projectId,
+        taskId: task.id,
+        runId: null,
+        title,
+        context: [
+          `合并 ${input.mergeCommit} 后执行回归：${input.command}（exit ${String(input.exitCode)}）`,
+          "",
+          input.output.slice(0, 6000),
+        ].join("\n"),
+        options: [
+          {
+            label: "回滚这次合并",
+            tradeoff: `git revert ${input.mergeCommit} 或 git reset --hard ${input.mergeCommit}^`,
+          },
+          {
+            label: "保留合并，修复回归",
+            tradeoff: "在主分支上追加修复提交，并重新跑回归",
+          },
+        ],
+        recommendation:
+          "合并后回归失败。先看输出定位破坏点；无法快速修复时回滚 merge commit，再重新走提案。",
+        reversible: true,
+        adrDraft: null,
+        status: "pending",
+        decision: "",
+        note: "",
+        decidedBy: "",
+        tokenCost: null,
+        createdAt: at,
+        decidedAt: null,
+      };
+      state.decisions.push(decision);
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "decision.escalated",
+        at,
+        projectId: task.projectId,
+        taskId: task.id,
+        payload: {
+          decisionId: decision.id,
+          proposalId: input.proposalId,
+          mergeCommit: input.mergeCommit,
+          kind: "post_merge_regression",
+        },
+      });
+      await this.save();
+      return structuredClone(decision);
+    });
+  }
+
   async createDecision(input: CreateDecisionInput): Promise<Decision> {
     return this.runExclusive(async () => {
       const state = this.requireState();

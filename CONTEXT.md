@@ -162,6 +162,10 @@ _Avoid_: ADR 自动落盘
 Git merge 成功后在 repo 上执行任务的验证命令；记录 pass/fail，失败只警告，不自动回滚。
 _Avoid_: 自动回滚
 
+**Post-Merge Decision（合并失败升级）**:
+post-merge 回归失败后自动生成的董事会决策，附 merge commit、回滚建议和修复选项；同一任务只生成一次。
+_Avoid_: 自动回滚
+
 **Run（运行）**:
 一个 Agent 对某个 Task 的一次尝试；可失败、重试、换人。
 _Avoid_: 任务（Task 可以有很多 Run）

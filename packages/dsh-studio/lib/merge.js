@@ -161,6 +161,16 @@ var GitMergeService = class {
       passed: result.exitCode === 0,
       runId: null
     });
+    if (!verification.passed) {
+      await this.store.createPostMergeDecision({
+        taskId: task.id,
+        proposalId: merged.id,
+        mergeCommit: commit,
+        command,
+        exitCode: result.exitCode,
+        output: result.output
+      });
+    }
     return this.store.setMergePostVerification(
       merged.id,
       verification.id

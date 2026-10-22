@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 14;
-var STUDIO_PLUGIN_VERSION = "1.6.0";
+var STUDIO_PLUGIN_VERSION = "1.7.0";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -2118,6 +2118,67 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       return structuredClone(verification);
     });
   }
+  async createPostMergeDecision(input) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const task = this.findTask(state, input.taskId);
+      const title = `\u5408\u5E76\u540E\u56DE\u5F52\u5931\u8D25\uFF1A${task.title.slice(0, 140)}`;
+      if (state.decisions.some(
+        (item) => item.taskId === task.id && item.title === title
+      )) {
+        return null;
+      }
+      const at = nowIso(this.now);
+      const decision = {
+        id: newId("dec"),
+        projectId: task.projectId,
+        taskId: task.id,
+        runId: null,
+        title,
+        context: [
+          `\u5408\u5E76 ${input.mergeCommit} \u540E\u6267\u884C\u56DE\u5F52\uFF1A${input.command}\uFF08exit ${String(input.exitCode)}\uFF09`,
+          "",
+          input.output.slice(0, 6e3)
+        ].join("\n"),
+        options: [
+          {
+            label: "\u56DE\u6EDA\u8FD9\u6B21\u5408\u5E76",
+            tradeoff: `git revert ${input.mergeCommit} \u6216 git reset --hard ${input.mergeCommit}^`
+          },
+          {
+            label: "\u4FDD\u7559\u5408\u5E76\uFF0C\u4FEE\u590D\u56DE\u5F52",
+            tradeoff: "\u5728\u4E3B\u5206\u652F\u4E0A\u8FFD\u52A0\u4FEE\u590D\u63D0\u4EA4\uFF0C\u5E76\u91CD\u65B0\u8DD1\u56DE\u5F52"
+          }
+        ],
+        recommendation: "\u5408\u5E76\u540E\u56DE\u5F52\u5931\u8D25\u3002\u5148\u770B\u8F93\u51FA\u5B9A\u4F4D\u7834\u574F\u70B9\uFF1B\u65E0\u6CD5\u5FEB\u901F\u4FEE\u590D\u65F6\u56DE\u6EDA merge commit\uFF0C\u518D\u91CD\u65B0\u8D70\u63D0\u6848\u3002",
+        reversible: true,
+        adrDraft: null,
+        status: "pending",
+        decision: "",
+        note: "",
+        decidedBy: "",
+        tokenCost: null,
+        createdAt: at,
+        decidedAt: null
+      };
+      state.decisions.push(decision);
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "decision.escalated",
+        at,
+        projectId: task.projectId,
+        taskId: task.id,
+        payload: {
+          decisionId: decision.id,
+          proposalId: input.proposalId,
+          mergeCommit: input.mergeCommit,
+          kind: "post_merge_regression"
+        }
+      });
+      await this.save();
+      return structuredClone(decision);
+    });
+  }
   async createDecision(input) {
     return this.runExclusive(async () => {
       const state = this.requireState();
@@ -3648,6 +3709,16 @@ var GitMergeService = class {
       passed: result.exitCode === 0,
       runId: null
     });
+    if (!verification.passed) {
+      await this.store.createPostMergeDecision({
+        taskId: task.id,
+        proposalId: merged.id,
+        mergeCommit: commit,
+        command,
+        exitCode: result.exitCode,
+        output: result.output
+      });
+    }
     return this.store.setMergePostVerification(
       merged.id,
       verification.id
