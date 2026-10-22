@@ -137,6 +137,8 @@ tools/                   # CDP 端到端验证脚本
 - [ADR-0020：ADR 落盘与合并回滚](docs/adr/0020-adr-writeback-and-merge-rollback.md)
 - [ADR-0021：改修票诊断/计划门禁](docs/adr/0021-fix-ticket-diagnosis-plan.md)
 - [ADR-0022：Host 自动提交 worktree 改动](docs/adr/0022-host-auto-commit-worktree.md)
+- [ADR-0023：外部执行器](docs/adr/0023-external-executors.md)
+- [ADR-0024：项目包](docs/adr/0024-project-bundle.md)
 
 ## 开发
 
