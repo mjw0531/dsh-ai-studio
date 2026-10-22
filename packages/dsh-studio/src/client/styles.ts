@@ -730,6 +730,7 @@ export const studioCss = `
 .studio-decision-head strong { color: var(--st-text); font-size: 13px; }
 .studio-decision-meta { color: var(--st-faint); font-size: 10px; }
 .studio-decision-context { color: var(--st-muted); font-size: 11px; line-height: 1.6; white-space: pre-wrap; }
+.studio-pre { white-space: pre-wrap; font-size: 10px; line-height: 1.55; color: var(--st-muted); }
 .studio-adr { margin-top: 7px; font-size: 10px; }
 .studio-adr summary { color: var(--st-accent); cursor: pointer; }
 .studio-adr pre {

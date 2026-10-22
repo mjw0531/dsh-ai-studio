@@ -737,7 +737,10 @@ function isTask(value: unknown): value is Task {
       value.originTaskId === undefined ||
       typeof value.originTaskId === "string") &&
     (value.docsSynced === undefined ||
-      typeof value.docsSynced === "boolean")
+      typeof value.docsSynced === "boolean") &&
+    (value.diagnosis === undefined ||
+      typeof value.diagnosis === "string") &&
+    (value.plan === undefined || typeof value.plan === "string")
   );
 }
 
@@ -1104,9 +1107,9 @@ function migrateState(value: unknown): StudioState {
     };
   }
   if (state.schemaVersion === 14) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 15,
       decisions: state.decisions.map((decision) => ({
         ...decision,
         adrPath: decision.adrPath ?? null,
@@ -1115,6 +1118,17 @@ function migrateState(value: unknown): StudioState {
         ...proposal,
         rollbackCommit: proposal.rollbackCommit ?? null,
         rolledBackAt: proposal.rolledBackAt ?? null,
+      })),
+    };
+  }
+  if (state.schemaVersion === 15) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      tasks: state.tasks.map((task) => ({
+        ...task,
+        diagnosis: task.diagnosis ?? "",
+        plan: task.plan ?? "",
       })),
     };
   }
@@ -1414,6 +1428,16 @@ export class StudioStore {
     return this.runExclusive(async () => {
       const state = this.requireState();
       const task = this.findTask(state, taskId);
+      if (
+        task.kind === "fix" &&
+        (task.diagnosis.trim() === "" || task.plan.trim() === "")
+      ) {
+        throw new StudioStoreError(
+          "plan_required",
+          "改修票必须有诊断和修改计划，才能派单",
+          409,
+        );
+      }
       if (task.ownerRoleId === null) {
         throw new StudioStoreError(
           "owner_required",
@@ -2762,6 +2786,8 @@ export class StudioStore {
         contractRef:
           optionalText(input.contractRef, "contractRef", 300) || null,
         kind: input.kind === "fix" ? "fix" : "new",
+        diagnosis: optionalText(input.diagnosis, "diagnosis", 4000),
+        plan: optionalText(input.plan, "plan", 4000),
         integration: input.integration === true,
         originTaskId:
           optionalText(input.originTaskId, "originTaskId", 120) || null,
@@ -2844,6 +2870,12 @@ export class StudioStore {
       }
       if (input.kind !== undefined) {
         task.kind = input.kind === "fix" ? "fix" : "new";
+      }
+      if (input.diagnosis !== undefined) {
+        task.diagnosis = optionalText(input.diagnosis, "diagnosis", 4000);
+      }
+      if (input.plan !== undefined) {
+        task.plan = optionalText(input.plan, "plan", 4000);
       }
       if (input.integration !== undefined) {
         task.integration = input.integration === true;
@@ -3012,6 +3044,8 @@ export class StudioStore {
       module: null,
       contractRef: null,
       kind: "new",
+      diagnosis: "",
+      plan: "",
       integration: true,
       originTaskId: null,
       docsSynced: false,
@@ -3504,6 +3538,8 @@ export class StudioStore {
           module: task.module,
           contractRef: task.contractRef,
           kind: "fix",
+          diagnosis: "",
+          plan: "",
           integration: false,
           originTaskId: task.id,
           docsSynced: false,
@@ -3792,6 +3828,8 @@ export class StudioStore {
       module: null,
       contractRef: null,
       kind: "new",
+      diagnosis: "",
+      plan: "",
       integration: false,
       originTaskId: null,
       docsSynced: false,

@@ -334,6 +334,8 @@ function asCreateTask(body: Record<string, unknown>): CreateTaskInput {
     module: asOptionalString(body.module, "module") ?? null,
     contractRef:
       asOptionalString(body.contractRef, "contractRef") ?? null,
+    diagnosis: asOptionalString(body.diagnosis, "diagnosis") ?? "",
+    plan: asOptionalString(body.plan, "plan") ?? "",
     kind,
     integration: body.integration === true,
     originTaskId:
@@ -406,6 +408,12 @@ function asUpdateTask(body: Record<string, unknown>): UpdateTaskInput {
       throw new HttpError(400, "invalid_input", "kind 无效");
     }
     result.kind = body.kind;
+  }
+  if (body.diagnosis !== undefined) {
+    result.diagnosis = asOptionalString(body.diagnosis, "diagnosis");
+  }
+  if (body.plan !== undefined) {
+    result.plan = asOptionalString(body.plan, "plan");
   }
   if (body.integration !== undefined) {
     if (typeof body.integration !== "boolean") {

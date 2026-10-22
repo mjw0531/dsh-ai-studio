@@ -6,8 +6,8 @@ import os from "node:os";
 import path from "node:path";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 15;
-var STUDIO_PLUGIN_VERSION = "1.8.0";
+var STUDIO_SCHEMA_VERSION = 16;
+var STUDIO_PLUGIN_VERSION = "1.9.0";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -533,7 +533,7 @@ function isAgentRun(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.branchName === null || typeof value.branchName === "string") && (value.workspacePath === null || typeof value.workspacePath === "string") && (value.diffStat === null || typeof value.diffStat === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
 }
 function isTask(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence) && (value.verifyCommand === null || value.verifyCommand === void 0 || typeof value.verifyCommand === "string") && (value.module === null || value.module === void 0 || typeof value.module === "string") && (value.contractRef === null || value.contractRef === void 0 || typeof value.contractRef === "string") && (value.kind === void 0 || value.kind === "new" || value.kind === "fix") && (value.integration === void 0 || typeof value.integration === "boolean") && (value.originTaskId === null || value.originTaskId === void 0 || typeof value.originTaskId === "string") && (value.docsSynced === void 0 || typeof value.docsSynced === "boolean");
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence) && (value.verifyCommand === null || value.verifyCommand === void 0 || typeof value.verifyCommand === "string") && (value.module === null || value.module === void 0 || typeof value.module === "string") && (value.contractRef === null || value.contractRef === void 0 || typeof value.contractRef === "string") && (value.kind === void 0 || value.kind === "new" || value.kind === "fix") && (value.integration === void 0 || typeof value.integration === "boolean") && (value.originTaskId === null || value.originTaskId === void 0 || typeof value.originTaskId === "string") && (value.docsSynced === void 0 || typeof value.docsSynced === "boolean") && (value.diagnosis === void 0 || typeof value.diagnosis === "string") && (value.plan === void 0 || typeof value.plan === "string");
 }
 function isMergeRisk(value) {
   return value === "low" || value === "medium" || value === "high";
@@ -743,9 +743,9 @@ function migrateState(value) {
     };
   }
   if (state.schemaVersion === 14) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 15,
       decisions: state.decisions.map((decision) => ({
         ...decision,
         adrPath: decision.adrPath ?? null
@@ -754,6 +754,17 @@ function migrateState(value) {
         ...proposal,
         rollbackCommit: proposal.rollbackCommit ?? null,
         rolledBackAt: proposal.rolledBackAt ?? null
+      }))
+    };
+  }
+  if (state.schemaVersion === 15) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      tasks: state.tasks.map((task) => ({
+        ...task,
+        diagnosis: task.diagnosis ?? "",
+        plan: task.plan ?? ""
       }))
     };
   }
@@ -985,6 +996,13 @@ var StudioStore = class {
     return this.runExclusive(async () => {
       const state = this.requireState();
       const task = this.findTask(state, taskId);
+      if (task.kind === "fix" && (task.diagnosis.trim() === "" || task.plan.trim() === "")) {
+        throw new StudioStoreError(
+          "plan_required",
+          "\u6539\u4FEE\u7968\u5FC5\u987B\u6709\u8BCA\u65AD\u548C\u4FEE\u6539\u8BA1\u5212\uFF0C\u624D\u80FD\u6D3E\u5355",
+          409
+        );
+      }
       if (task.ownerRoleId === null) {
         throw new StudioStoreError(
           "owner_required",
@@ -2129,6 +2147,8 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         module: optionalText(input.module, "module", 120) || null,
         contractRef: optionalText(input.contractRef, "contractRef", 300) || null,
         kind: input.kind === "fix" ? "fix" : "new",
+        diagnosis: optionalText(input.diagnosis, "diagnosis", 4e3),
+        plan: optionalText(input.plan, "plan", 4e3),
         integration: input.integration === true,
         originTaskId: optionalText(input.originTaskId, "originTaskId", 120) || null,
         docsSynced: false,
@@ -2207,6 +2227,12 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       }
       if (input.kind !== void 0) {
         task.kind = input.kind === "fix" ? "fix" : "new";
+      }
+      if (input.diagnosis !== void 0) {
+        task.diagnosis = optionalText(input.diagnosis, "diagnosis", 4e3);
+      }
+      if (input.plan !== void 0) {
+        task.plan = optionalText(input.plan, "plan", 4e3);
       }
       if (input.integration !== void 0) {
         task.integration = input.integration === true;
@@ -2350,6 +2376,8 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       module: null,
       contractRef: null,
       kind: "new",
+      diagnosis: "",
+      plan: "",
       integration: true,
       originTaskId: null,
       docsSynced: false,
@@ -2762,6 +2790,8 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           module: task.module,
           contractRef: task.contractRef,
           kind: "fix",
+          diagnosis: "",
+          plan: "",
           integration: false,
           originTaskId: task.id,
           docsSynced: false,
@@ -2997,6 +3027,8 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       module: null,
       contractRef: null,
       kind: "new",
+      diagnosis: "",
+      plan: "",
       integration: false,
       originTaskId: null,
       docsSynced: false,

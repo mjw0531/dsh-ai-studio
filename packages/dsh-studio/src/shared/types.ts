@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 15;
-export const STUDIO_PLUGIN_VERSION = "1.8.0";
+export const STUDIO_SCHEMA_VERSION = 16;
+export const STUDIO_PLUGIN_VERSION = "1.9.0";
 
 export type TaskStatus =
   | "backlog"
@@ -92,6 +92,8 @@ export interface Task {
   module: string | null;
   contractRef: string | null;
   kind: TaskKind;
+  diagnosis: string;
+  plan: string;
   integration: boolean;
   originTaskId: string | null;
   docsSynced: boolean;
@@ -627,6 +629,8 @@ export interface CreateTaskInput {
   module?: string | null;
   contractRef?: string | null;
   kind?: TaskKind;
+  diagnosis?: string;
+  plan?: string;
   integration?: boolean;
   originTaskId?: string | null;
 }
@@ -648,6 +652,8 @@ export interface UpdateTaskInput {
   module?: string | null;
   contractRef?: string | null;
   kind?: TaskKind;
+  diagnosis?: string;
+  plan?: string;
   integration?: boolean;
   docsSynced?: boolean;
 }

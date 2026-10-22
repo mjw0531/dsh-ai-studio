@@ -225,6 +225,8 @@ function buildPrompt(
     `任务目标：${task.goal || "未填写"}`,
     `优先级：${task.priority}`,
     `票类型：${task.kind === "fix" ? "改修型（先诊断再改）" : "新建型（red→green）"}`,
+    task.diagnosis === "" ? "" : `诊断：\n${task.diagnosis.slice(0, 4000)}`,
+    task.plan === "" ? "" : `修改计划：\n${task.plan.slice(0, 4000)}`,
     `模块：${task.module ?? "未指定"}`,
     module === null ? "" : `模块职责：${module.responsibility || "未填写"}`,
     module === null
