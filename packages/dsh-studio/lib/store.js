@@ -14,7 +14,7 @@ import path from "node:path";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 18;
-var STUDIO_PLUGIN_VERSION = "2.5.2";
+var STUDIO_PLUGIN_VERSION = "2.5.3";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
