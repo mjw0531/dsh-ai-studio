@@ -1,6 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import {
+  copyFile,
+  mkdir,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -1221,6 +1228,49 @@ export class StudioStore {
 
   async exportState(): Promise<StudioState> {
     return this.runExclusive(async () => {
+      return structuredClone(this.requireState());
+    });
+  }
+
+  async importState(raw: unknown): Promise<StudioState> {
+    return this.runExclusive(async () => {
+      if (!isRecord(raw)) {
+        throw new StudioStoreError(
+          "invalid_import",
+          "导入文件必须是 Studio 导出的 JSON 对象",
+          400,
+        );
+      }
+      if (
+        typeof raw.schemaVersion !== "number" ||
+        raw.schemaVersion > STUDIO_SCHEMA_VERSION
+      ) {
+        throw new StudioStoreError(
+          "unsupported_schema",
+          `导入文件的 schemaVersion 必须 <= ${String(STUDIO_SCHEMA_VERSION)}`,
+          400,
+        );
+      }
+      let candidate: StudioState;
+      try {
+        candidate = migrateState(raw as unknown as StudioState);
+        assertState(candidate);
+      } catch (error) {
+        throw new StudioStoreError(
+          "invalid_import",
+          `导入文件校验失败：${
+            error instanceof Error ? error.message : String(error)
+          }`,
+          400,
+        );
+      }
+      const backup = `${this.file}.pre-import-${String(Date.now())}`;
+      if (existsSync(this.file)) {
+        await copyFile(this.file, backup);
+      }
+      this.state = structuredClone(candidate);
+      this.warning = `已导入数据；原文件备份到 ${backup}`;
+      await this.save();
       return structuredClone(this.requireState());
     });
   }

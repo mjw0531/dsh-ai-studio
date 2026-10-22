@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -579,6 +579,37 @@ test("exports a portable copy of the state", async () => {
     const again = await store.exportState();
     assert.ok(again.projects.length >= 1);
   });
+});
+
+test("imports exported state and keeps a pre-import backup", async () => {
+  const sourceDir = await mkdtemp(path.join(os.tmpdir(), "studio-import-src-"));
+  const targetDir = await mkdtemp(path.join(os.tmpdir(), "studio-import-dst-"));
+  try {
+    const source = new StudioStore({ dataDir: sourceDir });
+    await source.init();
+    const sourceData = await source.bootstrap();
+    await source.updateProject(sourceData.project.id, {
+      repoPath: "D:/imported-repo",
+    });
+    const exported = await source.exportState();
+
+    const target = new StudioStore({ dataDir: targetDir });
+    await target.init();
+    await target.bootstrap();
+    const restored = await target.importState(exported);
+    assert.equal(restored.projects[0].repoPath, "D:/imported-repo");
+    const files = await readdir(targetDir);
+    assert.ok(files.some((file) => file.includes(".pre-import-")));
+    await assert.rejects(
+      () => target.importState({ ...exported, schemaVersion: 999 }),
+      (error) =>
+        error instanceof StudioStoreError &&
+        error.code === "unsupported_schema",
+    );
+  } finally {
+    await rm(sourceDir, { recursive: true, force: true });
+    await rm(targetDir, { recursive: true, force: true });
+  }
 });
 
 test("requires diagnosis and plan before dispatching a fix ticket", async () => {

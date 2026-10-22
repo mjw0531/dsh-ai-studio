@@ -4,7 +4,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import type { FormEvent, ReactNode } from "react";
+import type { ChangeEvent, FormEvent, ReactNode } from "react";
 
 import {
   AGENT_RUN_STATUS_LABELS,
@@ -762,6 +762,39 @@ export function StudioPage() {
     URL.revokeObjectURL(url);
   };
 
+  const importData = async (
+    event: ChangeEvent<HTMLInputElement>,
+  ): Promise<void> => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (file === undefined || client === null) return;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(await file.text());
+    } catch {
+      setError("导入失败：文件不是合法 JSON");
+      return;
+    }
+    const envelope =
+      typeof parsed === "object" && parsed !== null && "state" in parsed
+        ? (parsed as { state: unknown }).state
+        : parsed;
+    if (
+      !window.confirm(
+        "导入会覆盖当前 Studio 数据；Host 会先把原文件备份到 studio.json.pre-import-*。确定继续吗？",
+      )
+    ) {
+      return;
+    }
+    await run(
+      async () => {
+        await client.importState(envelope);
+        await load(undefined, true);
+      },
+      "数据已导入；原文件已备份",
+    );
+  };
+
   const writeAdr = async (decision: Decision): Promise<void> => {
     await run(
       async () => {
@@ -816,6 +849,24 @@ export function StudioPage() {
             title="导出 studio.json 备份"
           >
             导出
+          </button>
+          <input
+            id="studio-import-file"
+            type="file"
+            accept="application/json,.json"
+            hidden
+            onChange={(event) => void importData(event)}
+          />
+          <button
+            className="studio-btn"
+            data-size="sm"
+            type="button"
+            onClick={() =>
+              document.getElementById("studio-import-file")?.click()
+            }
+            title="从 studio.json 备份恢复"
+          >
+            导入
           </button>
           <button
             className="studio-btn"

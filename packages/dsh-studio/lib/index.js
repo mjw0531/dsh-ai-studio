@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 16;
-var STUDIO_PLUGIN_VERSION = "2.1.0";
+var STUDIO_PLUGIN_VERSION = "2.2.0";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -147,7 +147,14 @@ import path3 from "node:path";
 // src/host/store.ts
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readFile as readFile2, rename, rm, writeFile } from "node:fs/promises";
+import {
+  copyFile,
+  mkdir,
+  readFile as readFile2,
+  rename,
+  rm,
+  writeFile
+} from "node:fs/promises";
 import os from "node:os";
 import path2 from "node:path";
 var StudioStoreError = class extends Error {
@@ -947,6 +954,43 @@ var StudioStore = class {
   }
   async exportState() {
     return this.runExclusive(async () => {
+      return structuredClone(this.requireState());
+    });
+  }
+  async importState(raw) {
+    return this.runExclusive(async () => {
+      if (!isRecord(raw)) {
+        throw new StudioStoreError(
+          "invalid_import",
+          "\u5BFC\u5165\u6587\u4EF6\u5FC5\u987B\u662F Studio \u5BFC\u51FA\u7684 JSON \u5BF9\u8C61",
+          400
+        );
+      }
+      if (typeof raw.schemaVersion !== "number" || raw.schemaVersion > STUDIO_SCHEMA_VERSION) {
+        throw new StudioStoreError(
+          "unsupported_schema",
+          `\u5BFC\u5165\u6587\u4EF6\u7684 schemaVersion \u5FC5\u987B <= ${String(STUDIO_SCHEMA_VERSION)}`,
+          400
+        );
+      }
+      let candidate;
+      try {
+        candidate = migrateState(raw);
+        assertState(candidate);
+      } catch (error) {
+        throw new StudioStoreError(
+          "invalid_import",
+          `\u5BFC\u5165\u6587\u4EF6\u6821\u9A8C\u5931\u8D25\uFF1A${error instanceof Error ? error.message : String(error)}`,
+          400
+        );
+      }
+      const backup = `${this.file}.pre-import-${String(Date.now())}`;
+      if (existsSync(this.file)) {
+        await copyFile(this.file, backup);
+      }
+      this.state = structuredClone(candidate);
+      this.warning = `\u5DF2\u5BFC\u5165\u6570\u636E\uFF1B\u539F\u6587\u4EF6\u5907\u4EFD\u5230 ${backup}`;
+      await this.save();
       return structuredClone(this.requireState());
     });
   }
@@ -4412,6 +4456,17 @@ var StudioRouter = class {
         dshVersion: this.dshVersion,
         exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
         state
+      });
+      return;
+    }
+    if (parsed.pathname === `${API_PREFIX}/import`) {
+      this.requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const body = await readJson(req);
+      const state = await this.store.importState(body.state);
+      sendJson(res, 200, {
+        ok: true,
+        schemaVersion: state.schemaVersion
       });
       return;
     }
