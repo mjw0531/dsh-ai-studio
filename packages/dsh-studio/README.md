@@ -53,6 +53,15 @@ Studio 把 DSH 从「一个会话」扩展成「一间工作室」：
 - **本地持久化**：数据自动写到 `$DSH_HOME/studio/studio.json`，重启不丢；首次运行自动生成演示项目。
 - **版本适配**：`engines.dsh >= 0.2.1-rc.2`；宿主只依赖 Web Server 路由、client slots 和 React，不依赖私有 Remote 生成器。
 
+## DSH 生态发现
+
+- GitHub topic：`dsh-plugin`
+- npm keywords：`dsh-plugin`、`deepseek-harness`、`dsh`
+- package.json 包含 `dsh.bundle.patch` 和 `dsh.client.platform`
+- `cordis.patch.yml` 插入的包名必须与 `package.json` 的 `name` 完全一致
+
+如果侧栏没有出现「AI 工作室」，优先检查这三处是否一致。
+
 ## 安装
 
 ### 方式 A：桌面端（推荐）
