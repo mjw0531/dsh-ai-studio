@@ -64,6 +64,68 @@ export class GitMergeService {
     this.store = store;
   }
 
+  async rollback(proposalId: string): Promise<MergeProposal> {
+    const { proposal, project, verification } =
+      await this.store.getMergeContext(proposalId);
+    if (
+      proposal.status !== "merged" ||
+      proposal.mergeCommit === null
+    ) {
+      throw new StudioStoreError(
+        "rollback_not_merged",
+        "只有已合并的提案可以回滚",
+        409,
+      );
+    }
+    if (verification === null || verification.passed) {
+      throw new StudioStoreError(
+        "rollback_not_failed",
+        "只有合并后回归失败时才允许回滚",
+        409,
+      );
+    }
+    if (project.repoPath === null) {
+      throw new StudioStoreError(
+        "repo_required",
+        "项目还没有绑定代码仓库",
+        409,
+      );
+    }
+    const repo = project.repoPath;
+    const current = (
+      await git(repo, ["rev-parse", "--abbrev-ref", "HEAD"])
+    ).stdout.trim();
+    if (current !== proposal.base) {
+      throw new StudioStoreError(
+        "rollback_wrong_branch",
+        `当前分支是「${current}」，请先切到基础分支「${proposal.base}」`,
+        409,
+      );
+    }
+    const dirty = (await git(repo, ["status", "--porcelain"])).stdout.trim();
+    if (dirty !== "") {
+      throw new StudioStoreError(
+        "rollback_dirty",
+        "工作区不干净；请先提交或清理改动再回滚",
+        409,
+      );
+    }
+    try {
+      await git(repo, ["revert", "--no-edit", proposal.mergeCommit]);
+    } catch (error) {
+      try {
+        await git(repo, ["revert", "--abort"]);
+      } catch {
+        // best effort
+      }
+      throw error;
+    }
+    const commit = (
+      await git(repo, ["rev-parse", "HEAD"])
+    ).stdout.trim();
+    return this.store.recordRollback(proposalId, commit);
+  }
+
   async execute(proposalId: string): Promise<MergeProposal> {
     const { proposal, project, task } =
       await this.store.getMergeContext(proposalId);

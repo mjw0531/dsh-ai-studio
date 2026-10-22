@@ -736,6 +736,28 @@ export function StudioPage() {
     );
   };
 
+  const rollbackMerge = async (
+    proposal: MergeProposal,
+  ): Promise<void> => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.rollbackMerge(proposal.id);
+      },
+      "已回滚合并并记录 revert commit",
+    );
+  };
+
+  const writeAdr = async (decision: Decision): Promise<void> => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.writeAdr(decision.id);
+      },
+      "ADR 已写入 docs/adr",
+    );
+  };
+
   return (
     <div className="studio-root" data-theme={theme}>
       <header className="studio-header">
@@ -898,6 +920,7 @@ export function StudioPage() {
                 busy={busy}
                 onNew={() => setModal({ kind: "decision" })}
                 onDecide={decideDecision}
+                onWriteAdr={writeAdr}
               />
             ) : null}
 
@@ -1005,6 +1028,11 @@ export function StudioPage() {
               void executeMerge(selectedMerge);
             }
           }}
+          onRollbackMerge={() => {
+            if (selectedMerge !== null) {
+              void rollbackMerge(selectedMerge);
+            }
+          }}
         />
       ) : null}
 
@@ -1080,6 +1108,7 @@ function BoardroomView({
   busy,
   onNew,
   onDecide,
+  onWriteAdr,
 }: {
   decisions: Decision[];
   runs: AgentRun[];
@@ -1090,6 +1119,7 @@ function BoardroomView({
     decision: Decision,
     input: DecideDecisionInput,
   ) => Promise<boolean>;
+  onWriteAdr: (decision: Decision) => Promise<void>;
 }) {
   const pending = decisions.filter((decision) => decision.status === "pending");
   const history = decisions.filter((decision) => decision.status !== "pending");
@@ -1240,6 +1270,21 @@ function BoardroomView({
                       <summary>查看 ADR 草稿</summary>
                       <pre>{decision.adrDraft}</pre>
                     </details>
+                  ) : null}
+                  {decision.adrPath !== null ? (
+                    <div className="studio-faint" style={{ fontSize: 10 }}>
+                      已写入：{decision.adrPath}
+                    </div>
+                  ) : decision.adrDraft !== null ? (
+                    <button
+                      type="button"
+                      className="studio-btn"
+                      data-size="sm"
+                      disabled={busy}
+                      onClick={() => void onWriteAdr(decision)}
+                    >
+                      写入 docs/adr
+                    </button>
                   ) : null}
                 </div>
               ))}
@@ -2986,6 +3031,7 @@ function TaskDrawer({
   onRejectMerge,
   onCompleteMerge,
   onExecuteMerge,
+  onRollbackMerge,
 }: {
   task: Task;
   roles: Role[];
@@ -3008,6 +3054,7 @@ function TaskDrawer({
   onRejectMerge: (note: string) => void;
   onCompleteMerge: (mergeCommit?: string) => void;
   onExecuteMerge: () => void;
+  onRollbackMerge: () => void;
 }) {
   const [evidenceText, setEvidenceText] = useState("");
   const done = acceptanceDone(task);
@@ -3262,6 +3309,7 @@ function TaskDrawer({
             onReject={onRejectMerge}
             onComplete={onCompleteMerge}
             onExecute={onExecuteMerge}
+            onRollback={onRollbackMerge}
           />
 
           <section>
@@ -3675,6 +3723,7 @@ function TaskMergePanel({
   onReject,
   onComplete,
   onExecute,
+  onRollback,
 }: {
   task: Task;
   proposal: MergeProposal | null;
@@ -3687,6 +3736,7 @@ function TaskMergePanel({
   onReject: (note: string) => void;
   onComplete: (mergeCommit?: string) => void;
   onExecute: () => void;
+  onRollback: () => void;
 }) {
   const [summary, setSummary] = useState("");
   const [branch, setBranch] = useState(task.branch ?? "");
@@ -4005,6 +4055,34 @@ function TaskMergePanel({
                   </span>
                 </div>
                 <pre>{postVerification.output.slice(0, 2000) || "（无输出）"}</pre>
+              </div>
+            ) : null}
+            {postVerification !== null &&
+            !postVerification.passed &&
+            activeProposal.rollbackCommit === null ? (
+              <button
+                type="button"
+                className="studio-btn"
+                data-variant="danger"
+                data-size="sm"
+                style={{ marginTop: 8 }}
+                disabled={busy}
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      "将在当前仓库执行 git revert <merge commit>，确定回滚吗？",
+                    )
+                  ) {
+                    onRollback();
+                  }
+                }}
+              >
+                回滚这次合并
+              </button>
+            ) : null}
+            {activeProposal.rollbackCommit !== null ? (
+              <div className="studio-faint" style={{ fontSize: 10, marginTop: 6 }}>
+                已回滚：{activeProposal.rollbackCommit}
               </div>
             ) : null}
             </>

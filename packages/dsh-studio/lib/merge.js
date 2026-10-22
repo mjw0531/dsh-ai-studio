@@ -73,6 +73,58 @@ var GitMergeService = class {
   constructor(store) {
     this.store = store;
   }
+  async rollback(proposalId) {
+    const { proposal, project, verification } = await this.store.getMergeContext(proposalId);
+    if (proposal.status !== "merged" || proposal.mergeCommit === null) {
+      throw new StudioStoreError(
+        "rollback_not_merged",
+        "\u53EA\u6709\u5DF2\u5408\u5E76\u7684\u63D0\u6848\u53EF\u4EE5\u56DE\u6EDA",
+        409
+      );
+    }
+    if (verification === null || verification.passed) {
+      throw new StudioStoreError(
+        "rollback_not_failed",
+        "\u53EA\u6709\u5408\u5E76\u540E\u56DE\u5F52\u5931\u8D25\u65F6\u624D\u5141\u8BB8\u56DE\u6EDA",
+        409
+      );
+    }
+    if (project.repoPath === null) {
+      throw new StudioStoreError(
+        "repo_required",
+        "\u9879\u76EE\u8FD8\u6CA1\u6709\u7ED1\u5B9A\u4EE3\u7801\u4ED3\u5E93",
+        409
+      );
+    }
+    const repo = project.repoPath;
+    const current = (await git(repo, ["rev-parse", "--abbrev-ref", "HEAD"])).stdout.trim();
+    if (current !== proposal.base) {
+      throw new StudioStoreError(
+        "rollback_wrong_branch",
+        `\u5F53\u524D\u5206\u652F\u662F\u300C${current}\u300D\uFF0C\u8BF7\u5148\u5207\u5230\u57FA\u7840\u5206\u652F\u300C${proposal.base}\u300D`,
+        409
+      );
+    }
+    const dirty = (await git(repo, ["status", "--porcelain"])).stdout.trim();
+    if (dirty !== "") {
+      throw new StudioStoreError(
+        "rollback_dirty",
+        "\u5DE5\u4F5C\u533A\u4E0D\u5E72\u51C0\uFF1B\u8BF7\u5148\u63D0\u4EA4\u6216\u6E05\u7406\u6539\u52A8\u518D\u56DE\u6EDA",
+        409
+      );
+    }
+    try {
+      await git(repo, ["revert", "--no-edit", proposal.mergeCommit]);
+    } catch (error) {
+      try {
+        await git(repo, ["revert", "--abort"]);
+      } catch {
+      }
+      throw error;
+    }
+    const commit = (await git(repo, ["rev-parse", "HEAD"])).stdout.trim();
+    return this.store.recordRollback(proposalId, commit);
+  }
   async execute(proposalId) {
     const { proposal, project, task } = await this.store.getMergeContext(proposalId);
     if (proposal.status !== "approved") {

@@ -353,6 +353,22 @@ export class StudioClient {
     return data.proposal;
   }
 
+  async rollbackMerge(proposalId: string): Promise<MergeProposal> {
+    const data = await this.request<{ proposal: MergeProposal }>(
+      `/merge-proposals/${encodeURIComponent(proposalId)}/rollback`,
+      { method: "POST", body: {} },
+    );
+    return data.proposal;
+  }
+
+  async writeAdr(decisionId: string): Promise<Decision> {
+    const data = await this.request<{ decision: Decision }>(
+      `/decisions/${encodeURIComponent(decisionId)}/adr`,
+      { method: "POST", body: {} },
+    );
+    return data.decision;
+  }
+
   async completeMergeProposal(
     proposalId: string,
     mergeCommit?: string,

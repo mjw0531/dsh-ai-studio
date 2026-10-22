@@ -2,8 +2,8 @@
 import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 14;
-var STUDIO_PLUGIN_VERSION = "1.7.0";
+var STUDIO_SCHEMA_VERSION = 15;
+var STUDIO_PLUGIN_VERSION = "1.8.0";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -140,401 +140,16 @@ function safeOrigin(ctx) {
   }
 }
 
-// src/host/dispatcher.ts
-import { randomUUID } from "node:crypto";
-
-// src/host/workspace.ts
-import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
-import path2 from "node:path";
-var WorkspaceError = class extends Error {
-  code;
-  constructor(code, message) {
-    super(message);
-    this.code = code;
-  }
-};
-function git(cwd, args) {
-  try {
-    return execFileSync("git", args, {
-      cwd,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"]
-    }).trim();
-  } catch (error) {
-    const detail = error instanceof Error && "stderr" in error ? String(error.stderr ?? "") : String(error);
-    throw new WorkspaceError(
-      "git_failed",
-      `git ${args.join(" ")} \u5931\u8D25\uFF1A${detail.slice(0, 800)}`
-    );
-  }
-}
-function sanitize(taskId) {
-  return taskId.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 80);
-}
-var WorkspaceManager = class {
-  async prepare(repoPath, taskId) {
-    const resolved = path2.resolve(repoPath);
-    if (!existsSync(resolved)) {
-      throw new WorkspaceError(
-        "repo_missing",
-        `\u9879\u76EE\u4ED3\u5E93\u4E0D\u5B58\u5728\uFF1A${resolved}`
-      );
-    }
-    const root = git(resolved, ["rev-parse", "--show-toplevel"]);
-    const worktreeRoot = path2.join(root, ".worktrees");
-    const worktreePath = path2.join(worktreeRoot, sanitize(taskId));
-    const branch = `studio/${sanitize(taskId)}`;
-    await mkdir(worktreeRoot, { recursive: true });
-    if (existsSync(worktreePath)) {
-      return { repoPath: root, path: worktreePath, branch };
-    }
-    const branches = git(root, ["branch", "--list", branch]);
-    if (branches === "") {
-      git(root, ["worktree", "add", "-b", branch, worktreePath, "HEAD"]);
-    } else {
-      git(root, ["worktree", "add", worktreePath, branch]);
-    }
-    return { repoPath: root, path: worktreePath, branch };
-  }
-  diffStat(worktreePath) {
-    if (!existsSync(worktreePath)) return "";
-    const status = git(worktreePath, ["status", "--short"]);
-    const stat = git(worktreePath, ["diff", "--stat"]);
-    return [status, stat].filter((line) => line !== "").join("\n").trim();
-  }
-};
-
-// src/host/dispatcher.ts
-function changedFilesFromDiff(diffStat) {
-  if (diffStat === null) return [];
-  return diffStat.split("\n").map((line) => /^[ MARC?]{1,2} (\S.*)$/.exec(line)?.[1]?.trim() ?? "").filter(Boolean);
-}
-function assistantText(messages) {
-  const assistant = [...messages].reverse().find((message) => message.role === "assistant");
-  if (assistant === void 0) return "";
-  return assistant.content.filter((block) => block.type === "text").map((block) => block.text ?? "").join("\n").trim();
-}
-function extractJsonObject(text) {
-  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(text);
-  const candidate = fenced?.[1] ?? text;
-  const start = candidate.indexOf("{");
-  const end = candidate.lastIndexOf("}");
-  if (start < 0 || end <= start) return void 0;
-  try {
-    return JSON.parse(candidate.slice(start, end + 1));
-  } catch {
-    return void 0;
-  }
-}
-function stringArray(value) {
-  if (!Array.isArray(value)) return [];
-  return value.filter((item) => typeof item === "string").map((item) => item.trim()).filter(Boolean).slice(0, 20);
-}
-function objectArray(value) {
-  if (!Array.isArray(value)) return [];
-  return value.filter(
-    (item) => typeof item === "object" && item !== null && !Array.isArray(item)
-  );
-}
-function textOf(value) {
-  return typeof value === "string" ? value.trim() : "";
-}
-function normalizeReceipt(raw, fallback) {
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-    return {
-      summary: fallback.slice(0, 2e3),
-      evidence: [],
-      artifacts: [],
-      decisions: [],
-      contractDeltas: [],
-      rejectedOptions: [],
-      blockers: ["\u6A21\u578B\u6CA1\u6709\u8FD4\u56DE\u53EF\u89E3\u6790\u7684 JSON \u56DE\u6267"]
-    };
-  }
-  const record = raw;
-  return {
-    summary: textOf(record.summary) || fallback.slice(0, 2e3),
-    evidence: stringArray(record.evidence),
-    artifacts: objectArray(record.artifacts).map((item) => ({
-      kind: textOf(item.kind) || "unknown",
-      path: textOf(item.path)
-    })).filter((item) => item.path !== "").slice(0, 20),
-    decisions: objectArray(record.decisions).map((item) => {
-      const scope = item.scope === "project" ? "project" : "branch";
-      return {
-        title: textOf(item.title),
-        rationale: textOf(item.rationale),
-        scope
-      };
-    }).filter((item) => item.title !== "").slice(0, 20),
-    contractDeltas: objectArray(record.contractDeltas).map((item) => ({
-      contract: textOf(item.contract),
-      change: textOf(item.change)
-    })).filter((item) => item.contract !== "").slice(0, 20),
-    rejectedOptions: objectArray(record.rejectedOptions).map((item) => ({
-      option: textOf(item.option),
-      reason: textOf(item.reason)
-    })).filter((item) => item.option !== "").slice(0, 20),
-    blockers: stringArray(record.blockers)
-  };
-}
-function buildPrompt(context, workspace) {
-  const { task, role, project } = context;
-  const module = context.module;
-  const acceptance = task.acceptance.map((item, index) => `${String(index + 1)}. ${item.text}`).join("\n");
-  const mode = workspace === void 0 ? [
-    "\u672C\u8F6E\u53EA\u505A\u5206\u6790/\u89C4\u5212\uFF0C\u4E0D\u8981\u4FEE\u6539\u4EFB\u4F55\u6587\u4EF6\uFF0C\u4E0D\u8981\u6267\u884C\u4F1A\u6539\u53D8\u7CFB\u7EDF\u72B6\u6001\u7684\u547D\u4EE4\u3002"
-  ] : [
-    `\u4EE3\u7801\u6267\u884C\u6A21\u5F0F\uFF1A\u4F60\u5DF2\u5728\u72EC\u7ACB worktree \u4E2D\u5DE5\u4F5C\u3002`,
-    `\u4ED3\u5E93\uFF1A${workspace.repoPath}`,
-    `\u5DE5\u4F5C\u533A\uFF1A${workspace.path}`,
-    `\u5206\u652F\uFF1A${workspace.branch}`,
-    "\u53EF\u4EE5\u4FEE\u6539\u5DE5\u4F5C\u533A\u6587\u4EF6\u3001\u8FD0\u884C\u6D4B\u8BD5\u548C\u6784\u5EFA\uFF1B\u4E0D\u8981\u5207\u6362/\u5220\u9664 worktree\uFF0C\u4E0D\u8981 merge\u3001push \u6216\u4FEE\u6539\u4E3B\u5DE5\u4F5C\u533A\u3002",
-    "\u53EA\u4FEE\u6539\u6A21\u5757/\u5951\u7EA6\u5141\u8BB8\u7684\u8303\u56F4\uFF1B\u9700\u8981\u6539\u5951\u7EA6\u672C\u8EAB\u65F6\uFF0C\u5728\u56DE\u6267\u91CC\u63D0\u51FA decision\uFF0C\u4E0D\u8981\u76F4\u63A5\u6539\u5951\u7EA6\u3002",
-    "\u5B8C\u6210\u540E\u5FC5\u987B\u62A5\u544A\u4F60\u5B9E\u9645\u8FD0\u884C\u8FC7\u7684\u547D\u4EE4\u548C\u6D4B\u8BD5\u7ED3\u679C\u3002"
-  ];
-  return [
-    `\u4F60\u662F Studio \u5DE5\u4F5C\u53F0\u91CC\u7684\u89D2\u8272\u300C${role.name}\u300D\uFF08${role.title || "\u672A\u586B\u5199\u804C\u4F4D"}\uFF09\u3002`,
-    `\u89D2\u8272\u4F7F\u547D\uFF1A${role.mission || "\u672A\u586B\u5199"}`,
-    `\u804C\u8D23\uFF1A${role.responsibilities.join("\uFF1B") || "\u672A\u586B\u5199"}`,
-    "",
-    `\u9879\u76EE\uFF1A${project.name}`,
-    project.description ? `\u9879\u76EE\u63CF\u8FF0\uFF1A${project.description}` : "",
-    "",
-    `\u4EFB\u52A1\uFF1A${task.title}`,
-    `\u4EFB\u52A1\u76EE\u6807\uFF1A${task.goal || "\u672A\u586B\u5199"}`,
-    `\u4F18\u5148\u7EA7\uFF1A${task.priority}`,
-    `\u7968\u7C7B\u578B\uFF1A${task.kind === "fix" ? "\u6539\u4FEE\u578B\uFF08\u5148\u8BCA\u65AD\u518D\u6539\uFF09" : "\u65B0\u5EFA\u578B\uFF08red\u2192green\uFF09"}`,
-    `\u6A21\u5757\uFF1A${task.module ?? "\u672A\u6307\u5B9A"}`,
-    module === null ? "" : `\u6A21\u5757\u804C\u8D23\uFF1A${module.responsibility || "\u672A\u586B\u5199"}`,
-    module === null ? "" : `\u5141\u8BB8\u8DEF\u5F84\uFF1A${module.allowedPaths.join("\uFF1B") || "\u672A\u9650\u5236"}`,
-    module === null ? "" : `\u7981\u6B62\u8DEF\u5F84\uFF1A${module.forbiddenPaths.join("\uFF1B") || "\u65E0"}`,
-    module === null || module.contractText === "" ? "" : `\u6A21\u5757\u5951\u7EA6\uFF1A
-${module.contractText.slice(0, 6e3)}`,
-    `\u5951\u7EA6\uFF1A${task.contractRef ?? module?.contractPath ?? "\u672A\u6307\u5B9A"}`,
-    `\u5206\u652F\uFF1A${workspace?.branch ?? task.branch ?? "\u672A\u521B\u5EFA"}`,
-    "\u9A8C\u6536\u6807\u51C6\uFF1A",
-    acceptance || "\uFF08\u65E0\uFF09",
-    "",
-    ...mode,
-    "\u8BF7\u8F93\u51FA\u4E00\u4E2A JSON \u5BF9\u8C61\uFF08\u4E0D\u8981\u8F93\u51FA JSON \u4EE5\u5916\u7684\u89E3\u91CA\uFF09\uFF0C\u5B57\u6BB5\u5982\u4E0B\uFF1A",
-    '{"summary":"\u4E00\u53E5\u8BDD\u7ED3\u8BBA","evidence":["\u53EF\u590D\u73B0\u7684\u8BC1\u636E/\u68C0\u67E5\u7ED3\u679C"],"artifacts":[{"kind":"plan|diff|test|doc","path":"\u8DEF\u5F84\u6216\u8BF4\u660E"}],"decisions":[{"title":"\u51B3\u7B56","rationale":"\u7406\u7531","scope":"branch|project"}],"contractDeltas":[{"contract":"\u5951\u7EA6\u8DEF\u5F84","change":"\u53D8\u66F4"}],"rejectedOptions":[{"option":"\u88AB\u5426\u51B3\u65B9\u6848","reason":"\u539F\u56E0"}],"blockers":["\u963B\u585E"]}',
-    "\u6CA1\u6709\u5185\u5BB9\u7684\u5B57\u6BB5\u7528\u7A7A\u6570\u7EC4\u3002\u4E0D\u8981\u58F0\u79F0\u4EFB\u52A1\u5DF2\u7ECF\u5B8C\u6210\uFF1B\u9A8C\u6536\u7531\u4EBA\u7C7B/Verifier \u51B3\u5B9A\u3002"
-  ].filter((line) => line !== "").join("\n");
-}
-function buildReviewPrompt(context) {
-  return [
-    "\u4F60\u662F Studio \u7684\u72EC\u7ACB\u9A8C\u6536\u8005\u3002\u4E0D\u8981\u76F8\u4FE1\u5B9E\u73B0\u8005\u7684\u81EA\u8FF0\uFF0C\u76F4\u63A5\u770B worktree \u7684 diff \u548C\u9A8C\u8BC1\u8F93\u51FA\u3002",
-    `\u9879\u76EE\uFF1A${context.project.name}`,
-    `\u4EFB\u52A1\uFF1A${context.task.title}`,
-    `\u4EFB\u52A1\u76EE\u6807\uFF1A${context.task.goal || "\u672A\u586B\u5199"}`,
-    `\u6A21\u5757\uFF1A${context.task.module ?? "\u672A\u6307\u5B9A"}`,
-    `\u5951\u7EA6\uFF1A${context.task.contractRef ?? "\u672A\u6307\u5B9A"}`,
-    "\u9A8C\u6536\u6807\u51C6\uFF1A",
-    context.task.acceptance.map(
-      (item, index) => `${String(index + 1)}. [${item.done ? "x" : " "}] ${item.text}`
-    ).join("\n") || "\uFF08\u65E0\uFF09",
-    "",
-    "\u5B9E\u73B0\u8005 diff\uFF1A",
-    context.run?.diffStat ?? "\uFF08\u6CA1\u6709\u4EE3\u7801 diff\uFF09",
-    "",
-    context.verification === null ? "\u6CA1\u6709 Host \u72EC\u7ACB\u9A8C\u8BC1\u8BB0\u5F55\u3002" : `Host \u72EC\u7ACB\u9A8C\u8BC1\uFF1A${context.verification.command} \u2192 exit ${String(context.verification.exitCode)}\uFF08${context.verification.passed ? "\u901A\u8FC7" : "\u5931\u8D25"}\uFF09
-${context.verification.output.slice(0, 6e3)}`,
-    "",
-    "\u53EA\u8BFB\u8BC4\u5BA1\uFF1A\u4E0D\u8981\u4FEE\u6539\u6587\u4EF6\uFF0C\u4E0D\u8981\u8FD0\u884C\u4F1A\u5199\u6587\u4EF6\u7684\u547D\u4EE4\u3002",
-    "\u6307\u51FA\u9A8C\u6536\u6807\u51C6\u662F\u5426\u771F\u7684\u6EE1\u8DB3\u3001diff \u662F\u5426\u8D8A\u754C\u3001\u6D4B\u8BD5\u662F\u5426\u8DB3\u591F\u3002",
-    "\u8BF7\u8F93\u51FA\u4E00\u4E2A JSON \u5BF9\u8C61\uFF08\u4E0D\u8981\u8F93\u51FA JSON \u4EE5\u5916\u7684\u89E3\u91CA\uFF09\uFF1A",
-    '{"verdict":"pass|fail","summary":"\u4E00\u53E5\u8BDD\u7ED3\u8BBA","findings":["\u5177\u4F53\u53D1\u73B0/\u98CE\u9669"]}'
-  ].filter((line) => line !== "").join("\n");
-}
-var AgentDispatcher = class {
-  ctx;
-  store;
-  workspaces = new WorkspaceManager();
-  constructor(ctx, store) {
-    this.ctx = ctx;
-    this.store = store;
-  }
-  async dispatch(taskId) {
-    const context = await this.store.getDispatchContext(taskId);
-    const selection = await this.resolveModel(context.role);
-    const workspace = context.project.repoPath === null ? void 0 : await this.workspaces.prepare(context.project.repoPath, taskId);
-    const prompt = buildPrompt(context, workspace);
-    const run2 = await this.store.beginRun(taskId, prompt, workspace);
-    void this.execute(run2, selection, workspace);
-    return run2;
-  }
-  async review(taskId) {
-    const context = await this.store.getReviewContext(taskId);
-    if (context.run === null || context.run.workspacePath === null) {
-      throw new Error("\u8FD9\u4E2A\u4EFB\u52A1\u8FD8\u6CA1\u6709\u53EF\u8BC4\u5BA1\u7684 worktree");
-    }
-    const selection = await this.resolveModel(context.role);
-    const prompt = buildReviewPrompt(context);
-    let handle = null;
-    let output = "";
-    try {
-      handle = await this.ctx.agents.create({
-        sessionId: `review-${randomUUID()}`,
-        meta: { cwd: context.run.workspacePath },
-        agentOptions: selection,
-        setup: async (agentCtx, agent) => {
-          await this.ctx.agentPresets.mount(agentCtx);
-          agent.session.append("approval/policy", { policy: "never" });
-        }
-      });
-      handle.agent.followup({
-        role: "user",
-        content: [{ type: "text", text: prompt }],
-        source: { kind: "user" }
-      });
-      const deadline = Date.now() + 18e4;
-      let idleTicks = 0;
-      while (Date.now() < deadline) {
-        output = assistantText(handle.agent.session.deriveMessages());
-        if (handle.agent.status === "idle") {
-          if (output !== "") break;
-          idleTicks += 1;
-          if (idleTicks >= 10) break;
-        } else {
-          idleTicks = 0;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 400));
-      }
-      const measured = this.ctx.tokenMeter.measure(handle.agent.session);
-      const raw = extractJsonObject(output);
-      const record = typeof raw === "object" && raw !== null && !Array.isArray(raw) ? raw : {};
-      const verdict = record.verdict === "pass" || record.verdict === "fail" ? record.verdict : "fail";
-      const summary = textOf(record.summary) || (output === "" ? "\u72EC\u7ACB\u8BC4\u5BA1\u6CA1\u6709\u4EA7\u51FA" : output.slice(0, 2e3));
-      const findings = stringArray(record.findings);
-      return await this.store.recordReview(taskId, {
-        reviewerRoleId: context.role.id,
-        model: selection.model,
-        verdict,
-        summary,
-        findings: findings.length === 0 && output === "" ? ["\u8BC4\u5BA1 Agent \u6CA1\u6709\u8FD4\u56DE\u5185\u5BB9"] : findings,
-        tokens: typeof measured.totalTokens === "number" ? measured.totalTokens : null,
-        runId: context.run.id
-      });
-    } finally {
-      if (handle !== null) {
-        try {
-          await handle.dispose();
-        } catch {
-        }
-      }
-    }
-  }
-  async resolveModel(role) {
-    const fallback = this.ctx.agentDefaultModel.currentSelection();
-    const wanted = role.model ?? fallback.model;
-    const providers = [...this.ctx.llm.listProviders()].sort((left, right) => {
-      const score = (id) => id === "deepseek-account" ? 0 : id === "deepseek-official" ? 2 : 1;
-      return score(left.id) - score(right.id);
-    });
-    let first = null;
-    for (const provider of providers) {
-      const models = await this.ctx.llm.listModels(provider.id);
-      const exact = models.find((model) => model.id === wanted);
-      if (exact !== void 0) {
-        return { provider: provider.id, model: exact.id };
-      }
-      if (first === null && models.length > 0) {
-        first = { provider: provider.id, model: models[0]?.id ?? wanted };
-      }
-    }
-    if (first !== null) return first;
-    throw new Error(`\u6CA1\u6709\u53EF\u7528\u7684\u6A21\u578B\u8DEF\u7531\uFF08\u8BF7\u6C42\u6A21\u578B\uFF1A${wanted}\uFF09`);
-  }
-  async execute(run2, selection, workspace) {
-    let handle = null;
-    try {
-      handle = await this.ctx.agents.create({
-        sessionId: `run-${randomUUID()}`,
-        meta: { cwd: workspace?.path ?? process.cwd() },
-        agentOptions: selection,
-        setup: async (agentCtx, agent) => {
-          await this.ctx.agentPresets.mount(agentCtx);
-          agent.session.append("approval/policy", { policy: "never" });
-        }
-      });
-      await this.store.attachRunSession(
-        run2.id,
-        handle.agent.session.id,
-        selection.model
-      );
-      handle.agent.followup({
-        role: "user",
-        content: [{ type: "text", text: run2.prompt }],
-        source: { kind: "user" }
-      });
-      const deadline = Date.now() + (workspace === void 0 ? 12e4 : 3e5);
-      let output = "";
-      let idleTicks = 0;
-      while (Date.now() < deadline) {
-        output = assistantText(handle.agent.session.deriveMessages());
-        if (handle.agent.status === "idle") {
-          if (output !== "") break;
-          idleTicks += 1;
-          if (idleTicks >= 10) break;
-        } else {
-          idleTicks = 0;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 400));
-      }
-      if (output === "") {
-        throw new Error(
-          `Agent \u5728 ${workspace === void 0 ? "120" : "300"} \u79D2\u5185\u6CA1\u6709\u4EA7\u51FA\uFF08\u6CA1\u6709 assistant \u6D88\u606F\uFF09`
-        );
-      }
-      const idleDeadline = Date.now() + 3e4;
-      while (handle.agent.status !== "idle" && Date.now() < idleDeadline) {
-        await new Promise((resolve) => setTimeout(resolve, 200));
-      }
-      const receipt = normalizeReceipt(
-        extractJsonObject(output),
-        output
-      );
-      const measured = this.ctx.tokenMeter.measure(handle.agent.session);
-      const diffStat = workspace === void 0 ? null : this.workspaces.diffStat(workspace.path);
-      await this.store.completeRun(run2.id, {
-        output,
-        receipt,
-        tokens: typeof measured.totalTokens === "number" ? measured.totalTokens : null,
-        diffStat
-      });
-      if (workspace !== void 0) {
-        await this.store.enforceContractScope(
-          run2.taskId,
-          run2.id,
-          changedFilesFromDiff(diffStat)
-        );
-      }
-    } catch (error) {
-      await this.store.failRun(
-        run2.id,
-        error instanceof Error ? error.message : String(error)
-      ).catch(() => void 0);
-    } finally {
-      if (handle !== null) {
-        await handle.dispose().catch(() => void 0);
-      }
-    }
-  }
-};
-
-// src/host/docs.ts
-import { readFile as readFile3 } from "node:fs/promises";
-import path4 from "node:path";
+// src/host/adr.ts
+import { mkdir as mkdir2, readdir, writeFile as writeFile2 } from "node:fs/promises";
+import path3 from "node:path";
 
 // src/host/store.ts
-import { randomUUID as randomUUID2 } from "node:crypto";
-import { existsSync as existsSync2 } from "node:fs";
-import { mkdir as mkdir2, readFile as readFile2, rename, rm, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
+import { mkdir, readFile as readFile2, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
-import path3 from "node:path";
+import path2 from "node:path";
 var StudioStoreError = class extends Error {
   code;
   status;
@@ -547,8 +162,8 @@ var StudioStoreError = class extends Error {
 };
 function defaultStudioDataDir() {
   const home = process.env.DSH_HOME?.trim();
-  return path3.join(
-    home !== void 0 && home !== "" ? home : path3.join(os.homedir(), ".dsh"),
+  return path2.join(
+    home !== void 0 && home !== "" ? home : path2.join(os.homedir(), ".dsh"),
     "studio"
   );
 }
@@ -556,7 +171,7 @@ function nowIso(now) {
   return now().toISOString();
 }
 function newId(prefix) {
-  return `${prefix}-${randomUUID2().slice(0, 8)}`;
+  return `${prefix}-${randomUUID().slice(0, 8)}`;
 }
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -1033,13 +648,13 @@ function isMergeRisk(value) {
   return value === "low" || value === "medium" || value === "high";
 }
 function isMergeProposal(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && typeof value.branch === "string" && typeof value.base === "string" && typeof value.summary === "string" && isMergeRisk(value.risk) && typeof value.rollback === "string" && (value.status === "review" || value.status === "approved" || value.status === "rejected" || value.status === "merged") && typeof value.reviewNote === "string" && (value.mergeCommit === null || typeof value.mergeCommit === "string") && (value.diffStat === null || value.diffStat === void 0 || typeof value.diffStat === "string") && (Array.isArray(value.changedFiles) || value.changedFiles === void 0) && (value.verificationId === null || value.verificationId === void 0 || typeof value.verificationId === "string") && (value.postMergeVerificationId === null || value.postMergeVerificationId === void 0 || typeof value.postMergeVerificationId === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && (value.mergedAt === null || typeof value.mergedAt === "string");
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && typeof value.branch === "string" && typeof value.base === "string" && typeof value.summary === "string" && isMergeRisk(value.risk) && typeof value.rollback === "string" && (value.status === "review" || value.status === "approved" || value.status === "rejected" || value.status === "merged") && typeof value.reviewNote === "string" && (value.mergeCommit === null || typeof value.mergeCommit === "string") && (value.diffStat === null || value.diffStat === void 0 || typeof value.diffStat === "string") && (Array.isArray(value.changedFiles) || value.changedFiles === void 0) && (value.verificationId === null || value.verificationId === void 0 || typeof value.verificationId === "string") && (value.postMergeVerificationId === null || value.postMergeVerificationId === void 0 || typeof value.postMergeVerificationId === "string") && (value.rollbackCommit === null || value.rollbackCommit === void 0 || typeof value.rollbackCommit === "string") && (value.rolledBackAt === null || value.rolledBackAt === void 0 || typeof value.rolledBackAt === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && (value.mergedAt === null || typeof value.mergedAt === "string");
 }
 function isDecisionStatus(value) {
   return value === "pending" || value === "approved" || value === "rejected";
 }
 function isDecision(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && (value.taskId === null || typeof value.taskId === "string") && (value.runId === null || typeof value.runId === "string") && typeof value.title === "string" && typeof value.context === "string" && Array.isArray(value.options) && typeof value.recommendation === "string" && (value.reversible === void 0 || typeof value.reversible === "boolean") && (value.adrDraft === null || value.adrDraft === void 0 || typeof value.adrDraft === "string") && isDecisionStatus(value.status) && typeof value.decision === "string" && typeof value.note === "string" && typeof value.decidedBy === "string" && (value.tokenCost === null || typeof value.tokenCost === "number") && typeof value.createdAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string");
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && (value.taskId === null || typeof value.taskId === "string") && (value.runId === null || typeof value.runId === "string") && typeof value.title === "string" && typeof value.context === "string" && Array.isArray(value.options) && typeof value.recommendation === "string" && (value.reversible === void 0 || typeof value.reversible === "boolean") && (value.adrDraft === null || value.adrDraft === void 0 || typeof value.adrDraft === "string") && (value.adrPath === null || value.adrPath === void 0 || typeof value.adrPath === "string") && isDecisionStatus(value.status) && typeof value.decision === "string" && typeof value.note === "string" && typeof value.decidedBy === "string" && (value.tokenCost === null || typeof value.tokenCost === "number") && typeof value.createdAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string");
 }
 function isBranchStatus(value) {
   return value === "open" || value === "review" || value === "merged" || value === "abandoned";
@@ -1227,12 +842,27 @@ function migrateState(value) {
     };
   }
   if (state.schemaVersion === 13) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 14,
       mergeProposals: state.mergeProposals.map((proposal) => ({
         ...proposal,
         postMergeVerificationId: proposal.postMergeVerificationId ?? null
+      }))
+    };
+  }
+  if (state.schemaVersion === 14) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      decisions: state.decisions.map((decision) => ({
+        ...decision,
+        adrPath: decision.adrPath ?? null
+      })),
+      mergeProposals: state.mergeProposals.map((proposal) => ({
+        ...proposal,
+        rollbackCommit: proposal.rollbackCommit ?? null,
+        rolledBackAt: proposal.rolledBackAt ?? null
       }))
     };
   }
@@ -1293,7 +923,7 @@ var StudioStore = class {
   warning = null;
   constructor(options = {}) {
     this.dataDir = options.dataDir ?? defaultStudioDataDir();
-    this.file = path3.join(this.dataDir, "studio.json");
+    this.file = path2.join(this.dataDir, "studio.json");
     this.now = options.now ?? (() => /* @__PURE__ */ new Date());
   }
   async init() {
@@ -1872,6 +1502,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
               recommendation: "\u540C\u4E00\u5951\u7EA6\u51FA\u73B0\u4E24\u6761\u4E0D\u540C\u53D8\u66F4\u3002\u8BF7\u7531 Owner/Architect \u88C1\u51B3\uFF1B\u5728\u88C1\u51B3\u524D\u4E0D\u8981\u5408\u5E76\u4EFB\u610F\u4E00\u6761\u652F\u7EBF\u3002",
               reversible: true,
               adrDraft: null,
+              adrPath: null,
               status: "pending",
               decision: "",
               note: "",
@@ -1916,6 +1547,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
             recommendation: proposed.rationale,
             reversible: true,
             adrDraft: null,
+            adrPath: null,
             status: "pending",
             decision: "",
             note: "",
@@ -2007,12 +1639,12 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         if (file === "") return false;
         if (contract !== "" && file === contract) return true;
         if (forbidden.some(
-          (path5) => file === path5 || file.startsWith(`${path5}/`)
+          (path6) => file === path6 || file.startsWith(`${path6}/`)
         )) {
           return true;
         }
         if (allowed.length > 0 && (file.startsWith("src/") || file.startsWith("test/")) && !allowed.some(
-          (path5) => file === path5 || file.startsWith(`${path5}/`)
+          (path6) => file === path6 || file.startsWith(`${path6}/`)
         )) {
           return true;
         }
@@ -2047,6 +1679,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           recommendation: "\u5B9E\u73B0\u8005\u4E0D\u80FD\u76F4\u63A5\u6539\u5951\u7EA6\u6216\u7981\u6B62\u8DEF\u5F84\uFF1B\u9700\u8981\u5951\u7EA6\u53D8\u66F4\u65F6\uFF0C\u5E94\u7531 Architect/Owner \u5148\u66F4\u65B0\u5951\u7EA6\uFF0C\u518D\u91CD\u65B0\u6D3E\u5355\u3002",
           reversible: true,
           adrDraft: null,
+          adrPath: null,
           status: "pending",
           decision: "",
           note: "",
@@ -2118,6 +1751,62 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       return structuredClone(verification);
     });
   }
+  async getDecisionAdrContext(decisionId) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const decision = state.decisions.find(
+        (item) => item.id === decisionId
+      );
+      if (decision === void 0) {
+        throw new StudioStoreError(
+          "decision_not_found",
+          "\u51B3\u7B56\u4E0D\u5B58\u5728",
+          404
+        );
+      }
+      const project = state.projects.find(
+        (item) => item.id === decision.projectId
+      );
+      if (project === void 0) {
+        throw new StudioStoreError(
+          "project_not_found",
+          "\u51B3\u7B56\u5BF9\u5E94\u7684\u9879\u76EE\u4E0D\u5B58\u5728",
+          404
+        );
+      }
+      return {
+        decision: structuredClone(decision),
+        project: structuredClone(project)
+      };
+    });
+  }
+  async setDecisionAdrPath(decisionId, adrPath) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const decision = state.decisions.find(
+        (item) => item.id === decisionId
+      );
+      if (decision === void 0) {
+        throw new StudioStoreError(
+          "decision_not_found",
+          "\u51B3\u7B56\u4E0D\u5B58\u5728",
+          404
+        );
+      }
+      const at = nowIso(this.now);
+      decision.adrPath = adrPath;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "decision.adr_written",
+        at,
+        projectId: decision.projectId,
+        taskId: decision.taskId,
+        payload: { decisionId, adrPath }
+      });
+      await this.save();
+      return structuredClone(decision);
+    });
+  }
   async createPostMergeDecision(input) {
     return this.runExclusive(async () => {
       const state = this.requireState();
@@ -2153,6 +1842,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         recommendation: "\u5408\u5E76\u540E\u56DE\u5F52\u5931\u8D25\u3002\u5148\u770B\u8F93\u51FA\u5B9A\u4F4D\u7834\u574F\u70B9\uFF1B\u65E0\u6CD5\u5FEB\u901F\u4FEE\u590D\u65F6\u56DE\u6EDA merge commit\uFF0C\u518D\u91CD\u65B0\u8D70\u63D0\u6848\u3002",
         reversible: true,
         adrDraft: null,
+        adrPath: null,
         status: "pending",
         decision: "",
         note: "",
@@ -2214,6 +1904,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         ),
         reversible: input.reversible !== false,
         adrDraft: null,
+        adrPath: null,
         status: "pending",
         decision: "",
         note: "",
@@ -2872,6 +2563,8 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         changedFiles,
         verificationId: latestVerification?.id ?? null,
         postMergeVerificationId: null,
+        rollbackCommit: null,
+        rolledBackAt: null,
         createdAt: at,
         updatedAt: at,
         decidedAt: null,
@@ -2984,10 +2677,14 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           404
         );
       }
+      const verification = proposal.postMergeVerificationId === null ? void 0 : state.verifications.find(
+        (item) => item.id === proposal.postMergeVerificationId
+      );
       return {
         proposal: structuredClone(proposal),
         project: structuredClone(project),
-        task: structuredClone(task)
+        task: structuredClone(task),
+        verification: verification === void 0 ? null : structuredClone(verification)
       };
     });
   }
@@ -3033,9 +2730,44 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       return structuredClone(proposal);
     });
   }
+  async recordRollback(proposalId, rollbackCommit) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const proposal = this.findMergeProposal(state, proposalId);
+      if (proposal.status !== "merged") {
+        throw new StudioStoreError(
+          "rollback_not_merged",
+          "\u53EA\u6709\u5DF2\u5408\u5E76\u7684\u63D0\u6848\u53EF\u4EE5\u56DE\u6EDA",
+          409
+        );
+      }
+      const at = nowIso(this.now);
+      proposal.rollbackCommit = requiredText(
+        rollbackCommit,
+        "rollbackCommit",
+        160
+      );
+      proposal.rolledBackAt = at;
+      proposal.updatedAt = at;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "merge.rolled_back",
+        at,
+        projectId: proposal.projectId,
+        taskId: proposal.taskId,
+        payload: {
+          proposalId,
+          mergeCommit: proposal.mergeCommit,
+          rollbackCommit: proposal.rollbackCommit
+        }
+      });
+      await this.save();
+      return structuredClone(proposal);
+    });
+  }
   async load() {
-    await mkdir2(this.dataDir, { recursive: true });
-    if (!existsSync2(this.file)) {
+    await mkdir(this.dataDir, { recursive: true });
+    if (!existsSync(this.file)) {
       this.state = this.seedState();
       await this.save();
       return;
@@ -3062,7 +2794,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
     state.updatedAt = nowIso(this.now);
     const serialized = `${JSON.stringify(state, null, 2)}
 `;
-    const temp = `${this.file}.${randomUUID2()}.tmp`;
+    const temp = `${this.file}.${randomUUID()}.tmp`;
     await writeFile(temp, serialized, "utf8");
     try {
       await rename(temp, this.file);
@@ -3184,6 +2916,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       recommendation: "\u540C\u4E00\u4EFB\u52A1\u8FDE\u7EED\u5931\u8D25 2 \u6B21\uFF0C\u6309\u5DE5\u4F5C\u6D41\u5E94\u9000\u56DE\u67B6\u6784\u5E08\u91CD\u62C6\uFF0C\u4E0D\u5141\u8BB8\u7B2C\u4E09\u6B21\u539F\u5730\u91CD\u8BD5\u3002",
       reversible: true,
       adrDraft: null,
+      adrPath: null,
       status: "pending",
       decision: "",
       note: "",
@@ -3353,7 +3086,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       )
     ];
     const acceptance = (...texts) => texts.map((text, index) => ({
-      id: `acc-demo-${String(index)}-${randomUUID2().slice(0, 4)}`,
+      id: `acc-demo-${String(index)}-${randomUUID().slice(0, 4)}`,
       text,
       done: false
     }));
@@ -3481,7 +3214,436 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
   }
 };
 
+// src/host/adr.ts
+var AdrService = class {
+  store;
+  constructor(store) {
+    this.store = store;
+  }
+  async write(decisionId) {
+    const { decision, project } = await this.store.getDecisionAdrContext(
+      decisionId
+    );
+    if (decision.adrPath !== null) return decision;
+    if (decision.adrDraft === null) {
+      throw new StudioStoreError(
+        "adr_draft_required",
+        "\u8FD9\u6761\u51B3\u7B56\u8FD8\u6CA1\u6709 ADR \u8349\u7A3F\uFF1B\u53EA\u6709\u6279\u51C6\u540E\u7684\u4E0D\u53EF\u9006\u51B3\u7B56\u624D\u4F1A\u751F\u6210",
+        409
+      );
+    }
+    if (project.repoPath === null) {
+      throw new StudioStoreError(
+        "repo_required",
+        "\u9879\u76EE\u8FD8\u6CA1\u6709\u7ED1\u5B9A\u4EE3\u7801\u4ED3\u5E93\uFF0C\u65E0\u6CD5\u5199\u5165 ADR",
+        409
+      );
+    }
+    const dir = path3.join(project.repoPath, "docs", "adr");
+    await mkdir2(dir, { recursive: true });
+    const files = await readdir(dir);
+    let next = 1;
+    for (const file of files) {
+      const match = /^(\d{4})-/.exec(file);
+      if (match !== null) {
+        next = Math.max(next, Number(match[1]) + 1);
+      }
+    }
+    const name2 = `${String(next).padStart(4, "0")}-${decision.id}.md`;
+    const relative = `docs/adr/${name2}`;
+    await writeFile2(path3.join(dir, name2), decision.adrDraft, "utf8");
+    return this.store.setDecisionAdrPath(decision.id, relative);
+  }
+};
+
+// src/host/dispatcher.ts
+import { randomUUID as randomUUID2 } from "node:crypto";
+
+// src/host/workspace.ts
+import { execFileSync } from "node:child_process";
+import { existsSync as existsSync2 } from "node:fs";
+import { mkdir as mkdir3 } from "node:fs/promises";
+import path4 from "node:path";
+var WorkspaceError = class extends Error {
+  code;
+  constructor(code, message) {
+    super(message);
+    this.code = code;
+  }
+};
+function git(cwd, args) {
+  try {
+    return execFileSync("git", args, {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"]
+    }).trim();
+  } catch (error) {
+    const detail = error instanceof Error && "stderr" in error ? String(error.stderr ?? "") : String(error);
+    throw new WorkspaceError(
+      "git_failed",
+      `git ${args.join(" ")} \u5931\u8D25\uFF1A${detail.slice(0, 800)}`
+    );
+  }
+}
+function sanitize(taskId) {
+  return taskId.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 80);
+}
+var WorkspaceManager = class {
+  async prepare(repoPath, taskId) {
+    const resolved = path4.resolve(repoPath);
+    if (!existsSync2(resolved)) {
+      throw new WorkspaceError(
+        "repo_missing",
+        `\u9879\u76EE\u4ED3\u5E93\u4E0D\u5B58\u5728\uFF1A${resolved}`
+      );
+    }
+    const root = git(resolved, ["rev-parse", "--show-toplevel"]);
+    const worktreeRoot = path4.join(root, ".worktrees");
+    const worktreePath = path4.join(worktreeRoot, sanitize(taskId));
+    const branch = `studio/${sanitize(taskId)}`;
+    await mkdir3(worktreeRoot, { recursive: true });
+    if (existsSync2(worktreePath)) {
+      return { repoPath: root, path: worktreePath, branch };
+    }
+    const branches = git(root, ["branch", "--list", branch]);
+    if (branches === "") {
+      git(root, ["worktree", "add", "-b", branch, worktreePath, "HEAD"]);
+    } else {
+      git(root, ["worktree", "add", worktreePath, branch]);
+    }
+    return { repoPath: root, path: worktreePath, branch };
+  }
+  diffStat(worktreePath) {
+    if (!existsSync2(worktreePath)) return "";
+    const status = git(worktreePath, ["status", "--short"]);
+    const stat = git(worktreePath, ["diff", "--stat"]);
+    return [status, stat].filter((line) => line !== "").join("\n").trim();
+  }
+};
+
+// src/host/dispatcher.ts
+function changedFilesFromDiff(diffStat) {
+  if (diffStat === null) return [];
+  return diffStat.split("\n").map((line) => /^[ MARC?]{1,2} (\S.*)$/.exec(line)?.[1]?.trim() ?? "").filter(Boolean);
+}
+function assistantText(messages) {
+  const assistant = [...messages].reverse().find((message) => message.role === "assistant");
+  if (assistant === void 0) return "";
+  return assistant.content.filter((block) => block.type === "text").map((block) => block.text ?? "").join("\n").trim();
+}
+function extractJsonObject(text) {
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(text);
+  const candidate = fenced?.[1] ?? text;
+  const start = candidate.indexOf("{");
+  const end = candidate.lastIndexOf("}");
+  if (start < 0 || end <= start) return void 0;
+  try {
+    return JSON.parse(candidate.slice(start, end + 1));
+  } catch {
+    return void 0;
+  }
+}
+function stringArray(value) {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item) => typeof item === "string").map((item) => item.trim()).filter(Boolean).slice(0, 20);
+}
+function objectArray(value) {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (item) => typeof item === "object" && item !== null && !Array.isArray(item)
+  );
+}
+function textOf(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+function normalizeReceipt(raw, fallback) {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    return {
+      summary: fallback.slice(0, 2e3),
+      evidence: [],
+      artifacts: [],
+      decisions: [],
+      contractDeltas: [],
+      rejectedOptions: [],
+      blockers: ["\u6A21\u578B\u6CA1\u6709\u8FD4\u56DE\u53EF\u89E3\u6790\u7684 JSON \u56DE\u6267"]
+    };
+  }
+  const record = raw;
+  return {
+    summary: textOf(record.summary) || fallback.slice(0, 2e3),
+    evidence: stringArray(record.evidence),
+    artifacts: objectArray(record.artifacts).map((item) => ({
+      kind: textOf(item.kind) || "unknown",
+      path: textOf(item.path)
+    })).filter((item) => item.path !== "").slice(0, 20),
+    decisions: objectArray(record.decisions).map((item) => {
+      const scope = item.scope === "project" ? "project" : "branch";
+      return {
+        title: textOf(item.title),
+        rationale: textOf(item.rationale),
+        scope
+      };
+    }).filter((item) => item.title !== "").slice(0, 20),
+    contractDeltas: objectArray(record.contractDeltas).map((item) => ({
+      contract: textOf(item.contract),
+      change: textOf(item.change)
+    })).filter((item) => item.contract !== "").slice(0, 20),
+    rejectedOptions: objectArray(record.rejectedOptions).map((item) => ({
+      option: textOf(item.option),
+      reason: textOf(item.reason)
+    })).filter((item) => item.option !== "").slice(0, 20),
+    blockers: stringArray(record.blockers)
+  };
+}
+function buildPrompt(context, workspace) {
+  const { task, role, project } = context;
+  const module = context.module;
+  const acceptance = task.acceptance.map((item, index) => `${String(index + 1)}. ${item.text}`).join("\n");
+  const mode = workspace === void 0 ? [
+    "\u672C\u8F6E\u53EA\u505A\u5206\u6790/\u89C4\u5212\uFF0C\u4E0D\u8981\u4FEE\u6539\u4EFB\u4F55\u6587\u4EF6\uFF0C\u4E0D\u8981\u6267\u884C\u4F1A\u6539\u53D8\u7CFB\u7EDF\u72B6\u6001\u7684\u547D\u4EE4\u3002"
+  ] : [
+    `\u4EE3\u7801\u6267\u884C\u6A21\u5F0F\uFF1A\u4F60\u5DF2\u5728\u72EC\u7ACB worktree \u4E2D\u5DE5\u4F5C\u3002`,
+    `\u4ED3\u5E93\uFF1A${workspace.repoPath}`,
+    `\u5DE5\u4F5C\u533A\uFF1A${workspace.path}`,
+    `\u5206\u652F\uFF1A${workspace.branch}`,
+    "\u53EF\u4EE5\u4FEE\u6539\u5DE5\u4F5C\u533A\u6587\u4EF6\u3001\u8FD0\u884C\u6D4B\u8BD5\u548C\u6784\u5EFA\uFF1B\u4E0D\u8981\u5207\u6362/\u5220\u9664 worktree\uFF0C\u4E0D\u8981 merge\u3001push \u6216\u4FEE\u6539\u4E3B\u5DE5\u4F5C\u533A\u3002",
+    "\u53EA\u4FEE\u6539\u6A21\u5757/\u5951\u7EA6\u5141\u8BB8\u7684\u8303\u56F4\uFF1B\u9700\u8981\u6539\u5951\u7EA6\u672C\u8EAB\u65F6\uFF0C\u5728\u56DE\u6267\u91CC\u63D0\u51FA decision\uFF0C\u4E0D\u8981\u76F4\u63A5\u6539\u5951\u7EA6\u3002",
+    "\u5B8C\u6210\u540E\u5FC5\u987B\u62A5\u544A\u4F60\u5B9E\u9645\u8FD0\u884C\u8FC7\u7684\u547D\u4EE4\u548C\u6D4B\u8BD5\u7ED3\u679C\u3002"
+  ];
+  return [
+    `\u4F60\u662F Studio \u5DE5\u4F5C\u53F0\u91CC\u7684\u89D2\u8272\u300C${role.name}\u300D\uFF08${role.title || "\u672A\u586B\u5199\u804C\u4F4D"}\uFF09\u3002`,
+    `\u89D2\u8272\u4F7F\u547D\uFF1A${role.mission || "\u672A\u586B\u5199"}`,
+    `\u804C\u8D23\uFF1A${role.responsibilities.join("\uFF1B") || "\u672A\u586B\u5199"}`,
+    "",
+    `\u9879\u76EE\uFF1A${project.name}`,
+    project.description ? `\u9879\u76EE\u63CF\u8FF0\uFF1A${project.description}` : "",
+    "",
+    `\u4EFB\u52A1\uFF1A${task.title}`,
+    `\u4EFB\u52A1\u76EE\u6807\uFF1A${task.goal || "\u672A\u586B\u5199"}`,
+    `\u4F18\u5148\u7EA7\uFF1A${task.priority}`,
+    `\u7968\u7C7B\u578B\uFF1A${task.kind === "fix" ? "\u6539\u4FEE\u578B\uFF08\u5148\u8BCA\u65AD\u518D\u6539\uFF09" : "\u65B0\u5EFA\u578B\uFF08red\u2192green\uFF09"}`,
+    `\u6A21\u5757\uFF1A${task.module ?? "\u672A\u6307\u5B9A"}`,
+    module === null ? "" : `\u6A21\u5757\u804C\u8D23\uFF1A${module.responsibility || "\u672A\u586B\u5199"}`,
+    module === null ? "" : `\u5141\u8BB8\u8DEF\u5F84\uFF1A${module.allowedPaths.join("\uFF1B") || "\u672A\u9650\u5236"}`,
+    module === null ? "" : `\u7981\u6B62\u8DEF\u5F84\uFF1A${module.forbiddenPaths.join("\uFF1B") || "\u65E0"}`,
+    module === null || module.contractText === "" ? "" : `\u6A21\u5757\u5951\u7EA6\uFF1A
+${module.contractText.slice(0, 6e3)}`,
+    `\u5951\u7EA6\uFF1A${task.contractRef ?? module?.contractPath ?? "\u672A\u6307\u5B9A"}`,
+    `\u5206\u652F\uFF1A${workspace?.branch ?? task.branch ?? "\u672A\u521B\u5EFA"}`,
+    "\u9A8C\u6536\u6807\u51C6\uFF1A",
+    acceptance || "\uFF08\u65E0\uFF09",
+    "",
+    ...mode,
+    "\u8BF7\u8F93\u51FA\u4E00\u4E2A JSON \u5BF9\u8C61\uFF08\u4E0D\u8981\u8F93\u51FA JSON \u4EE5\u5916\u7684\u89E3\u91CA\uFF09\uFF0C\u5B57\u6BB5\u5982\u4E0B\uFF1A",
+    '{"summary":"\u4E00\u53E5\u8BDD\u7ED3\u8BBA","evidence":["\u53EF\u590D\u73B0\u7684\u8BC1\u636E/\u68C0\u67E5\u7ED3\u679C"],"artifacts":[{"kind":"plan|diff|test|doc","path":"\u8DEF\u5F84\u6216\u8BF4\u660E"}],"decisions":[{"title":"\u51B3\u7B56","rationale":"\u7406\u7531","scope":"branch|project"}],"contractDeltas":[{"contract":"\u5951\u7EA6\u8DEF\u5F84","change":"\u53D8\u66F4"}],"rejectedOptions":[{"option":"\u88AB\u5426\u51B3\u65B9\u6848","reason":"\u539F\u56E0"}],"blockers":["\u963B\u585E"]}',
+    "\u6CA1\u6709\u5185\u5BB9\u7684\u5B57\u6BB5\u7528\u7A7A\u6570\u7EC4\u3002\u4E0D\u8981\u58F0\u79F0\u4EFB\u52A1\u5DF2\u7ECF\u5B8C\u6210\uFF1B\u9A8C\u6536\u7531\u4EBA\u7C7B/Verifier \u51B3\u5B9A\u3002"
+  ].filter((line) => line !== "").join("\n");
+}
+function buildReviewPrompt(context) {
+  return [
+    "\u4F60\u662F Studio \u7684\u72EC\u7ACB\u9A8C\u6536\u8005\u3002\u4E0D\u8981\u76F8\u4FE1\u5B9E\u73B0\u8005\u7684\u81EA\u8FF0\uFF0C\u76F4\u63A5\u770B worktree \u7684 diff \u548C\u9A8C\u8BC1\u8F93\u51FA\u3002",
+    `\u9879\u76EE\uFF1A${context.project.name}`,
+    `\u4EFB\u52A1\uFF1A${context.task.title}`,
+    `\u4EFB\u52A1\u76EE\u6807\uFF1A${context.task.goal || "\u672A\u586B\u5199"}`,
+    `\u6A21\u5757\uFF1A${context.task.module ?? "\u672A\u6307\u5B9A"}`,
+    `\u5951\u7EA6\uFF1A${context.task.contractRef ?? "\u672A\u6307\u5B9A"}`,
+    "\u9A8C\u6536\u6807\u51C6\uFF1A",
+    context.task.acceptance.map(
+      (item, index) => `${String(index + 1)}. [${item.done ? "x" : " "}] ${item.text}`
+    ).join("\n") || "\uFF08\u65E0\uFF09",
+    "",
+    "\u5B9E\u73B0\u8005 diff\uFF1A",
+    context.run?.diffStat ?? "\uFF08\u6CA1\u6709\u4EE3\u7801 diff\uFF09",
+    "",
+    context.verification === null ? "\u6CA1\u6709 Host \u72EC\u7ACB\u9A8C\u8BC1\u8BB0\u5F55\u3002" : `Host \u72EC\u7ACB\u9A8C\u8BC1\uFF1A${context.verification.command} \u2192 exit ${String(context.verification.exitCode)}\uFF08${context.verification.passed ? "\u901A\u8FC7" : "\u5931\u8D25"}\uFF09
+${context.verification.output.slice(0, 6e3)}`,
+    "",
+    "\u53EA\u8BFB\u8BC4\u5BA1\uFF1A\u4E0D\u8981\u4FEE\u6539\u6587\u4EF6\uFF0C\u4E0D\u8981\u8FD0\u884C\u4F1A\u5199\u6587\u4EF6\u7684\u547D\u4EE4\u3002",
+    "\u6307\u51FA\u9A8C\u6536\u6807\u51C6\u662F\u5426\u771F\u7684\u6EE1\u8DB3\u3001diff \u662F\u5426\u8D8A\u754C\u3001\u6D4B\u8BD5\u662F\u5426\u8DB3\u591F\u3002",
+    "\u8BF7\u8F93\u51FA\u4E00\u4E2A JSON \u5BF9\u8C61\uFF08\u4E0D\u8981\u8F93\u51FA JSON \u4EE5\u5916\u7684\u89E3\u91CA\uFF09\uFF1A",
+    '{"verdict":"pass|fail","summary":"\u4E00\u53E5\u8BDD\u7ED3\u8BBA","findings":["\u5177\u4F53\u53D1\u73B0/\u98CE\u9669"]}'
+  ].filter((line) => line !== "").join("\n");
+}
+var AgentDispatcher = class {
+  ctx;
+  store;
+  workspaces = new WorkspaceManager();
+  constructor(ctx, store) {
+    this.ctx = ctx;
+    this.store = store;
+  }
+  async dispatch(taskId) {
+    const context = await this.store.getDispatchContext(taskId);
+    const selection = await this.resolveModel(context.role);
+    const workspace = context.project.repoPath === null ? void 0 : await this.workspaces.prepare(context.project.repoPath, taskId);
+    const prompt = buildPrompt(context, workspace);
+    const run2 = await this.store.beginRun(taskId, prompt, workspace);
+    void this.execute(run2, selection, workspace);
+    return run2;
+  }
+  async review(taskId) {
+    const context = await this.store.getReviewContext(taskId);
+    if (context.run === null || context.run.workspacePath === null) {
+      throw new Error("\u8FD9\u4E2A\u4EFB\u52A1\u8FD8\u6CA1\u6709\u53EF\u8BC4\u5BA1\u7684 worktree");
+    }
+    const selection = await this.resolveModel(context.role);
+    const prompt = buildReviewPrompt(context);
+    let handle = null;
+    let output = "";
+    try {
+      handle = await this.ctx.agents.create({
+        sessionId: `review-${randomUUID2()}`,
+        meta: { cwd: context.run.workspacePath },
+        agentOptions: selection,
+        setup: async (agentCtx, agent) => {
+          await this.ctx.agentPresets.mount(agentCtx);
+          agent.session.append("approval/policy", { policy: "never" });
+        }
+      });
+      handle.agent.followup({
+        role: "user",
+        content: [{ type: "text", text: prompt }],
+        source: { kind: "user" }
+      });
+      const deadline = Date.now() + 18e4;
+      let idleTicks = 0;
+      while (Date.now() < deadline) {
+        output = assistantText(handle.agent.session.deriveMessages());
+        if (handle.agent.status === "idle") {
+          if (output !== "") break;
+          idleTicks += 1;
+          if (idleTicks >= 10) break;
+        } else {
+          idleTicks = 0;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 400));
+      }
+      const measured = this.ctx.tokenMeter.measure(handle.agent.session);
+      const raw = extractJsonObject(output);
+      const record = typeof raw === "object" && raw !== null && !Array.isArray(raw) ? raw : {};
+      const verdict = record.verdict === "pass" || record.verdict === "fail" ? record.verdict : "fail";
+      const summary = textOf(record.summary) || (output === "" ? "\u72EC\u7ACB\u8BC4\u5BA1\u6CA1\u6709\u4EA7\u51FA" : output.slice(0, 2e3));
+      const findings = stringArray(record.findings);
+      return await this.store.recordReview(taskId, {
+        reviewerRoleId: context.role.id,
+        model: selection.model,
+        verdict,
+        summary,
+        findings: findings.length === 0 && output === "" ? ["\u8BC4\u5BA1 Agent \u6CA1\u6709\u8FD4\u56DE\u5185\u5BB9"] : findings,
+        tokens: typeof measured.totalTokens === "number" ? measured.totalTokens : null,
+        runId: context.run.id
+      });
+    } finally {
+      if (handle !== null) {
+        try {
+          await handle.dispose();
+        } catch {
+        }
+      }
+    }
+  }
+  async resolveModel(role) {
+    const fallback = this.ctx.agentDefaultModel.currentSelection();
+    const wanted = role.model ?? fallback.model;
+    const providers = [...this.ctx.llm.listProviders()].sort((left, right) => {
+      const score = (id) => id === "deepseek-account" ? 0 : id === "deepseek-official" ? 2 : 1;
+      return score(left.id) - score(right.id);
+    });
+    let first = null;
+    for (const provider of providers) {
+      const models = await this.ctx.llm.listModels(provider.id);
+      const exact = models.find((model) => model.id === wanted);
+      if (exact !== void 0) {
+        return { provider: provider.id, model: exact.id };
+      }
+      if (first === null && models.length > 0) {
+        first = { provider: provider.id, model: models[0]?.id ?? wanted };
+      }
+    }
+    if (first !== null) return first;
+    throw new Error(`\u6CA1\u6709\u53EF\u7528\u7684\u6A21\u578B\u8DEF\u7531\uFF08\u8BF7\u6C42\u6A21\u578B\uFF1A${wanted}\uFF09`);
+  }
+  async execute(run2, selection, workspace) {
+    let handle = null;
+    try {
+      handle = await this.ctx.agents.create({
+        sessionId: `run-${randomUUID2()}`,
+        meta: { cwd: workspace?.path ?? process.cwd() },
+        agentOptions: selection,
+        setup: async (agentCtx, agent) => {
+          await this.ctx.agentPresets.mount(agentCtx);
+          agent.session.append("approval/policy", { policy: "never" });
+        }
+      });
+      await this.store.attachRunSession(
+        run2.id,
+        handle.agent.session.id,
+        selection.model
+      );
+      handle.agent.followup({
+        role: "user",
+        content: [{ type: "text", text: run2.prompt }],
+        source: { kind: "user" }
+      });
+      const deadline = Date.now() + (workspace === void 0 ? 12e4 : 3e5);
+      let output = "";
+      let idleTicks = 0;
+      while (Date.now() < deadline) {
+        output = assistantText(handle.agent.session.deriveMessages());
+        if (handle.agent.status === "idle") {
+          if (output !== "") break;
+          idleTicks += 1;
+          if (idleTicks >= 10) break;
+        } else {
+          idleTicks = 0;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 400));
+      }
+      if (output === "") {
+        throw new Error(
+          `Agent \u5728 ${workspace === void 0 ? "120" : "300"} \u79D2\u5185\u6CA1\u6709\u4EA7\u51FA\uFF08\u6CA1\u6709 assistant \u6D88\u606F\uFF09`
+        );
+      }
+      const idleDeadline = Date.now() + 3e4;
+      while (handle.agent.status !== "idle" && Date.now() < idleDeadline) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+      const receipt = normalizeReceipt(
+        extractJsonObject(output),
+        output
+      );
+      const measured = this.ctx.tokenMeter.measure(handle.agent.session);
+      const diffStat = workspace === void 0 ? null : this.workspaces.diffStat(workspace.path);
+      await this.store.completeRun(run2.id, {
+        output,
+        receipt,
+        tokens: typeof measured.totalTokens === "number" ? measured.totalTokens : null,
+        diffStat
+      });
+      if (workspace !== void 0) {
+        await this.store.enforceContractScope(
+          run2.taskId,
+          run2.id,
+          changedFilesFromDiff(diffStat)
+        );
+      }
+    } catch (error) {
+      await this.store.failRun(
+        run2.id,
+        error instanceof Error ? error.message : String(error)
+      ).catch(() => void 0);
+    } finally {
+      if (handle !== null) {
+        await handle.dispose().catch(() => void 0);
+      }
+    }
+  }
+};
+
 // src/host/docs.ts
+import { readFile as readFile3 } from "node:fs/promises";
+import path5 from "node:path";
 var MAX_BYTES = 2e5;
 var DocsService = class {
   store;
@@ -3497,9 +3659,9 @@ var DocsService = class {
         409
       );
     }
-    const root = path4.resolve(data.project.repoPath);
-    const resolved = path4.resolve(root, relativePath);
-    if (resolved !== root && !resolved.startsWith(`${root}${path4.sep}`)) {
+    const root = path5.resolve(data.project.repoPath);
+    const resolved = path5.resolve(root, relativePath);
+    if (resolved !== root && !resolved.startsWith(`${root}${path5.sep}`)) {
       throw new StudioStoreError(
         "path_outside_repo",
         "\u6587\u6863\u8DEF\u5F84\u5FC5\u987B\u4F4D\u4E8E\u9879\u76EE\u4ED3\u5E93\u5185",
@@ -3620,6 +3782,58 @@ var GitMergeService = class {
   store;
   constructor(store) {
     this.store = store;
+  }
+  async rollback(proposalId) {
+    const { proposal, project, verification } = await this.store.getMergeContext(proposalId);
+    if (proposal.status !== "merged" || proposal.mergeCommit === null) {
+      throw new StudioStoreError(
+        "rollback_not_merged",
+        "\u53EA\u6709\u5DF2\u5408\u5E76\u7684\u63D0\u6848\u53EF\u4EE5\u56DE\u6EDA",
+        409
+      );
+    }
+    if (verification === null || verification.passed) {
+      throw new StudioStoreError(
+        "rollback_not_failed",
+        "\u53EA\u6709\u5408\u5E76\u540E\u56DE\u5F52\u5931\u8D25\u65F6\u624D\u5141\u8BB8\u56DE\u6EDA",
+        409
+      );
+    }
+    if (project.repoPath === null) {
+      throw new StudioStoreError(
+        "repo_required",
+        "\u9879\u76EE\u8FD8\u6CA1\u6709\u7ED1\u5B9A\u4EE3\u7801\u4ED3\u5E93",
+        409
+      );
+    }
+    const repo = project.repoPath;
+    const current = (await git2(repo, ["rev-parse", "--abbrev-ref", "HEAD"])).stdout.trim();
+    if (current !== proposal.base) {
+      throw new StudioStoreError(
+        "rollback_wrong_branch",
+        `\u5F53\u524D\u5206\u652F\u662F\u300C${current}\u300D\uFF0C\u8BF7\u5148\u5207\u5230\u57FA\u7840\u5206\u652F\u300C${proposal.base}\u300D`,
+        409
+      );
+    }
+    const dirty = (await git2(repo, ["status", "--porcelain"])).stdout.trim();
+    if (dirty !== "") {
+      throw new StudioStoreError(
+        "rollback_dirty",
+        "\u5DE5\u4F5C\u533A\u4E0D\u5E72\u51C0\uFF1B\u8BF7\u5148\u63D0\u4EA4\u6216\u6E05\u7406\u6539\u52A8\u518D\u56DE\u6EDA",
+        409
+      );
+    }
+    try {
+      await git2(repo, ["revert", "--no-edit", proposal.mergeCommit]);
+    } catch (error) {
+      try {
+        await git2(repo, ["revert", "--abort"]);
+      } catch {
+      }
+      throw error;
+    }
+    const commit = (await git2(repo, ["rev-parse", "HEAD"])).stdout.trim();
+    return this.store.recordRollback(proposalId, commit);
   }
   async execute(proposalId) {
     const { proposal, project, task } = await this.store.getMergeContext(proposalId);
@@ -4034,6 +4248,8 @@ var StudioRouter = class {
   verifyTask;
   reviewTask;
   executeMerge;
+  rollbackMerge;
+  writeAdr;
   readProjectDoc;
   constructor(options) {
     this.store = options.store;
@@ -4046,6 +4262,8 @@ var StudioRouter = class {
     this.verifyTask = options.verifyTask;
     this.reviewTask = options.reviewTask;
     this.executeMerge = options.executeMerge;
+    this.rollbackMerge = options.rollbackMerge;
+    this.writeAdr = options.writeAdr;
     this.readProjectDoc = options.readProjectDoc;
   }
   async handle(req, res) {
@@ -4247,6 +4465,17 @@ var StudioRouter = class {
       sendJson(res, 200, { ok: true, review });
       return;
     }
+    const decisionAdr = /^\/studio-api\/decisions\/([^/]+)\/adr$/.exec(
+      parsed.pathname
+    );
+    if (decisionAdr !== null) {
+      this.requireMethod(parsed, ["POST"]);
+      const decision = await this.writeAdr(
+        decodeSegment(decisionAdr[1] ?? "")
+      );
+      sendJson(res, 200, { ok: true, decision });
+      return;
+    }
     if (parsed.pathname === `${API_PREFIX}/decisions`) {
       this.requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
@@ -4278,7 +4507,7 @@ var StudioRouter = class {
       sendJson(res, 201, { ok: true, proposal });
       return;
     }
-    const mergeDecision = /^\/studio-api\/merge-proposals\/([^/]+)\/(approve|reject|merge|execute)$/.exec(
+    const mergeDecision = /^\/studio-api\/merge-proposals\/([^/]+)\/(approve|reject|merge|execute|rollback)$/.exec(
       parsed.pathname
     );
     if (mergeDecision !== null) {
@@ -4290,7 +4519,7 @@ var StudioRouter = class {
       const proposal = action === "approve" ? await this.store.approveMergeProposal(proposalId, asNote(body)) : action === "reject" ? await this.store.rejectMergeProposal(
         proposalId,
         asNote(body) ?? ""
-      ) : action === "execute" ? await this.executeMerge(proposalId) : await this.store.completeMergeProposal(
+      ) : action === "execute" ? await this.executeMerge(proposalId) : action === "rollback" ? await this.rollbackMerge(proposalId) : await this.store.completeMergeProposal(
         proposalId,
         asOptionalString(body.mergeCommit, "mergeCommit")
       );
@@ -4381,6 +4610,7 @@ async function apply(ctx) {
   const verifier = new VerificationService(store);
   const docs = new DocsService(store);
   const merger = new GitMergeService(store);
+  const adr = new AdrService(store);
   const token = randomBytes(24).toString("hex");
   const startedAt = (/* @__PURE__ */ new Date()).toISOString();
   const bootPayload = {
@@ -4402,7 +4632,9 @@ async function apply(ctx) {
     verifyTask: (taskId, command) => verifier.verify(taskId, command),
     reviewTask: (taskId) => dispatcher.review(taskId),
     executeMerge: (proposalId) => merger.execute(proposalId),
-    readProjectDoc: (path5) => docs.read(path5)
+    rollbackMerge: (proposalId) => merger.rollback(proposalId),
+    writeAdr: (decisionId) => adr.write(decisionId),
+    readProjectDoc: (path6) => docs.read(path6)
   });
   const install = () => {
     const disposeRoute = ctx.webServer.register({

@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 14;
-export const STUDIO_PLUGIN_VERSION = "1.7.0";
+export const STUDIO_SCHEMA_VERSION = 15;
+export const STUDIO_PLUGIN_VERSION = "1.8.0";
 
 export type TaskStatus =
   | "backlog"
@@ -147,6 +147,8 @@ export interface MergeProposal {
   changedFiles: string[];
   verificationId: string | null;
   postMergeVerificationId: string | null;
+  rollbackCommit: string | null;
+  rolledBackAt: string | null;
   createdAt: string;
   updatedAt: string;
   decidedAt: string | null;
@@ -252,6 +254,7 @@ export interface Decision {
   recommendation: string;
   reversible: boolean;
   adrDraft: string | null;
+  adrPath: string | null;
   status: DecisionStatus;
   decision: string;
   note: string;
