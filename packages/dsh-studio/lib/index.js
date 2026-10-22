@@ -1105,7 +1105,7 @@ var StudioStore = class {
     return this.runExclusive(async () => {
       const state = this.requireState();
       const task = this.findTask(state, taskId);
-      if (task.kind === "fix" && (task.diagnosis.trim() === "" || task.plan.trim() === "")) {
+      if (task.kind === "fix" && !task.integration && (task.diagnosis.trim() === "" || task.plan.trim() === "")) {
         throw new StudioStoreError(
           "plan_required",
           "\u6539\u4FEE\u7968\u5FC5\u987B\u6709\u8BCA\u65AD\u548C\u4FEE\u6539\u8BA1\u5212\uFF0C\u624D\u80FD\u6D3E\u5355",

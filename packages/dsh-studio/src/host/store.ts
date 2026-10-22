@@ -1430,6 +1430,7 @@ export class StudioStore {
       const task = this.findTask(state, taskId);
       if (
         task.kind === "fix" &&
+        !task.integration &&
         (task.diagnosis.trim() === "" || task.plan.trim() === "")
       ) {
         throw new StudioStoreError(
