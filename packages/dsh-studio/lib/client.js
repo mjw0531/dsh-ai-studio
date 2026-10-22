@@ -574,6 +574,25 @@ var NAV_ITEMS = [
   { id: "team", label: "\u56E2\u961F", caption: "Roles" },
   { id: "settings", label: "\u8BBE\u7F6E", caption: "Runtime" }
 ];
+var STUDIO_TAB_KEY = "studio.ui.tab";
+var STUDIO_TASK_KEY = "studio.ui.task";
+var TAB_IDS = new Set(NAV_ITEMS.map((item) => item.id));
+function readStoredTab() {
+  try {
+    const value = localStorage.getItem(STUDIO_TAB_KEY);
+    return value !== null && TAB_IDS.has(value) ? value : "company";
+  } catch {
+    return "company";
+  }
+}
+function readStoredTaskId() {
+  try {
+    const value = localStorage.getItem(STUDIO_TASK_KEY);
+    return value !== null && value !== "" ? value : null;
+  } catch {
+    return null;
+  }
+}
 function errorText(error) {
   if (error instanceof StudioClientError) return error.message;
   return error instanceof Error ? error.message : String(error);
@@ -673,8 +692,10 @@ function StudioPage() {
   const [loading, setLoading] = (0, import_react.useState)(true);
   const [busy, setBusy] = (0, import_react.useState)(false);
   const [error, setError] = (0, import_react.useState)(null);
-  const [tab, setTab] = (0, import_react.useState)("company");
-  const [selectedTaskId, setSelectedTaskId] = (0, import_react.useState)(null);
+  const [tab, setTab] = (0, import_react.useState)(readStoredTab);
+  const [selectedTaskId, setSelectedTaskId] = (0, import_react.useState)(
+    readStoredTaskId
+  );
   const [modal, setModal] = (0, import_react.useState)(null);
   const [toast, setToast] = (0, import_react.useState)(null);
   const [theme, setTheme] = (0, import_react.useState)(() => {
@@ -690,6 +711,28 @@ function StudioPage() {
     } catch {
     }
   }, [theme]);
+  (0, import_react.useEffect)(() => {
+    try {
+      localStorage.setItem(STUDIO_TAB_KEY, tab);
+    } catch {
+    }
+  }, [tab]);
+  (0, import_react.useEffect)(() => {
+    try {
+      if (selectedTaskId === null) {
+        localStorage.removeItem(STUDIO_TASK_KEY);
+      } else {
+        localStorage.setItem(STUDIO_TASK_KEY, selectedTaskId);
+      }
+    } catch {
+    }
+  }, [selectedTaskId]);
+  (0, import_react.useEffect)(() => {
+    if (data === null || selectedTaskId === null) return;
+    if (!data.tasks.some((task) => task.id === selectedTaskId)) {
+      setSelectedTaskId(null);
+    }
+  }, [data, selectedTaskId]);
   (0, import_react.useEffect)(() => {
     if (boot !== null || bootChecked) return;
     let cancelled = false;

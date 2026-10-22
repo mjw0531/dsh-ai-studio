@@ -115,6 +115,30 @@ const NAV_ITEMS: NavItem[] = [
   { id: "settings", label: "设置", caption: "Runtime" },
 ];
 
+const STUDIO_TAB_KEY = "studio.ui.tab";
+const STUDIO_TASK_KEY = "studio.ui.task";
+const TAB_IDS = new Set<Tab>(NAV_ITEMS.map((item) => item.id));
+
+function readStoredTab(): Tab {
+  try {
+    const value = localStorage.getItem(STUDIO_TAB_KEY);
+    return value !== null && TAB_IDS.has(value as Tab)
+      ? (value as Tab)
+      : "company";
+  } catch {
+    return "company";
+  }
+}
+
+function readStoredTaskId(): string | null {
+  try {
+    const value = localStorage.getItem(STUDIO_TASK_KEY);
+    return value !== null && value !== "" ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 function errorText(error: unknown): string {
   if (error instanceof StudioClientError) return error.message;
   return error instanceof Error ? error.message : String(error);
@@ -264,8 +288,10 @@ export function StudioPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("company");
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>(readStoredTab);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(
+    readStoredTaskId,
+  );
   const [modal, setModal] = useState<ModalState>(null);
   const [toast, setToast] = useState<ToastState>(null);
   const [theme, setTheme] = useState<"dark" | "light">(() => {
@@ -283,6 +309,33 @@ export function StudioPage() {
       // Theme persistence is best-effort; the page still works without it.
     }
   }, [theme]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STUDIO_TAB_KEY, tab);
+    } catch {
+      // Navigation persistence is best-effort.
+    }
+  }, [tab]);
+
+  useEffect(() => {
+    try {
+      if (selectedTaskId === null) {
+        localStorage.removeItem(STUDIO_TASK_KEY);
+      } else {
+        localStorage.setItem(STUDIO_TASK_KEY, selectedTaskId);
+      }
+    } catch {
+      // Task selection persistence is best-effort.
+    }
+  }, [selectedTaskId]);
+
+  useEffect(() => {
+    if (data === null || selectedTaskId === null) return;
+    if (!data.tasks.some((task) => task.id === selectedTaskId)) {
+      setSelectedTaskId(null);
+    }
+  }, [data, selectedTaskId]);
 
   useEffect(() => {
     if (boot !== null || bootChecked) return;
