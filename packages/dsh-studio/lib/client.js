@@ -3065,6 +3065,14 @@ function TaskDrawer({
                     TASK_KIND_LABELS[task.kind],
                     task.integration ? " \xB7 \u96C6\u6210/playtest" : ""
                   ] }),
+                  task.diagnosis !== "" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u8BCA\u65AD" }),
+                    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { className: "studio-pre", children: task.diagnosis })
+                  ] }) : null,
+                  task.plan !== "" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u4FEE\u6539\u8BA1\u5212" }),
+                    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { className: "studio-pre", children: task.plan })
+                  ] }) : null,
                   /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u6A21\u5757" }),
                   /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { className: "studio-mono", children: task.module ?? "\u672A\u6307\u5B9A" }),
                   /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u5951\u7EA6" }),
@@ -4014,6 +4022,8 @@ function TaskForm({
   const [moduleName, setModuleName] = (0, import_react.useState)("");
   const [contractRef, setContractRef] = (0, import_react.useState)("");
   const [kind, setKind] = (0, import_react.useState)("new");
+  const [diagnosis, setDiagnosis] = (0, import_react.useState)("");
+  const [plan, setPlan] = (0, import_react.useState)("");
   const [integration, setIntegration] = (0, import_react.useState)(false);
   const [localError, setLocalError] = (0, import_react.useState)(null);
   const submit = (event) => {
@@ -4031,6 +4041,10 @@ function TaskForm({
       setLocalError("\u8D1F\u8D23\u4EBA\u548C\u9A8C\u6536\u4EBA\u6700\u597D\u662F\u4E0D\u540C\u89D2\u8272");
       return;
     }
+    if (kind === "fix" && (diagnosis.trim() === "" || plan.trim() === "")) {
+      setLocalError("\u6539\u4FEE\u7968\u5FC5\u987B\u5199\u8BCA\u65AD\u548C\u4FEE\u6539\u8BA1\u5212");
+      return;
+    }
     setLocalError(null);
     onSubmit({
       title: title.trim(),
@@ -4044,6 +4058,8 @@ function TaskForm({
       module: moduleName.trim() || null,
       contractRef: contractRef.trim() || null,
       kind,
+      diagnosis: diagnosis.trim(),
+      plan: plan.trim(),
       integration
     });
   };
@@ -4162,6 +4178,34 @@ function TaskForm({
                 value: moduleName,
                 onChange: (event) => setModuleName(event.target.value),
                 placeholder: "combat / input / replay"
+              }
+            )
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "task-diagnosis", children: "\u8BCA\u65AD\uFF08\u6539\u4FEE\u7968\u5FC5\u586B\uFF09" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "textarea",
+              {
+                id: "task-diagnosis",
+                value: diagnosis,
+                onChange: (event) => setDiagnosis(event.target.value),
+                rows: 3,
+                placeholder: "\u73B0\u8C61\u3001\u590D\u73B0\u6B65\u9AA4\u3001\u521D\u6B65\u6839\u56E0"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "task-plan", children: "\u4FEE\u6539\u8BA1\u5212\uFF08\u6539\u4FEE\u7968\u5FC5\u586B\uFF09" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "textarea",
+              {
+                id: "task-plan",
+                value: plan,
+                onChange: (event) => setPlan(event.target.value),
+                rows: 3,
+                placeholder: "\u8981\u6539\u54EA\u4E9B\u6587\u4EF6\u3001\u600E\u4E48\u9A8C\u8BC1\u3001\u98CE\u9669"
               }
             )
           ] })
@@ -5524,6 +5568,7 @@ var studioCss = `
 .studio-decision-head strong { color: var(--st-text); font-size: 13px; }
 .studio-decision-meta { color: var(--st-faint); font-size: 10px; }
 .studio-decision-context { color: var(--st-muted); font-size: 11px; line-height: 1.6; white-space: pre-wrap; }
+.studio-pre { white-space: pre-wrap; font-size: 10px; line-height: 1.55; color: var(--st-muted); }
 .studio-adr { margin-top: 7px; font-size: 10px; }
 .studio-adr summary { color: var(--st-accent); cursor: pointer; }
 .studio-adr pre {

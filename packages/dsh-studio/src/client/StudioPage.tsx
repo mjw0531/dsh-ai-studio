@@ -3212,6 +3212,18 @@ function TaskDrawer({
                 {TASK_KIND_LABELS[task.kind]}
                 {task.integration ? " · 集成/playtest" : ""}
               </dd>
+              {task.diagnosis !== "" ? (
+                <>
+                  <dt>诊断</dt>
+                  <dd className="studio-pre">{task.diagnosis}</dd>
+                </>
+              ) : null}
+              {task.plan !== "" ? (
+                <>
+                  <dt>修改计划</dt>
+                  <dd className="studio-pre">{task.plan}</dd>
+                </>
+              ) : null}
               <dt>模块</dt>
               <dd className="studio-mono">{task.module ?? "未指定"}</dd>
               <dt>契约</dt>
@@ -4407,6 +4419,8 @@ function TaskForm({
   const [moduleName, setModuleName] = useState("");
   const [contractRef, setContractRef] = useState("");
   const [kind, setKind] = useState<TaskKind>("new");
+  const [diagnosis, setDiagnosis] = useState("");
+  const [plan, setPlan] = useState("");
   const [integration, setIntegration] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
@@ -4428,6 +4442,13 @@ function TaskForm({
       setLocalError("负责人和验收人最好是不同角色");
       return;
     }
+    if (
+      kind === "fix" &&
+      (diagnosis.trim() === "" || plan.trim() === "")
+    ) {
+      setLocalError("改修票必须写诊断和修改计划");
+      return;
+    }
     setLocalError(null);
     onSubmit({
       title: title.trim(),
@@ -4441,6 +4462,8 @@ function TaskForm({
       module: moduleName.trim() || null,
       contractRef: contractRef.trim() || null,
       kind,
+      diagnosis: diagnosis.trim(),
+      plan: plan.trim(),
       integration,
     });
   };
@@ -4548,6 +4571,28 @@ function TaskForm({
               value={moduleName}
               onChange={(event) => setModuleName(event.target.value)}
               placeholder="combat / input / replay"
+            />
+          </div>
+        </div>
+        <div className="studio-field-row">
+          <div className="studio-field">
+            <label htmlFor="task-diagnosis">诊断（改修票必填）</label>
+            <textarea
+              id="task-diagnosis"
+              value={diagnosis}
+              onChange={(event) => setDiagnosis(event.target.value)}
+              rows={3}
+              placeholder="现象、复现步骤、初步根因"
+            />
+          </div>
+          <div className="studio-field">
+            <label htmlFor="task-plan">修改计划（改修票必填）</label>
+            <textarea
+              id="task-plan"
+              value={plan}
+              onChange={(event) => setPlan(event.target.value)}
+              rows={3}
+              placeholder="要改哪些文件、怎么验证、风险"
             />
           </div>
         </div>

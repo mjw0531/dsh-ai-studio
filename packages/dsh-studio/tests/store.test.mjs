@@ -567,6 +567,33 @@ test("escalates a cross-branch contract conflict to the boardroom", async () => 
   });
 });
 
+test("requires diagnosis and plan before dispatching a fix ticket", async () => {
+  await withStore(async (store) => {
+    const data = await store.bootstrap();
+    const task = await store.createTask({
+      title: "改修任务",
+      acceptance: ["修复"],
+      ownerRoleId: data.roles[0].id,
+      reviewerRoleId: data.roles[1].id,
+      kind: "fix",
+    });
+    await store.transitionTask(task.id, "ready");
+    await assert.rejects(
+      () => store.getDispatchContext(task.id),
+      (error) =>
+        error instanceof StudioStoreError &&
+        error.code === "plan_required",
+    );
+    await store.updateTask(task.id, {
+      diagnosis: "复现：输入后不移动",
+      plan: "改 input 边界并补测试",
+    });
+    const context = await store.getDispatchContext(task.id);
+    assert.equal(context.task.kind, "fix");
+    assert.match(context.task.plan, /input/);
+  });
+});
+
 test("blocks a task and escalates after two failed runs", async () => {
   await withStore(async (store) => {
     const data = await store.bootstrap();
@@ -864,7 +891,7 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
     assert.deepEqual(data.runs, []);
     assert.deepEqual(data.decisions, []);
     const migrated = JSON.parse(await readFile(file, "utf8"));
-    assert.equal(migrated.schemaVersion, 15);
+    assert.equal(migrated.schemaVersion, 16);
     assert.ok(migrated.runs.every((run) => run.status !== undefined));
     assert.ok(Array.isArray(migrated.reviews));
     assert.ok(Array.isArray(migrated.branches));
@@ -889,7 +916,9 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
           task.kind === "new" &&
           task.integration === false &&
           task.originTaskId === null &&
-          task.docsSynced === false,
+          task.docsSynced === false &&
+          task.diagnosis === "" &&
+          task.plan === "",
       ),
     );
   });
