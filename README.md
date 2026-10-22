@@ -63,7 +63,7 @@ dsh plugin --profile web add "D:\dsh-ai-studio\packages\dsh-studio"
 dsh --profile web
 ```
 
-详细安装、打包分发、安全说明见 [插件 README](packages/dsh-studio/README.md)；完整工作流见 [使用说明书](docs/05-使用说明书.md)；兼容性、升级、备份见 [兼容性与安装](docs/04-兼容性与安装.md)。
+详细安装、打包分发、安全说明见 [插件 README](packages/dsh-studio/README.md)；想先理解整体工作流、角色和开发术语，读 [项目介绍与开发指南](docs/06-项目介绍.md)；完整操作步骤见 [使用说明书](docs/05-使用说明书.md)；兼容性、升级、备份见 [兼容性与安装](docs/04-兼容性与安装.md)。
 
 DSH 生态发现：GitHub topic 为 `dsh-plugin`，npm keywords 包含 `dsh-plugin` / `deepseek-harness` / `dsh`，包内提供 `dsh.bundle.patch` 与 `dsh.client.platform`。
 
