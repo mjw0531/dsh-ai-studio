@@ -33,7 +33,7 @@
 - **2.0 真实 dogfood**：在外部真实仓库完成一次派单、Host 验证 5/5、独立评审 pass、merge 和 post-merge 回归 5/5。
 - **2.2 数据导入**：页面「导入」恢复备份；Host 先备份原文件，校验 schema 后替换。
 - **2.4 外部执行器**：角色可选择 DSH Agent / Claude Code / Codex CLI；外部工具需先在本机登录。
-- **2.5 项目包**：设置页导出 `tar.gz`（状态 + git bundle + manifest + 迁移说明）。
+- **2.5 项目包**：设置页导出/导入 `tar.gz`（状态 + git bundle + manifest + SHA-256 + 迁移说明）。
 - **Agent 分析派单**：Task Room 把任务派给负责人角色，Agent 返回结构化回执；回执缺 `summary`/`evidence` 时任务退回可开始，不能进入验收。
 - **薪资与预算**：角色配置模型、单任务/每日 token 预算；项目配置总 token 预算。
 - **独立工作台页面**：DSH 侧栏点击「工作台」，进入公司仪表盘，不占用聊天会话。

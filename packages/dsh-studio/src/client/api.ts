@@ -216,6 +216,16 @@ export class StudioClient {
     };
   }
 
+  async importProjectBundle(
+    archivePath: string,
+    targetPath: string,
+  ): Promise<{ projectId: string; repoPath: string }> {
+    return this.request("/projects/bundle/import", {
+      method: "POST",
+      body: { archivePath, targetPath },
+    });
+  }
+
   async importState(state: unknown): Promise<void> {
     await this.request("/import", {
       method: "POST",

@@ -240,6 +240,12 @@ var StudioClient = class {
       blob: await response.blob()
     };
   }
+  async importProjectBundle(archivePath, targetPath) {
+    return this.request("/projects/bundle/import", {
+      method: "POST",
+      body: { archivePath, targetPath }
+    });
+  }
   async importState(state) {
     await this.request("/import", {
       method: "POST",
@@ -1120,6 +1126,29 @@ function StudioPage() {
     link.click();
     URL.revokeObjectURL(url);
   };
+  const importBundle = async () => {
+    if (client === null) return;
+    const archivePath = window.prompt(
+      "\u8F93\u5165\u9879\u76EE\u5305 tar.gz \u7684\u7EDD\u5BF9\u8DEF\u5F84\uFF1A",
+      ""
+    );
+    if (archivePath === null || archivePath.trim() === "") return;
+    const targetPath = window.prompt(
+      "\u8F93\u5165\u65B0\u4ED3\u5E93\u76EE\u5F55\uFF08\u5FC5\u987B\u4E3A\u7A7A\u6216\u4E0D\u5B58\u5728\uFF09\uFF1A",
+      ""
+    );
+    if (targetPath === null || targetPath.trim() === "") return;
+    await run(
+      async () => {
+        await client.importProjectBundle(
+          archivePath.trim(),
+          targetPath.trim()
+        );
+        await load(void 0, true);
+      },
+      "\u9879\u76EE\u5305\u5DF2\u5BFC\u5165\u5E76\u91CD\u7ED1\u4ED3\u5E93"
+    );
+  };
   const saveCompany = async (name2) => {
     await run(
       async () => {
@@ -1348,7 +1377,8 @@ function StudioPage() {
             onBindRepo: () => setModal({ kind: "repo" }),
             onReload: () => void load(void 0, false),
             onCompany: saveCompany,
-            onBundle: exportBundle
+            onBundle: exportBundle,
+            onImportBundle: importBundle
           }
         ) : null
       ] }) })
@@ -3982,7 +4012,8 @@ function SettingsView({
   onBindRepo,
   onReload,
   onCompany,
-  onBundle
+  onBundle,
+  onImportBundle
 }) {
   const [companyName, setCompanyName] = (0, import_react.useState)(data.company.name);
   const [savingCompany, setSavingCompany] = (0, import_react.useState)(false);
@@ -4118,6 +4149,17 @@ function SettingsView({
               disabled: data.project === null || data.project.repoPath === null,
               title: "\u5BFC\u51FA\u72B6\u6001 + Git \u5386\u53F2 + \u8FC1\u79FB\u8BF4\u660E",
               children: "\u5BFC\u51FA\u9879\u76EE\u5305"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "button",
+            {
+              className: "studio-btn",
+              "data-size": "sm",
+              type: "button",
+              onClick: () => void onImportBundle(),
+              title: "\u4ECE\u9879\u76EE\u5305\u6062\u590D\u72B6\u6001\u5E76 clone \u4ED3\u5E93",
+              children: "\u5BFC\u5165\u9879\u76EE\u5305"
             }
           )
         ] })

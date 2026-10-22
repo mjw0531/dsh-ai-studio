@@ -1,7 +1,14 @@
 // src/host/bundle.ts
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  stat,
+  writeFile
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -124,6 +131,109 @@ var ProjectBundleService = class {
     } finally {
       await rm(temp, { recursive: true, force: true }).catch(() => void 0);
       await rm(archive, { force: true }).catch(() => void 0);
+    }
+  }
+  async importProject(archivePath, targetPath) {
+    if (!path.isAbsolute(archivePath) || !path.isAbsolute(targetPath)) {
+      throw new StudioStoreError(
+        "invalid_path",
+        "\u9879\u76EE\u5305\u8DEF\u5F84\u548C\u76EE\u6807\u4ED3\u5E93\u8DEF\u5F84\u90FD\u5FC5\u987B\u662F\u7EDD\u5BF9\u8DEF\u5F84",
+        400
+      );
+    }
+    const archiveInfo = await stat(archivePath).catch(() => null);
+    if (archiveInfo === null || !archiveInfo.isFile()) {
+      throw new StudioStoreError(
+        "bundle_not_found",
+        `\u627E\u4E0D\u5230\u9879\u76EE\u5305\uFF1A${archivePath}`,
+        404
+      );
+    }
+    const targetInfo = await stat(targetPath).catch(() => null);
+    if (targetInfo !== null) {
+      if (!targetInfo.isDirectory()) {
+        throw new StudioStoreError(
+          "target_not_empty",
+          "\u76EE\u6807\u4ED3\u5E93\u8DEF\u5F84\u5DF2\u5B58\u5728\u4E14\u4E0D\u662F\u76EE\u5F55",
+          409
+        );
+      }
+      const entries = await readdir(targetPath);
+      if (entries.length > 0) {
+        throw new StudioStoreError(
+          "target_not_empty",
+          "\u76EE\u6807\u4ED3\u5E93\u76EE\u5F55\u5FC5\u987B\u4E3A\u7A7A\uFF0C\u6216\u4E0D\u5B58\u5728",
+          409
+        );
+      }
+    }
+    const temp = await mkdtemp(path.join(os.tmpdir(), "studio-import-"));
+    try {
+      await run(
+        "tar",
+        ["-xzf", archivePath, "-C", temp],
+        { windowsHide: true }
+      );
+      const manifest = JSON.parse(
+        await readFile(path.join(temp, "manifest.json"), "utf8")
+      );
+      if (manifest.kind !== "dsh-ai-studio-project-bundle" || manifest.formatVersion !== 1) {
+        throw new StudioStoreError(
+          "bundle_invalid",
+          "\u4E0D\u662F dsh-ai-studio \u9879\u76EE\u5305\uFF0C\u6216\u683C\u5F0F\u7248\u672C\u4E0D\u652F\u6301",
+          400
+        );
+      }
+      const projectId = manifest.project?.id;
+      if (typeof projectId !== "string") {
+        throw new StudioStoreError(
+          "bundle_invalid",
+          "\u9879\u76EE\u5305\u7F3A\u5C11 project.id",
+          400
+        );
+      }
+      for (const [name, expected] of Object.entries(
+        manifest.checksums ?? {}
+      )) {
+        const file = await readFile(path.join(temp, name)).catch(() => null);
+        if (file === null) {
+          throw new StudioStoreError(
+            "bundle_invalid",
+            `\u9879\u76EE\u5305\u7F3A\u5C11\u6587\u4EF6\uFF1A${name}`,
+            400
+          );
+        }
+        const actual = createHash("sha256").update(file).digest("hex");
+        if (actual !== expected) {
+          throw new StudioStoreError(
+            "bundle_checksum",
+            `\u9879\u76EE\u5305\u6821\u9A8C\u548C\u4E0D\u5339\u914D\uFF1A${name}`,
+            400
+          );
+        }
+      }
+      const state = JSON.parse(
+        await readFile(path.join(temp, "studio.json"), "utf8")
+      );
+      await run(
+        "git",
+        ["clone", path.join(temp, "project.bundle"), targetPath],
+        { windowsHide: true }
+      );
+      await this.store.importState(state);
+      await this.store.updateProject(projectId, {
+        repoPath: targetPath
+      });
+      return { projectId, repoPath: targetPath };
+    } catch (error) {
+      if (error instanceof StudioStoreError) throw error;
+      throw new StudioStoreError(
+        "bundle_import_failed",
+        `\u9879\u76EE\u5305\u5BFC\u5165\u5931\u8D25\uFF1A${error instanceof Error ? error.message : String(error)}`,
+        500
+      );
+    } finally {
+      await rm(temp, { recursive: true, force: true }).catch(() => void 0);
     }
   }
 };

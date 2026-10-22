@@ -50,6 +50,10 @@ interface StudioRouterOptions {
   exportProjectBundle: (
     projectId: string,
   ) => Promise<{ filename: string; bytes: Buffer }>;
+  importProjectBundle: (
+    archivePath: string,
+    targetPath: string,
+  ) => Promise<{ projectId: string; repoPath: string }>;
   readProjectDoc: (path: string) => Promise<ProjectDoc>;
 }
 
@@ -494,6 +498,10 @@ export class StudioRouter {
   private readonly exportProjectBundle: (
     projectId: string,
   ) => Promise<{ filename: string; bytes: Buffer }>;
+  private readonly importProjectBundle: (
+    archivePath: string,
+    targetPath: string,
+  ) => Promise<{ projectId: string; repoPath: string }>;
   private readonly readProjectDoc: (path: string) => Promise<ProjectDoc>;
 
   constructor(options: StudioRouterOptions) {
@@ -510,6 +518,7 @@ export class StudioRouter {
     this.rollbackMerge = options.rollbackMerge;
     this.writeAdr = options.writeAdr;
     this.exportProjectBundle = options.exportProjectBundle;
+    this.importProjectBundle = options.importProjectBundle;
     this.readProjectDoc = options.readProjectDoc;
   }
 
@@ -599,6 +608,18 @@ export class StudioRouter {
         ok: true,
         companyName: state.companyName,
       });
+      return;
+    }
+
+    if (parsed.pathname === `${API_PREFIX}/projects/bundle/import`) {
+      this.requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const body = await readJson(req);
+      const imported = await this.importProjectBundle(
+        asString(body.archivePath, "archivePath"),
+        asString(body.targetPath, "targetPath"),
+      );
+      sendJson(res, 200, { ok: true, ...imported });
       return;
     }
 
