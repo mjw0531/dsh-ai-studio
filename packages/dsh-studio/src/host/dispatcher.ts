@@ -491,6 +491,12 @@ export class AgentDispatcher {
         workspace === undefined
           ? null
           : this.workspaces.diffStat(workspace.path);
+      if (workspace !== undefined && diffStat !== "" && diffStat !== null) {
+        this.workspaces.commit(
+          workspace.path,
+          `studio: complete ${run.taskId} (${run.id})`,
+        );
+      }
       await this.store.completeRun(run.id, {
         output,
         receipt,
