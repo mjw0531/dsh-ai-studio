@@ -88,7 +88,7 @@ export function apply(ctx: ClientContext): void {
         name: "sidebar.panellist",
         id: "studio",
         order: 12,
-        label: () => "工作台",
+        label: () => "AI 工作室",
       },
       StudioIcon,
     ),

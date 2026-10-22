@@ -2,7 +2,7 @@
 
 ## 背景
 
-v2.0 dogfood 在 `D:\AIgame` 真实执行任务时发现：Agent 成功写出 `test/replay-verify.test.js`，但没有 `git add`/commit，文件是 untracked。合并提案和 merge 只认分支 commit，导致“Agent 说改了、分支里没有”。
+v2.0 dogfood 在外部真实仓库执行任务时发现：Agent 成功写出测试文件，但没有 `git add`/commit，文件是 untracked。合并提案和 merge 只认分支 commit，导致“Agent 说改了、分支里没有”。
 
 ## 决策
 

@@ -630,6 +630,7 @@ function buildCompany(state: StudioState, now: Date): CompanySummary {
   roles.sort((left, right) => right.activeTasks - left.activeTasks);
 
   return {
+    name: state.companyName,
     totals,
     projects,
     needs: needs.slice(0, 30),
@@ -1129,14 +1130,21 @@ function migrateState(value: unknown): StudioState {
     };
   }
   if (state.schemaVersion === 15) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 16,
       tasks: state.tasks.map((task) => ({
         ...task,
         diagnosis: task.diagnosis ?? "",
         plan: task.plan ?? "",
       })),
+    };
+  }
+  if (state.schemaVersion === 16) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      companyName: "AI工作室",
     };
   }
   return state;
@@ -1150,6 +1158,9 @@ function assertState(value: unknown): asserts value is StudioState {
     throw new Error(
       `Unsupported Studio schema version: ${String(value.schemaVersion)}`,
     );
+  }
+  if (typeof value.companyName !== "string" || value.companyName.trim() === "") {
+    throw new Error("Studio state must contain a companyName");
   }
   if (
     !Array.isArray(value.projects) ||
@@ -1229,6 +1240,25 @@ export class StudioStore {
   async exportState(): Promise<StudioState> {
     return this.runExclusive(async () => {
       return structuredClone(this.requireState());
+    });
+  }
+
+  async updateCompanyName(name: string): Promise<StudioState> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const value = requiredText(name, "companyName", 80);
+      const at = nowIso(this.now);
+      state.companyName = value;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "settings.updated",
+        at,
+        projectId: null,
+        taskId: null,
+        payload: { companyName: value },
+      });
+      await this.save();
+      return structuredClone(state);
     });
   }
 
@@ -3785,9 +3815,9 @@ export class StudioStore {
     const at = nowIso(this.now);
     const project: Project = {
       id: "proj-demo",
-      name: "MOBA 垂直切片",
+      name: "示例项目",
       description:
-        "用一条可玩的最小链路验证工作台：任务、角色、验收和状态机。",
+        "用一条最小链路验证工作台：任务、角色、验收和状态机。",
       tokenBudget: null,
       repoPath: null,
       prdPath: null,
@@ -3838,9 +3868,9 @@ export class StudioStore {
       role(
         "role-builder",
         "Builder",
-        "Gameplay 工程师",
-        "交付可运行的玩法实现和测试。",
-        ["实现技能/移动/冷却", "补单测", "维护构建"],
+        "开发工程师",
+        "交付可运行的功能实现和测试。",
+        ["实现功能", "修复缺陷", "补测试", "维护构建"],
       ),
       role(
         "role-verifier",
@@ -3896,8 +3926,8 @@ export class StudioStore {
     const tasks: Task[] = [
       task(
         "task-001",
-        "锁定垂直切片范围",
-        "写清楚这一版做什么、不做什么，以及可玩验收。",
+        "确定项目范围与验收标准",
+        "写清楚这一版做什么、不做什么，以及可验证的验收口径。",
         "done",
         "P0",
         "role-lead",
@@ -3908,53 +3938,54 @@ export class StudioStore {
       ),
       task(
         "task-002",
-        "搭建 30Hz 固定 tick 骨架",
-        "服务端固定 tick，客户端能稳定消费快照。",
+        "搭建项目骨架",
+        "建立最小可运行结构，并确保测试命令可以执行。",
         "review",
         "P0",
         "role-architect",
         "role-verifier",
-        acceptance("tick 稳定在 30Hz", "快照可重放", "断线重连不崩溃").map(
+        acceptance("结构可运行", "测试命令可执行", "构建可重复").map(
           (item, index) => ({ ...item, done: index < 2 }),
         ),
-        "task/002-fixed-tick",
+        "task/002-skeleton",
       ),
       task(
         "task-003",
-        "实现技能冷却与施法前摇",
-        "一个英雄的一个技能，包含冷却、前摇和打断。",
+        "实现第一个功能",
+        "完成一条可演示的功能链路，并补上边界测试。",
         "running",
         "P0",
         "role-builder",
         "role-architect",
-        acceptance("冷却按 tick 计算", "前摇可被控制打断", "单测覆盖边界").map(
+        acceptance("功能可演示", "边界有测试", "无阻断缺陷").map(
           (item, index) => ({ ...item, done: index === 0 }),
         ),
-        "task/003-ability",
+        "task/003-first-feature",
       ),
       task(
         "task-004",
-        "建立 replay 与性能基线",
-        "每次合并都能跑同一段 replay，并记录帧时间。",
+        "建立验证与记录基线",
+        "每次合并都能跑同一套验证，并记录结果。",
         "ready",
         "P1",
         "role-verifier",
         "role-lead",
-        acceptance("replay 可复现", "性能基线有阈值"),
+        acceptance("验证命令可重复", "结果有持久化记录"),
       ),
       task(
         "task-005",
-        "首轮 playtest 问题清单",
-        "人类实际玩一局，记录手感、可读性和阻断问题。",
+        "首轮验收问题清单",
+        "按验收标准走一遍，记录阻断、重要和建议问题。",
         "backlog",
         "P1",
         "role-lead",
         "role-verifier",
-        acceptance("至少 1 局完整对局", "问题按阻断/重要/建议分级"),
+        acceptance("至少走完 1 条完整链路", "问题按阻断/重要/建议分级"),
       ),
     ];
     return {
       schemaVersion: STUDIO_SCHEMA_VERSION,
+      companyName: "AI工作室",
       createdAt: at,
       updatedAt: at,
       activeProjectId: project.id,

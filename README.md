@@ -1,15 +1,13 @@
-# AI 工作台（Studio）
+# dsh-ai-studio
 
-一套构建在 **DeepSeek Harness（DSH）** 之上的多角色 AI 工作台：把「一个聊天窗口」变成一间**有公司仪表盘、Agent 派单、token 预算、决策董事会、支线/契约冲突、worktree 代码执行、项目、角色、任务、验收、合并治理**的工作室。
+一套构建在 **DeepSeek Harness（DSH）** 之上的多角色 AI Studio：把「一个聊天窗口」变成一间**有工作室仪表盘、Agent 派单、token 预算、决策台、支线/契约冲突、worktree 代码执行、项目、角色、任务、验收、合并治理**的工作室。
 
-> 当前状态：**v2.2.0 可运行**。已完成公司级 Owner Dashboard、Agent 派单与结构化回执、角色模型/token 预算、DSH token 计量、决策董事会、支线/契约冲突自动升级、git worktree 代码执行与自动提交、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、ADR 草稿与落盘、人工触发 Git merge 与合并后回归、合并失败升级与回滚、改修票诊断/计划门禁、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、数据导出/导入恢复、项目/角色/任务/验收/证据持久化、合并治理，并在 DSH `0.2.1-rc.2` 和 `D:\AIgame` 真实仓库上完成派单→验证→评审→merge→回归的 dogfood。
-
-![Studio Decision Boardroom](docs/images/decision-boardroom.png)
+> 当前状态：**v2.3.0 可运行**。已完成工作室级 Owner Dashboard、Agent 派单与结构化回执、角色模型/token 预算、DSH token 计量、决策台、支线/契约冲突自动升级、git worktree 代码执行与自动提交、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、ADR 草稿与落盘、人工触发 Git merge 与合并后回归、合并失败升级与回滚、改修票诊断/计划门禁、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、数据导出/导入恢复、项目/角色/任务/验收/证据持久化、合并治理，并在 DSH `0.2.1-rc.2` 和真实外部仓库上完成派单→验证→评审→merge→回归的 dogfood。
 
 ## 现在能做什么
 
 - **公司仪表盘**：跨项目组合、老板收件箱、角色负载、风险雷达、交付流和 token 消耗；金额成本等报价接入后再显示。
-- **决策董事会**：Agent 的项目级决策自动进入待裁决；Owner 批准/拒绝并记录结论与理由，Agent 不能替 Owner 拍板。
+- **决策台**：Agent 的项目级决策自动进入待裁决；Owner 批准/拒绝并记录结论与理由，Agent 不能替 Owner 拍板。
 - **支线/契约冲突**：派单自动登记支线；两条支线改同一契约且内容不同时，自动升级为待裁决决策。
 - **worktree 代码执行**：项目绑定 git 仓库后，每个任务自动创建独立 worktree 和分支；Agent 在里面改代码，Run 记录 diff，主工作区不被直接修改。
 - **Host 独立验证**：Task Room 的验证命令由 Host 在 worktree 内执行，记录退出码/输出并写 evidence；不依赖 Agent 会话，也不会自动通过验收。
@@ -25,14 +23,14 @@
 - **评审同族提示**：评审模型与实现模型相同时，Task Room 警告共享盲点。
 - **人工触发 Git merge**：已批准提案可在 Task Room 执行真实 `git merge --no-ff`；要求当前在 base、工作区干净、分支存在；冲突自动 abort，不自动 push。
 - **合并后回归**：merge 成功后自动在 repo 执行任务验证命令，记录 pass/fail 和输出；失败不会自动回滚。
-- **合并失败升级**：回归失败自动生成董事会决策，附 merge commit、回滚命令和修复选项。
+- **合并失败升级**：回归失败自动生成决策台决策，附 merge commit、回滚命令和修复选项。
 - **ADR 落盘**：人工确认后写入 `docs/adr/`，自动编号，幂等。
 - **合并回滚**：回归失败的 merge 可人工触发 `git revert`，记录 rollback commit；不 reset/push。
 - **改修票工序**：`kind=fix` 必须有诊断和修改计划才能派单；UI 有字段和校验。
 - **1.9.1 修复**：回滚用 `git revert -m 1` 处理 merge commit，并补真实 merge 失败 → 回滚 E2E 测试。
 - **2.0 自动提交**：Agent 成功后 Host 自动提交 worktree 改动（含未跟踪文件）到任务分支。
 - **2.0 Git 身份预检**：merge 前检查 repo 的 `user.name/email`，缺失时明确报错。
-- **2.0 真实 dogfood**：`D:\AIgame` 完成一次真实派单、Host 验证 5/5、独立评审 pass、merge `3e42d66`、post-merge 回归 5/5。
+- **2.0 真实 dogfood**：在外部真实仓库完成一次派单、Host 验证 5/5、独立评审 pass、merge 和 post-merge 回归 5/5。
 - **2.2 数据导入**：页面「导入」恢复备份；Host 先备份原文件，校验 schema 后替换。
 - **Agent 分析派单**：Task Room 把任务派给负责人角色，Agent 返回结构化回执；回执缺 `summary`/`evidence` 时任务退回可开始，不能进入验收。
 - **薪资与预算**：角色配置模型、单任务/每日 token 预算；项目配置总 token 预算。
@@ -46,8 +44,6 @@
 - **版本适配**：`engines.dsh >= 0.2.1-rc.2`；只依赖 Web Server 路由、client slots 和 React，不依赖私有 Remote 生成器。
 
 ## 合并治理
-
-![Studio Merge Queue](docs/images/merge-queue.png)
 
 分支不会自己汇入主干。合并提案必须带摘要、风险、回滚和评审记录；批准后由人或 Integrator 执行 Git，Studio 记录状态与审计事件。
 
@@ -106,10 +102,9 @@ packages/dsh-studio/     # 可安装的 DSH 插件
   src/shared/            # 跨端类型与状态机
   tests/                 # 存储层单测
 docs/
-  00-设计蓝图.md          # 产品/工作流/领域模型/路线
-  01-对话补充与产品方向.md # 对象模型、决策升级、竞品参照、Owner Dashboard
-  02-后续迭代.md          # v0.4-v1.0 的执行面、Scope、Git 与狗粮计划
-  03-工作流评审与补充.md  # DSH/Kimi 对话对比与工作流缺口
+  00-设计蓝图.md          # 产品/工作流/领域模型
+  04-兼容性与安装.md      # 安装、升级、备份、兼容性矩阵
+  adr/                    # 架构决策记录
   adr/                   # 架构决策
 CONTEXT.md               # 术语表
 tools/                   # CDP 端到端验证脚本
@@ -122,7 +117,7 @@ tools/                   # CDP 端到端验证脚本
 - [ADR-0003：合并治理只记录状态](docs/adr/0003-record-only-merge-governance.md)
 - [ADR-0004：公司仪表盘是派生投影](docs/adr/0004-company-is-a-derived-projection.md)
 - [ADR-0005：Agent 派单先做只读分析](docs/adr/0005-agent-dispatch-is-advisory.md)
-- [ADR-0006：项目级决策进入董事会](docs/adr/0006-decision-boardroom.md)
+- [ADR-0006：项目级决策进入决策台](docs/adr/0006-decision-boardroom.md)
 - [ADR-0007：支线自动登记与契约冲突升级](docs/adr/0007-branch-contract-escalation.md)
 - [ADR-0008：代码执行放在每 Task 的 worktree](docs/adr/0008-code-execution-in-worktrees.md)
 - [ADR-0009：Host 独立验证](docs/adr/0009-host-verification.md)
@@ -165,7 +160,7 @@ dsh --profile web --no-open --port 0
 - **v0.2**：合并提案、批准、打回、合并记录；schema v1→v2 迁移。
 - **v0.3**：Owner Dashboard；公司级项目组合、老板收件箱、角色负载、风险雷达、交付流。
 - **v0.4**：Agent 分析派单与结构化回执；角色模型/token 预算；项目预算；DSH token 计量。
-- **v0.5**：决策董事会；Agent 项目级决策进入待裁决；Owner 批准/拒绝与结论记录。
+- **v0.5**：决策台；Agent 项目级决策进入待裁决；Owner 批准/拒绝与结论记录。
 - **v0.5.1**：支线持久化、契约变更记录、跨支线同契约冲突自动升级。
 - **v0.6**：项目绑定 git 仓库、每 Task worktree/branch、Agent 代码编辑与 diff 记录。
 - **v0.6.1**：Host 独立验证、验证 evidence、Merge Proposal 的 diff/变更文件/验证结果。
@@ -179,15 +174,16 @@ dsh --profile web --no-open --port 0
 - **v1.4**：人工触发真实 Git merge，冲突自动 abort。
 - **v1.5**：不可逆决策生成 ADR 草稿、评审同族风险提示。
 - **v1.6**：merge 后自动回归并记录结果。
-- **v1.7**：合并后回归失败自动生成董事会决策，附回滚建议。
+- **v1.7**：合并后回归失败自动生成决策台决策，附回滚建议。
 - **v1.8**：ADR 落盘 + 人工触发合并回滚。
 - **v1.9**：改修票诊断/计划门禁。
 - **v2.0（当前）**：真实项目 dogfood（首个任务闭环）、Agent 改动自动提交、Git 身份预检。
 - **v2.1**：可分发稳定版、数据导出备份、兼容性/安装/升级文档。
-- **v2.2（当前）**：数据导入恢复、导入前自动备份。
-- **v1.0**：用工作台完成一个 2.5D MOBA 垂直切片，再抽象为可复用插件。
+- **v2.2**：数据导入恢复、导入前自动备份。
+- **v2.3（当前）**：工作室名称可改、决策台改名、dsh-ai-studio 仓库清理、去项目化。
+- **v1.0**：用工作台完成一个完整垂直切片，再抽象为可复用插件。
 
-详细迭代计划见 [后续迭代](docs/02-后续迭代.md)。
+升级、备份与兼容性见 [兼容性与安装](docs/04-兼容性与安装.md)。
 
 ## 核心原则
 

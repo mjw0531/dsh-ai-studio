@@ -50,7 +50,7 @@ test("seeds a demo project, roles, and tasks", async () => {
   await withStore(async (store) => {
     const data = await store.bootstrap();
     assert.ok(data.project);
-    assert.equal(data.project.name, "MOBA 垂直切片");
+    assert.equal(data.project.name, "示例项目");
     assert.equal(data.projects.length, 1);
     assert.equal(data.roles.length, 4);
     assert.equal(data.tasks.length, 5);
@@ -571,13 +571,27 @@ test("exports a portable copy of the state", async () => {
   await withStore(async (store) => {
     await store.bootstrap();
     const exported = await store.exportState();
-    assert.equal(exported.schemaVersion, 16);
+    assert.equal(exported.schemaVersion, 17);
     assert.ok(exported.projects.length >= 1);
     assert.ok(exported.tasks.length >= 1);
     assert.ok(Array.isArray(exported.runs));
     exported.projects.length = 0;
     const again = await store.exportState();
     assert.ok(again.projects.length >= 1);
+  });
+});
+
+test("updates the studio name", async () => {
+  await withStore(async (store) => {
+    const data = await store.bootstrap();
+    assert.equal(data.company.name, "AI工作室");
+    await store.updateCompanyName("我的工作室");
+    const next = await store.bootstrap();
+    assert.equal(next.company.name, "我的工作室");
+    await assert.rejects(
+      () => store.updateCompanyName(""),
+      (error) => error instanceof StudioStoreError,
+    );
   });
 });
 
@@ -747,7 +761,7 @@ test("blocks a code run that edits the module contract", async () => {
 test("requires an independent review before completing a code task", async () => {
   await withStore(async (store) => {
     const data = await store.bootstrap();
-    await store.updateProject(data.project.id, { repoPath: "D:\\AIgame" });
+    await store.updateProject(data.project.id, { repoPath: "D:\\example-repo" });
     const owner = data.roles[0];
     const reviewer = data.roles[1];
     assert.ok(owner && reviewer);
@@ -893,7 +907,7 @@ test("escalates a failed post-merge regression once", async () => {
 test("requires a passing verification before merging a code project", async () => {
   await withStore(async (store, dir) => {
     const data = await store.bootstrap();
-    await store.updateProject(data.project.id, { repoPath: "D:\\AIgame" });
+    await store.updateProject(data.project.id, { repoPath: "D:\\example-repo" });
     const task = await readyTask(store, "需要验证的合并");
     await assert.rejects(
       () =>
@@ -936,7 +950,8 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
     assert.deepEqual(data.runs, []);
     assert.deepEqual(data.decisions, []);
     const migrated = JSON.parse(await readFile(file, "utf8"));
-    assert.equal(migrated.schemaVersion, 16);
+    assert.equal(migrated.schemaVersion, 17);
+    assert.equal(migrated.companyName, "AI工作室");
     assert.ok(migrated.runs.every((run) => run.status !== undefined));
     assert.ok(Array.isArray(migrated.reviews));
     assert.ok(Array.isArray(migrated.branches));

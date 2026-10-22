@@ -567,6 +567,20 @@ export class StudioRouter {
       return;
     }
 
+    if (parsed.pathname === `${API_PREFIX}/settings`) {
+      this.requireMethod(parsed, ["PATCH"]);
+      assertJsonRequest(req);
+      const body = await readJson(req);
+      const state = await this.store.updateCompanyName(
+        asString(body.companyName, "companyName"),
+      );
+      sendJson(res, 200, {
+        ok: true,
+        companyName: state.companyName,
+      });
+      return;
+    }
+
     if (parsed.pathname === `${API_PREFIX}/import`) {
       this.requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);

@@ -104,7 +104,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { id: "company", label: "公司", caption: "Owner Dashboard" },
-  { id: "boardroom", label: "董事会", caption: "Decision Board" },
+  { id: "boardroom", label: "决策台", caption: "Decision Desk" },
   { id: "knowledge", label: "知识", caption: "PRD / Modules" },
   { id: "mission", label: "项目", caption: "Mission Control" },
   { id: "tasks", label: "任务", caption: "Task Board" },
@@ -653,7 +653,7 @@ export function StudioPage() {
         if (client === null) return;
         await client.createDecision(input);
       },
-      "决策已进入董事会",
+      "决策已进入决策台",
     );
     if (ok) setModal(null);
     return ok;
@@ -795,6 +795,17 @@ export function StudioPage() {
     );
   };
 
+  const saveCompany = async (name: string): Promise<void> => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.updateCompanyName(name);
+        await load(undefined, true);
+      },
+      "工作室名称已更新",
+    );
+  };
+
   const writeAdr = async (decision: Decision): Promise<void> => {
     await run(
       async () => {
@@ -811,8 +822,8 @@ export function StudioPage() {
         <div className="studio-brand">
           <div className="studio-mark">S</div>
           <div>
-            <div className="studio-brand-name">STUDIO</div>
-            <div className="studio-brand-sub">AI Workbench</div>
+            <div className="studio-brand-name">{data.company.name}</div>
+            <div className="studio-brand-sub">AI Studio</div>
           </div>
         </div>
 
@@ -1054,6 +1065,7 @@ export function StudioPage() {
                 onNewProject={() => setModal({ kind: "project" })}
                 onBindRepo={() => setModal({ kind: "repo" })}
                 onReload={() => void load(undefined, false)}
+                onCompany={saveCompany}
               />
             ) : null}
           </div>
@@ -1204,8 +1216,8 @@ function BoardroomView({
     <>
       <div className="studio-page-head">
         <div>
-          <div className="studio-eyebrow">Decision Board</div>
-          <h1 className="studio-title">董事会</h1>
+          <div className="studio-eyebrow">Decision Desk</div>
+          <h1 className="studio-title">决策台</h1>
           <p className="studio-subtitle">
             支线的项目级决策在这里升级给 Owner。Agent 只能提出建议，不能替你做决定；
             批准或拒绝都要留下结论和理由。
@@ -1263,7 +1275,7 @@ function BoardroomView({
         <div className="studio-panel-body">
           {pending.length === 0 ? (
             <div className="studio-empty">
-              <strong>董事会暂时空着</strong>
+              <strong>决策台暂时空着</strong>
               Agent 在回执里提出项目级决策，或你手动提出一条决策，会出现在这里。
             </div>
           ) : (
@@ -3435,7 +3447,7 @@ function TaskDrawer({
               </div>
             )}
             <div className="studio-action-note">
-              v0.9 已接入 worktree 代码执行、Host 独立验证、模块契约与契约护栏、失败/验证门禁、token 计量与决策董事会；合并与 Git 命令仍由人执行。
+              v0.9 已接入 worktree 代码执行、Host 独立验证、模块契约与契约护栏、失败/验证门禁、token 计量与决策决策台；合并与 Git 命令仍由人执行。
             </div>
           </section>
         </div>
@@ -4221,6 +4233,7 @@ function SettingsView({
   onNewProject,
   onBindRepo,
   onReload,
+  onCompany,
 }: {
   boot: NonNullable<ReturnType<typeof readStudioBoot>>;
   data: BootstrapResponse;
@@ -4229,7 +4242,15 @@ function SettingsView({
   onNewProject: () => void;
   onBindRepo: () => void;
   onReload: () => void;
+  onCompany: (name: string) => Promise<void>;
 }) {
+  const [companyName, setCompanyName] = useState(data.company.name);
+  const [savingCompany, setSavingCompany] = useState(false);
+
+  useEffect(() => {
+    setCompanyName(data.company.name);
+  }, [data.company.name]);
+
   return (
     <>
       <div className="studio-page-head">
@@ -4248,6 +4269,41 @@ function SettingsView({
       </div>
 
       <div className="studio-settings-grid">
+        <section className="studio-settings-card">
+          <h3>工作室</h3>
+          <form
+            className="studio-field"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (savingCompany || companyName.trim() === "") return;
+              setSavingCompany(true);
+              void onCompany(companyName.trim()).finally(() =>
+                setSavingCompany(false),
+              );
+            }}
+          >
+            <label htmlFor="company-name">工作室名称</label>
+            <input
+              id="company-name"
+              value={companyName}
+              maxLength={80}
+              onChange={(event) => setCompanyName(event.target.value)}
+            />
+            <p className="studio-hint">
+              显示在顶部品牌和工作室仪表盘；默认「AI工作室」。
+            </p>
+            <button
+              className="studio-btn"
+              data-size="sm"
+              data-variant="primary"
+              type="submit"
+              disabled={savingCompany || companyName.trim() === ""}
+            >
+              {savingCompany ? "保存中…" : "保存工作室名称"}
+            </button>
+          </form>
+        </section>
+
         <section className="studio-settings-card">
           <h3>版本与兼容性</h3>
           <dl className="studio-kv">
@@ -4336,7 +4392,7 @@ function SettingsView({
             <dd>{data.features.filePersistence ? "可用" : "不可用"}</dd>
             <dt>公司仪表盘</dt>
             <dd>{data.features.ownerDashboard ? "可用" : "不可用"}</dd>
-            <dt>董事会</dt>
+            <dt>决策台</dt>
             <dd>{data.features.decisionBoard ? "可用" : "不可用"}</dd>
             <dt>支线/契约</dt>
             <dd>{data.features.branchBoard ? "可用" : "不可用"}</dd>
@@ -4972,7 +5028,7 @@ function ProjectForm({
             id="project-name"
             value={name}
             onChange={(event) => setName(event.target.value)}
-            placeholder="例如：MOBA 垂直切片"
+            placeholder="例如：官网改版 / 工具链升级 / 数据看板"
             autoFocus
           />
         </div>
@@ -5004,7 +5060,7 @@ function ProjectForm({
             id="project-repo"
             value={repoPath}
             onChange={(event) => setRepoPath(event.target.value)}
-            placeholder="例如 D:\AIgame"
+            placeholder="例如 D:\projects\my-app"
           />
           <div className="studio-hint">
             绑定 git 仓库后，派单会为每个任务创建独立 worktree 和分支；不绑定则只做分析。
@@ -5064,7 +5120,7 @@ function RepoForm({
             id="repo-path"
             value={repoPath}
             onChange={(event) => setRepoPath(event.target.value)}
-            placeholder="例如 D:\AIgame"
+            placeholder="例如 D:\projects\my-app"
             autoFocus
           />
           <div className="studio-hint">
@@ -5113,7 +5169,7 @@ function DecisionForm({
   return (
     <ModalShell
       title="提出决策"
-      subtitle="把需要 Owner 拍板的事项放进董事会；Agent 的项目级建议也会自动出现在这里。"
+      subtitle="把需要 Owner 拍板的事项放进决策台；Agent 的项目级建议也会自动出现在这里。"
       onClose={onCancel}
       footer={
         <div className="studio-modal-foot">
@@ -5132,7 +5188,7 @@ function DecisionForm({
             form="studio-decision-form"
             disabled={busy}
           >
-            {busy ? "提交中…" : "放入董事会"}
+            {busy ? "提交中…" : "放入决策台"}
           </button>
         </div>
       }

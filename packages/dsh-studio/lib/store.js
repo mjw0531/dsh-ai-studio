@@ -13,8 +13,8 @@ import os from "node:os";
 import path from "node:path";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 16;
-var STUDIO_PLUGIN_VERSION = "2.2.0";
+var STUDIO_SCHEMA_VERSION = 17;
+var STUDIO_PLUGIN_VERSION = "2.3.0";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -518,6 +518,7 @@ function buildCompany(state, now) {
   });
   roles.sort((left, right) => right.activeTasks - left.activeTasks);
   return {
+    name: state.companyName,
     totals,
     projects,
     needs: needs.slice(0, 30),
@@ -765,14 +766,21 @@ function migrateState(value) {
     };
   }
   if (state.schemaVersion === 15) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 16,
       tasks: state.tasks.map((task) => ({
         ...task,
         diagnosis: task.diagnosis ?? "",
         plan: task.plan ?? ""
       }))
+    };
+  }
+  if (state.schemaVersion === 16) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      companyName: "AI\u5DE5\u4F5C\u5BA4"
     };
   }
   return state;
@@ -785,6 +793,9 @@ function assertState(value) {
     throw new Error(
       `Unsupported Studio schema version: ${String(value.schemaVersion)}`
     );
+  }
+  if (typeof value.companyName !== "string" || value.companyName.trim() === "") {
+    throw new Error("Studio state must contain a companyName");
   }
   if (!Array.isArray(value.projects) || !Array.isArray(value.roles) || !Array.isArray(value.modules) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.runs) || !Array.isArray(value.branches) || !Array.isArray(value.contractChanges) || !Array.isArray(value.decisions) || !Array.isArray(value.verifications) || !Array.isArray(value.reviews) || !Array.isArray(value.events)) {
     throw new Error("Studio state collections are missing");
@@ -846,6 +857,24 @@ var StudioStore = class {
   async exportState() {
     return this.runExclusive(async () => {
       return structuredClone(this.requireState());
+    });
+  }
+  async updateCompanyName(name) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const value = requiredText(name, "companyName", 80);
+      const at = nowIso(this.now);
+      state.companyName = value;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "settings.updated",
+        at,
+        projectId: null,
+        taskId: null,
+        payload: { companyName: value }
+      });
+      await this.save();
+      return structuredClone(state);
     });
   }
   async importState(raw) {
@@ -2997,8 +3026,8 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
     const at = nowIso(this.now);
     const project = {
       id: "proj-demo",
-      name: "MOBA \u5782\u76F4\u5207\u7247",
-      description: "\u7528\u4E00\u6761\u53EF\u73A9\u7684\u6700\u5C0F\u94FE\u8DEF\u9A8C\u8BC1\u5DE5\u4F5C\u53F0\uFF1A\u4EFB\u52A1\u3001\u89D2\u8272\u3001\u9A8C\u6536\u548C\u72B6\u6001\u673A\u3002",
+      name: "\u793A\u4F8B\u9879\u76EE",
+      description: "\u7528\u4E00\u6761\u6700\u5C0F\u94FE\u8DEF\u9A8C\u8BC1\u5DE5\u4F5C\u53F0\uFF1A\u4EFB\u52A1\u3001\u89D2\u8272\u3001\u9A8C\u6536\u548C\u72B6\u6001\u673A\u3002",
       tokenBudget: null,
       repoPath: null,
       prdPath: null,
@@ -3042,9 +3071,9 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       role(
         "role-builder",
         "Builder",
-        "Gameplay \u5DE5\u7A0B\u5E08",
-        "\u4EA4\u4ED8\u53EF\u8FD0\u884C\u7684\u73A9\u6CD5\u5B9E\u73B0\u548C\u6D4B\u8BD5\u3002",
-        ["\u5B9E\u73B0\u6280\u80FD/\u79FB\u52A8/\u51B7\u5374", "\u8865\u5355\u6D4B", "\u7EF4\u62A4\u6784\u5EFA"]
+        "\u5F00\u53D1\u5DE5\u7A0B\u5E08",
+        "\u4EA4\u4ED8\u53EF\u8FD0\u884C\u7684\u529F\u80FD\u5B9E\u73B0\u548C\u6D4B\u8BD5\u3002",
+        ["\u5B9E\u73B0\u529F\u80FD", "\u4FEE\u590D\u7F3A\u9677", "\u8865\u6D4B\u8BD5", "\u7EF4\u62A4\u6784\u5EFA"]
       ),
       role(
         "role-verifier",
@@ -3087,8 +3116,8 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
     const tasks = [
       task(
         "task-001",
-        "\u9501\u5B9A\u5782\u76F4\u5207\u7247\u8303\u56F4",
-        "\u5199\u6E05\u695A\u8FD9\u4E00\u7248\u505A\u4EC0\u4E48\u3001\u4E0D\u505A\u4EC0\u4E48\uFF0C\u4EE5\u53CA\u53EF\u73A9\u9A8C\u6536\u3002",
+        "\u786E\u5B9A\u9879\u76EE\u8303\u56F4\u4E0E\u9A8C\u6536\u6807\u51C6",
+        "\u5199\u6E05\u695A\u8FD9\u4E00\u7248\u505A\u4EC0\u4E48\u3001\u4E0D\u505A\u4EC0\u4E48\uFF0C\u4EE5\u53CA\u53EF\u9A8C\u8BC1\u7684\u9A8C\u6536\u53E3\u5F84\u3002",
         "done",
         "P0",
         "role-lead",
@@ -3099,53 +3128,54 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       ),
       task(
         "task-002",
-        "\u642D\u5EFA 30Hz \u56FA\u5B9A tick \u9AA8\u67B6",
-        "\u670D\u52A1\u7AEF\u56FA\u5B9A tick\uFF0C\u5BA2\u6237\u7AEF\u80FD\u7A33\u5B9A\u6D88\u8D39\u5FEB\u7167\u3002",
+        "\u642D\u5EFA\u9879\u76EE\u9AA8\u67B6",
+        "\u5EFA\u7ACB\u6700\u5C0F\u53EF\u8FD0\u884C\u7ED3\u6784\uFF0C\u5E76\u786E\u4FDD\u6D4B\u8BD5\u547D\u4EE4\u53EF\u4EE5\u6267\u884C\u3002",
         "review",
         "P0",
         "role-architect",
         "role-verifier",
-        acceptance("tick \u7A33\u5B9A\u5728 30Hz", "\u5FEB\u7167\u53EF\u91CD\u653E", "\u65AD\u7EBF\u91CD\u8FDE\u4E0D\u5D29\u6E83").map(
+        acceptance("\u7ED3\u6784\u53EF\u8FD0\u884C", "\u6D4B\u8BD5\u547D\u4EE4\u53EF\u6267\u884C", "\u6784\u5EFA\u53EF\u91CD\u590D").map(
           (item, index) => ({ ...item, done: index < 2 })
         ),
-        "task/002-fixed-tick"
+        "task/002-skeleton"
       ),
       task(
         "task-003",
-        "\u5B9E\u73B0\u6280\u80FD\u51B7\u5374\u4E0E\u65BD\u6CD5\u524D\u6447",
-        "\u4E00\u4E2A\u82F1\u96C4\u7684\u4E00\u4E2A\u6280\u80FD\uFF0C\u5305\u542B\u51B7\u5374\u3001\u524D\u6447\u548C\u6253\u65AD\u3002",
+        "\u5B9E\u73B0\u7B2C\u4E00\u4E2A\u529F\u80FD",
+        "\u5B8C\u6210\u4E00\u6761\u53EF\u6F14\u793A\u7684\u529F\u80FD\u94FE\u8DEF\uFF0C\u5E76\u8865\u4E0A\u8FB9\u754C\u6D4B\u8BD5\u3002",
         "running",
         "P0",
         "role-builder",
         "role-architect",
-        acceptance("\u51B7\u5374\u6309 tick \u8BA1\u7B97", "\u524D\u6447\u53EF\u88AB\u63A7\u5236\u6253\u65AD", "\u5355\u6D4B\u8986\u76D6\u8FB9\u754C").map(
+        acceptance("\u529F\u80FD\u53EF\u6F14\u793A", "\u8FB9\u754C\u6709\u6D4B\u8BD5", "\u65E0\u963B\u65AD\u7F3A\u9677").map(
           (item, index) => ({ ...item, done: index === 0 })
         ),
-        "task/003-ability"
+        "task/003-first-feature"
       ),
       task(
         "task-004",
-        "\u5EFA\u7ACB replay \u4E0E\u6027\u80FD\u57FA\u7EBF",
-        "\u6BCF\u6B21\u5408\u5E76\u90FD\u80FD\u8DD1\u540C\u4E00\u6BB5 replay\uFF0C\u5E76\u8BB0\u5F55\u5E27\u65F6\u95F4\u3002",
+        "\u5EFA\u7ACB\u9A8C\u8BC1\u4E0E\u8BB0\u5F55\u57FA\u7EBF",
+        "\u6BCF\u6B21\u5408\u5E76\u90FD\u80FD\u8DD1\u540C\u4E00\u5957\u9A8C\u8BC1\uFF0C\u5E76\u8BB0\u5F55\u7ED3\u679C\u3002",
         "ready",
         "P1",
         "role-verifier",
         "role-lead",
-        acceptance("replay \u53EF\u590D\u73B0", "\u6027\u80FD\u57FA\u7EBF\u6709\u9608\u503C")
+        acceptance("\u9A8C\u8BC1\u547D\u4EE4\u53EF\u91CD\u590D", "\u7ED3\u679C\u6709\u6301\u4E45\u5316\u8BB0\u5F55")
       ),
       task(
         "task-005",
-        "\u9996\u8F6E playtest \u95EE\u9898\u6E05\u5355",
-        "\u4EBA\u7C7B\u5B9E\u9645\u73A9\u4E00\u5C40\uFF0C\u8BB0\u5F55\u624B\u611F\u3001\u53EF\u8BFB\u6027\u548C\u963B\u65AD\u95EE\u9898\u3002",
+        "\u9996\u8F6E\u9A8C\u6536\u95EE\u9898\u6E05\u5355",
+        "\u6309\u9A8C\u6536\u6807\u51C6\u8D70\u4E00\u904D\uFF0C\u8BB0\u5F55\u963B\u65AD\u3001\u91CD\u8981\u548C\u5EFA\u8BAE\u95EE\u9898\u3002",
         "backlog",
         "P1",
         "role-lead",
         "role-verifier",
-        acceptance("\u81F3\u5C11 1 \u5C40\u5B8C\u6574\u5BF9\u5C40", "\u95EE\u9898\u6309\u963B\u65AD/\u91CD\u8981/\u5EFA\u8BAE\u5206\u7EA7")
+        acceptance("\u81F3\u5C11\u8D70\u5B8C 1 \u6761\u5B8C\u6574\u94FE\u8DEF", "\u95EE\u9898\u6309\u963B\u65AD/\u91CD\u8981/\u5EFA\u8BAE\u5206\u7EA7")
       )
     ];
     return {
       schemaVersion: STUDIO_SCHEMA_VERSION,
+      companyName: "AI\u5DE5\u4F5C\u5BA4",
       createdAt: at,
       updatedAt: at,
       activeProjectId: project.id,

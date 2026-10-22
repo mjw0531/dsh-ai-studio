@@ -1,8 +1,8 @@
-# @ai-workbench/dsh-studio
+# @mjw0531/dsh-ai-studio
 
-> 即装即用的 DeepSeek Harness AI 工作台：**公司仪表盘、Agent 派单、token 预算、决策董事会、支线/契约冲突、worktree 代码执行、项目、角色、任务、验收、合并治理**，一个独立页面。
+> 即装即用的 DeepSeek Harness AI Studio：**工作室仪表盘、Agent 派单、token 预算、决策台、支线/契约冲突、worktree 代码执行、项目、角色、任务、验收、合并治理**，一个独立页面。
 
-当前版本 **2.2.0**，已在 **DSH 0.2.1-rc.2** 上完成端到端验证（Web/桌面安装、页面渲染、任务创建、验收门禁、合并治理、公司仪表盘、Agent 派单与结构化回执、token 计量、董事会、支线/契约冲突自动升级、git worktree 代码编辑与自动提交、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、ADR 草稿与写入、人工触发的 Git merge 与合并后回归、合并失败升级与回滚、改修票诊断/计划门禁、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、真实项目 dogfood、数据导出与导入恢复、重启持久化）。
+当前版本 **2.3.0**，已在 **DSH 0.2.1-rc.2** 上完成端到端验证（Web/桌面安装、页面渲染、任务创建、验收门禁、合并治理、工作室仪表盘、Agent 派单与结构化回执、token 计量、决策台、支线/契约冲突自动升级、git worktree 代码编辑与自动提交、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、ADR 草稿与写入、人工触发的 Git merge 与合并后回归、合并失败升级与回滚、改修票诊断/计划门禁、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、真实项目 dogfood、数据导出与导入恢复、重启持久化）。
 
 ![Studio Decision Boardroom](docs/decision-boardroom.png)
 
@@ -14,7 +14,7 @@ Studio 把 DSH 从「一个会话」扩展成「一间工作室」：
 
 - **公司仪表盘**：跨项目的项目组合、老板收件箱、角色负载、风险雷达和交付流；token 消耗来自 DSH meter，金额成本等报价接入后再显示。
 - **Agent 分析派单**：在 Task Room 把任务派给负责人角色，DSH Agent 读取任务/契约后返回 `summary / evidence / artifacts / decisions / contract_deltas / rejected_options / blockers` 结构化回执。
-- **决策董事会**：Agent 的项目级决策建议自动进入待裁决；Owner 在独立页面批准/拒绝并记录结论与理由。Agent 不能替 Owner 拍板。
+- **决策台**：Agent 的项目级决策建议自动进入待裁决；Owner 在独立页面批准/拒绝并记录结论与理由。Agent 不能替 Owner 拍板。
 - **支线/契约冲突**：每次派单自动登记支线；Agent 回执里的 `contractDeltas` 写入契约变更。两条支线改同一契约且内容不同时，自动升级为待裁决决策。
 - **worktree 代码执行**：项目绑定 git 仓库后，每个任务自动创建 `.worktrees/<taskId>` 和 `studio/<taskId>` 分支；Agent 在 worktree 内改代码，Run 记录 diff；主工作区不被直接修改。
 - **Host 独立验证**：Task Room 的验证命令由 Studio Host 在 worktree 内执行，记录退出码/输出并写 evidence；不依赖 Agent 会话，也不会自动通过验收。
@@ -37,7 +37,7 @@ Studio 把 DSH 从「一个会话」扩展成「一间工作室」：
 - **1.9.1 修复**：回滚改用 `git revert -m 1` 处理 merge commit；新增真实 merge 失败 → 回滚 E2E 测试。
 - **2.0 自动提交**：Agent 成功后，Host 自动把 worktree 内所有改动（含未跟踪文件）提交到任务分支。
 - **2.0 Git 身份预检**：merge 前检查 repo 的 `user.name`/`user.email`，缺失时给出明确错误。
-- **2.0 真实 dogfood**：在 `D:\AIgame` 完成真实派单、Host 验证（5/5）、独立评审 pass、merge（`3e42d66`）和 post-merge 回归（5/5）。
+- **2.0 真实 dogfood**：在外部真实仓库完成派单、Host 验证（5/5）、独立评审 pass、merge 和 post-merge 回归（5/5）。
 - **2.1 数据导出**：右上角「导出」下载完整 `studio.json` 备份（含 schema/版本/时间）；`/studio-api/export` 需要 Bearer token。
 - **2.2 数据导入**：右上角「导入」选择导出文件恢复；Host 先把原文件备份为 `studio.json.pre-import-*`，校验 schema 后替换。
 - **角色薪资与预算**：角色可配置模型和单任务/每日 token 预算；项目可配置总 token 预算。
@@ -88,14 +88,14 @@ cd D:\AI工作台\packages\dsh-studio
 pnpm pack
 ```
 
-把生成的 `ai-workbench-dsh-studio-2.2.0.tgz` 发给对方，在 **Add plugin** 里填 tarball 路径即可。
+把生成的 `mjw0531-dsh-ai-studio-2.3.0.tgz` 发给对方，在 **Add plugin** 里填 tarball 路径即可。
 
 ## 使用
 
-首次打开会自动生成一个「MOBA 垂直切片」演示项目、4 个角色和 5 个任务。
+首次打开会自动生成一个「示例项目」、4 个角色和 5 个任务。
 
 1. **公司**：老板视角的项目组合、老板收件箱、角色负载、风险雷达和交付流。
-2. **董事会**：Agent 提出的项目级决策、人工提出的决策、跨支线契约冲突；批准/拒绝并记录结论与理由。
+2. **决策台**：Agent 提出的项目级决策、人工提出的决策、跨支线契约冲突；批准/拒绝并记录结论与理由。
 3. **项目**：看当前项目的支线、契约变更、任务板、验收、团队和最近事件。
 4. **任务**：点卡片打开 Task Room；勾验收项、写证据、推进状态；未绑定仓库时点「派单分析」，绑定仓库后点「派单执行」，Agent 在 worktree 内工作并把 diff 写入 Run；再用「独立验证」跑测试命令。
 5. **合并**：查看合并队列；批准、打回、记录合并提交。
@@ -173,7 +173,7 @@ packages/dsh-studio/
 - ✅ 公司级 Owner Dashboard：项目组合、老板收件箱、角色负载、风险雷达、交付流。
 - ✅ Agent 派单与结构化回执；回执缺 `summary`/`evidence` 时任务退回可开始，不能进入验收。
 - ✅ 角色模型/token 预算、项目 token 预算、DSH token meter 消耗。
-- ✅ 决策董事会：项目级决策持久化、待裁决列表、批准/拒绝、结论与理由、Agent 决策自动入会。
+- ✅ 决策台：项目级决策持久化、待裁决列表、批准/拒绝、结论与理由、Agent 决策自动入会。
 - ✅ 支线自动登记、Agent 契约变更记录、跨支线同契约冲突自动升级为待裁决决策。
 - ✅ 项目绑定 git 仓库；每 Task 独立 worktree/branch；Agent 在 worktree 内改代码，Run 记录 branch/workspace/diff。
 - ✅ Host 独立验证：验证命令在 worktree 内执行，记录 exit code/输出，通过时写 evidence；不自动通过验收。
@@ -189,17 +189,17 @@ packages/dsh-studio/
 - ✅ ADR 草稿：不可逆决策批准后生成 Markdown 草稿，保存在决策记录。
 - ✅ 评审同族提示：评审模型与实现模型相同时显示共享盲点警告。
 - ✅ 合并后回归：merge 成功后自动执行任务验证命令并记录结果；失败只警告，不自动回滚。
-- ✅ 合并失败升级：回归失败自动生成董事会决策，附回滚命令和修复选项。
+- ✅ 合并失败升级：回归失败自动生成决策台决策，附回滚命令和修复选项。
 - ✅ ADR 落盘：人工触发，写入 `docs/adr/`，自动编号且幂等。
 - ✅ 合并回滚：回归失败后可人工触发 `git revert`，记录 rollback commit；不 reset/push。
 - ✅ 改修票流程：diagnosis + plan 必填，缺一不可派单；UI 有诊断/计划字段与校验。
-- ✅ 真实项目 dogfood：`D:\AIgame` 完成一次真实派单→验证→评审→merge→回归；仍不是完整垂直切片。
+- ✅ 真实项目 dogfood：外部仓库完成一次真实派单→验证→评审→merge→回归；仍不是完整垂直切片。
 - ✅ Agent 改动自动提交到任务分支（含未跟踪文件）。
 - ✅ Git 身份预检：repo 缺 `user.name/email` 时明确报错。
 - ✅ 数据导出/导入：页面「导出」「导入」；导入前自动备份，schema 不支持时拒绝。
 - ⏳ 项目模板/初始化向导、自动回滚策略、项目级阈值/跨厂商配置。
 - ⏳ 运行中 token 硬停、金额报价。
-- ⏳ 新建型 red→green 强制、完整 MOBA 垂直切片 dogfood。
+- ⏳ 新建型 red→green 强制、完整垂直切片 dogfood。
 - ⏳ Project Book 检索、角色/Scope 强隔离。
 - ⚠️ Windows 沙箱在部分 worktree 上可能报 `SetNamedSecurityInfoW grantWrite`，导致 Agent 能改文件但无法启动 shell 跑测试；这属于环境 ACL 限制，Run 会如实记录 blocker。
 - ✅ v0.6.1 的 Host 独立验证可以绕过 Agent 会话的 shell 限制，由 Studio 直接执行验证命令；仍不会自动合并或自动通过验收。
