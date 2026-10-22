@@ -183,6 +183,13 @@ export class StudioClient {
     return this.request("/export");
   }
 
+  async importState(state: unknown): Promise<void> {
+    await this.request("/import", {
+      method: "POST",
+      body: { state },
+    });
+  }
+
   async createProject(input: CreateProjectInput): Promise<Project> {
     const data = await this.request<{ project: Project }>("/projects", {
       method: "POST",

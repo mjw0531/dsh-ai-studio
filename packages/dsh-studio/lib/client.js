@@ -206,6 +206,12 @@ var StudioClient = class {
   async exportState() {
     return this.request("/export");
   }
+  async importState(state) {
+    await this.request("/import", {
+      method: "POST",
+      body: { state }
+    });
+  }
   async createProject(input) {
     const data = await this.request("/projects", {
       method: "POST",
@@ -1033,6 +1039,31 @@ function StudioPage() {
     link.click();
     URL.revokeObjectURL(url);
   };
+  const importData = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (file === void 0 || client === null) return;
+    let parsed;
+    try {
+      parsed = JSON.parse(await file.text());
+    } catch {
+      setError("\u5BFC\u5165\u5931\u8D25\uFF1A\u6587\u4EF6\u4E0D\u662F\u5408\u6CD5 JSON");
+      return;
+    }
+    const envelope = typeof parsed === "object" && parsed !== null && "state" in parsed ? parsed.state : parsed;
+    if (!window.confirm(
+      "\u5BFC\u5165\u4F1A\u8986\u76D6\u5F53\u524D Studio \u6570\u636E\uFF1BHost \u4F1A\u5148\u628A\u539F\u6587\u4EF6\u5907\u4EFD\u5230 studio.json.pre-import-*\u3002\u786E\u5B9A\u7EE7\u7EED\u5417\uFF1F"
+    )) {
+      return;
+    }
+    await run(
+      async () => {
+        await client.importState(envelope);
+        await load(void 0, true);
+      },
+      "\u6570\u636E\u5DF2\u5BFC\u5165\uFF1B\u539F\u6587\u4EF6\u5DF2\u5907\u4EFD"
+    );
+  };
   const writeAdr = async (decision) => {
     await run(
       async () => {
@@ -1077,6 +1108,27 @@ function StudioPage() {
             onClick: () => void exportData(),
             title: "\u5BFC\u51FA studio.json \u5907\u4EFD",
             children: "\u5BFC\u51FA"
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          "input",
+          {
+            id: "studio-import-file",
+            type: "file",
+            accept: "application/json,.json",
+            hidden: true,
+            onChange: (event) => void importData(event)
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          "button",
+          {
+            className: "studio-btn",
+            "data-size": "sm",
+            type: "button",
+            onClick: () => document.getElementById("studio-import-file")?.click(),
+            title: "\u4ECE studio.json \u5907\u4EFD\u6062\u590D",
+            children: "\u5BFC\u5165"
           }
         ),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
