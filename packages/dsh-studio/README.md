@@ -2,7 +2,7 @@
 
 > 即装即用的 DeepSeek Harness AI 工作台：**公司仪表盘、Agent 派单、token 预算、决策董事会、支线/契约冲突、worktree 代码执行、项目、角色、任务、验收、合并治理**，一个独立页面。
 
-当前版本 **2.0.0**，已在 **DSH 0.2.1-rc.2** 上完成端到端验证（Web/桌面安装、页面渲染、任务创建、验收门禁、合并治理、公司仪表盘、Agent 派单与结构化回执、token 计量、董事会、支线/契约冲突自动升级、git worktree 代码编辑、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、ADR 草稿与写入、人工触发的 Git merge 与合并后回归、合并失败升级与回滚、改修票诊断/计划门禁、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、真实项目 dogfood、重启持久化）。
+当前版本 **2.1.0**，已在 **DSH 0.2.1-rc.2** 上完成端到端验证（Web/桌面安装、页面渲染、任务创建、验收门禁、合并治理、公司仪表盘、Agent 派单与结构化回执、token 计量、董事会、支线/契约冲突自动升级、git worktree 代码编辑与自动提交、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、ADR 草稿与写入、人工触发的 Git merge 与合并后回归、合并失败升级与回滚、改修票诊断/计划门禁、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、真实项目 dogfood、数据导出备份、重启持久化）。
 
 ![Studio Decision Boardroom](docs/decision-boardroom.png)
 
@@ -38,6 +38,7 @@ Studio 把 DSH 从「一个会话」扩展成「一间工作室」：
 - **2.0 自动提交**：Agent 成功后，Host 自动把 worktree 内所有改动（含未跟踪文件）提交到任务分支。
 - **2.0 Git 身份预检**：merge 前检查 repo 的 `user.name`/`user.email`，缺失时给出明确错误。
 - **2.0 真实 dogfood**：在 `D:\AIgame` 完成真实派单、Host 验证（5/5）、独立评审 pass、merge（`3e42d66`）和 post-merge 回归（5/5）。
+- **2.1 数据导出**：右上角「导出」下载完整 `studio.json` 备份（含 schema/版本/时间）；`/studio-api/export` 需要 Bearer token。
 - **角色薪资与预算**：角色可配置模型和单任务/每日 token 预算；项目可配置总 token 预算。
 - **项目**：一个项目边界，下面有角色和任务。
 - **角色**：持久的职责契约（使命、职责、决策权），不是人设卡。
@@ -86,7 +87,7 @@ cd D:\AI工作台\packages\dsh-studio
 pnpm pack
 ```
 
-把生成的 `ai-workbench-dsh-studio-2.0.0.tgz` 发给对方，在 **Add plugin** 里填 tarball 路径即可。
+把生成的 `ai-workbench-dsh-studio-2.1.0.tgz` 发给对方，在 **Add plugin** 里填 tarball 路径即可。
 
 ## 使用
 
@@ -162,7 +163,7 @@ packages/dsh-studio/
   cordis.patch.yml
 ```
 
-## 当前边界（v2.0）
+## 当前边界（v2.1）
 
 - ✅ 项目/角色/任务/验收/证据/事件持久化。
 - ✅ 独立页面、侧栏入口、主题、响应式。
@@ -194,7 +195,8 @@ packages/dsh-studio/
 - ✅ 真实项目 dogfood：`D:\AIgame` 完成一次真实派单→验证→评审→merge→回归；仍不是完整垂直切片。
 - ✅ Agent 改动自动提交到任务分支（含未跟踪文件）。
 - ✅ Git 身份预检：repo 缺 `user.name/email` 时明确报错。
-- ⏳ 自动回滚策略、项目级阈值/跨厂商配置。
+- ✅ 数据导出备份：页面「导出」下载完整 JSON；升级/恢复文档见 [docs/04](../docs/04-兼容性与安装.md)。
+- ⏳ 自动导入、自动回滚策略、项目级阈值/跨厂商配置。
 - ⏳ 运行中 token 硬停、金额报价。
 - ⏳ 新建型 red→green 强制、完整 MOBA 垂直切片 dogfood。
 - ⏳ Project Book 检索、角色/Scope 强隔离。

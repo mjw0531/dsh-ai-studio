@@ -173,6 +173,16 @@ export class StudioClient {
     return this.request<BootstrapResponse>(`/bootstrap${query}`);
   }
 
+  async exportState(): Promise<{
+    schemaVersion: number;
+    pluginVersion: string;
+    dshVersion: string;
+    exportedAt: string;
+    state: unknown;
+  }> {
+    return this.request("/export");
+  }
+
   async createProject(input: CreateProjectInput): Promise<Project> {
     const data = await this.request<{ project: Project }>("/projects", {
       method: "POST",

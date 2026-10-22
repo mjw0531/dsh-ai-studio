@@ -553,6 +553,20 @@ export class StudioRouter {
       return;
     }
 
+    if (parsed.pathname === `${API_PREFIX}/export`) {
+      this.requireMethod(parsed, ["GET"]);
+      const state = await this.store.exportState();
+      sendJson(res, 200, {
+        ok: true,
+        schemaVersion: state.schemaVersion,
+        pluginVersion: STUDIO_PLUGIN_VERSION,
+        dshVersion: this.dshVersion,
+        exportedAt: new Date().toISOString(),
+        state,
+      });
+      return;
+    }
+
     if (parsed.pathname === `${API_PREFIX}/projects`) {
       this.requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);

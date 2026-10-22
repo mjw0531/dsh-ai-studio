@@ -748,6 +748,20 @@ export function StudioPage() {
     );
   };
 
+  const exportData = async (): Promise<void> => {
+    if (client === null) return;
+    const data = await client.exportState();
+    const blob = new Blob([JSON.stringify(data, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `studio-backup-${data.exportedAt.slice(0, 19).replace(/[:T]/g, "-")}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const writeAdr = async (decision: Decision): Promise<void> => {
     await run(
       async () => {
@@ -794,6 +808,15 @@ export function StudioPage() {
             <span className="studio-status-dot" />
             本地 · v{boot.pluginVersion}
           </span>
+          <button
+            className="studio-btn"
+            data-size="sm"
+            type="button"
+            onClick={() => void exportData()}
+            title="导出 studio.json 备份"
+          >
+            导出
+          </button>
           <button
             className="studio-btn"
             data-size="icon"

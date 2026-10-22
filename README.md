@@ -2,7 +2,7 @@
 
 一套构建在 **DeepSeek Harness（DSH）** 之上的多角色 AI 工作台：把「一个聊天窗口」变成一间**有公司仪表盘、Agent 派单、token 预算、决策董事会、支线/契约冲突、worktree 代码执行、项目、角色、任务、验收、合并治理**的工作室。
 
-> 当前状态：**v2.0.0 可运行**。已完成公司级 Owner Dashboard、Agent 派单与结构化回执、角色模型/token 预算、DSH token 计量、决策董事会、支线/契约冲突自动升级、git worktree 代码执行与自动提交、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、ADR 草稿与落盘、人工触发 Git merge 与合并后回归、合并失败升级与回滚、改修票诊断/计划门禁、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、项目/角色/任务/验收/证据持久化、合并治理，并在 DSH `0.2.1-rc.2` 和 `D:\AIgame` 真实仓库上完成派单→验证→评审→merge→回归的 dogfood。
+> 当前状态：**v2.1.0 可运行**。已完成公司级 Owner Dashboard、Agent 派单与结构化回执、角色模型/token 预算、DSH token 计量、决策董事会、支线/契约冲突自动升级、git worktree 代码执行与自动提交、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、ADR 草稿与落盘、人工触发 Git merge 与合并后回归、合并失败升级与回滚、改修票诊断/计划门禁、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、数据导出备份、项目/角色/任务/验收/证据持久化、合并治理，并在 DSH `0.2.1-rc.2` 和 `D:\AIgame` 真实仓库上完成派单→验证→评审→merge→回归的 dogfood。
 
 ![Studio Decision Boardroom](docs/images/decision-boardroom.png)
 
@@ -63,7 +63,7 @@ dsh plugin --profile web add "D:\AI工作台\packages\dsh-studio"
 dsh --profile web
 ```
 
-详细安装、打包分发、安全说明见 [插件 README](packages/dsh-studio/README.md)。
+详细安装、打包分发、安全说明见 [插件 README](packages/dsh-studio/README.md)；兼容性、升级、备份见 [兼容性与安装](docs/04-兼容性与安装.md)。
 
 ## 为什么不是「酒馆套壳」
 
@@ -182,7 +182,7 @@ dsh --profile web --no-open --port 0
 - **v1.8**：ADR 落盘 + 人工触发合并回滚。
 - **v1.9**：改修票诊断/计划门禁。
 - **v2.0（当前）**：真实项目 dogfood（首个任务闭环）、Agent 改动自动提交、Git 身份预检。
-- **v2.1**：可分发稳定版、项目模板、兼容性矩阵、导入导出/备份。
+- **v2.1（当前）**：可分发稳定版、数据导出备份、兼容性/安装/升级文档。
 - **v1.0**：用工作台完成一个 2.5D MOBA 垂直切片，再抽象为可复用插件。
 
 详细迭代计划见 [后续迭代](docs/02-后续迭代.md)。
