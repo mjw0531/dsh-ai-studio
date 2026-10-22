@@ -60,6 +60,20 @@ test("seeds a demo project, roles, and tasks", async () => {
   });
 });
 
+test("selects an external executor for a role", async () => {
+  await withStore(async (store) => {
+    const data = await store.bootstrap();
+    const role = await store.createRole({
+      name: "Claude 架构师",
+      executor: "claude-code",
+    });
+    assert.equal(role.executor, "claude-code");
+    const updated = await store.updateRole(role.id, { executor: "codex" });
+    assert.equal(updated.executor, "codex");
+    assert.ok(data.roles.every((item) => item.executor === "dsh"));
+  });
+});
+
 test("persists state across store instances", async () => {
   let taskId = "";
   await withStore(async (store, dir) => {
@@ -571,7 +585,7 @@ test("exports a portable copy of the state", async () => {
   await withStore(async (store) => {
     await store.bootstrap();
     const exported = await store.exportState();
-    assert.equal(exported.schemaVersion, 17);
+    assert.equal(exported.schemaVersion, 18);
     assert.ok(exported.projects.length >= 1);
     assert.ok(exported.tasks.length >= 1);
     assert.ok(Array.isArray(exported.runs));
@@ -950,8 +964,9 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
     assert.deepEqual(data.runs, []);
     assert.deepEqual(data.decisions, []);
     const migrated = JSON.parse(await readFile(file, "utf8"));
-    assert.equal(migrated.schemaVersion, 17);
+    assert.equal(migrated.schemaVersion, 18);
     assert.equal(migrated.companyName, "AI工作室");
+    assert.ok(migrated.roles.every((role) => role.executor === "dsh"));
     assert.ok(migrated.runs.every((run) => run.status !== undefined));
     assert.ok(Array.isArray(migrated.reviews));
     assert.ok(Array.isArray(migrated.branches));

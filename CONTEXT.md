@@ -64,6 +64,14 @@ _Avoid_: 测试结果（太泛）、Agent 自检
 某条支线对某个契约声明的一次变更；同契约不同变更跨支线出现时触发冲突升级。
 _Avoid_: diff、提交（代码仓库概念）
 
+**Agent Executor（执行器）**:
+执行一个 Role 的运行时：`dsh`、`claude-code` 或 `codex`。外部执行器只在 worktree 内 headless 运行。
+_Avoid_: 模型（模型是执行器里的一个参数，不是执行器本身）
+
+**Project Bundle（项目包）**:
+可迁移归档：`studio.json` + `project.bundle` + `manifest.json` + 说明；不含密钥和未提交 worktree。
+_Avoid_: 备份（备份通常只指状态）
+
 **Decision Desk（决策台）**:
 项目级决策的裁决队列：Agent 或人提出，Owner 批准/拒绝，保留结论、理由与 token 成本。
 _Avoid_: 审批流、待办

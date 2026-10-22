@@ -2,8 +2,8 @@
 import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 17;
-var STUDIO_PLUGIN_VERSION = "2.3.0";
+var STUDIO_SCHEMA_VERSION = 18;
+var STUDIO_PLUGIN_VERSION = "2.5.0";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -374,7 +374,7 @@ function buildCompany(state, now) {
       (role) => role.projectId === project.id
     );
     const projectRuns = state.runs.filter(
-      (run2) => run2.projectId === project.id
+      (run3) => run3.projectId === project.id
     );
     const projectDecisions = state.decisions.filter(
       (decision) => decision.projectId === project.id
@@ -536,10 +536,10 @@ function buildCompany(state, now) {
     totals.acceptanceTotal += stats.acceptanceTotal;
     totals.runs += projectRuns.length;
     totals.runningRuns += projectRuns.filter(
-      (run2) => run2.status === "running"
+      (run3) => run3.status === "running"
     ).length;
     totals.tokensUsed += projectRuns.reduce(
-      (sum, run2) => sum + (run2.tokens ?? 0),
+      (sum, run3) => sum + (run3.tokens ?? 0),
       0
     );
     totals.pendingDecisions += projectDecisions.filter(
@@ -641,7 +641,7 @@ function isProject(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.name === "string" && typeof value.description === "string" && (value.tokenBudget === null || typeof value.tokenBudget === "number") && (value.repoPath === null || typeof value.repoPath === "string") && (value.prdPath === null || value.prdPath === void 0 || typeof value.prdPath === "string") && (value.invariantsPath === null || value.invariantsPath === void 0 || typeof value.invariantsPath === "string") && (value.modulesPath === null || value.modulesPath === void 0 || typeof value.modulesPath === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
 }
 function isRole(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.name === "string" && typeof value.title === "string" && typeof value.mission === "string" && Array.isArray(value.responsibilities) && Array.isArray(value.nonGoals) && Array.isArray(value.decisionRights) && (value.model === null || typeof value.model === "string") && (value.tokenBudget === null || typeof value.tokenBudget === "number") && (value.dailyTokenBudget === null || typeof value.dailyTokenBudget === "number");
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.name === "string" && typeof value.title === "string" && typeof value.mission === "string" && Array.isArray(value.responsibilities) && Array.isArray(value.nonGoals) && Array.isArray(value.decisionRights) && (value.model === null || typeof value.model === "string") && (value.executor === void 0 || value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && (value.tokenBudget === null || typeof value.tokenBudget === "number") && (value.dailyTokenBudget === null || typeof value.dailyTokenBudget === "number");
 }
 function isAgentRunStatus(value) {
   return value === "queued" || value === "running" || value === "succeeded" || value === "failed";
@@ -724,9 +724,9 @@ function migrateState(value) {
     state = {
       ...state,
       schemaVersion: 5,
-      runs: state.runs.map((run2) => ({
-        ...run2,
-        branchId: run2.branchId ?? null
+      runs: state.runs.map((run3) => ({
+        ...run3,
+        branchId: run3.branchId ?? null
       })),
       branches: state.tasks.filter((task) => task.branch !== null).map((task) => ({
         id: `branch-${task.id}`,
@@ -751,11 +751,11 @@ function migrateState(value) {
         ...project,
         repoPath: project.repoPath ?? null
       })),
-      runs: state.runs.map((run2) => ({
-        ...run2,
-        branchName: run2.branchName ?? null,
-        workspacePath: run2.workspacePath ?? null,
-        diffStat: run2.diffStat ?? null
+      runs: state.runs.map((run3) => ({
+        ...run3,
+        branchName: run3.branchName ?? null,
+        workspacePath: run3.workspacePath ?? null,
+        diffStat: run3.diffStat ?? null
       }))
     };
   }
@@ -886,10 +886,20 @@ function migrateState(value) {
     };
   }
   if (state.schemaVersion === 16) {
+    state = {
+      ...state,
+      schemaVersion: 17,
+      companyName: "AI\u5DE5\u4F5C\u5BA4"
+    };
+  }
+  if (state.schemaVersion === 17) {
     return {
       ...state,
       schemaVersion: STUDIO_SCHEMA_VERSION,
-      companyName: "AI\u5DE5\u4F5C\u5BA4"
+      roles: state.roles.map((role) => ({
+        ...role,
+        executor: role.executor ?? "dsh"
+      }))
     };
   }
   return state;
@@ -1033,7 +1043,7 @@ var StudioStore = class {
       const mergeProposals = project === null ? [] : state.mergeProposals.filter(
         (proposal) => proposal.projectId === project.id
       );
-      const runs = project === null ? [] : state.runs.filter((run2) => run2.projectId === project.id).sort(
+      const runs = project === null ? [] : state.runs.filter((run3) => run3.projectId === project.id).sort(
         (left, right) => right.startedAt.localeCompare(left.startedAt)
       );
       const branches = project === null ? [] : state.branches.filter((branch) => branch.projectId === project.id).sort(
@@ -1243,7 +1253,7 @@ var StudioStore = class {
           404
         );
       }
-      const run2 = [...state.runs].filter(
+      const run3 = [...state.runs].filter(
         (item) => item.taskId === taskId && item.workspacePath !== null
       ).sort(
         (left, right) => right.startedAt.localeCompare(left.startedAt)
@@ -1255,7 +1265,7 @@ var StudioStore = class {
         task: structuredClone(task),
         role: structuredClone(role),
         project: structuredClone(project),
-        run: run2 === void 0 ? null : structuredClone(run2),
+        run: run3 === void 0 ? null : structuredClone(run3),
         verification: verification === void 0 ? null : structuredClone(verification)
       };
     });
@@ -1301,14 +1311,14 @@ var StudioStore = class {
     return this.runExclusive(async () => {
       const state = this.requireState();
       const task = this.findTask(state, taskId);
-      const run2 = [...state.runs].filter(
+      const run3 = [...state.runs].filter(
         (item) => item.taskId === taskId && item.workspacePath !== null
       ).sort(
         (left, right) => right.startedAt.localeCompare(left.startedAt)
       )[0];
       return {
         task: structuredClone(task),
-        run: run2 === void 0 ? null : structuredClone(run2)
+        run: run3 === void 0 ? null : structuredClone(run3)
       };
     });
   }
@@ -1341,7 +1351,7 @@ var StudioStore = class {
           404
         );
       }
-      const projectSpent = state.runs.filter((run3) => run3.projectId === project.id).reduce((sum, run3) => sum + (run3.tokens ?? 0), 0);
+      const projectSpent = state.runs.filter((run4) => run4.projectId === project.id).reduce((sum, run4) => sum + (run4.tokens ?? 0), 0);
       if (project.tokenBudget !== null && projectSpent >= project.tokenBudget) {
         throw new StudioStoreError(
           "budget_exceeded",
@@ -1351,7 +1361,7 @@ var StudioStore = class {
           409
         );
       }
-      const roleSpent = state.runs.filter((run3) => run3.roleId === role.id).reduce((sum, run3) => sum + (run3.tokens ?? 0), 0);
+      const roleSpent = state.runs.filter((run4) => run4.roleId === role.id).reduce((sum, run4) => sum + (run4.tokens ?? 0), 0);
       if (role.tokenBudget !== null && roleSpent >= role.tokenBudget) {
         throw new StudioStoreError(
           "budget_exceeded",
@@ -1363,8 +1373,8 @@ var StudioStore = class {
       }
       const today = nowIso(this.now).slice(0, 10);
       const dailySpent = state.runs.filter(
-        (run3) => run3.roleId === role.id && run3.startedAt.slice(0, 10) === today
-      ).reduce((sum, run3) => sum + (run3.tokens ?? 0), 0);
+        (run4) => run4.roleId === role.id && run4.startedAt.slice(0, 10) === today
+      ).reduce((sum, run4) => sum + (run4.tokens ?? 0), 0);
       if (role.dailyTokenBudget !== null && dailySpent >= role.dailyTokenBudget) {
         throw new StudioStoreError(
           "budget_exceeded",
@@ -1379,7 +1389,7 @@ var StudioStore = class {
         task.branch = workspace.branch;
       }
       const branch = this.ensureBranch(state, task, at);
-      const run2 = {
+      const run3 = {
         id: newId("run"),
         projectId: task.projectId,
         taskId: task.id,
@@ -1400,7 +1410,7 @@ var StudioStore = class {
         startedAt: at,
         endedAt: null
       };
-      state.runs.push(run2);
+      state.runs.push(run3);
       task.status = "running";
       task.updatedAt = at;
       state.updatedAt = at;
@@ -1410,47 +1420,47 @@ var StudioStore = class {
         projectId: task.projectId,
         taskId: task.id,
         payload: {
-          runId: run2.id,
+          runId: run3.id,
           roleId: role.id,
           model: role.model
         }
       });
       await this.save();
-      return structuredClone(run2);
+      return structuredClone(run3);
     });
   }
   async attachRunSession(runId, sessionId, model) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const run2 = state.runs.find((item) => item.id === runId);
-      if (run2 === void 0) return;
-      run2.sessionId = sessionId;
-      if (model !== void 0) run2.model = model;
-      run2.status = "running";
+      const run3 = state.runs.find((item) => item.id === runId);
+      if (run3 === void 0) return;
+      run3.sessionId = sessionId;
+      if (model !== void 0) run3.model = model;
+      run3.status = "running";
       await this.save();
     });
   }
   async completeRun(runId, input) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const run2 = state.runs.find((item) => item.id === runId);
-      if (run2 === void 0) {
+      const run3 = state.runs.find((item) => item.id === runId);
+      if (run3 === void 0) {
         throw new StudioStoreError("run_not_found", "Agent Run \u4E0D\u5B58\u5728", 404);
       }
       const at = nowIso(this.now);
-      const task = state.tasks.find((item) => item.id === run2.taskId);
+      const task = state.tasks.find((item) => item.id === run3.taskId);
       const project = state.projects.find(
-        (item) => item.id === run2.projectId
+        (item) => item.id === run3.projectId
       );
-      const role = state.roles.find((item) => item.id === run2.roleId);
+      const role = state.roles.find((item) => item.id === run3.roleId);
       const receiptComplete = input.receipt !== null && typeof input.receipt.summary === "string" && input.receipt.summary.trim() !== "" && Array.isArray(input.receipt.evidence) && input.receipt.evidence.length > 0;
       if (!receiptComplete) {
-        run2.status = "failed";
-        run2.output = input.output.slice(0, 3e4);
-        run2.receipt = input.receipt;
-        run2.tokens = input.tokens;
-        run2.error = "\u56DE\u6267\u4E0D\u5B8C\u6574\uFF1A\u5FC5\u987B\u5305\u542B\u975E\u7A7A summary \u548C\u81F3\u5C11\u4E00\u6761 evidence\uFF0C\u4EFB\u52A1\u4E0D\u80FD\u8FDB\u5165 review";
-        run2.endedAt = at;
+        run3.status = "failed";
+        run3.output = input.output.slice(0, 3e4);
+        run3.receipt = input.receipt;
+        run3.tokens = input.tokens;
+        run3.error = "\u56DE\u6267\u4E0D\u5B8C\u6574\uFF1A\u5FC5\u987B\u5305\u542B\u975E\u7A7A summary \u548C\u81F3\u5C11\u4E00\u6761 evidence\uFF0C\u4EFB\u52A1\u4E0D\u80FD\u8FDB\u5165 review";
+        run3.endedAt = at;
         if (task !== void 0 && task.status === "running") {
           task.status = "ready";
           task.updatedAt = at;
@@ -1460,30 +1470,30 @@ var StudioStore = class {
             state,
             task,
             at,
-            run2.error,
-            run2
+            run3.error,
+            run3
           );
         }
         state.updatedAt = at;
         this.recordEvent(state, {
           type: "agent.failed",
           at,
-          projectId: run2.projectId,
-          taskId: run2.taskId,
+          projectId: run3.projectId,
+          taskId: run3.taskId,
           payload: {
-            runId: run2.id,
-            error: run2.error,
-            tokens: run2.tokens
+            runId: run3.id,
+            error: run3.error,
+            tokens: run3.tokens
           }
         });
         await this.save();
-        return structuredClone(run2);
+        return structuredClone(run3);
       }
       const spentProject = state.runs.filter(
-        (item) => item.projectId === run2.projectId && item.id !== run2.id
+        (item) => item.projectId === run3.projectId && item.id !== run3.id
       ).reduce((sum, item) => sum + (item.tokens ?? 0), 0);
       const spentRole = state.runs.filter(
-        (item) => item.roleId === run2.roleId && item.id !== run2.id
+        (item) => item.roleId === run3.roleId && item.id !== run3.id
       ).reduce((sum, item) => sum + (item.tokens ?? 0), 0);
       const warnings = [];
       if (project !== void 0 && project.tokenBudget !== null && input.tokens !== null && spentProject + input.tokens > project.tokenBudget) {
@@ -1500,13 +1510,13 @@ var StudioStore = class {
           )}`
         );
       }
-      run2.status = "succeeded";
-      run2.output = input.output.slice(0, 3e4);
-      run2.receipt = input.receipt;
-      run2.tokens = input.tokens;
-      run2.diffStat = input.diffStat ?? null;
-      run2.budgetWarning = warnings.length === 0 ? null : warnings.join("\uFF1B");
-      run2.endedAt = at;
+      run3.status = "succeeded";
+      run3.output = input.output.slice(0, 3e4);
+      run3.receipt = input.receipt;
+      run3.tokens = input.tokens;
+      run3.diffStat = input.diffStat ?? null;
+      run3.budgetWarning = warnings.length === 0 ? null : warnings.join("\uFF1B");
+      run3.endedAt = at;
       if (task !== void 0) {
         if (input.receipt !== null) {
           const existing = new Set(task.evidence.map((item) => item.text));
@@ -1523,10 +1533,10 @@ var StudioStore = class {
         task.updatedAt = at;
       }
       if (input.receipt !== null) {
-        let branch = run2.branchId === null ? void 0 : state.branches.find((item) => item.id === run2.branchId);
+        let branch = run3.branchId === null ? void 0 : state.branches.find((item) => item.id === run3.branchId);
         if (branch === void 0 && task !== void 0) {
           branch = this.ensureBranch(state, task, at);
-          run2.branchId = branch.id;
+          run3.branchId = branch.id;
         }
         if (branch !== void 0) {
           branch.status = "review";
@@ -1539,17 +1549,17 @@ var StudioStore = class {
               branch.contractKeys.push(contract);
             }
             const conflict = state.contractChanges.find(
-              (item) => item.projectId === run2.projectId && item.contract === contract && item.branchId !== branch.id && item.change !== change
+              (item) => item.projectId === run3.projectId && item.contract === contract && item.branchId !== branch.id && item.change !== change
             );
             if (!state.contractChanges.some(
               (item) => item.branchId === branch.id && item.contract === contract && item.change === change
             )) {
               state.contractChanges.push({
                 id: newId("contract"),
-                projectId: run2.projectId,
+                projectId: run3.projectId,
                 branchId: branch.id,
-                taskId: run2.taskId,
-                runId: run2.id,
+                taskId: run3.taskId,
+                runId: run3.id,
                 contract,
                 change,
                 createdAt: at
@@ -1557,20 +1567,20 @@ var StudioStore = class {
               this.recordEvent(state, {
                 type: "contract.changed",
                 at,
-                projectId: run2.projectId,
-                taskId: run2.taskId,
+                projectId: run3.projectId,
+                taskId: run3.taskId,
                 payload: {
                   branchId: branch.id,
                   contract,
                   change,
-                  runId: run2.id
+                  runId: run3.id
                 }
               });
             }
             if (conflict === void 0) continue;
             const title = `\u5951\u7EA6\u51B2\u7A81\uFF1A${contract.slice(0, 160)}`;
             if (state.decisions.some(
-              (item) => item.runId === run2.id && item.title === title
+              (item) => item.runId === run3.id && item.title === title
             )) {
               continue;
             }
@@ -1579,9 +1589,9 @@ var StudioStore = class {
             );
             const decision = {
               id: newId("dec"),
-              projectId: run2.projectId,
-              taskId: run2.taskId,
-              runId: run2.id,
+              projectId: run3.projectId,
+              taskId: run3.taskId,
+              runId: run3.id,
               title,
               context: `${branch.name}: ${change}
 ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
@@ -1611,14 +1621,14 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
             this.recordEvent(state, {
               type: "decision.escalated",
               at,
-              projectId: run2.projectId,
-              taskId: run2.taskId,
+              projectId: run3.projectId,
+              taskId: run3.taskId,
               payload: {
                 decisionId: decision.id,
                 contract,
                 branchId: branch.id,
                 otherBranchId: conflict.branchId,
-                runId: run2.id
+                runId: run3.id
               }
             });
           }
@@ -1628,15 +1638,15 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         for (const proposed of input.receipt.decisions) {
           if (proposed.scope !== "project") continue;
           if (state.decisions.some(
-            (item) => item.runId === run2.id && item.title === proposed.title
+            (item) => item.runId === run3.id && item.title === proposed.title
           )) {
             continue;
           }
           const decision = {
             id: newId("dec"),
-            projectId: run2.projectId,
-            taskId: run2.taskId,
-            runId: run2.id,
+            projectId: run3.projectId,
+            taskId: run3.taskId,
+            runId: run3.id,
             title: proposed.title,
             context: proposed.rationale,
             options: [],
@@ -1656,11 +1666,11 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           this.recordEvent(state, {
             type: "decision.proposed",
             at,
-            projectId: run2.projectId,
-            taskId: run2.taskId,
+            projectId: run3.projectId,
+            taskId: run3.taskId,
             payload: {
               decisionId: decision.id,
-              runId: run2.id,
+              runId: run3.id,
               title: decision.title
             }
           });
@@ -1670,48 +1680,48 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       this.recordEvent(state, {
         type: "agent.completed",
         at,
-        projectId: run2.projectId,
-        taskId: run2.taskId,
+        projectId: run3.projectId,
+        taskId: run3.taskId,
         payload: {
-          runId: run2.id,
-          tokens: run2.tokens,
+          runId: run3.id,
+          tokens: run3.tokens,
           receipt: input.receipt !== null,
-          budgetWarning: run2.budgetWarning
+          budgetWarning: run3.budgetWarning
         }
       });
       await this.save();
-      return structuredClone(run2);
+      return structuredClone(run3);
     });
   }
   async failRun(runId, error) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const run2 = state.runs.find((item) => item.id === runId);
-      if (run2 === void 0) {
+      const run3 = state.runs.find((item) => item.id === runId);
+      if (run3 === void 0) {
         throw new StudioStoreError("run_not_found", "Agent Run \u4E0D\u5B58\u5728", 404);
       }
       const at = nowIso(this.now);
-      run2.status = "failed";
-      run2.error = error.slice(0, 4e3);
-      run2.endedAt = at;
-      const task = state.tasks.find((item) => item.id === run2.taskId);
+      run3.status = "failed";
+      run3.error = error.slice(0, 4e3);
+      run3.endedAt = at;
+      const task = state.tasks.find((item) => item.id === run3.taskId);
       if (task !== void 0 && task.status === "running") {
         task.status = "ready";
         task.updatedAt = at;
       }
       if (task !== void 0) {
-        this.escalateRepeatedFailure(state, task, at, run2.error, run2);
+        this.escalateRepeatedFailure(state, task, at, run3.error, run3);
       }
       state.updatedAt = at;
       this.recordEvent(state, {
         type: "agent.failed",
         at,
-        projectId: run2.projectId,
-        taskId: run2.taskId,
-        payload: { runId: run2.id, error: run2.error }
+        projectId: run3.projectId,
+        taskId: run3.taskId,
+        payload: { runId: run3.id, error: run3.error }
       });
       await this.save();
-      return structuredClone(run2);
+      return structuredClone(run3);
     });
   }
   /**
@@ -1735,12 +1745,12 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         if (file === "") return false;
         if (contract !== "" && file === contract) return true;
         if (forbidden.some(
-          (path6) => file === path6 || file.startsWith(`${path6}/`)
+          (path8) => file === path8 || file.startsWith(`${path8}/`)
         )) {
           return true;
         }
         if (allowed.length > 0 && (file.startsWith("src/") || file.startsWith("test/")) && !allowed.some(
-          (path6) => file === path6 || file.startsWith(`${path6}/`)
+          (path8) => file === path8 || file.startsWith(`${path8}/`)
         )) {
           return true;
         }
@@ -1754,7 +1764,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       if (!state.decisions.some(
         (item) => item.taskId === task.id && item.title === title
       )) {
-        const run2 = state.runs.find((item) => item.id === runId);
+        const run3 = state.runs.find((item) => item.id === runId);
         state.decisions.push({
           id: newId("dec"),
           projectId: task.projectId,
@@ -1780,7 +1790,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           decision: "",
           note: "",
           decidedBy: "",
-          tokenCost: run2?.tokens ?? null,
+          tokenCost: run3?.tokens ?? null,
           createdAt: at,
           decidedAt: null
         });
@@ -1802,7 +1812,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       const state = this.requireState();
       const task = this.findTask(state, taskId);
       const at = nowIso(this.now);
-      const run2 = input.runId ? state.runs.find((item) => item.id === input.runId) : [...state.runs].filter(
+      const run3 = input.runId ? state.runs.find((item) => item.id === input.runId) : [...state.runs].filter(
         (item) => item.taskId === taskId && item.workspacePath !== null
       ).sort(
         (left, right) => right.startedAt.localeCompare(left.startedAt)
@@ -1811,7 +1821,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         id: newId("verify"),
         projectId: task.projectId,
         taskId,
-        runId: run2?.id ?? null,
+        runId: run3?.id ?? null,
         command: requiredText(input.command, "command", 500),
         workdir: requiredText(input.workdir, "workdir", 1e3),
         exitCode: input.exitCode,
@@ -2226,6 +2236,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         nonGoals: textList(input.nonGoals, "nonGoals"),
         decisionRights: textList(input.decisionRights, "decisionRights"),
         model: optionalText(input.model, "model", 120) || null,
+        executor: input.executor === "claude-code" || input.executor === "codex" ? input.executor : "dsh",
         tokenBudget: optionalTokenBudget(input.tokenBudget, "tokenBudget"),
         dailyTokenBudget: optionalTokenBudget(
           input.dailyTokenBudget,
@@ -2276,6 +2287,9 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       }
       if (input.model !== void 0) {
         role.model = optionalText(input.model, "model", 120) || null;
+      }
+      if (input.executor !== void 0) {
+        role.executor = input.executor === "claude-code" || input.executor === "codex" ? input.executor : "dsh";
       }
       if (input.tokenBudget !== void 0) {
         role.tokenBudget = optionalTokenBudget(input.tokenBudget, "tokenBudget");
@@ -2646,7 +2660,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         throw new StudioStoreError("invalid_input", "risk \u5FC5\u987B\u662F low/medium/high");
       }
       const at = nowIso(this.now);
-      const latestRun = [...state.runs].filter((run2) => run2.taskId === task.id).sort(
+      const latestRun = [...state.runs].filter((run3) => run3.taskId === task.id).sort(
         (left, right) => right.startedAt.localeCompare(left.startedAt)
       )[0];
       const latestVerification = [...state.verifications].filter((verification) => verification.taskId === task.id).sort(
@@ -2935,7 +2949,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
     }
     return state.projects[0] ?? null;
   }
-  escalateRepeatedFailure(state, task, at, reason, run2) {
+  escalateRepeatedFailure(state, task, at, reason, run3) {
     const failures = state.runs.filter(
       (item) => item.taskId === task.id && item.status === "failed"
     ).length;
@@ -3008,7 +3022,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       id: newId("dec"),
       projectId: task.projectId,
       taskId: task.id,
-      runId: run2.id,
+      runId: run3.id,
       title,
       context: `${String(failures)} \u6B21\u5931\u8D25\uFF1B\u6700\u540E\u4E00\u6B21\uFF1A${reason}`,
       options: [
@@ -3029,7 +3043,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       decision: "",
       note: "",
       decidedBy: "",
-      tokenCost: run2.tokens,
+      tokenCost: run3.tokens,
       createdAt: at,
       decidedAt: null
     };
@@ -3042,7 +3056,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       payload: {
         decisionId: decision.id,
         failures,
-        runId: run2.id
+        runId: run3.id
       }
     });
   }
@@ -3155,6 +3169,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       nonGoals: [],
       decisionRights,
       model: null,
+      executor: "dsh",
       tokenBudget: null,
       dailyTokenBudget: null,
       createdAt: at,
@@ -3367,14 +3382,131 @@ var AdrService = class {
   }
 };
 
+// src/host/bundle.ts
+import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
+import { mkdtemp, readFile as readFile3, rm as rm2, writeFile as writeFile3 } from "node:fs/promises";
+import os2 from "node:os";
+import path4 from "node:path";
+import { promisify } from "node:util";
+var run = promisify(execFile);
+var ProjectBundleService = class {
+  store;
+  constructor(store) {
+    this.store = store;
+  }
+  async exportProject(projectId, dshVersion) {
+    const state = await this.store.exportState();
+    const project = state.projects.find((item) => item.id === projectId);
+    if (project === void 0) {
+      throw new StudioStoreError("project_not_found", "\u9879\u76EE\u4E0D\u5B58\u5728", 404);
+    }
+    if (project.repoPath === null) {
+      throw new StudioStoreError(
+        "repo_required",
+        "\u9879\u76EE\u8FD8\u6CA1\u6709\u7ED1\u5B9A\u4EE3\u7801\u4ED3\u5E93\uFF0C\u65E0\u6CD5\u5BFC\u51FA\u9879\u76EE\u5305",
+        409
+      );
+    }
+    const temp = await mkdtemp(path4.join(os2.tmpdir(), "studio-bundle-"));
+    const archive = path4.join(
+      os2.tmpdir(),
+      `studio-bundle-${String(Date.now())}-${Math.random().toString(36).slice(2)}.tar.gz`
+    );
+    try {
+      const bundlePath = path4.join(temp, "project.bundle");
+      await run(
+        "git",
+        ["bundle", "create", bundlePath, "--all"],
+        { cwd: project.repoPath, windowsHide: true }
+      );
+      await writeFile3(
+        path4.join(temp, "studio.json"),
+        `${JSON.stringify(state, null, 2)}
+`,
+        "utf8"
+      );
+      const checksum = (file) => createHash("sha256").update(file).digest("hex");
+      const manifest = {
+        kind: "dsh-ai-studio-project-bundle",
+        formatVersion: 1,
+        generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        pluginVersion: STUDIO_PLUGIN_VERSION,
+        dshVersion,
+        schemaVersion: state.schemaVersion,
+        project: {
+          id: project.id,
+          name: project.name,
+          description: project.description
+        },
+        repoPath: project.repoPath,
+        files: ["studio.json", "project.bundle", "manifest.json", "README.txt"],
+        checksums: {
+          "studio.json": checksum(
+            await readFile3(path4.join(temp, "studio.json"))
+          ),
+          "project.bundle": checksum(await readFile3(bundlePath))
+        }
+      };
+      await writeFile3(
+        path4.join(temp, "manifest.json"),
+        `${JSON.stringify(manifest, null, 2)}
+`,
+        "utf8"
+      );
+      await writeFile3(
+        path4.join(temp, "README.txt"),
+        [
+          "dsh-ai-studio project bundle",
+          "",
+          "1. Install the same or newer dsh-ai-studio plugin.",
+          "2. Import studio.json on the new machine.",
+          "3. Clone project.bundle into a new directory:",
+          "   git clone project.bundle <new-project-dir>",
+          "4. Rebind the project repoPath to <new-project-dir>.",
+          "5. Recreate worktrees only for active tasks; do not copy .worktrees.",
+          "",
+          "This archive contains Studio state and git history, not API keys."
+        ].join("\n"),
+        "utf8"
+      );
+      await run(
+        "tar",
+        ["-czf", archive, "-C", temp, "."],
+        { windowsHide: true }
+      );
+      const bytes = await readFile3(archive);
+      const safeName = project.name.replace(/[^\w.-]+/g, "-").slice(0, 40);
+      return {
+        filename: `${safeName || "project"}-bundle.tar.gz`,
+        bytes
+      };
+    } catch (error) {
+      if (error instanceof StudioStoreError) throw error;
+      throw new StudioStoreError(
+        "bundle_failed",
+        `\u9879\u76EE\u5305\u5BFC\u51FA\u5931\u8D25\uFF1A${error instanceof Error ? error.message : String(error)}`,
+        500
+      );
+    } finally {
+      await rm2(temp, { recursive: true, force: true }).catch(() => void 0);
+      await rm2(archive, { force: true }).catch(() => void 0);
+    }
+  }
+};
+
 // src/host/dispatcher.ts
 import { randomUUID as randomUUID2 } from "node:crypto";
+import { spawn } from "node:child_process";
+import { mkdtemp as mkdtemp2, readFile as readFile4, rm as rm3 } from "node:fs/promises";
+import os3 from "node:os";
+import path6 from "node:path";
 
 // src/host/workspace.ts
 import { execFileSync } from "node:child_process";
 import { existsSync as existsSync2 } from "node:fs";
 import { mkdir as mkdir3 } from "node:fs/promises";
-import path4 from "node:path";
+import path5 from "node:path";
 var WorkspaceError = class extends Error {
   code;
   constructor(code, message) {
@@ -3402,7 +3534,7 @@ function sanitize(taskId) {
 }
 var WorkspaceManager = class {
   async prepare(repoPath, taskId) {
-    const resolved = path4.resolve(repoPath);
+    const resolved = path5.resolve(repoPath);
     if (!existsSync2(resolved)) {
       throw new WorkspaceError(
         "repo_missing",
@@ -3410,8 +3542,8 @@ var WorkspaceManager = class {
       );
     }
     const root = git(resolved, ["rev-parse", "--show-toplevel"]);
-    const worktreeRoot = path4.join(root, ".worktrees");
-    const worktreePath = path4.join(worktreeRoot, sanitize(taskId));
+    const worktreeRoot = path5.join(root, ".worktrees");
+    const worktreePath = path5.join(worktreeRoot, sanitize(taskId));
     const branch = `studio/${sanitize(taskId)}`;
     await mkdir3(worktreeRoot, { recursive: true });
     if (existsSync2(worktreePath)) {
@@ -3523,6 +3655,80 @@ function normalizeReceipt(raw, fallback) {
     blockers: stringArray(record.blockers)
   };
 }
+function runCli(command, cwd, prompt, timeoutMs = 6e5) {
+  return new Promise((resolve, reject) => {
+    const shell = process.platform === "win32" ? "cmd.exe" : "/bin/sh";
+    const args = process.platform === "win32" ? ["/d", "/s", "/c", command] : ["-lc", command];
+    const child = spawn(shell, args, {
+      cwd,
+      windowsHide: true,
+      stdio: ["pipe", "pipe", "pipe"]
+    });
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(result);
+    };
+    const timer = setTimeout(() => {
+      settled = true;
+      child.kill();
+      reject(new Error(`\u5916\u90E8\u6267\u884C\u5668\u8D85\u8FC7 ${String(timeoutMs / 1e3)} \u79D2\u672A\u5B8C\u6210`));
+    }, timeoutMs);
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString("utf8");
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString("utf8");
+    });
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.on("close", (code) => {
+      finish({ stdout, stderr, code: code ?? 1 });
+    });
+    child.stdin.end(prompt, "utf8");
+  });
+}
+async function executeExternalCli(executor, prompt, workspace) {
+  if (executor === "claude-code") {
+    const result = await runCli(
+      "claude -p --output-format json --permission-mode acceptEdits",
+      workspace.path,
+      prompt
+    );
+    let output = result.stdout;
+    try {
+      const parsed = JSON.parse(result.stdout);
+      if (typeof parsed === "object" && parsed !== null && typeof parsed.result === "string") {
+        output = parsed.result;
+      }
+    } catch {
+    }
+    return { output, code: result.code, stderr: result.stderr };
+  }
+  const temp = await mkdtemp2(path6.join(os3.tmpdir(), "studio-codex-"));
+  const messageFile = path6.join(temp, "last-message.txt");
+  try {
+    const result = await runCli(
+      `codex exec --json -s workspace-write --output-last-message "${messageFile}" -`,
+      workspace.path,
+      prompt
+    );
+    let output = result.stdout;
+    try {
+      output = (await readFile4(messageFile, "utf8")).trim() || output;
+    } catch {
+    }
+    return { output, code: result.code, stderr: result.stderr };
+  } finally {
+    await rm3(temp, { recursive: true, force: true }).catch(() => void 0);
+  }
+}
 function buildPrompt(context, workspace) {
   const { task, role, project } = context;
   const module = context.module;
@@ -3606,12 +3812,20 @@ var AgentDispatcher = class {
   }
   async dispatch(taskId) {
     const context = await this.store.getDispatchContext(taskId);
-    const selection = await this.resolveModel(context.role);
+    const executor = context.role.executor ?? "dsh";
+    if (executor !== "dsh" && context.project.repoPath === null) {
+      throw new Error("\u5916\u90E8\u6267\u884C\u5668\u53EA\u652F\u6301\u5DF2\u7ED1\u5B9A\u4EE3\u7801\u4ED3\u5E93\u7684\u4EFB\u52A1");
+    }
+    const selection = executor === "dsh" ? await this.resolveModel(context.role) : { provider: "external", model: context.role.model ?? executor };
     const workspace = context.project.repoPath === null ? void 0 : await this.workspaces.prepare(context.project.repoPath, taskId);
     const prompt = buildPrompt(context, workspace);
-    const run2 = await this.store.beginRun(taskId, prompt, workspace);
-    void this.execute(run2, selection, workspace);
-    return run2;
+    const run3 = await this.store.beginRun(taskId, prompt, workspace);
+    if (executor === "dsh") {
+      void this.execute(run3, selection, workspace);
+    } else if (workspace !== void 0) {
+      void this.executeExternal(run3, prompt, workspace, executor);
+    }
+    return run3;
   }
   async review(taskId) {
     const context = await this.store.getReviewContext(taskId);
@@ -3695,7 +3909,7 @@ var AgentDispatcher = class {
     if (first !== null) return first;
     throw new Error(`\u6CA1\u6709\u53EF\u7528\u7684\u6A21\u578B\u8DEF\u7531\uFF08\u8BF7\u6C42\u6A21\u578B\uFF1A${wanted}\uFF09`);
   }
-  async execute(run2, selection, workspace) {
+  async execute(run3, selection, workspace) {
     let handle = null;
     try {
       handle = await this.ctx.agents.create({
@@ -3708,13 +3922,13 @@ var AgentDispatcher = class {
         }
       });
       await this.store.attachRunSession(
-        run2.id,
+        run3.id,
         handle.agent.session.id,
         selection.model
       );
       handle.agent.followup({
         role: "user",
-        content: [{ type: "text", text: run2.prompt }],
+        content: [{ type: "text", text: run3.prompt }],
         source: { kind: "user" }
       });
       const deadline = Date.now() + (workspace === void 0 ? 12e4 : 3e5);
@@ -3749,10 +3963,10 @@ var AgentDispatcher = class {
       if (workspace !== void 0 && diffStat !== "" && diffStat !== null) {
         this.workspaces.commit(
           workspace.path,
-          `studio: complete ${run2.taskId} (${run2.id})`
+          `studio: complete ${run3.taskId} (${run3.id})`
         );
       }
-      await this.store.completeRun(run2.id, {
+      await this.store.completeRun(run3.id, {
         output,
         receipt,
         tokens: typeof measured.totalTokens === "number" ? measured.totalTokens : null,
@@ -3760,14 +3974,14 @@ var AgentDispatcher = class {
       });
       if (workspace !== void 0) {
         await this.store.enforceContractScope(
-          run2.taskId,
-          run2.id,
+          run3.taskId,
+          run3.id,
           changedFilesFromDiff(diffStat)
         );
       }
     } catch (error) {
       await this.store.failRun(
-        run2.id,
+        run3.id,
         error instanceof Error ? error.message : String(error)
       ).catch(() => void 0);
     } finally {
@@ -3776,11 +3990,46 @@ var AgentDispatcher = class {
       }
     }
   }
+  async executeExternal(run3, prompt, workspace, executor) {
+    try {
+      const result = await executeExternalCli(executor, prompt, workspace);
+      if (result.code !== 0) {
+        throw new Error(
+          `${executor} \u9000\u51FA\u7801 ${String(result.code)}\uFF1A${result.stderr.slice(0, 1200)}`
+        );
+      }
+      const output = result.output.trim();
+      const diffStat = this.workspaces.diffStat(workspace.path);
+      if (diffStat !== "") {
+        this.workspaces.commit(
+          workspace.path,
+          `studio: complete ${run3.taskId} (${run3.id})`
+        );
+      }
+      const receipt = normalizeReceipt(extractJsonObject(output), output);
+      await this.store.completeRun(run3.id, {
+        output,
+        receipt,
+        tokens: null,
+        diffStat
+      });
+      await this.store.enforceContractScope(
+        run3.taskId,
+        run3.id,
+        changedFilesFromDiff(diffStat)
+      );
+    } catch (error) {
+      await this.store.failRun(
+        run3.id,
+        error instanceof Error ? error.message : String(error)
+      ).catch(() => void 0);
+    }
+  }
 };
 
 // src/host/docs.ts
-import { readFile as readFile3 } from "node:fs/promises";
-import path5 from "node:path";
+import { readFile as readFile5 } from "node:fs/promises";
+import path7 from "node:path";
 var MAX_BYTES = 2e5;
 var DocsService = class {
   store;
@@ -3796,9 +4045,9 @@ var DocsService = class {
         409
       );
     }
-    const root = path5.resolve(data.project.repoPath);
-    const resolved = path5.resolve(root, relativePath);
-    if (resolved !== root && !resolved.startsWith(`${root}${path5.sep}`)) {
+    const root = path7.resolve(data.project.repoPath);
+    const resolved = path7.resolve(root, relativePath);
+    if (resolved !== root && !resolved.startsWith(`${root}${path7.sep}`)) {
       throw new StudioStoreError(
         "path_outside_repo",
         "\u6587\u6863\u8DEF\u5F84\u5FC5\u987B\u4F4D\u4E8E\u9879\u76EE\u4ED3\u5E93\u5185",
@@ -3806,7 +4055,7 @@ var DocsService = class {
       );
     }
     try {
-      const buffer = await readFile3(resolved);
+      const buffer = await readFile5(resolved);
       const truncated = buffer.byteLength > MAX_BYTES;
       return {
         kind: "custom",
@@ -3828,15 +4077,15 @@ var DocsService = class {
 };
 
 // src/host/merge.ts
-import { execFile } from "node:child_process";
+import { execFile as execFile2 } from "node:child_process";
 
 // src/host/verify.ts
 import { exec } from "node:child_process";
-import { promisify } from "node:util";
-var run = promisify(exec);
+import { promisify as promisify2 } from "node:util";
+var run2 = promisify2(exec);
 async function runVerificationCommand(command, workdir) {
   try {
-    const result = await run(command, {
+    const result = await run2(command, {
       cwd: workdir,
       timeout: 18e4,
       maxBuffer: 2 * 1024 * 1024,
@@ -3885,7 +4134,7 @@ var VerificationService = class {
 // src/host/merge.ts
 function git2(cwd, args) {
   return new Promise((resolve, reject) => {
-    execFile(
+    execFile2(
       "git",
       args,
       {
@@ -4278,6 +4527,17 @@ function asDecideDecision(body) {
     note: asOptionalString(body.note, "note")
   };
 }
+function asAgentExecutor(value) {
+  if (value === void 0) return void 0;
+  if (value === "dsh" || value === "claude-code" || value === "codex") {
+    return value;
+  }
+  throw new HttpError(
+    400,
+    "invalid_input",
+    "executor \u5FC5\u987B\u662F dsh / claude-code / codex"
+  );
+}
 function asCreateRole(body) {
   return {
     name: asString(body.name, "name"),
@@ -4285,6 +4545,7 @@ function asCreateRole(body) {
     mission: asOptionalString(body.mission, "mission"),
     responsibilities: asStringArray(body.responsibilities, "responsibilities"),
     model: asOptionalString(body.model, "model") ?? null,
+    executor: asAgentExecutor(body.executor),
     tokenBudget: asOptionalBudget(body.tokenBudget, "tokenBudget"),
     dailyTokenBudget: asOptionalBudget(
       body.dailyTokenBudget,
@@ -4411,6 +4672,7 @@ var StudioRouter = class {
   executeMerge;
   rollbackMerge;
   writeAdr;
+  exportProjectBundle;
   readProjectDoc;
   constructor(options) {
     this.store = options.store;
@@ -4425,6 +4687,7 @@ var StudioRouter = class {
     this.executeMerge = options.executeMerge;
     this.rollbackMerge = options.rollbackMerge;
     this.writeAdr = options.writeAdr;
+    this.exportProjectBundle = options.exportProjectBundle;
     this.readProjectDoc = options.readProjectDoc;
   }
   async handle(req, res) {
@@ -4502,6 +4765,22 @@ var StudioRouter = class {
       });
       return;
     }
+    const projectBundle = /^\/studio-api\/projects\/([^/]+)\/bundle$/.exec(parsed.pathname);
+    if (projectBundle !== null) {
+      this.requireMethod(parsed, ["GET"]);
+      const bundle = await this.exportProjectBundle(
+        decodeSegment(projectBundle[1] ?? "")
+      );
+      res.statusCode = 200;
+      res.setHeader("content-type", "application/gzip");
+      res.setHeader(
+        "content-disposition",
+        `attachment; filename="${bundle.filename}"`
+      );
+      res.setHeader("content-length", String(bundle.bytes.length));
+      res.end(bundle.bytes);
+      return;
+    }
     if (parsed.pathname === `${API_PREFIX}/import`) {
       this.requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
@@ -4569,6 +4848,7 @@ var StudioRouter = class {
             "responsibilities"
           ),
           model: asOptionalString(body.model, "model"),
+          executor: asAgentExecutor(body.executor),
           tokenBudget: asOptionalBudget(body.tokenBudget, "tokenBudget"),
           dailyTokenBudget: asOptionalBudget(
             body.dailyTokenBudget,
@@ -4603,10 +4883,10 @@ var StudioRouter = class {
     const taskDispatch = /^\/studio-api\/tasks\/([^/]+)\/dispatch$/.exec(parsed.pathname);
     if (taskDispatch !== null) {
       this.requireMethod(parsed, ["POST"]);
-      const run2 = await this.dispatchTask(
+      const run3 = await this.dispatchTask(
         decodeSegment(taskDispatch[1] ?? "")
       );
-      sendJson(res, 202, { ok: true, run: run2 });
+      sendJson(res, 202, { ok: true, run: run3 });
       return;
     }
     if (parsed.pathname === `${API_PREFIX}/project-docs`) {
@@ -4809,6 +5089,7 @@ async function apply(ctx) {
   const docs = new DocsService(store);
   const merger = new GitMergeService(store);
   const adr = new AdrService(store);
+  const bundles = new ProjectBundleService(store);
   const token = randomBytes(24).toString("hex");
   const startedAt = (/* @__PURE__ */ new Date()).toISOString();
   const bootPayload = {
@@ -4832,7 +5113,8 @@ async function apply(ctx) {
     executeMerge: (proposalId) => merger.execute(proposalId),
     rollbackMerge: (proposalId) => merger.rollback(proposalId),
     writeAdr: (decisionId) => adr.write(decisionId),
-    readProjectDoc: (path6) => docs.read(path6)
+    exportProjectBundle: (projectId) => bundles.exportProject(projectId, runtime.version),
+    readProjectDoc: (path8) => docs.read(path8)
   });
   const install = () => {
     const disposeRoute = ctx.webServer.register({

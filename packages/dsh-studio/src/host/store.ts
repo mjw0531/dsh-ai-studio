@@ -675,6 +675,10 @@ function isRole(value: unknown): value is Role {
     Array.isArray(value.nonGoals) &&
     Array.isArray(value.decisionRights) &&
     (value.model === null || typeof value.model === "string") &&
+    (value.executor === undefined ||
+      value.executor === "dsh" ||
+      value.executor === "claude-code" ||
+      value.executor === "codex") &&
     (value.tokenBudget === null || typeof value.tokenBudget === "number") &&
     (value.dailyTokenBudget === null ||
       typeof value.dailyTokenBudget === "number")
@@ -1141,10 +1145,20 @@ function migrateState(value: unknown): StudioState {
     };
   }
   if (state.schemaVersion === 16) {
+    state = {
+      ...state,
+      schemaVersion: 17,
+      companyName: "AI工作室",
+    };
+  }
+  if (state.schemaVersion === 17) {
     return {
       ...state,
       schemaVersion: STUDIO_SCHEMA_VERSION,
-      companyName: "AI工作室",
+      roles: state.roles.map((role) => ({
+        ...role,
+        executor: role.executor ?? "dsh",
+      })),
     };
   }
   return state;
@@ -2758,6 +2772,10 @@ export class StudioStore {
         nonGoals: textList(input.nonGoals, "nonGoals"),
         decisionRights: textList(input.decisionRights, "decisionRights"),
         model: optionalText(input.model, "model", 120) || null,
+        executor:
+          input.executor === "claude-code" || input.executor === "codex"
+            ? input.executor
+            : "dsh",
         tokenBudget: optionalTokenBudget(input.tokenBudget, "tokenBudget"),
         dailyTokenBudget: optionalTokenBudget(
           input.dailyTokenBudget,
@@ -2812,6 +2830,12 @@ export class StudioStore {
       }
       if (input.model !== undefined) {
         role.model = optionalText(input.model, "model", 120) || null;
+      }
+      if (input.executor !== undefined) {
+        role.executor =
+          input.executor === "claude-code" || input.executor === "codex"
+            ? input.executor
+            : "dsh";
       }
       if (input.tokenBudget !== undefined) {
         role.tokenBudget = optionalTokenBudget(input.tokenBudget, "tokenBudget");
@@ -3843,6 +3867,7 @@ export class StudioStore {
       nonGoals: [],
       decisionRights,
       model: null,
+      executor: "dsh",
       tokenBudget: null,
       dailyTokenBudget: null,
       createdAt: at,

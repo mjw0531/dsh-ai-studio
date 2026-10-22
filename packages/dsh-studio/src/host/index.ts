@@ -9,6 +9,7 @@ import {
   safeOrigin,
 } from "./compat.js";
 import { AdrService } from "./adr.js";
+import { ProjectBundleService } from "./bundle.js";
 import { AgentDispatcher } from "./dispatcher.js";
 import type { DispatcherContext } from "./dispatcher.js";
 import { DocsService } from "./docs.js";
@@ -112,6 +113,7 @@ export async function apply(ctx: StudioHostContext): Promise<void> {
   const docs = new DocsService(store);
   const merger = new GitMergeService(store);
   const adr = new AdrService(store);
+  const bundles = new ProjectBundleService(store);
 
   const token = randomBytes(24).toString("hex");
   const startedAt = new Date().toISOString();
@@ -136,6 +138,8 @@ export async function apply(ctx: StudioHostContext): Promise<void> {
     executeMerge: (proposalId) => merger.execute(proposalId),
     rollbackMerge: (proposalId) => merger.rollback(proposalId),
     writeAdr: (decisionId) => adr.write(decisionId),
+    exportProjectBundle: (projectId) =>
+      bundles.exportProject(projectId, runtime.version),
     readProjectDoc: (path) => docs.read(path),
   });
 

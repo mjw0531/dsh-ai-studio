@@ -10,6 +10,7 @@ import type {
   CreateModuleInput,
   CreateProjectInput,
   CreateRoleInput,
+  AgentExecutor,
   CreateTaskInput,
   DecideDecisionInput,
   Decision,
@@ -46,6 +47,9 @@ interface StudioRouterOptions {
   executeMerge: (proposalId: string) => Promise<MergeProposal>;
   rollbackMerge: (proposalId: string) => Promise<MergeProposal>;
   writeAdr: (decisionId: string) => Promise<Decision>;
+  exportProjectBundle: (
+    projectId: string,
+  ) => Promise<{ filename: string; bytes: Buffer }>;
   readProjectDoc: (path: string) => Promise<ProjectDoc>;
 }
 
@@ -291,6 +295,18 @@ function asDecideDecision(
   };
 }
 
+function asAgentExecutor(value: unknown): AgentExecutor | undefined {
+  if (value === undefined) return undefined;
+  if (value === "dsh" || value === "claude-code" || value === "codex") {
+    return value;
+  }
+  throw new HttpError(
+    400,
+    "invalid_input",
+    "executor 必须是 dsh / claude-code / codex",
+  );
+}
+
 function asCreateRole(body: Record<string, unknown>): CreateRoleInput {
   return {
     name: asString(body.name, "name"),
@@ -298,6 +314,7 @@ function asCreateRole(body: Record<string, unknown>): CreateRoleInput {
     mission: asOptionalString(body.mission, "mission"),
     responsibilities: asStringArray(body.responsibilities, "responsibilities"),
     model: asOptionalString(body.model, "model") ?? null,
+    executor: asAgentExecutor(body.executor),
     tokenBudget: asOptionalBudget(body.tokenBudget, "tokenBudget"),
     dailyTokenBudget: asOptionalBudget(
       body.dailyTokenBudget,
@@ -474,6 +491,9 @@ export class StudioRouter {
     proposalId: string,
   ) => Promise<MergeProposal>;
   private readonly writeAdr: (decisionId: string) => Promise<Decision>;
+  private readonly exportProjectBundle: (
+    projectId: string,
+  ) => Promise<{ filename: string; bytes: Buffer }>;
   private readonly readProjectDoc: (path: string) => Promise<ProjectDoc>;
 
   constructor(options: StudioRouterOptions) {
@@ -489,6 +509,7 @@ export class StudioRouter {
     this.executeMerge = options.executeMerge;
     this.rollbackMerge = options.rollbackMerge;
     this.writeAdr = options.writeAdr;
+    this.exportProjectBundle = options.exportProjectBundle;
     this.readProjectDoc = options.readProjectDoc;
   }
 
@@ -581,6 +602,24 @@ export class StudioRouter {
       return;
     }
 
+    const projectBundle =
+      /^\/studio-api\/projects\/([^/]+)\/bundle$/.exec(parsed.pathname);
+    if (projectBundle !== null) {
+      this.requireMethod(parsed, ["GET"]);
+      const bundle = await this.exportProjectBundle(
+        decodeSegment(projectBundle[1] ?? ""),
+      );
+      res.statusCode = 200;
+      res.setHeader("content-type", "application/gzip");
+      res.setHeader(
+        "content-disposition",
+        `attachment; filename="${bundle.filename}"`,
+      );
+      res.setHeader("content-length", String(bundle.bytes.length));
+      res.end(bundle.bytes);
+      return;
+    }
+
     if (parsed.pathname === `${API_PREFIX}/import`) {
       this.requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
@@ -654,6 +693,7 @@ export class StudioRouter {
             "responsibilities",
           ),
           model: asOptionalString(body.model, "model"),
+          executor: asAgentExecutor(body.executor),
           tokenBudget: asOptionalBudget(body.tokenBudget, "tokenBudget"),
           dailyTokenBudget: asOptionalBudget(
             body.dailyTokenBudget,
