@@ -567,6 +567,20 @@ test("escalates a cross-branch contract conflict to the boardroom", async () => 
   });
 });
 
+test("exports a portable copy of the state", async () => {
+  await withStore(async (store) => {
+    await store.bootstrap();
+    const exported = await store.exportState();
+    assert.equal(exported.schemaVersion, 16);
+    assert.ok(exported.projects.length >= 1);
+    assert.ok(exported.tasks.length >= 1);
+    assert.ok(Array.isArray(exported.runs));
+    exported.projects.length = 0;
+    const again = await store.exportState();
+    assert.ok(again.projects.length >= 1);
+  });
+});
+
 test("requires diagnosis and plan before dispatching a fix ticket", async () => {
   await withStore(async (store) => {
     const data = await store.bootstrap();

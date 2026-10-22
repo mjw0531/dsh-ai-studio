@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 16;
-var STUDIO_PLUGIN_VERSION = "2.0.0";
+var STUDIO_PLUGIN_VERSION = "2.1.0";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -944,6 +944,11 @@ var StudioStore = class {
   }
   getWarning() {
     return this.warning;
+  }
+  async exportState() {
+    return this.runExclusive(async () => {
+      return structuredClone(this.requireState());
+    });
   }
   async bootstrap(projectId) {
     return this.runExclusive(async () => {
@@ -4395,6 +4400,19 @@ var StudioRouter = class {
       data.app.compatibility = this.compatibility;
       data.app.warning = this.store.getWarning();
       sendJson(res, 200, data);
+      return;
+    }
+    if (parsed.pathname === `${API_PREFIX}/export`) {
+      this.requireMethod(parsed, ["GET"]);
+      const state = await this.store.exportState();
+      sendJson(res, 200, {
+        ok: true,
+        schemaVersion: state.schemaVersion,
+        pluginVersion: STUDIO_PLUGIN_VERSION,
+        dshVersion: this.dshVersion,
+        exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        state
+      });
       return;
     }
     if (parsed.pathname === `${API_PREFIX}/projects`) {

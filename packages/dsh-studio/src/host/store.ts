@@ -1219,6 +1219,12 @@ export class StudioStore {
     return this.warning;
   }
 
+  async exportState(): Promise<StudioState> {
+    return this.runExclusive(async () => {
+      return structuredClone(this.requireState());
+    });
+  }
+
   async bootstrap(projectId?: string): Promise<BootstrapResponse> {
     return this.runExclusive(async () => {
       const state = this.requireState();

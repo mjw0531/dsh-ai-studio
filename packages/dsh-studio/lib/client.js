@@ -203,6 +203,9 @@ var StudioClient = class {
     const query = projectId === void 0 || projectId === "" ? "" : `?projectId=${encodeURIComponent(projectId)}`;
     return this.request(`/bootstrap${query}`);
   }
+  async exportState() {
+    return this.request("/export");
+  }
   async createProject(input) {
     const data = await this.request("/projects", {
       method: "POST",
@@ -1017,6 +1020,19 @@ function StudioPage() {
       "\u5DF2\u56DE\u6EDA\u5408\u5E76\u5E76\u8BB0\u5F55 revert commit"
     );
   };
+  const exportData = async () => {
+    if (client === null) return;
+    const data2 = await client.exportState();
+    const blob = new Blob([JSON.stringify(data2, null, 2)], {
+      type: "application/json"
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `studio-backup-${data2.exportedAt.slice(0, 19).replace(/[:T]/g, "-")}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
   const writeAdr = async (decision) => {
     await run(
       async () => {
@@ -1052,6 +1068,17 @@ function StudioPage() {
           "\u672C\u5730 \xB7 v",
           boot.pluginVersion
         ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          "button",
+          {
+            className: "studio-btn",
+            "data-size": "sm",
+            type: "button",
+            onClick: () => void exportData(),
+            title: "\u5BFC\u51FA studio.json \u5907\u4EFD",
+            children: "\u5BFC\u51FA"
+          }
+        ),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
           "button",
           {
