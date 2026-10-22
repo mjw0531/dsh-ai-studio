@@ -7,6 +7,7 @@ import {
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 
 import {
+  AGENT_EXECUTOR_LABELS,
   AGENT_RUN_STATUS_LABELS,
   ALLOWED_TRANSITIONS,
   BRANCH_STATUS_LABELS,
@@ -23,6 +24,7 @@ import {
 } from "../shared/types.js";
 import type {
   AgentReceipt,
+  AgentExecutor,
   AgentRun,
   BootstrapResponse,
   Branch,
@@ -481,6 +483,19 @@ export function StudioPage() {
     if (ok) setModal(null);
   };
 
+  const updateRoleExecutor = async (
+    roleId: string,
+    executor: AgentExecutor,
+  ): Promise<void> => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.updateRole(roleId, { executor });
+      },
+      "执行器已更新",
+    );
+  };
+
   const createProject = async (input: CreateProjectInput): Promise<void> => {
     const ok = await run(
       async () => {
@@ -795,6 +810,20 @@ export function StudioPage() {
     );
   };
 
+  const exportBundle = async (): Promise<void> => {
+    if (client === null || data?.project === null || data?.project === undefined)
+      return;
+    const { filename, blob } = await client.exportProjectBundle(
+      data.project.id,
+    );
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const saveCompany = async (name: string): Promise<void> => {
     await run(
       async () => {
@@ -1053,6 +1082,7 @@ export function StudioPage() {
               <TeamView
                 data={data}
                 onNewRole={() => setModal({ kind: "role" })}
+                onExecutor={updateRoleExecutor}
               />
             ) : null}
 
@@ -1066,6 +1096,7 @@ export function StudioPage() {
                 onBindRepo={() => setModal({ kind: "repo" })}
                 onReload={() => void load(undefined, false)}
                 onCompany={saveCompany}
+                onBundle={exportBundle}
               />
             ) : null}
           </div>
@@ -2770,9 +2801,11 @@ function MergeProposalCard({
 function TeamView({
   data,
   onNewRole,
+  onExecutor,
 }: {
   data: BootstrapResponse;
   onNewRole: () => void;
+  onExecutor: (roleId: string, executor: AgentExecutor) => Promise<void>;
 }) {
   return (
     <>
@@ -2858,6 +2891,24 @@ function TeamView({
                 <div className="studio-role-section">
                   <div className="studio-role-section-label">岗位配置</div>
                   <div className="studio-role-salary">
+                    <select
+                      value={role.executor}
+                      onChange={(event) =>
+                        void onExecutor(
+                          role.id,
+                          event.target.value as AgentExecutor,
+                        )
+                      }
+                      title="执行器"
+                    >
+                      <option value="dsh">{AGENT_EXECUTOR_LABELS.dsh}</option>
+                      <option value="claude-code">
+                        {AGENT_EXECUTOR_LABELS["claude-code"]}
+                      </option>
+                      <option value="codex">
+                        {AGENT_EXECUTOR_LABELS.codex}
+                      </option>
+                    </select>
                     <span className="studio-mono">{role.model ?? "默认模型"}</span>
                     <span>
                       {role.tokenBudget === null
@@ -4234,6 +4285,7 @@ function SettingsView({
   onBindRepo,
   onReload,
   onCompany,
+  onBundle,
 }: {
   boot: NonNullable<ReturnType<typeof readStudioBoot>>;
   data: BootstrapResponse;
@@ -4243,6 +4295,7 @@ function SettingsView({
   onBindRepo: () => void;
   onReload: () => void;
   onCompany: (name: string) => Promise<void>;
+  onBundle: () => Promise<void>;
 }) {
   const [companyName, setCompanyName] = useState(data.company.name);
   const [savingCompany, setSavingCompany] = useState(false);
@@ -4379,6 +4432,16 @@ function SettingsView({
               disabled={data.project === null}
             >
               绑定 / 更换仓库
+            </button>
+            <button
+              className="studio-btn"
+              data-size="sm"
+              type="button"
+              onClick={() => void onBundle()}
+              disabled={data.project === null || data.project.repoPath === null}
+              title="导出状态 + Git 历史 + 迁移说明"
+            >
+              导出项目包
             </button>
           </div>
         </section>
@@ -4810,6 +4873,7 @@ function RoleForm({
   const [mission, setMission] = useState("");
   const [responsibilities, setResponsibilities] = useState("");
   const [model, setModel] = useState("");
+  const [executor, setExecutor] = useState<AgentExecutor>("dsh");
   const [tokenBudget, setTokenBudget] = useState("");
   const [dailyTokenBudget, setDailyTokenBudget] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
@@ -4848,6 +4912,7 @@ function RoleForm({
         .map((line) => line.trim())
         .filter(Boolean),
       model: model.trim() || null,
+      executor,
       tokenBudget: budgets.tokenBudget,
       dailyTokenBudget: budgets.dailyTokenBudget,
     });
@@ -4917,6 +4982,25 @@ function RoleForm({
             onChange={(event) => setResponsibilities(event.target.value)}
             placeholder={"实现技能/移动/冷却\n补单测\n维护构建"}
           />
+        </div>
+        <div className="studio-field">
+          <label htmlFor="role-executor">执行器</label>
+          <select
+            id="role-executor"
+            value={executor}
+            onChange={(event) =>
+              setExecutor(event.target.value as AgentExecutor)
+            }
+          >
+            <option value="dsh">{AGENT_EXECUTOR_LABELS.dsh}</option>
+            <option value="claude-code">
+              {AGENT_EXECUTOR_LABELS["claude-code"]}
+            </option>
+            <option value="codex">{AGENT_EXECUTOR_LABELS.codex}</option>
+          </select>
+          <div className="studio-hint">
+            DSH 走内置模型路由；Claude Code / Codex 走本机 headless CLI，需要先登录对应工具。
+          </div>
         </div>
         <div className="studio-field">
           <label htmlFor="role-model">模型（可选）</label>

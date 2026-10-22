@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
+import { spawn } from "node:child_process";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 
 import type {
+  AgentExecutor,
   AgentReceipt,
   AgentRun,
   IndependentReview,
@@ -190,6 +195,107 @@ function normalizeReceipt(raw: unknown, fallback: string): AgentReceipt {
   };
 }
 
+interface CliResult {
+  stdout: string;
+  stderr: string;
+  code: number;
+}
+
+function runCli(
+  command: string,
+  cwd: string,
+  prompt: string,
+  timeoutMs = 600_000,
+): Promise<CliResult> {
+  return new Promise((resolve, reject) => {
+    const shell = process.platform === "win32" ? "cmd.exe" : "/bin/sh";
+    const args =
+      process.platform === "win32"
+        ? ["/d", "/s", "/c", command]
+        : ["-lc", command];
+    const child = spawn(shell, args, {
+      cwd,
+      windowsHide: true,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    const finish = (result: CliResult): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(result);
+    };
+    const timer = setTimeout(() => {
+      settled = true;
+      child.kill();
+      reject(new Error(`外部执行器超过 ${String(timeoutMs / 1000)} 秒未完成`));
+    }, timeoutMs);
+    child.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString("utf8");
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString("utf8");
+    });
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.on("close", (code) => {
+      finish({ stdout, stderr, code: code ?? 1 });
+    });
+    child.stdin.end(prompt, "utf8");
+  });
+}
+
+async function executeExternalCli(
+  executor: AgentExecutor,
+  prompt: string,
+  workspace: TaskWorkspace,
+): Promise<{ output: string; code: number; stderr: string }> {
+  if (executor === "claude-code") {
+    const result = await runCli(
+      "claude -p --output-format json --permission-mode acceptEdits",
+      workspace.path,
+      prompt,
+    );
+    let output = result.stdout;
+    try {
+      const parsed: unknown = JSON.parse(result.stdout);
+      if (
+        typeof parsed === "object" &&
+        parsed !== null &&
+        typeof (parsed as { result?: unknown }).result === "string"
+      ) {
+        output = (parsed as { result: string }).result;
+      }
+    } catch {
+      // Plain text is acceptable; receipt extraction still runs below.
+    }
+    return { output, code: result.code, stderr: result.stderr };
+  }
+
+  const temp = await mkdtemp(path.join(os.tmpdir(), "studio-codex-"));
+  const messageFile = path.join(temp, "last-message.txt");
+  try {
+    const result = await runCli(
+      `codex exec --json -s workspace-write --output-last-message "${messageFile}" -`,
+      workspace.path,
+      prompt,
+    );
+    let output = result.stdout;
+    try {
+      output = (await readFile(messageFile, "utf8")).trim() || output;
+    } catch {
+      // Fall back to stdout if Codex did not write the file.
+    }
+    return { output, code: result.code, stderr: result.stderr };
+  } finally {
+    await rm(temp, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
 function buildPrompt(
   context: RunContext,
   workspace?: TaskWorkspace,
@@ -312,14 +418,25 @@ export class AgentDispatcher {
 
   async dispatch(taskId: string): Promise<AgentRun> {
     const context = await this.store.getDispatchContext(taskId);
-    const selection = await this.resolveModel(context.role);
+    const executor = context.role.executor ?? "dsh";
+    if (executor !== "dsh" && context.project.repoPath === null) {
+      throw new Error("外部执行器只支持已绑定代码仓库的任务");
+    }
+    const selection =
+      executor === "dsh"
+        ? await this.resolveModel(context.role)
+        : { provider: "external", model: context.role.model ?? executor };
     const workspace =
       context.project.repoPath === null
         ? undefined
         : await this.workspaces.prepare(context.project.repoPath, taskId);
     const prompt = buildPrompt(context, workspace);
     const run = await this.store.beginRun(taskId, prompt, workspace);
-    void this.execute(run, selection, workspace);
+    if (executor === "dsh") {
+      void this.execute(run, selection, workspace);
+    } else if (workspace !== undefined) {
+      void this.executeExternal(run, prompt, workspace, executor);
+    }
     return run;
   }
 
@@ -524,6 +641,49 @@ export class AgentDispatcher {
       if (handle !== null) {
         await handle.dispose().catch(() => undefined);
       }
+    }
+  }
+
+  private async executeExternal(
+    run: AgentRun,
+    prompt: string,
+    workspace: TaskWorkspace,
+    executor: AgentExecutor,
+  ): Promise<void> {
+    try {
+      const result = await executeExternalCli(executor, prompt, workspace);
+      if (result.code !== 0) {
+        throw new Error(
+          `${executor} 退出码 ${String(result.code)}：${result.stderr.slice(0, 1200)}`,
+        );
+      }
+      const output = result.output.trim();
+      const diffStat = this.workspaces.diffStat(workspace.path);
+      if (diffStat !== "") {
+        this.workspaces.commit(
+          workspace.path,
+          `studio: complete ${run.taskId} (${run.id})`,
+        );
+      }
+      const receipt = normalizeReceipt(extractJsonObject(output), output);
+      await this.store.completeRun(run.id, {
+        output,
+        receipt,
+        tokens: null,
+        diffStat,
+      });
+      await this.store.enforceContractScope(
+        run.taskId,
+        run.id,
+        changedFilesFromDiff(diffStat),
+      );
+    } catch (error) {
+      await this.store
+        .failRun(
+          run.id,
+          error instanceof Error ? error.message : String(error),
+        )
+        .catch(() => undefined);
     }
   }
 }

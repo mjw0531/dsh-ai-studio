@@ -6,7 +6,7 @@ Studio 是 DSH 的即装即用工作台插件。改领域词、工作流或接�
 
 - **完成门禁**：任务进入 `done` 前，所有 acceptance 必须为 done，且至少有一条 evidence。不要在 UI 或 API 里绕过 `StudioStore.transitionTask`。
 - **合并门禁**：只有 `done` 任务能提交合并提案；提案必须经过 `review → approved → merged`。`merged` 是治理记录，不是 Git 事实；不要在未经明确设计的情况下自动执行 `git merge`。打回提案会把任务退回 `running`。
-- **v2.3.0 边界**：Host 只依赖 `ctx.webServer` 的路由/结构化 index injection、`ctx.connection.admit()`、公开的 `ctx.agents` / `ctx.agentPresets` / `ctx.llm` / `ctx.tokenMeter`；Client 只依赖 `ctx.slots`、`ctx.layout` 和平台 React。不要引入 DSH 私有 Remote 代码生成器，也不要把 `features.agentExecution` / `features.gitMerge` 改成 true 来假装功能已接入。
+- **v2.5.0 边界**：Host 只依赖 `ctx.webServer` 的路由/结构化 index injection、`ctx.connection.admit()`、公开的 `ctx.agents` / `ctx.agentPresets` / `ctx.llm` / `ctx.tokenMeter`；Client 只依赖 `ctx.slots`、`ctx.layout` 和平台 React。不要引入 DSH 私有 Remote 代码生成器，也不要把 `features.agentExecution` / `features.gitMerge` 改成 true 来假装功能已接入。外部执行器只允许在 worktree 内、以 headless 模式运行，仍必须走 Host 验证和独立评审。
 - **Agent 回执门禁**：Agent 只能把任务推进到 `review`；回执必须包含非空 `summary` 和至少一条 `evidence`，否则 Run 记为 failed、任务退回 `ready`。
 - **worktree 门禁**：绑定仓库的派单必须在 `.worktrees/<taskId>` 的独立 worktree 内执行，分支为 `studio/<taskId>`；Agent 不得 merge/push 或改主工作区。测试命令被 Windows ACL 阻断时，Run 必须如实记录 blocker，不能伪造测试通过。
 - **独立验证门禁**：验证命令由 Host 在 worktree 内执行，退出码和输出必须持久化；通过只写 evidence，不自动勾验收项、不自动 done。
@@ -28,6 +28,8 @@ Studio 是 DSH 的即装即用工作台插件。改领域词、工作流或接�
 - **Git 身份门禁**：merge 前必须检查 repo 的 `user.name/email`，缺失时明确报错，不能依赖全局配置。
 - **导出安全**：`/studio-api/export` 必须与数据接口一样校验 Bearer token，导出的 JSON 含运行记录，不得公开缓存。
 - **导入安全**：`/studio-api/import` 只能由 Owner 手动触发；先备份 `pre-import`，校验 schema 和结构，拒绝更高版本，校验失败不得覆盖。
+- **外部执行器门禁**：Claude Code / Codex 必须在本机已登录、在 worktree 内 headless 运行；退出码非 0 或回执缺 `summary/evidence` 时 Run 失败，不能绕过 Host 验证和独立评审。
+- **项目包门禁**：项目包只导出状态和 `git bundle`，不含密钥、`.worktrees` 或未提交文件；导入/重绑必须由人确认。
 - **决策门禁**：项目级决策只能由 Owner 在决策台批准/拒绝；Agent 只能提出建议，不能替 Owner 决定。决策必须保留结论和理由，批准后不得静默改写。
 - **支线门禁**：派单时自动登记 Branch；Agent 的 `contractDeltas` 写入 `contractChanges`。两条支线改同一契约且内容不同时，必须自动生成待裁决 Decision，不能静默合并。
 - **公司聚合是派生视图**：Owner Dashboard 的 `company` 必须从 `StudioState` 计算，不能成为第二份事实来源；金额成本没有真实报价时显示“待接入”，token 消耗必须来自 DSH meter。

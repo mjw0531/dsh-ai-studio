@@ -36,6 +36,11 @@ module.exports = __toCommonJS(index_exports);
 var import_react = require("react");
 
 // src/shared/types.ts
+var AGENT_EXECUTOR_LABELS = {
+  dsh: "DSH Agent",
+  "claude-code": "Claude Code",
+  codex: "Codex CLI"
+};
 var TASK_STATUS_LABELS = {
   backlog: "\u5F85\u89C4\u5212",
   ready: "\u53EF\u5F00\u59CB",
@@ -212,6 +217,28 @@ var StudioClient = class {
       body: { companyName }
     });
     return data.companyName;
+  }
+  async exportProjectBundle(projectId) {
+    const response = await fetch(
+      `${this.boot.basePath}/projects/${encodeURIComponent(projectId)}/bundle`,
+      {
+        headers: { "x-studio-token": this.boot.token },
+        credentials: "same-origin",
+        cache: "no-store"
+      }
+    );
+    if (!response.ok) {
+      throw new StudioClientError(
+        "bundle_failed",
+        `\u9879\u76EE\u5305\u5BFC\u51FA\u5931\u8D25\uFF1AHTTP ${String(response.status)}`
+      );
+    }
+    const disposition = response.headers.get("content-disposition") ?? "";
+    const match = /filename="([^"]+)"/.exec(disposition);
+    return {
+      filename: match?.[1] ?? "project-bundle.tar.gz",
+      blob: await response.blob()
+    };
   }
   async importState(state) {
     await this.request("/import", {
@@ -829,6 +856,15 @@ function StudioPage() {
     );
     if (ok) setModal(null);
   };
+  const updateRoleExecutor = async (roleId, executor) => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.updateRole(roleId, { executor });
+      },
+      "\u6267\u884C\u5668\u5DF2\u66F4\u65B0"
+    );
+  };
   const createProject = async (input) => {
     const ok = await run(
       async () => {
@@ -1071,6 +1107,19 @@ function StudioPage() {
       "\u6570\u636E\u5DF2\u5BFC\u5165\uFF1B\u539F\u6587\u4EF6\u5DF2\u5907\u4EFD"
     );
   };
+  const exportBundle = async () => {
+    if (client === null || data?.project === null || data?.project === void 0)
+      return;
+    const { filename, blob } = await client.exportProjectBundle(
+      data.project.id
+    );
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
   const saveCompany = async (name2) => {
     await run(
       async () => {
@@ -1284,7 +1333,8 @@ function StudioPage() {
           TeamView,
           {
             data,
-            onNewRole: () => setModal({ kind: "role" })
+            onNewRole: () => setModal({ kind: "role" }),
+            onExecutor: updateRoleExecutor
           }
         ) : null,
         tab === "settings" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
@@ -1297,7 +1347,8 @@ function StudioPage() {
             onNewProject: () => setModal({ kind: "project" }),
             onBindRepo: () => setModal({ kind: "repo" }),
             onReload: () => void load(void 0, false),
-            onCompany: saveCompany
+            onCompany: saveCompany,
+            onBundle: exportBundle
           }
         ) : null
       ] }) })
@@ -2775,7 +2826,8 @@ function MergeProposalCard({
 }
 function TeamView({
   data,
-  onNewRole
+  onNewRole,
+  onExecutor
 }) {
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-page-head", children: [
@@ -2839,6 +2891,22 @@ function TeamView({
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-role-section", children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-role-section-label", children: "\u5C97\u4F4D\u914D\u7F6E" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-role-salary", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+              "select",
+              {
+                value: role.executor,
+                onChange: (event) => void onExecutor(
+                  role.id,
+                  event.target.value
+                ),
+                title: "\u6267\u884C\u5668",
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "dsh", children: AGENT_EXECUTOR_LABELS.dsh }),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "claude-code", children: AGENT_EXECUTOR_LABELS["claude-code"] }),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "codex", children: AGENT_EXECUTOR_LABELS.codex })
+                ]
+              }
+            ),
             /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-mono", children: role.model ?? "\u9ED8\u8BA4\u6A21\u578B" }),
             /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: role.tokenBudget === null ? "\u5355\u4EFB\u52A1\u9884\u7B97\u7EE7\u627F\u9879\u76EE" : `${role.tokenBudget.toLocaleString()} tokens/\u6B21` }),
             /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: role.dailyTokenBudget === null ? "\u6BCF\u65E5\u4E0D\u9650\u5236" : `${role.dailyTokenBudget.toLocaleString()} tokens/\u65E5` })
@@ -3913,7 +3981,8 @@ function SettingsView({
   onNewProject,
   onBindRepo,
   onReload,
-  onCompany
+  onCompany,
+  onBundle
 }) {
   const [companyName, setCompanyName] = (0, import_react.useState)(data.company.name);
   const [savingCompany, setSavingCompany] = (0, import_react.useState)(false);
@@ -4027,17 +4096,31 @@ function SettingsView({
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { className: "studio-mono", children: data.project?.repoPath ?? "\u672A\u7ED1\u5B9A\uFF08\u53EA\u505A\u5206\u6790\uFF09" })
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { className: "studio-hint", style: { marginTop: 8 }, children: "\u7ED1\u5B9A git \u4ED3\u5E93\u540E\uFF0C\u6D3E\u5355\u4F1A\u4E3A\u6BCF\u4E2A\u4EFB\u52A1\u521B\u5EFA\u72EC\u7ACB worktree \u548C `studio/<taskId>` \u5206\u652F\uFF1B\u4E0D\u7ED1\u5B9A\u5219\u53EA\u505A\u53EA\u8BFB\u5206\u6790\u3002" }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: { marginTop: 12 }, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-          "button",
-          {
-            className: "studio-btn",
-            "data-size": "sm",
-            type: "button",
-            onClick: onBindRepo,
-            disabled: data.project === null,
-            children: "\u7ED1\u5B9A / \u66F4\u6362\u4ED3\u5E93"
-          }
-        ) })
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { marginTop: 12 }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "button",
+            {
+              className: "studio-btn",
+              "data-size": "sm",
+              type: "button",
+              onClick: onBindRepo,
+              disabled: data.project === null,
+              children: "\u7ED1\u5B9A / \u66F4\u6362\u4ED3\u5E93"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "button",
+            {
+              className: "studio-btn",
+              "data-size": "sm",
+              type: "button",
+              onClick: () => void onBundle(),
+              disabled: data.project === null || data.project.repoPath === null,
+              title: "\u5BFC\u51FA\u72B6\u6001 + Git \u5386\u53F2 + \u8FC1\u79FB\u8BF4\u660E",
+              children: "\u5BFC\u51FA\u9879\u76EE\u5305"
+            }
+          )
+        ] })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "studio-settings-card", children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h3", { children: "\u80FD\u529B\u8FB9\u754C" }),
@@ -4438,6 +4521,7 @@ function RoleForm({
   const [mission, setMission] = (0, import_react.useState)("");
   const [responsibilities, setResponsibilities] = (0, import_react.useState)("");
   const [model, setModel] = (0, import_react.useState)("");
+  const [executor, setExecutor] = (0, import_react.useState)("dsh");
   const [tokenBudget, setTokenBudget] = (0, import_react.useState)("");
   const [dailyTokenBudget, setDailyTokenBudget] = (0, import_react.useState)("");
   const [localError, setLocalError] = (0, import_react.useState)(null);
@@ -4472,6 +4556,7 @@ function RoleForm({
       mission: mission.trim(),
       responsibilities: responsibilities.split("\n").map((line) => line.trim()).filter(Boolean),
       model: model.trim() || null,
+      executor,
       tokenBudget: budgets.tokenBudget,
       dailyTokenBudget: budgets.dailyTokenBudget
     });
@@ -4548,6 +4633,23 @@ function RoleForm({
               placeholder: "\u5B9E\u73B0\u6280\u80FD/\u79FB\u52A8/\u51B7\u5374\n\u8865\u5355\u6D4B\n\u7EF4\u62A4\u6784\u5EFA"
             }
           )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "role-executor", children: "\u6267\u884C\u5668" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+            "select",
+            {
+              id: "role-executor",
+              value: executor,
+              onChange: (event) => setExecutor(event.target.value),
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "dsh", children: AGENT_EXECUTOR_LABELS.dsh }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "claude-code", children: AGENT_EXECUTOR_LABELS["claude-code"] }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "codex", children: AGENT_EXECUTOR_LABELS.codex })
+              ]
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-hint", children: "DSH \u8D70\u5185\u7F6E\u6A21\u578B\u8DEF\u7531\uFF1BClaude Code / Codex \u8D70\u672C\u673A headless CLI\uFF0C\u9700\u8981\u5148\u767B\u5F55\u5BF9\u5E94\u5DE5\u5177\u3002" })
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "role-model", children: "\u6A21\u578B\uFF08\u53EF\u9009\uFF09" }),

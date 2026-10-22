@@ -80,6 +80,19 @@ await build({
 
 await build({
   absWorkingDir: root,
+  entryPoints: [path.join(root, "src/host/bundle.ts")],
+  outfile: path.join(libDir, "bundle.js"),
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "node22",
+  sourcemap: false,
+  legalComments: "none",
+  logLevel: "info",
+});
+
+await build({
+  absWorkingDir: root,
   entryPoints: [path.join(root, "src/host/adr.ts")],
   outfile: path.join(libDir, "adr.js"),
   bundle: true,

@@ -191,6 +191,31 @@ export class StudioClient {
     return data.companyName;
   }
 
+  async exportProjectBundle(
+    projectId: string,
+  ): Promise<{ filename: string; blob: Blob }> {
+    const response = await fetch(
+      `${this.boot.basePath}/projects/${encodeURIComponent(projectId)}/bundle`,
+      {
+        headers: { "x-studio-token": this.boot.token },
+        credentials: "same-origin",
+        cache: "no-store",
+      },
+    );
+    if (!response.ok) {
+      throw new StudioClientError(
+        "bundle_failed",
+        `项目包导出失败：HTTP ${String(response.status)}`,
+      );
+    }
+    const disposition = response.headers.get("content-disposition") ?? "";
+    const match = /filename="([^"]+)"/.exec(disposition);
+    return {
+      filename: match?.[1] ?? "project-bundle.tar.gz",
+      blob: await response.blob(),
+    };
+  }
+
   async importState(state: unknown): Promise<void> {
     await this.request("/import", {
       method: "POST",

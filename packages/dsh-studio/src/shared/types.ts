@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 17;
-export const STUDIO_PLUGIN_VERSION = "2.3.0";
+export const STUDIO_SCHEMA_VERSION = 18;
+export const STUDIO_PLUGIN_VERSION = "2.5.0";
 
 export type TaskStatus =
   | "backlog"
@@ -31,6 +31,14 @@ export interface Project {
   updatedAt: string;
 }
 
+export type AgentExecutor = "dsh" | "claude-code" | "codex";
+
+export const AGENT_EXECUTOR_LABELS: Record<AgentExecutor, string> = {
+  dsh: "DSH Agent",
+  "claude-code": "Claude Code",
+  codex: "Codex CLI",
+};
+
 export interface Role {
   id: string;
   projectId: string;
@@ -42,6 +50,8 @@ export interface Role {
   decisionRights: string[];
   /** Exact model id, or null to inherit the deployment default. */
   model: string | null;
+  /** Which runtime executes this role. */
+  executor: AgentExecutor;
   /** Per-run token budget; null means inherit the project budget. */
   tokenBudget: number | null;
   /** Per-UTC-day token budget for this role; null means unlimited. */
@@ -615,6 +625,7 @@ export interface CreateRoleInput {
   nonGoals?: string[];
   decisionRights?: string[];
   model?: string | null;
+  executor?: AgentExecutor;
   tokenBudget?: number | null;
   dailyTokenBudget?: number | null;
 }

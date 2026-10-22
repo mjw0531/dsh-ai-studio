@@ -2,7 +2,7 @@
 
 > 即装即用的 DeepSeek Harness AI Studio：**工作室仪表盘、Agent 派单、token 预算、决策台、支线/契约冲突、worktree 代码执行、项目、角色、任务、验收、合并治理**，一个独立页面。
 
-当前版本 **2.3.0**，已在 **DSH 0.2.1-rc.2** 上完成端到端验证（Web/桌面安装、页面渲染、任务创建、验收门禁、合并治理、工作室仪表盘、Agent 派单与结构化回执、token 计量、决策台、支线/契约冲突自动升级、git worktree 代码编辑与自动提交、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、ADR 草稿与写入、人工触发的 Git merge 与合并后回归、合并失败升级与回滚、改修票诊断/计划门禁、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、真实项目 dogfood、数据导出与导入恢复、重启持久化）。
+当前版本 **2.5.0**，已在 **DSH 0.2.1-rc.2** 上完成端到端验证（Web/桌面安装、页面渲染、任务创建、验收门禁、合并治理、工作室仪表盘、Agent 派单与结构化回执、token 计量、决策台、支线/契约冲突自动升级、git worktree 代码编辑与自动提交、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、ADR 草稿与写入、人工触发的 Git merge 与合并后回归、合并失败升级与回滚、改修票诊断/计划门禁、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、真实项目 dogfood、数据导出/导入恢复、Claude Code / Codex CLI 执行器、项目包导出、重启持久化）。
 
 ![Studio Decision Boardroom](docs/decision-boardroom.png)
 
@@ -40,6 +40,8 @@ Studio 把 DSH 从「一个会话」扩展成「一间工作室」：
 - **2.0 真实 dogfood**：在外部真实仓库完成派单、Host 验证（5/5）、独立评审 pass、merge 和 post-merge 回归（5/5）。
 - **2.1 数据导出**：右上角「导出」下载完整 `studio.json` 备份（含 schema/版本/时间）；`/studio-api/export` 需要 Bearer token。
 - **2.2 数据导入**：右上角「导入」选择导出文件恢复；Host 先把原文件备份为 `studio.json.pre-import-*`，校验 schema 后替换。
+- **2.4 外部执行器**：角色可以选择 DSH Agent、Claude Code 或 Codex CLI；Claude/Codex 必须在对应机器上先登录，Host 在 worktree 内以 headless 模式运行并归一化回执。
+- **2.5 项目包**：设置页「导出项目包」生成 tar.gz，包含 `studio.json`、`project.bundle`、`manifest.json` 和迁移说明；不含 API Key。
 - **角色薪资与预算**：角色可配置模型和单任务/每日 token 预算；项目可配置总 token 预算。
 - **项目**：一个项目边界，下面有角色和任务。
 - **角色**：持久的职责契约（使命、职责、决策权），不是人设卡。
@@ -88,7 +90,7 @@ cd D:\AI工作台\packages\dsh-studio
 pnpm pack
 ```
 
-把生成的 `mjw0531-dsh-ai-studio-2.3.0.tgz` 发给对方，在 **Add plugin** 里填 tarball 路径即可。
+把生成的 `mjw0531-dsh-ai-studio-2.5.0.tgz` 发给对方，在 **Add plugin** 里填 tarball 路径即可。
 
 ## 使用
 
@@ -164,7 +166,7 @@ packages/dsh-studio/
   cordis.patch.yml
 ```
 
-## 当前边界（v2.2）
+## 当前边界（v2.5）
 
 - ✅ 项目/角色/任务/验收/证据/事件持久化。
 - ✅ 独立页面、侧栏入口、主题、响应式。
@@ -197,6 +199,11 @@ packages/dsh-studio/
 - ✅ Agent 改动自动提交到任务分支（含未跟踪文件）。
 - ✅ Git 身份预检：repo 缺 `user.name/email` 时明确报错。
 - ✅ 数据导出/导入：页面「导出」「导入」；导入前自动备份，schema 不支持时拒绝。
+- ✅ Claude Code / Codex CLI：角色可选外部执行器；Host 在 worktree 内以 headless 模式运行，回执仍走同一套证据门禁。
+- ✅ 项目包导出：状态 + git bundle + manifest + 迁移说明。
+- ⏳ 项目包导入 UI（当前需手动按 README 恢复 + 重绑）。
+- ⏳ 直接填写 GPT/Claude/GLM/Kimi API Key；当前外部执行器依赖对应 CLI 的登录态。
+- ⏳ Cursor 执行器（Cursor CLI 目前是 IDE 启动器，不是 headless Agent）。
 - ⏳ 项目模板/初始化向导、自动回滚策略、项目级阈值/跨厂商配置。
 - ⏳ 运行中 token 硬停、金额报价。
 - ⏳ 新建型 red→green 强制、完整垂直切片 dogfood。

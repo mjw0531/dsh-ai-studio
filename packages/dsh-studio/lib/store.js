@@ -13,8 +13,8 @@ import os from "node:os";
 import path from "node:path";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 17;
-var STUDIO_PLUGIN_VERSION = "2.3.0";
+var STUDIO_SCHEMA_VERSION = 18;
+var STUDIO_PLUGIN_VERSION = "2.5.0";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -532,7 +532,7 @@ function isProject(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.name === "string" && typeof value.description === "string" && (value.tokenBudget === null || typeof value.tokenBudget === "number") && (value.repoPath === null || typeof value.repoPath === "string") && (value.prdPath === null || value.prdPath === void 0 || typeof value.prdPath === "string") && (value.invariantsPath === null || value.invariantsPath === void 0 || typeof value.invariantsPath === "string") && (value.modulesPath === null || value.modulesPath === void 0 || typeof value.modulesPath === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
 }
 function isRole(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.name === "string" && typeof value.title === "string" && typeof value.mission === "string" && Array.isArray(value.responsibilities) && Array.isArray(value.nonGoals) && Array.isArray(value.decisionRights) && (value.model === null || typeof value.model === "string") && (value.tokenBudget === null || typeof value.tokenBudget === "number") && (value.dailyTokenBudget === null || typeof value.dailyTokenBudget === "number");
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.name === "string" && typeof value.title === "string" && typeof value.mission === "string" && Array.isArray(value.responsibilities) && Array.isArray(value.nonGoals) && Array.isArray(value.decisionRights) && (value.model === null || typeof value.model === "string") && (value.executor === void 0 || value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && (value.tokenBudget === null || typeof value.tokenBudget === "number") && (value.dailyTokenBudget === null || typeof value.dailyTokenBudget === "number");
 }
 function isAgentRunStatus(value) {
   return value === "queued" || value === "running" || value === "succeeded" || value === "failed";
@@ -777,10 +777,20 @@ function migrateState(value) {
     };
   }
   if (state.schemaVersion === 16) {
+    state = {
+      ...state,
+      schemaVersion: 17,
+      companyName: "AI\u5DE5\u4F5C\u5BA4"
+    };
+  }
+  if (state.schemaVersion === 17) {
     return {
       ...state,
       schemaVersion: STUDIO_SCHEMA_VERSION,
-      companyName: "AI\u5DE5\u4F5C\u5BA4"
+      roles: state.roles.map((role) => ({
+        ...role,
+        executor: role.executor ?? "dsh"
+      }))
     };
   }
   return state;
@@ -2117,6 +2127,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         nonGoals: textList(input.nonGoals, "nonGoals"),
         decisionRights: textList(input.decisionRights, "decisionRights"),
         model: optionalText(input.model, "model", 120) || null,
+        executor: input.executor === "claude-code" || input.executor === "codex" ? input.executor : "dsh",
         tokenBudget: optionalTokenBudget(input.tokenBudget, "tokenBudget"),
         dailyTokenBudget: optionalTokenBudget(
           input.dailyTokenBudget,
@@ -2167,6 +2178,9 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       }
       if (input.model !== void 0) {
         role.model = optionalText(input.model, "model", 120) || null;
+      }
+      if (input.executor !== void 0) {
+        role.executor = input.executor === "claude-code" || input.executor === "codex" ? input.executor : "dsh";
       }
       if (input.tokenBudget !== void 0) {
         role.tokenBudget = optionalTokenBudget(input.tokenBudget, "tokenBudget");
@@ -3046,6 +3060,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       nonGoals: [],
       decisionRights,
       model: null,
+      executor: "dsh",
       tokenBudget: null,
       dailyTokenBudget: null,
       createdAt: at,
