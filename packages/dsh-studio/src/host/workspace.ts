@@ -68,7 +68,20 @@ export class WorkspaceManager {
 
     const branches = git(root, ["branch", "--list", branch]);
     if (branches === "") {
-      git(root, ["worktree", "add", "-b", branch, worktreePath, "HEAD"]);
+      const remote = git(root, [
+        "branch",
+        "-r",
+        "--list",
+        `origin/${branch}`,
+      ]);
+      git(root, [
+        "worktree",
+        "add",
+        "-b",
+        branch,
+        worktreePath,
+        remote === "" ? "HEAD" : `origin/${branch}`,
+      ]);
     } else {
       git(root, ["worktree", "add", worktreePath, branch]);
     }

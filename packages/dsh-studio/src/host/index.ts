@@ -140,6 +140,8 @@ export async function apply(ctx: StudioHostContext): Promise<void> {
     writeAdr: (decisionId) => adr.write(decisionId),
     exportProjectBundle: (projectId) =>
       bundles.exportProject(projectId, runtime.version),
+    importProjectBundle: (archivePath, targetPath) =>
+      bundles.importProject(archivePath, targetPath),
     readProjectDoc: (path) => docs.read(path),
   });
 

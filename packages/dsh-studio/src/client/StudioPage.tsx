@@ -824,6 +824,30 @@ export function StudioPage() {
     URL.revokeObjectURL(url);
   };
 
+  const importBundle = async (): Promise<void> => {
+    if (client === null) return;
+    const archivePath = window.prompt(
+      "输入项目包 tar.gz 的绝对路径：",
+      "",
+    );
+    if (archivePath === null || archivePath.trim() === "") return;
+    const targetPath = window.prompt(
+      "输入新仓库目录（必须为空或不存在）：",
+      "",
+    );
+    if (targetPath === null || targetPath.trim() === "") return;
+    await run(
+      async () => {
+        await client.importProjectBundle(
+          archivePath.trim(),
+          targetPath.trim(),
+        );
+        await load(undefined, true);
+      },
+      "项目包已导入并重绑仓库",
+    );
+  };
+
   const saveCompany = async (name: string): Promise<void> => {
     await run(
       async () => {
@@ -1097,6 +1121,7 @@ export function StudioPage() {
                 onReload={() => void load(undefined, false)}
                 onCompany={saveCompany}
                 onBundle={exportBundle}
+                onImportBundle={importBundle}
               />
             ) : null}
           </div>
@@ -4286,6 +4311,7 @@ function SettingsView({
   onReload,
   onCompany,
   onBundle,
+  onImportBundle,
 }: {
   boot: NonNullable<ReturnType<typeof readStudioBoot>>;
   data: BootstrapResponse;
@@ -4296,6 +4322,7 @@ function SettingsView({
   onReload: () => void;
   onCompany: (name: string) => Promise<void>;
   onBundle: () => Promise<void>;
+  onImportBundle: () => Promise<void>;
 }) {
   const [companyName, setCompanyName] = useState(data.company.name);
   const [savingCompany, setSavingCompany] = useState(false);
@@ -4442,6 +4469,15 @@ function SettingsView({
               title="导出状态 + Git 历史 + 迁移说明"
             >
               导出项目包
+            </button>
+            <button
+              className="studio-btn"
+              data-size="sm"
+              type="button"
+              onClick={() => void onImportBundle()}
+              title="从项目包恢复状态并 clone 仓库"
+            >
+              导入项目包
             </button>
           </div>
         </section>
