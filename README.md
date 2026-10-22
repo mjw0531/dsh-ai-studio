@@ -65,6 +65,8 @@ dsh --profile web
 
 详细安装、打包分发、安全说明见 [插件 README](packages/dsh-studio/README.md)；完整工作流见 [使用说明书](docs/05-使用说明书.md)；兼容性、升级、备份见 [兼容性与安装](docs/04-兼容性与安装.md)。
 
+DSH 生态发现：GitHub topic 为 `dsh-plugin`，npm keywords 包含 `dsh-plugin` / `deepseek-harness` / `dsh`，包内提供 `dsh.bundle.patch` 与 `dsh.client.platform`。
+
 ## 为什么不是「酒馆套壳」
 
 酒馆的成熟之处是**内容与运行时分离**：世界书、角色卡、预设、正则、群聊。Studio 借这套经验，但把映射拆开：
