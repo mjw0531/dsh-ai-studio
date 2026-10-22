@@ -2,7 +2,7 @@
 
 > 即装即用的 DeepSeek Harness AI 工作台：**公司仪表盘、Agent 派单、token 预算、决策董事会、支线/契约冲突、worktree 代码执行、项目、角色、任务、验收、合并治理**，一个独立页面。
 
-当前版本 **1.9.0**，已在 **DSH 0.2.1-rc.2** 上完成端到端验证（Web/桌面安装、页面渲染、任务创建、验收门禁、合并治理、公司仪表盘、Agent 派单与结构化回执、token 计量、董事会、支线/契约冲突自动升级、git worktree 代码编辑、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、ADR 草稿与写入、人工触发的 Git merge 与合并后回归、合并失败升级与回滚、改修票诊断/计划门禁、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、重启持久化）。
+当前版本 **1.9.1**，已在 **DSH 0.2.1-rc.2** 上完成端到端验证（Web/桌面安装、页面渲染、任务创建、验收门禁、合并治理、公司仪表盘、Agent 派单与结构化回执、token 计量、董事会、支线/契约冲突自动升级、git worktree 代码编辑、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、ADR 草稿与写入、人工触发的 Git merge 与合并后回归、合并失败升级与回滚、改修票诊断/计划门禁、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、重启持久化）。
 
 ![Studio Decision Boardroom](docs/decision-boardroom.png)
 
@@ -34,6 +34,7 @@ Studio 把 DSH 从「一个会话」扩展成「一间工作室」：
 - **ADR 落盘**：人工确认后将 ADR 草稿写入 `docs/adr/`，自动取下一个四位编号；幂等，不覆盖已有路径。
 - **合并回滚**：回归失败的 merge 可人工触发 `git revert --no-edit <mergeCommit>`，记录 rollback commit；不 reset、不 push。
 - **改修票工序**：`kind=fix` 的任务必须有 diagnosis 和 plan 才能派单；新建型不受影响。
+- **1.9.1 修复**：回滚改用 `git revert -m 1` 处理 merge commit；新增真实 merge 失败 → 回滚 E2E 测试。
 - **角色薪资与预算**：角色可配置模型和单任务/每日 token 预算；项目可配置总 token 预算。
 - **项目**：一个项目边界，下面有角色和任务。
 - **角色**：持久的职责契约（使命、职责、决策权），不是人设卡。
@@ -82,7 +83,7 @@ cd D:\AI工作台\packages\dsh-studio
 pnpm pack
 ```
 
-把生成的 `ai-workbench-dsh-studio-1.9.0.tgz` 发给对方，在 **Add plugin** 里填 tarball 路径即可。
+把生成的 `ai-workbench-dsh-studio-1.9.1.tgz` 发给对方，在 **Add plugin** 里填 tarball 路径即可。
 
 ## 使用
 

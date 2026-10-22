@@ -111,7 +111,13 @@ export class GitMergeService {
       );
     }
     try {
-      await git(repo, ["revert", "--no-edit", proposal.mergeCommit]);
+      await git(repo, [
+        "revert",
+        "-m",
+        "1",
+        "--no-edit",
+        proposal.mergeCommit,
+      ]);
     } catch (error) {
       try {
         await git(repo, ["revert", "--abort"]);

@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 16;
-var STUDIO_PLUGIN_VERSION = "1.9.0";
+var STUDIO_PLUGIN_VERSION = "1.9.1";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -3860,7 +3860,13 @@ var GitMergeService = class {
       );
     }
     try {
-      await git2(repo, ["revert", "--no-edit", proposal.mergeCommit]);
+      await git2(repo, [
+        "revert",
+        "-m",
+        "1",
+        "--no-edit",
+        proposal.mergeCommit
+      ]);
     } catch (error) {
       try {
         await git2(repo, ["revert", "--abort"]);
