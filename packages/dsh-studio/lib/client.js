@@ -342,6 +342,20 @@ var StudioClient = class {
     );
     return data.proposal;
   }
+  async rollbackMerge(proposalId) {
+    const data = await this.request(
+      `/merge-proposals/${encodeURIComponent(proposalId)}/rollback`,
+      { method: "POST", body: {} }
+    );
+    return data.proposal;
+  }
+  async writeAdr(decisionId) {
+    const data = await this.request(
+      `/decisions/${encodeURIComponent(decisionId)}/adr`,
+      { method: "POST", body: {} }
+    );
+    return data.decision;
+  }
   async completeMergeProposal(proposalId, mergeCommit) {
     const data = await this.request(
       `/merge-proposals/${encodeURIComponent(proposalId)}/merge`,
@@ -994,6 +1008,24 @@ function StudioPage() {
       "Git \u5408\u5E76\u5B8C\u6210\uFF0C\u5DF2\u8BB0\u5F55 merge commit"
     );
   };
+  const rollbackMerge = async (proposal) => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.rollbackMerge(proposal.id);
+      },
+      "\u5DF2\u56DE\u6EDA\u5408\u5E76\u5E76\u8BB0\u5F55 revert commit"
+    );
+  };
+  const writeAdr = async (decision) => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.writeAdr(decision.id);
+      },
+      "ADR \u5DF2\u5199\u5165 docs/adr"
+    );
+  };
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-root", "data-theme": theme, children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("header", { className: "studio-header", children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-brand", children: [
@@ -1110,7 +1142,8 @@ function StudioPage() {
             tasks: data.tasks,
             busy,
             onNew: () => setModal({ kind: "decision" }),
-            onDecide: decideDecision
+            onDecide: decideDecision,
+            onWriteAdr: writeAdr
           }
         ) : null,
         tab === "knowledge" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
@@ -1211,6 +1244,11 @@ function StudioPage() {
           if (selectedMerge !== null) {
             void executeMerge(selectedMerge);
           }
+        },
+        onRollbackMerge: () => {
+          if (selectedMerge !== null) {
+            void rollbackMerge(selectedMerge);
+          }
         }
       },
       selectedTask.id
@@ -1278,7 +1316,8 @@ function BoardroomView({
   tasks,
   busy,
   onNew,
-  onDecide
+  onDecide,
+  onWriteAdr
 }) {
   const pending = decisions.filter((decision) => decision.status === "pending");
   const history = decisions.filter((decision) => decision.status !== "pending");
@@ -1394,7 +1433,21 @@ function BoardroomView({
             decision.adrDraft !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("details", { className: "studio-adr", children: [
               /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("summary", { children: "\u67E5\u770B ADR \u8349\u7A3F" }),
               /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("pre", { children: decision.adrDraft })
-            ] }) : null
+            ] }) : null,
+            decision.adrPath !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-faint", style: { fontSize: 10 }, children: [
+              "\u5DF2\u5199\u5165\uFF1A",
+              decision.adrPath
+            ] }) : decision.adrDraft !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "studio-btn",
+                "data-size": "sm",
+                disabled: busy,
+                onClick: () => void onWriteAdr(decision),
+                children: "\u5199\u5165 docs/adr"
+              }
+            ) : null
           ]
         },
         decision.id
@@ -2859,7 +2912,8 @@ function TaskDrawer({
   onApproveMerge,
   onRejectMerge,
   onCompleteMerge,
-  onExecuteMerge
+  onExecuteMerge,
+  onRollbackMerge
 }) {
   const [evidenceText, setEvidenceText] = (0, import_react.useState)("");
   const done = acceptanceDone(task);
@@ -3102,7 +3156,8 @@ function TaskDrawer({
                   onApprove: onApproveMerge,
                   onReject: onRejectMerge,
                   onComplete: onCompleteMerge,
-                  onExecute: onExecuteMerge
+                  onExecute: onExecuteMerge,
+                  onRollback: onRollbackMerge
                 }
               ),
               /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { children: [
@@ -3392,7 +3447,8 @@ function TaskMergePanel({
   onApprove,
   onReject,
   onComplete,
-  onExecute
+  onExecute,
+  onRollback
 }) {
   const [summary, setSummary] = (0, import_react.useState)("");
   const [branch, setBranch] = (0, import_react.useState)(task.branch ?? "");
@@ -3696,7 +3752,30 @@ function TaskMergePanel({
               /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("pre", { children: postVerification.output.slice(0, 2e3) || "\uFF08\u65E0\u8F93\u51FA\uFF09" })
             ]
           }
-        ) : null
+        ) : null,
+        postVerification !== null && !postVerification.passed && activeProposal.rollbackCommit === null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          "button",
+          {
+            type: "button",
+            className: "studio-btn",
+            "data-variant": "danger",
+            "data-size": "sm",
+            style: { marginTop: 8 },
+            disabled: busy,
+            onClick: () => {
+              if (window.confirm(
+                "\u5C06\u5728\u5F53\u524D\u4ED3\u5E93\u6267\u884C git revert <merge commit>\uFF0C\u786E\u5B9A\u56DE\u6EDA\u5417\uFF1F"
+              )) {
+                onRollback();
+              }
+            },
+            children: "\u56DE\u6EDA\u8FD9\u6B21\u5408\u5E76"
+          }
+        ) : null,
+        activeProposal.rollbackCommit !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-faint", style: { fontSize: 10, marginTop: 6 }, children: [
+          "\u5DF2\u56DE\u6EDA\uFF1A",
+          activeProposal.rollbackCommit
+        ] }) : null
       ] })
     ] })
   ] });

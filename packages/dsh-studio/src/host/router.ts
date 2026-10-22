@@ -12,6 +12,7 @@ import type {
   CreateRoleInput,
   CreateTaskInput,
   DecideDecisionInput,
+  Decision,
   IndependentReview,
   MergeProposal,
   MergeRisk,
@@ -43,6 +44,8 @@ interface StudioRouterOptions {
   verifyTask: (taskId: string, command?: string) => Promise<Verification>;
   reviewTask: (taskId: string) => Promise<IndependentReview>;
   executeMerge: (proposalId: string) => Promise<MergeProposal>;
+  rollbackMerge: (proposalId: string) => Promise<MergeProposal>;
+  writeAdr: (decisionId: string) => Promise<Decision>;
   readProjectDoc: (path: string) => Promise<ProjectDoc>;
 }
 
@@ -459,6 +462,10 @@ export class StudioRouter {
   private readonly executeMerge: (
     proposalId: string,
   ) => Promise<MergeProposal>;
+  private readonly rollbackMerge: (
+    proposalId: string,
+  ) => Promise<MergeProposal>;
+  private readonly writeAdr: (decisionId: string) => Promise<Decision>;
   private readonly readProjectDoc: (path: string) => Promise<ProjectDoc>;
 
   constructor(options: StudioRouterOptions) {
@@ -472,6 +479,8 @@ export class StudioRouter {
     this.verifyTask = options.verifyTask;
     this.reviewTask = options.reviewTask;
     this.executeMerge = options.executeMerge;
+    this.rollbackMerge = options.rollbackMerge;
+    this.writeAdr = options.writeAdr;
     this.readProjectDoc = options.readProjectDoc;
   }
 
@@ -707,6 +716,18 @@ export class StudioRouter {
       return;
     }
 
+    const decisionAdr = /^\/studio-api\/decisions\/([^/]+)\/adr$/.exec(
+      parsed.pathname,
+    );
+    if (decisionAdr !== null) {
+      this.requireMethod(parsed, ["POST"]);
+      const decision = await this.writeAdr(
+        decodeSegment(decisionAdr[1] ?? ""),
+      );
+      sendJson(res, 200, { ok: true, decision });
+      return;
+    }
+
     if (parsed.pathname === `${API_PREFIX}/decisions`) {
       this.requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
@@ -744,7 +765,7 @@ export class StudioRouter {
     }
 
     const mergeDecision =
-      /^\/studio-api\/merge-proposals\/([^/]+)\/(approve|reject|merge|execute)$/.exec(
+      /^\/studio-api\/merge-proposals\/([^/]+)\/(approve|reject|merge|execute|rollback)$/.exec(
         parsed.pathname,
       );
     if (mergeDecision !== null) {
@@ -763,10 +784,12 @@ export class StudioRouter {
               )
             : action === "execute"
               ? await this.executeMerge(proposalId)
-              : await this.store.completeMergeProposal(
-                  proposalId,
-                  asOptionalString(body.mergeCommit, "mergeCommit"),
-                );
+              : action === "rollback"
+                ? await this.rollbackMerge(proposalId)
+                : await this.store.completeMergeProposal(
+                    proposalId,
+                    asOptionalString(body.mergeCommit, "mergeCommit"),
+                  );
       sendJson(res, 200, { ok: true, proposal });
       return;
     }

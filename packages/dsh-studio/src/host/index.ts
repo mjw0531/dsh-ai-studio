@@ -8,6 +8,7 @@ import {
   readRuntimeInfo,
   safeOrigin,
 } from "./compat.js";
+import { AdrService } from "./adr.js";
 import { AgentDispatcher } from "./dispatcher.js";
 import type { DispatcherContext } from "./dispatcher.js";
 import { DocsService } from "./docs.js";
@@ -110,6 +111,7 @@ export async function apply(ctx: StudioHostContext): Promise<void> {
   const verifier = new VerificationService(store);
   const docs = new DocsService(store);
   const merger = new GitMergeService(store);
+  const adr = new AdrService(store);
 
   const token = randomBytes(24).toString("hex");
   const startedAt = new Date().toISOString();
@@ -132,6 +134,8 @@ export async function apply(ctx: StudioHostContext): Promise<void> {
     verifyTask: (taskId, command) => verifier.verify(taskId, command),
     reviewTask: (taskId) => dispatcher.review(taskId),
     executeMerge: (proposalId) => merger.execute(proposalId),
+    rollbackMerge: (proposalId) => merger.rollback(proposalId),
+    writeAdr: (decisionId) => adr.write(decisionId),
     readProjectDoc: (path) => docs.read(path),
   });
 

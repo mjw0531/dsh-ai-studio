@@ -772,6 +772,12 @@ function isMergeProposal(value: unknown): value is MergeProposal {
     (value.postMergeVerificationId === null ||
       value.postMergeVerificationId === undefined ||
       typeof value.postMergeVerificationId === "string") &&
+    (value.rollbackCommit === null ||
+      value.rollbackCommit === undefined ||
+      typeof value.rollbackCommit === "string") &&
+    (value.rolledBackAt === null ||
+      value.rolledBackAt === undefined ||
+      typeof value.rolledBackAt === "string") &&
     typeof value.createdAt === "string" &&
     typeof value.updatedAt === "string" &&
     (value.decidedAt === null || typeof value.decidedAt === "string") &&
@@ -803,6 +809,9 @@ function isDecision(value: unknown): value is Decision {
     (value.adrDraft === null ||
       value.adrDraft === undefined ||
       typeof value.adrDraft === "string") &&
+    (value.adrPath === null ||
+      value.adrPath === undefined ||
+      typeof value.adrPath === "string") &&
     isDecisionStatus(value.status) &&
     typeof value.decision === "string" &&
     typeof value.note === "string" &&
@@ -1084,13 +1093,28 @@ function migrateState(value: unknown): StudioState {
     };
   }
   if (state.schemaVersion === 13) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 14,
       mergeProposals: state.mergeProposals.map((proposal) => ({
         ...proposal,
         postMergeVerificationId:
           proposal.postMergeVerificationId ?? null,
+      })),
+    };
+  }
+  if (state.schemaVersion === 14) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      decisions: state.decisions.map((decision) => ({
+        ...decision,
+        adrPath: decision.adrPath ?? null,
+      })),
+      mergeProposals: state.mergeProposals.map((proposal) => ({
+        ...proposal,
+        rollbackCommit: proposal.rollbackCommit ?? null,
+        rolledBackAt: proposal.rolledBackAt ?? null,
       })),
     };
   }
@@ -1911,6 +1935,7 @@ export class StudioStore {
                 "同一契约出现两条不同变更。请由 Owner/Architect 裁决；在裁决前不要合并任意一条支线。",
               reversible: true,
               adrDraft: null,
+              adrPath: null,
               status: "pending",
               decision: "",
               note: "",
@@ -1958,6 +1983,7 @@ export class StudioStore {
             recommendation: proposed.rationale,
             reversible: true,
             adrDraft: null,
+            adrPath: null,
             status: "pending",
             decision: "",
             note: "",
@@ -2112,6 +2138,7 @@ export class StudioStore {
             "实现者不能直接改契约或禁止路径；需要契约变更时，应由 Architect/Owner 先更新契约，再重新派单。",
           reversible: true,
           adrDraft: null,
+          adrPath: null,
           status: "pending",
           decision: "",
           note: "",
@@ -2200,6 +2227,70 @@ export class StudioStore {
     });
   }
 
+  async getDecisionAdrContext(decisionId: string): Promise<{
+    decision: Decision;
+    project: Project;
+  }> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const decision = state.decisions.find(
+        (item) => item.id === decisionId,
+      );
+      if (decision === undefined) {
+        throw new StudioStoreError(
+          "decision_not_found",
+          "决策不存在",
+          404,
+        );
+      }
+      const project = state.projects.find(
+        (item) => item.id === decision.projectId,
+      );
+      if (project === undefined) {
+        throw new StudioStoreError(
+          "project_not_found",
+          "决策对应的项目不存在",
+          404,
+        );
+      }
+      return {
+        decision: structuredClone(decision),
+        project: structuredClone(project),
+      };
+    });
+  }
+
+  async setDecisionAdrPath(
+    decisionId: string,
+    adrPath: string,
+  ): Promise<Decision> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const decision = state.decisions.find(
+        (item) => item.id === decisionId,
+      );
+      if (decision === undefined) {
+        throw new StudioStoreError(
+          "decision_not_found",
+          "决策不存在",
+          404,
+        );
+      }
+      const at = nowIso(this.now);
+      decision.adrPath = adrPath;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "decision.adr_written",
+        at,
+        projectId: decision.projectId,
+        taskId: decision.taskId,
+        payload: { decisionId, adrPath },
+      });
+      await this.save();
+      return structuredClone(decision);
+    });
+  }
+
   async createPostMergeDecision(input: {
     taskId: string;
     proposalId: string;
@@ -2245,6 +2336,7 @@ export class StudioStore {
           "合并后回归失败。先看输出定位破坏点；无法快速修复时回滚 merge commit，再重新走提案。",
         reversible: true,
         adrDraft: null,
+        adrPath: null,
         status: "pending",
         decision: "",
         note: "",
@@ -2307,6 +2399,7 @@ export class StudioStore {
         ),
         reversible: input.reversible !== false,
         adrDraft: null,
+        adrPath: null,
         status: "pending",
         decision: "",
         note: "",
@@ -3043,6 +3136,8 @@ export class StudioStore {
         changedFiles,
         verificationId: latestVerification?.id ?? null,
         postMergeVerificationId: null,
+        rollbackCommit: null,
+        rolledBackAt: null,
         createdAt: at,
         updatedAt: at,
         decidedAt: null,
@@ -3154,6 +3249,7 @@ export class StudioStore {
     proposal: MergeProposal;
     project: Project;
     task: Task;
+    verification: Verification | null;
   }> {
     return this.runExclusive(async () => {
       const state = this.requireState();
@@ -3171,10 +3267,20 @@ export class StudioStore {
           404,
         );
       }
+      const verification =
+        proposal.postMergeVerificationId === null
+          ? undefined
+          : state.verifications.find(
+              (item) => item.id === proposal.postMergeVerificationId,
+            );
       return {
         proposal: structuredClone(proposal),
         project: structuredClone(project),
         task: structuredClone(task),
+        verification:
+          verification === undefined
+            ? null
+            : structuredClone(verification),
       };
     });
   }
@@ -3225,6 +3331,45 @@ export class StudioStore {
       proposal.postMergeVerificationId = verificationId;
       proposal.updatedAt = nowIso(this.now);
       state.updatedAt = proposal.updatedAt;
+      await this.save();
+      return structuredClone(proposal);
+    });
+  }
+
+  async recordRollback(
+    proposalId: string,
+    rollbackCommit: string,
+  ): Promise<MergeProposal> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const proposal = this.findMergeProposal(state, proposalId);
+      if (proposal.status !== "merged") {
+        throw new StudioStoreError(
+          "rollback_not_merged",
+          "只有已合并的提案可以回滚",
+          409,
+        );
+      }
+      const at = nowIso(this.now);
+      proposal.rollbackCommit = requiredText(
+        rollbackCommit,
+        "rollbackCommit",
+        160,
+      );
+      proposal.rolledBackAt = at;
+      proposal.updatedAt = at;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "merge.rolled_back",
+        at,
+        projectId: proposal.projectId,
+        taskId: proposal.taskId,
+        payload: {
+          proposalId,
+          mergeCommit: proposal.mergeCommit,
+          rollbackCommit: proposal.rollbackCommit,
+        },
+      });
       await this.save();
       return structuredClone(proposal);
     });
@@ -3407,6 +3552,7 @@ export class StudioStore {
         "同一任务连续失败 2 次，按工作流应退回架构师重拆，不允许第三次原地重试。",
       reversible: true,
       adrDraft: null,
+      adrPath: null,
       status: "pending",
       decision: "",
       note: "",

@@ -6,8 +6,8 @@ import os from "node:os";
 import path from "node:path";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 14;
-var STUDIO_PLUGIN_VERSION = "1.7.0";
+var STUDIO_SCHEMA_VERSION = 15;
+var STUDIO_PLUGIN_VERSION = "1.8.0";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -539,13 +539,13 @@ function isMergeRisk(value) {
   return value === "low" || value === "medium" || value === "high";
 }
 function isMergeProposal(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && typeof value.branch === "string" && typeof value.base === "string" && typeof value.summary === "string" && isMergeRisk(value.risk) && typeof value.rollback === "string" && (value.status === "review" || value.status === "approved" || value.status === "rejected" || value.status === "merged") && typeof value.reviewNote === "string" && (value.mergeCommit === null || typeof value.mergeCommit === "string") && (value.diffStat === null || value.diffStat === void 0 || typeof value.diffStat === "string") && (Array.isArray(value.changedFiles) || value.changedFiles === void 0) && (value.verificationId === null || value.verificationId === void 0 || typeof value.verificationId === "string") && (value.postMergeVerificationId === null || value.postMergeVerificationId === void 0 || typeof value.postMergeVerificationId === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && (value.mergedAt === null || typeof value.mergedAt === "string");
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && typeof value.branch === "string" && typeof value.base === "string" && typeof value.summary === "string" && isMergeRisk(value.risk) && typeof value.rollback === "string" && (value.status === "review" || value.status === "approved" || value.status === "rejected" || value.status === "merged") && typeof value.reviewNote === "string" && (value.mergeCommit === null || typeof value.mergeCommit === "string") && (value.diffStat === null || value.diffStat === void 0 || typeof value.diffStat === "string") && (Array.isArray(value.changedFiles) || value.changedFiles === void 0) && (value.verificationId === null || value.verificationId === void 0 || typeof value.verificationId === "string") && (value.postMergeVerificationId === null || value.postMergeVerificationId === void 0 || typeof value.postMergeVerificationId === "string") && (value.rollbackCommit === null || value.rollbackCommit === void 0 || typeof value.rollbackCommit === "string") && (value.rolledBackAt === null || value.rolledBackAt === void 0 || typeof value.rolledBackAt === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && (value.mergedAt === null || typeof value.mergedAt === "string");
 }
 function isDecisionStatus(value) {
   return value === "pending" || value === "approved" || value === "rejected";
 }
 function isDecision(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && (value.taskId === null || typeof value.taskId === "string") && (value.runId === null || typeof value.runId === "string") && typeof value.title === "string" && typeof value.context === "string" && Array.isArray(value.options) && typeof value.recommendation === "string" && (value.reversible === void 0 || typeof value.reversible === "boolean") && (value.adrDraft === null || value.adrDraft === void 0 || typeof value.adrDraft === "string") && isDecisionStatus(value.status) && typeof value.decision === "string" && typeof value.note === "string" && typeof value.decidedBy === "string" && (value.tokenCost === null || typeof value.tokenCost === "number") && typeof value.createdAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string");
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && (value.taskId === null || typeof value.taskId === "string") && (value.runId === null || typeof value.runId === "string") && typeof value.title === "string" && typeof value.context === "string" && Array.isArray(value.options) && typeof value.recommendation === "string" && (value.reversible === void 0 || typeof value.reversible === "boolean") && (value.adrDraft === null || value.adrDraft === void 0 || typeof value.adrDraft === "string") && (value.adrPath === null || value.adrPath === void 0 || typeof value.adrPath === "string") && isDecisionStatus(value.status) && typeof value.decision === "string" && typeof value.note === "string" && typeof value.decidedBy === "string" && (value.tokenCost === null || typeof value.tokenCost === "number") && typeof value.createdAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string");
 }
 function isBranchStatus(value) {
   return value === "open" || value === "review" || value === "merged" || value === "abandoned";
@@ -733,12 +733,27 @@ function migrateState(value) {
     };
   }
   if (state.schemaVersion === 13) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 14,
       mergeProposals: state.mergeProposals.map((proposal) => ({
         ...proposal,
         postMergeVerificationId: proposal.postMergeVerificationId ?? null
+      }))
+    };
+  }
+  if (state.schemaVersion === 14) {
+    return {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      decisions: state.decisions.map((decision) => ({
+        ...decision,
+        adrPath: decision.adrPath ?? null
+      })),
+      mergeProposals: state.mergeProposals.map((proposal) => ({
+        ...proposal,
+        rollbackCommit: proposal.rollbackCommit ?? null,
+        rolledBackAt: proposal.rolledBackAt ?? null
       }))
     };
   }
@@ -1378,6 +1393,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
               recommendation: "\u540C\u4E00\u5951\u7EA6\u51FA\u73B0\u4E24\u6761\u4E0D\u540C\u53D8\u66F4\u3002\u8BF7\u7531 Owner/Architect \u88C1\u51B3\uFF1B\u5728\u88C1\u51B3\u524D\u4E0D\u8981\u5408\u5E76\u4EFB\u610F\u4E00\u6761\u652F\u7EBF\u3002",
               reversible: true,
               adrDraft: null,
+              adrPath: null,
               status: "pending",
               decision: "",
               note: "",
@@ -1422,6 +1438,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
             recommendation: proposed.rationale,
             reversible: true,
             adrDraft: null,
+            adrPath: null,
             status: "pending",
             decision: "",
             note: "",
@@ -1553,6 +1570,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           recommendation: "\u5B9E\u73B0\u8005\u4E0D\u80FD\u76F4\u63A5\u6539\u5951\u7EA6\u6216\u7981\u6B62\u8DEF\u5F84\uFF1B\u9700\u8981\u5951\u7EA6\u53D8\u66F4\u65F6\uFF0C\u5E94\u7531 Architect/Owner \u5148\u66F4\u65B0\u5951\u7EA6\uFF0C\u518D\u91CD\u65B0\u6D3E\u5355\u3002",
           reversible: true,
           adrDraft: null,
+          adrPath: null,
           status: "pending",
           decision: "",
           note: "",
@@ -1624,6 +1642,62 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       return structuredClone(verification);
     });
   }
+  async getDecisionAdrContext(decisionId) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const decision = state.decisions.find(
+        (item) => item.id === decisionId
+      );
+      if (decision === void 0) {
+        throw new StudioStoreError(
+          "decision_not_found",
+          "\u51B3\u7B56\u4E0D\u5B58\u5728",
+          404
+        );
+      }
+      const project = state.projects.find(
+        (item) => item.id === decision.projectId
+      );
+      if (project === void 0) {
+        throw new StudioStoreError(
+          "project_not_found",
+          "\u51B3\u7B56\u5BF9\u5E94\u7684\u9879\u76EE\u4E0D\u5B58\u5728",
+          404
+        );
+      }
+      return {
+        decision: structuredClone(decision),
+        project: structuredClone(project)
+      };
+    });
+  }
+  async setDecisionAdrPath(decisionId, adrPath) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const decision = state.decisions.find(
+        (item) => item.id === decisionId
+      );
+      if (decision === void 0) {
+        throw new StudioStoreError(
+          "decision_not_found",
+          "\u51B3\u7B56\u4E0D\u5B58\u5728",
+          404
+        );
+      }
+      const at = nowIso(this.now);
+      decision.adrPath = adrPath;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "decision.adr_written",
+        at,
+        projectId: decision.projectId,
+        taskId: decision.taskId,
+        payload: { decisionId, adrPath }
+      });
+      await this.save();
+      return structuredClone(decision);
+    });
+  }
   async createPostMergeDecision(input) {
     return this.runExclusive(async () => {
       const state = this.requireState();
@@ -1659,6 +1733,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         recommendation: "\u5408\u5E76\u540E\u56DE\u5F52\u5931\u8D25\u3002\u5148\u770B\u8F93\u51FA\u5B9A\u4F4D\u7834\u574F\u70B9\uFF1B\u65E0\u6CD5\u5FEB\u901F\u4FEE\u590D\u65F6\u56DE\u6EDA merge commit\uFF0C\u518D\u91CD\u65B0\u8D70\u63D0\u6848\u3002",
         reversible: true,
         adrDraft: null,
+        adrPath: null,
         status: "pending",
         decision: "",
         note: "",
@@ -1720,6 +1795,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         ),
         reversible: input.reversible !== false,
         adrDraft: null,
+        adrPath: null,
         status: "pending",
         decision: "",
         note: "",
@@ -2378,6 +2454,8 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         changedFiles,
         verificationId: latestVerification?.id ?? null,
         postMergeVerificationId: null,
+        rollbackCommit: null,
+        rolledBackAt: null,
         createdAt: at,
         updatedAt: at,
         decidedAt: null,
@@ -2490,10 +2568,14 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           404
         );
       }
+      const verification = proposal.postMergeVerificationId === null ? void 0 : state.verifications.find(
+        (item) => item.id === proposal.postMergeVerificationId
+      );
       return {
         proposal: structuredClone(proposal),
         project: structuredClone(project),
-        task: structuredClone(task)
+        task: structuredClone(task),
+        verification: verification === void 0 ? null : structuredClone(verification)
       };
     });
   }
@@ -2535,6 +2617,41 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       proposal.postMergeVerificationId = verificationId;
       proposal.updatedAt = nowIso(this.now);
       state.updatedAt = proposal.updatedAt;
+      await this.save();
+      return structuredClone(proposal);
+    });
+  }
+  async recordRollback(proposalId, rollbackCommit) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const proposal = this.findMergeProposal(state, proposalId);
+      if (proposal.status !== "merged") {
+        throw new StudioStoreError(
+          "rollback_not_merged",
+          "\u53EA\u6709\u5DF2\u5408\u5E76\u7684\u63D0\u6848\u53EF\u4EE5\u56DE\u6EDA",
+          409
+        );
+      }
+      const at = nowIso(this.now);
+      proposal.rollbackCommit = requiredText(
+        rollbackCommit,
+        "rollbackCommit",
+        160
+      );
+      proposal.rolledBackAt = at;
+      proposal.updatedAt = at;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "merge.rolled_back",
+        at,
+        projectId: proposal.projectId,
+        taskId: proposal.taskId,
+        payload: {
+          proposalId,
+          mergeCommit: proposal.mergeCommit,
+          rollbackCommit: proposal.rollbackCommit
+        }
+      });
       await this.save();
       return structuredClone(proposal);
     });
@@ -2690,6 +2807,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       recommendation: "\u540C\u4E00\u4EFB\u52A1\u8FDE\u7EED\u5931\u8D25 2 \u6B21\uFF0C\u6309\u5DE5\u4F5C\u6D41\u5E94\u9000\u56DE\u67B6\u6784\u5E08\u91CD\u62C6\uFF0C\u4E0D\u5141\u8BB8\u7B2C\u4E09\u6B21\u539F\u5730\u91CD\u8BD5\u3002",
       reversible: true,
       adrDraft: null,
+      adrPath: null,
       status: "pending",
       decision: "",
       note: "",

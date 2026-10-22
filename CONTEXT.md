@@ -158,6 +158,14 @@ _Avoid_: 自动合并、自动发布
 不可逆决策批准后生成的 Markdown 草稿，保存在 Decision 记录；写文件必须由人确认。
 _Avoid_: ADR 自动落盘
 
+**ADR Path（ADR 落盘）**:
+人工确认后写入仓库 `docs/adr/NNNN-<id>.md` 的路径；自动编号、幂等。
+_Avoid_: 自动 ADR
+
+**Merge Rollback（合并回滚）**:
+对回归失败的 merge 执行 `git revert --no-edit <mergeCommit>`，记录 rollback commit；不 reset/push。
+_Avoid_: reset、自动回滚
+
 **Post-Merge Verification（合并后回归）**:
 Git merge 成功后在 repo 上执行任务的验证命令；记录 pass/fail，失败只警告，不自动回滚。
 _Avoid_: 自动回滚
