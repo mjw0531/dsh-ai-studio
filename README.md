@@ -60,7 +60,7 @@ dsh plugin --profile web add "D:\AI工作台\packages\dsh-studio"
 dsh --profile web
 ```
 
-详细安装、打包分发、安全说明见 [插件 README](packages/dsh-studio/README.md)；兼容性、升级、备份见 [兼容性与安装](docs/04-兼容性与安装.md)。
+详细安装、打包分发、安全说明见 [插件 README](packages/dsh-studio/README.md)；完整工作流见 [使用说明书](docs/05-使用说明书.md)；兼容性、升级、备份见 [兼容性与安装](docs/04-兼容性与安装.md)。
 
 ## 为什么不是「酒馆套壳」
 
@@ -104,6 +104,7 @@ packages/dsh-studio/     # 可安装的 DSH 插件
 docs/
   00-设计蓝图.md          # 产品/工作流/领域模型
   04-兼容性与安装.md      # 安装、升级、备份、兼容性矩阵
+  05-使用说明书.md        # 工作流、门禁、数据与迁移
   adr/                    # 架构决策记录
   adr/                   # 架构决策
 CONTEXT.md               # 术语表
