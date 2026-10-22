@@ -75,6 +75,23 @@ export class WorkspaceManager {
     return { repoPath: root, path: worktreePath, branch };
   }
 
+  commit(worktreePath: string, message: string): string | null {
+    if (!existsSync(worktreePath)) return null;
+    const status = git(worktreePath, ["status", "--short"]);
+    if (status === "") return null;
+    git(worktreePath, ["add", "-A"]);
+    git(worktreePath, [
+      "-c",
+      "user.name=Studio Agent",
+      "-c",
+      "user.email=agent@studio.local",
+      "commit",
+      "-m",
+      message,
+    ]);
+    return git(worktreePath, ["rev-parse", "HEAD"]);
+  }
+
   diffStat(worktreePath: string): string {
     if (!existsSync(worktreePath)) return "";
     const status = git(worktreePath, ["status", "--short"]);

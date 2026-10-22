@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 16;
-var STUDIO_PLUGIN_VERSION = "1.9.1";
+var STUDIO_PLUGIN_VERSION = "2.0.0";
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -3346,6 +3346,22 @@ var WorkspaceManager = class {
     }
     return { repoPath: root, path: worktreePath, branch };
   }
+  commit(worktreePath, message) {
+    if (!existsSync2(worktreePath)) return null;
+    const status = git(worktreePath, ["status", "--short"]);
+    if (status === "") return null;
+    git(worktreePath, ["add", "-A"]);
+    git(worktreePath, [
+      "-c",
+      "user.name=Studio Agent",
+      "-c",
+      "user.email=agent@studio.local",
+      "commit",
+      "-m",
+      message
+    ]);
+    return git(worktreePath, ["rev-parse", "HEAD"]);
+  }
   diffStat(worktreePath) {
     if (!existsSync2(worktreePath)) return "";
     const status = git(worktreePath, ["status", "--short"]);
@@ -3651,6 +3667,12 @@ var AgentDispatcher = class {
       );
       const measured = this.ctx.tokenMeter.measure(handle.agent.session);
       const diffStat = workspace === void 0 ? null : this.workspaces.diffStat(workspace.path);
+      if (workspace !== void 0 && diffStat !== "" && diffStat !== null) {
+        this.workspaces.commit(
+          workspace.path,
+          `studio: complete ${run2.taskId} (${run2.id})`
+        );
+      }
       await this.store.completeRun(run2.id, {
         output,
         receipt,
@@ -3894,6 +3916,16 @@ var GitMergeService = class {
       );
     }
     const repo = project.repoPath;
+    try {
+      await git2(repo, ["config", "--get", "user.name"]);
+      await git2(repo, ["config", "--get", "user.email"]);
+    } catch {
+      throw new StudioStoreError(
+        "git_identity_required",
+        "\u4ED3\u5E93\u8FD8\u6CA1\u6709\u914D\u7F6E git user.name / user.email\uFF0C\u65E0\u6CD5\u521B\u5EFA merge commit",
+        409
+      );
+    }
     const current = (await git2(repo, ["rev-parse", "--abbrev-ref", "HEAD"])).stdout.trim();
     if (current !== proposal.base) {
       throw new StudioStoreError(

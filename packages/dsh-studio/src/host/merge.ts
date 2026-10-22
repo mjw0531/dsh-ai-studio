@@ -150,6 +150,16 @@ export class GitMergeService {
       );
     }
     const repo = project.repoPath;
+    try {
+      await git(repo, ["config", "--get", "user.name"]);
+      await git(repo, ["config", "--get", "user.email"]);
+    } catch {
+      throw new StudioStoreError(
+        "git_identity_required",
+        "仓库还没有配置 git user.name / user.email，无法创建 merge commit",
+        409,
+      );
+    }
     const current = (
       await git(repo, ["rev-parse", "--abbrev-ref", "HEAD"])
     ).stdout.trim();

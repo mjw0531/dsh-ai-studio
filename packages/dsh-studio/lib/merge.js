@@ -148,6 +148,16 @@ var GitMergeService = class {
       );
     }
     const repo = project.repoPath;
+    try {
+      await git(repo, ["config", "--get", "user.name"]);
+      await git(repo, ["config", "--get", "user.email"]);
+    } catch {
+      throw new StudioStoreError(
+        "git_identity_required",
+        "\u4ED3\u5E93\u8FD8\u6CA1\u6709\u914D\u7F6E git user.name / user.email\uFF0C\u65E0\u6CD5\u521B\u5EFA merge commit",
+        409
+      );
+    }
     const current = (await git(repo, ["rev-parse", "--abbrev-ref", "HEAD"])).stdout.trim();
     if (current !== proposal.base) {
       throw new StudioStoreError(
