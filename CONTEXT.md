@@ -1,6 +1,6 @@
 # Studio
 
-基于 DSH 的多角色 AI 工作台：把会话、角色、任务、产物和合并治理组织成一条可审计的工作流。
+基于 DSH 的多角色 AI Studio：把会话、角色、任务、产物和合并治理组织成一条可审计的工作流。
 
 ## Language
 
@@ -64,7 +64,7 @@ _Avoid_: 测试结果（太泛）、Agent 自检
 某条支线对某个契约声明的一次变更；同契约不同变更跨支线出现时触发冲突升级。
 _Avoid_: diff、提交（代码仓库概念）
 
-**Boardroom（董事会）**:
+**Decision Desk（决策台）**:
 项目级决策的裁决队列：Agent 或人提出，Owner 批准/拒绝，保留结论、理由与 token 成本。
 _Avoid_: 审批流、待办
 
@@ -179,7 +179,7 @@ Git merge 成功后在 repo 上执行任务的验证命令；记录 pass/fail，
 _Avoid_: 自动回滚
 
 **Post-Merge Decision（合并失败升级）**:
-post-merge 回归失败后自动生成的董事会决策，附 merge commit、回滚建议和修复选项；同一任务只生成一次。
+post-merge 回归失败后自动生成的决策台决策，附 merge commit、回滚建议和修复选项；同一任务只生成一次。
 _Avoid_: 自动回滚
 
 **Run（运行）**:

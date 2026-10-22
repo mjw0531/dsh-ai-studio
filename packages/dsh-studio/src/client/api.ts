@@ -183,6 +183,14 @@ export class StudioClient {
     return this.request("/export");
   }
 
+  async updateCompanyName(companyName: string): Promise<string> {
+    const data = await this.request<{ companyName: string }>("/settings", {
+      method: "PATCH",
+      body: { companyName },
+    });
+    return data.companyName;
+  }
+
   async importState(state: unknown): Promise<void> {
     await this.request("/import", {
       method: "POST",

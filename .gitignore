@@ -9,7 +9,14 @@ out/
 *.tsbuildinfo
 *.tgz
 
+# private design archive (not for the shared repo)
+docs/legacy/
+
 # runtime state
+.worktrees/
+studio.json
+studio.json.pre-import-*
+studio.json.corrupt-*
 .workbench/runtime/
 .workbench/**/*.lock
 .workbench/**/*.tmp

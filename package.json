@@ -1,14 +1,15 @@
 {
-  "name": "dsh-studio-workspace",
-  "version": "2.2.0",
+  "name": "dsh-ai-studio",
+  "version": "2.3.0",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.28.5",
   "scripts": {
-    "build": "pnpm --filter @ai-workbench/dsh-studio build",
-    "typecheck": "pnpm --filter @ai-workbench/dsh-studio typecheck",
-    "test": "pnpm --filter @ai-workbench/dsh-studio test",
-    "check": "pnpm typecheck && pnpm test"
+    "build": "pnpm --filter @mjw0531/dsh-ai-studio build",
+    "typecheck": "pnpm --filter @mjw0531/dsh-ai-studio typecheck",
+    "test": "pnpm --filter @mjw0531/dsh-ai-studio test",
+    "check": "pnpm typecheck && pnpm test",
+    "check:clean": "node tools/check-repo-clean.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

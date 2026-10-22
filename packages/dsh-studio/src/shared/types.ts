@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 16;
-export const STUDIO_PLUGIN_VERSION = "2.2.0";
+export const STUDIO_SCHEMA_VERSION = 17;
+export const STUDIO_PLUGIN_VERSION = "2.3.0";
 
 export type TaskStatus =
   | "backlog"
@@ -278,6 +278,7 @@ export interface StudioEvent {
 
 export interface StudioState {
   schemaVersion: number;
+  companyName: string;
   createdAt: string;
   updatedAt: string;
   activeProjectId: string | null;
@@ -387,6 +388,7 @@ export interface CompanyTotals {
 }
 
 export interface CompanySummary {
+  name: string;
   totals: CompanyTotals;
   projects: CompanyProjectSummary[];
   needs: OwnerNeed[];
