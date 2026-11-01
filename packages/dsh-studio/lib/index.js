@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 21;
-var STUDIO_PLUGIN_VERSION = "2.8.0";
+var STUDIO_PLUGIN_VERSION = "2.8.1";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -56,8 +56,8 @@ var TESTED_DSH_VERSION = "0.2.1-rc.2";
 var SUPPORTED_DSH_RANGE = ">=0.2.1-rc.2";
 function normalizeVersion(value) {
   if (typeof value !== "string") return null;
-  const text = value.trim();
-  return text === "" ? null : text;
+  const text2 = value.trim();
+  return text2 === "" ? null : text2;
 }
 async function readInstallVersion() {
   const candidates = [];
@@ -200,31 +200,31 @@ function requiredText(value, field, max = 200) {
   if (typeof value !== "string") {
     throw new StudioStoreError("invalid_input", `${field} \u5FC5\u987B\u662F\u5B57\u7B26\u4E32`);
   }
-  const text = value.trim();
-  if (text === "") {
+  const text2 = value.trim();
+  if (text2 === "") {
     throw new StudioStoreError("invalid_input", `${field} \u4E0D\u80FD\u4E3A\u7A7A`);
   }
-  if (text.length > max) {
+  if (text2.length > max) {
     throw new StudioStoreError(
       "invalid_input",
       `${field} \u4E0D\u80FD\u8D85\u8FC7 ${String(max)} \u4E2A\u5B57\u7B26`
     );
   }
-  return text;
+  return text2;
 }
 function optionalText(value, field, max = 4e3) {
   if (value === void 0 || value === null) return "";
   if (typeof value !== "string") {
     throw new StudioStoreError("invalid_input", `${field} \u5FC5\u987B\u662F\u5B57\u7B26\u4E32`);
   }
-  const text = value.trim();
-  if (text.length > max) {
+  const text2 = value.trim();
+  if (text2.length > max) {
     throw new StudioStoreError(
       "invalid_input",
       `${field} \u4E0D\u80FD\u8D85\u8FC7 ${String(max)} \u4E2A\u5B57\u7B26`
     );
   }
-  return text;
+  return text2;
 }
 function optionalTokenBudget(value, field) {
   if (value === void 0 || value === null) return null;
@@ -265,7 +265,7 @@ function defaultStageChecklist(stage) {
     ]
   };
   return (texts[stage] ?? []).map(
-    (text) => ({ id: newId("check"), text, done: false })
+    (text2) => ({ id: newId("check"), text: text2, done: false })
   );
 }
 function normalizeStageChecklist(value) {
@@ -327,8 +327,8 @@ function normalizeAcceptance(value, existing = []) {
   const byId = new Map(existing.map((item) => [item.id, item]));
   return value.slice(0, 20).map((raw, index) => {
     if (typeof raw === "string") {
-      const text2 = requiredText(raw, `acceptance[${String(index)}]`, 400);
-      return { id: newId("acc"), text: text2, done: false };
+      const text3 = requiredText(raw, `acceptance[${String(index)}]`, 400);
+      return { id: newId("acc"), text: text3, done: false };
     }
     if (!isRecord(raw)) {
       throw new StudioStoreError(
@@ -336,7 +336,7 @@ function normalizeAcceptance(value, existing = []) {
         `acceptance[${String(index)}] \u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u6216\u5BF9\u8C61`
       );
     }
-    const text = requiredText(
+    const text2 = requiredText(
       raw.text,
       `acceptance[${String(index)}].text`,
       400
@@ -345,7 +345,7 @@ function normalizeAcceptance(value, existing = []) {
     const previous = byId.get(id);
     return {
       id,
-      text,
+      text: text2,
       done: typeof raw.done === "boolean" ? raw.done : previous?.done ?? false
     };
   });
@@ -362,12 +362,12 @@ function normalizeEvidence(value, existing, at) {
         `evidence[${String(index)}] \u5FC5\u987B\u662F\u5BF9\u8C61`
       );
     }
-    const text = requiredText(raw.text, `evidence[${String(index)}].text`, 800);
+    const text2 = requiredText(raw.text, `evidence[${String(index)}].text`, 800);
     const id = typeof raw.id === "string" && raw.id !== "" ? raw.id : newId("ev");
     const previous = byId.get(id);
     return {
       id,
-      text,
+      text: text2,
       createdAt: previous?.createdAt ?? (typeof raw.createdAt === "string" ? raw.createdAt : at)
     };
   });
@@ -1728,6 +1728,21 @@ var StudioStore = class {
       return structuredClone(trigger);
     });
   }
+  async getWorkshopContext(workshopId) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const workshop = this.findWorkshop(state, workshopId);
+      const project = this.findProject(state, workshop.projectId);
+      const roles = state.roles.filter(
+        (role) => role.projectId === workshop.projectId && workshop.participantRoleIds.includes(role.id)
+      );
+      return {
+        workshop: structuredClone(workshop),
+        project: structuredClone(project),
+        roles: structuredClone(roles)
+      };
+    });
+  }
   async createWorkshop(input) {
     return this.runExclusive(async () => {
       const state = this.requireState();
@@ -2008,9 +2023,9 @@ var StudioStore = class {
       };
       state.reviews.push(review);
       if (review.verdict === "pass") {
-        const text = `\u72EC\u7ACB\u8BC4\u5BA1\u901A\u8FC7\uFF08${input.model}\uFF09\uFF1A${review.summary}`;
-        if (!task.evidence.some((item) => item.text === text)) {
-          task.evidence.push({ id: newId("ev"), text, createdAt: at });
+        const text2 = `\u72EC\u7ACB\u8BC4\u5BA1\u901A\u8FC7\uFF08${input.model}\uFF09\uFF1A${review.summary}`;
+        if (!task.evidence.some((item) => item.text === text2)) {
+          task.evidence.push({ id: newId("ev"), text: text2, createdAt: at });
         }
       }
       state.updatedAt = at;
@@ -2238,11 +2253,11 @@ var StudioStore = class {
       if (task !== void 0) {
         if (input.receipt !== null) {
           const existing = new Set(task.evidence.map((item) => item.text));
-          for (const text of input.receipt.evidence.slice(0, 10)) {
-            if (existing.has(text)) continue;
+          for (const text2 of input.receipt.evidence.slice(0, 10)) {
+            if (existing.has(text2)) continue;
             task.evidence.push({
               id: newId("ev"),
-              text,
+              text: text2,
               createdAt: at
             });
           }
@@ -2549,11 +2564,11 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       };
       state.verifications.push(verification);
       if (input.passed) {
-        const text = `\u9A8C\u8BC1\u901A\u8FC7\uFF1A\`${verification.command}\`\uFF08exit 0\uFF09`;
-        if (!task.evidence.some((item) => item.text === text)) {
+        const text2 = `\u9A8C\u8BC1\u901A\u8FC7\uFF1A\`${verification.command}\`\uFF08exit 0\uFF09`;
+        if (!task.evidence.some((item) => item.text === text2)) {
           task.evidence.push({
             id: newId("ev"),
-            text,
+            text: text2,
             createdAt: at
           });
         }
@@ -3984,9 +3999,9 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         ["\u9A8C\u6536\u7ED3\u8BBA"]
       )
     ];
-    const acceptance = (...texts) => texts.map((text, index) => ({
+    const acceptance = (...texts) => texts.map((text2, index) => ({
       id: `acc-demo-${String(index)}-${randomUUID().slice(0, 4)}`,
-      text,
+      text: text2,
       done: false
     }));
     const task = (id, title, goal, status, priority, ownerRoleId, reviewerRoleId, items, branch = null) => ({
@@ -4495,9 +4510,9 @@ function assistantText(messages) {
   if (assistant === void 0) return "";
   return assistant.content.filter((block) => block.type === "text").map((block) => block.text ?? "").join("\n").trim();
 }
-function extractJsonObject(text) {
-  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(text);
-  const candidate = fenced?.[1] ?? text;
+function extractJsonObject(text2) {
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(text2);
+  const candidate = fenced?.[1] ?? text2;
   const start = candidate.indexOf("{");
   const end = candidate.lastIndexOf("}");
   if (start < 0 || end <= start) return void 0;
@@ -5312,9 +5327,9 @@ async function readJson(req) {
     chunks.push(buffer);
   }
   if (total === 0) return {};
-  const text = Buffer.concat(chunks).toString("utf8");
+  const text2 = Buffer.concat(chunks).toString("utf8");
   try {
-    const parsed = JSON.parse(text);
+    const parsed = JSON.parse(text2);
     if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
       throw new Error("not an object");
     }
@@ -5659,6 +5674,7 @@ var StudioRouter = class {
   exportProjectBundle;
   importProjectBundle;
   readProjectDoc;
+  runWorkshop;
   constructor(options) {
     this.store = options.store;
     this.token = options.token;
@@ -5675,6 +5691,7 @@ var StudioRouter = class {
     this.exportProjectBundle = options.exportProjectBundle;
     this.importProjectBundle = options.importProjectBundle;
     this.readProjectDoc = options.readProjectDoc;
+    this.runWorkshop = options.runWorkshop;
   }
   async handle(req, res) {
     const parsed = this.parse(req);
@@ -5946,6 +5963,15 @@ var StudioRouter = class {
       sendJson(res, 200, { ok: true, workshop });
       return;
     }
+    const workshopRun = /^\/studio-api\/workshops\/([^/]+)\/run$/.exec(parsed.pathname);
+    if (workshopRun !== null) {
+      this.requireMethod(parsed, ["POST"]);
+      const workshop = await this.runWorkshop(
+        decodeSegment(workshopRun[1] ?? "")
+      );
+      sendJson(res, 200, { ok: true, workshop });
+      return;
+    }
     if (parsed.pathname === `${API_PREFIX}/roles`) {
       this.requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
@@ -6181,6 +6207,166 @@ function handleRouterError(res, error) {
   sendError(res, 500, "internal_error", message);
 }
 
+// src/host/workshop-runner.ts
+import { randomUUID as randomUUID3 } from "node:crypto";
+function assistantText2(messages) {
+  const assistant = [...messages].reverse().find((message) => message.role === "assistant");
+  if (assistant === void 0) return "";
+  return assistant.content.filter((block) => block.type === "text").map((block) => block.text ?? "").join("\n").trim();
+}
+function extractJson(text2) {
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(text2);
+  const candidate = fenced?.[1] ?? text2;
+  const start = candidate.indexOf("{");
+  const end = candidate.lastIndexOf("}");
+  if (start < 0 || end <= start) return {};
+  const raw = candidate.slice(start, end + 1).replace(
+    /"(?:\\.|[^"\\])*"/g,
+    (match) => match.replace(/\r?\n/g, "\\n")
+  );
+  try {
+    const parsed = JSON.parse(raw);
+    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+function strings(value) {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item) => typeof item === "string").map((item) => item.trim()).filter(Boolean).slice(0, 20);
+}
+function text(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+function buildPrompt2(workshop, role) {
+  return [
+    `\u4F60\u662F\u300C${role.name}\u300D\uFF08${role.title || "\u53C2\u4E0E\u89D2\u8272"}\uFF09\u3002`,
+    `\u7814\u8BA8\u4F1A\u4E3B\u9898\uFF1A${workshop.title}`,
+    workshop.topic ? `\u8BAE\u9898\uFF1A${workshop.topic}` : "",
+    `\u9879\u76EE\u9636\u6BB5\uFF1A${workshop.stage}`,
+    "",
+    "\u8FD9\u662F\u4E00\u6B21\u72EC\u7ACB\u8BC4\u5BA1\u3002\u4F60\u770B\u4E0D\u5230\u5176\u4ED6\u53C2\u4E0E\u8005\u7684\u610F\u89C1\uFF1B\u4E0D\u8981\u5047\u8BBE\u4ED6\u4EEC\u540C\u610F\u4F60\u3002",
+    "\u4E0D\u8981\u4FEE\u6539\u6587\u4EF6\uFF0C\u4E0D\u8981\u6267\u884C merge\uFF0C\u4E0D\u8981\u66FF Owner \u505A\u6700\u7EC8\u51B3\u7B56\u3002",
+    "",
+    "\u8BF7\u53EA\u8FD4\u56DE JSON\uFF0C\u4E0D\u8981 Markdown\uFF1A",
+    '{"summary":"\u4F60\u7684\u7ED3\u8BBA\u4E0E\u7406\u7531","objections":["\u53CD\u5BF9\u610F\u89C1"],"risks":["\u98CE\u9669"],"recommendation":"\u5EFA\u8BAE"}',
+    "JSON \u5B57\u7B26\u4E32\u5185\u4E0D\u8981\u51FA\u73B0\u771F\u5B9E\u6362\u884C\uFF1B\u9700\u8981\u5206\u6BB5\u65F6\u7528\u7A7A\u683C\u6216\u5206\u53F7\u3002",
+    "",
+    "\u5982\u679C\u4FE1\u606F\u4E0D\u8DB3\uFF0C\u5728 summary \u4E2D\u660E\u786E\u5199\u51FA\u7F3A\u5931\u4FE1\u606F\uFF0C\u4E0D\u8981\u7F16\u9020\u3002"
+  ].filter((line) => line !== "").join("\n");
+}
+var WorkshopRunner = class {
+  store;
+  ctx;
+  constructor(store, ctx) {
+    this.store = store;
+    this.ctx = ctx;
+  }
+  async run(workshopId) {
+    const context = await this.store.getWorkshopContext(workshopId);
+    if (context.workshop.status === "decided" || context.workshop.status === "cancelled") {
+      throw new Error("\u7814\u8BA8\u4F1A\u5DF2\u7ECF\u7ED3\u675F\uFF0C\u4E0D\u80FD\u518D\u8FD0\u884C AI \u8BC4\u5BA1");
+    }
+    const settled = await Promise.allSettled(
+      context.roles.map(
+        (role) => this.ask(context.workshop, context.project.repoPath, role)
+      )
+    );
+    for (const [index, result] of settled.entries()) {
+      const role = context.roles[index];
+      if (role === void 0) continue;
+      if (result.status === "fulfilled") {
+        await this.store.addWorkshopNote(workshopId, {
+          roleId: role.id,
+          summary: result.value.summary,
+          objections: result.value.objections,
+          risks: result.value.risks,
+          recommendation: result.value.recommendation
+        });
+      } else {
+        await this.store.addWorkshopNote(workshopId, {
+          roleId: role.id,
+          summary: `AI \u8BC4\u5BA1\u5931\u8D25\uFF1A${result.reason instanceof Error ? result.reason.message : String(result.reason)}`,
+          objections: [],
+          risks: ["\u8BE5\u89D2\u8272\u7684\u610F\u89C1\u7F3A\u5931\uFF0C\u4E0D\u80FD\u89C6\u4E3A\u540C\u610F\u3002"],
+          recommendation: ""
+        });
+      }
+    }
+    return (await this.store.getWorkshopContext(workshopId)).workshop;
+  }
+  async ask(workshop, repoPath, role) {
+    const selection = await this.resolveModel(role);
+    let handle = null;
+    try {
+      handle = await this.ctx.agents.create({
+        sessionId: `workshop-${randomUUID3()}`,
+        meta: { cwd: repoPath ?? process.cwd() },
+        agentOptions: selection,
+        setup: async (agentCtx, agent) => {
+          await this.ctx.agentPresets.mount(agentCtx);
+          agent.session.append("approval/policy", { policy: "never" });
+        }
+      });
+      handle.agent.followup({
+        role: "user",
+        content: [{ type: "text", text: buildPrompt2(workshop, role) }],
+        source: { kind: "user" }
+      });
+      const deadline = Date.now() + 12e4;
+      let output = "";
+      let idleTicks = 0;
+      while (Date.now() < deadline) {
+        output = assistantText2(handle.agent.session.deriveMessages());
+        if (handle.agent.status === "idle") {
+          if (output !== "") break;
+          idleTicks += 1;
+          if (idleTicks >= 10) break;
+        } else {
+          idleTicks = 0;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 400));
+      }
+      if (output === "") {
+        throw new Error("Agent \u5728 120 \u79D2\u5185\u6CA1\u6709\u4EA7\u51FA");
+      }
+      const measured = this.ctx.tokenMeter.measure(handle.agent.session);
+      const record = extractJson(output);
+      return {
+        role,
+        summary: text(record.summary) || output.slice(0, 4e3),
+        objections: strings(record.objections),
+        risks: strings(record.risks),
+        recommendation: text(record.recommendation),
+        tokens: typeof measured.totalTokens === "number" ? measured.totalTokens : null
+      };
+    } finally {
+      await handle?.dispose().catch(() => void 0);
+    }
+  }
+  async resolveModel(role) {
+    const fallback = this.ctx.agentDefaultModel.currentSelection();
+    const wanted = role.model ?? fallback.model;
+    const providers = [...this.ctx.llm.listProviders()].sort((left, right) => {
+      const score = (id) => id === "deepseek-account" ? 0 : id === "deepseek-official" ? 2 : 1;
+      return score(left.id) - score(right.id);
+    });
+    let first = null;
+    for (const provider of providers) {
+      const models = await this.ctx.llm.listModels(provider.id);
+      const exact = models.find((model) => model.id === wanted);
+      if (exact !== void 0) {
+        return { provider: provider.id, model: exact.id };
+      }
+      if (first === null && models.length > 0) {
+        first = { provider: provider.id, model: models[0]?.id ?? wanted };
+      }
+    }
+    if (first !== null) return first;
+    throw new Error(`\u6CA1\u6709\u53EF\u7528\u7684\u6A21\u578B\u8DEF\u7531\uFF08\u8BF7\u6C42\u6A21\u578B\uFF1A${wanted}\uFF09`);
+  }
+};
+
 // src/host/index.ts
 var name = "dsh-studio";
 var inject = [
@@ -6207,6 +6393,10 @@ async function apply(ctx) {
   const dispatcher = new AgentDispatcher(
     ctx,
     store
+  );
+  const workshopRunner = new WorkshopRunner(
+    store,
+    ctx
   );
   const verifier = new VerificationService(store);
   const docs = new DocsService(store);
@@ -6238,7 +6428,8 @@ async function apply(ctx) {
     writeAdr: (decisionId) => adr.write(decisionId),
     exportProjectBundle: (projectId) => bundles.exportProject(projectId, runtime.version),
     importProjectBundle: (archivePath, targetPath) => bundles.importProject(archivePath, targetPath),
-    readProjectDoc: (path8) => docs.read(path8)
+    readProjectDoc: (path8) => docs.read(path8),
+    runWorkshop: (workshopId) => workshopRunner.run(workshopId)
   });
   const install = () => {
     const disposeRoute = ctx.webServer.register({

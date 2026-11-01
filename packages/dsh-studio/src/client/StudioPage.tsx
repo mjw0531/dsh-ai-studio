@@ -742,6 +742,16 @@ export function StudioPage() {
     );
   };
 
+  const runWorkshop = async (workshopId: string): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.runWorkshop(workshopId);
+      },
+      "AI 独立评审已完成",
+    );
+  };
+
   const readProjectDoc = async (
     docPath: string,
   ): Promise<ProjectDoc | null> => {
@@ -1297,6 +1307,7 @@ export function StudioPage() {
                 onAddWorkshopNote={addWorkshopNote}
                 onSynthesizeWorkshop={synthesizeWorkshop}
                 onDecideWorkshop={decideWorkshop}
+                onRunWorkshop={runWorkshop}
               />
             ) : null}
 
@@ -2513,6 +2524,7 @@ function WorkshopPanel({
   onAddNote,
   onSynthesize,
   onDecide,
+  onRun,
 }: {
   project: Project;
   roles: Role[];
@@ -2525,6 +2537,7 @@ function WorkshopPanel({
   ) => Promise<boolean>;
   onSynthesize: (workshopId: string, synthesis: string) => Promise<boolean>;
   onDecide: (workshopId: string, decision: string) => Promise<boolean>;
+  onRun: (workshopId: string) => Promise<boolean>;
 }) {
   const active =
     workshops.find(
@@ -2678,6 +2691,18 @@ function WorkshopPanel({
                 {active.status === "collecting" ? "收集意见" : "已汇总"}
               </span>
             </div>
+
+            {active.status === "collecting" ? (
+              <button
+                className="studio-btn"
+                type="button"
+                disabled={busy || active.participantRoleIds.length === 0}
+                onClick={() => void onRun(active.id)}
+                title="每个参与角色独立调用 DSH Agent；不会修改文件或自动合并"
+              >
+                AI 独立评审
+              </button>
+            ) : null}
 
             <div className="studio-workshop-notes">
               {active.notes.length === 0 ? (
@@ -3328,6 +3353,7 @@ function MissionView({
   onAddWorkshopNote,
   onSynthesizeWorkshop,
   onDecideWorkshop,
+  onRunWorkshop,
 }: {
   data: BootstrapResponse;
   busy: boolean;
@@ -3363,6 +3389,7 @@ function MissionView({
     workshopId: string,
     decision: string,
   ) => Promise<boolean>;
+  onRunWorkshop: (workshopId: string) => Promise<boolean>;
 }) {
   const project = data.project;
   const nextStage = project === null ? null : nextProjectStage(project.stage);
@@ -3457,6 +3484,7 @@ function MissionView({
           onAddNote={onAddWorkshopNote}
           onSynthesize={onSynthesizeWorkshop}
           onDecide={onDecideWorkshop}
+          onRun={onRunWorkshop}
         />
       ) : null}
 

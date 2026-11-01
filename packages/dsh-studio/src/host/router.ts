@@ -12,6 +12,7 @@ import type {
   ApproveStageGateInput,
   CreateTriggerInput,
   CreateWorkshopInput,
+  Workshop,
   CompatibilityInfo,
   CreateDecisionInput,
   CreateMergeProposalInput,
@@ -67,6 +68,7 @@ interface StudioRouterOptions {
     targetPath: string,
   ) => Promise<{ projectId: string; repoPath: string }>;
   readProjectDoc: (path: string) => Promise<ProjectDoc>;
+  runWorkshop: (workshopId: string) => Promise<Workshop>;
 }
 
 interface ParsedRequest {
@@ -630,6 +632,7 @@ export class StudioRouter {
     targetPath: string,
   ) => Promise<{ projectId: string; repoPath: string }>;
   private readonly readProjectDoc: (path: string) => Promise<ProjectDoc>;
+  private readonly runWorkshop: (workshopId: string) => Promise<Workshop>;
 
   constructor(options: StudioRouterOptions) {
     this.store = options.store;
@@ -647,6 +650,7 @@ export class StudioRouter {
     this.exportProjectBundle = options.exportProjectBundle;
     this.importProjectBundle = options.importProjectBundle;
     this.readProjectDoc = options.readProjectDoc;
+    this.runWorkshop = options.runWorkshop;
   }
 
   async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -953,6 +957,17 @@ export class StudioRouter {
       const workshop = await this.store.decideWorkshop(
         decodeSegment(workshopDecide[1] ?? ""),
         asString(body.decision, "decision"),
+      );
+      sendJson(res, 200, { ok: true, workshop });
+      return;
+    }
+
+    const workshopRun =
+      /^\/studio-api\/workshops\/([^/]+)\/run$/.exec(parsed.pathname);
+    if (workshopRun !== null) {
+      this.requireMethod(parsed, ["POST"]);
+      const workshop = await this.runWorkshop(
+        decodeSegment(workshopRun[1] ?? ""),
       );
       sendJson(res, 200, { ok: true, workshop });
       return;

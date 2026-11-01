@@ -14,7 +14,7 @@ import path from "node:path";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 21;
-var STUDIO_PLUGIN_VERSION = "2.8.0";
+var STUDIO_PLUGIN_VERSION = "2.8.1";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -1617,6 +1617,21 @@ var StudioStore = class {
       });
       await this.save();
       return structuredClone(trigger);
+    });
+  }
+  async getWorkshopContext(workshopId) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const workshop = this.findWorkshop(state, workshopId);
+      const project = this.findProject(state, workshop.projectId);
+      const roles = state.roles.filter(
+        (role) => role.projectId === workshop.projectId && workshop.participantRoleIds.includes(role.id)
+      );
+      return {
+        workshop: structuredClone(workshop),
+        project: structuredClone(project),
+        roles: structuredClone(roles)
+      };
     });
   }
   async createWorkshop(input) {

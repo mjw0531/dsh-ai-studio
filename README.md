@@ -2,7 +2,7 @@
 
 一套构建在 **DeepSeek Harness（DSH）** 之上的多角色 AI Studio：把「一个聊天窗口」变成一间**有工作室仪表盘、Agent 派单、token 预算、决策台、支线/契约冲突、worktree 代码执行、项目、角色、任务、验收、合并治理**的工作室。
 
-> 当前状态：**v2.8.0 可运行**。已完成工作室级 Owner Dashboard、Agent 派单与结构化回执、角色模型/token 预算、DSH token 计量、决策台、支线/契约冲突自动升级、git worktree 代码执行与自动提交、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、ADR 草稿与落盘、人工触发 Git merge 与合并后回归、合并失败升级与回滚、改修票诊断/计划门禁、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、Claude Code / Codex CLI 执行器、项目包导出、数据导出/导入恢复、项目/角色/任务/验收/证据持久化、合并治理，并在 DSH `0.2.1-rc.2` 和真实外部仓库上完成派单→验证→评审→merge→回归的 dogfood。
+> 当前状态：**v2.8.1 可运行**。已完成工作室级 Owner Dashboard、Agent 派单与结构化回执、角色模型/token 预算、DSH token 计量、决策台、支线/契约冲突自动升级、git worktree 代码执行与自动提交、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、ADR 草稿与落盘、人工触发 Git merge 与合并后回归、合并失败升级与回滚、改修票诊断/计划门禁、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、Claude Code / Codex CLI 执行器、项目包导出、数据导出/导入恢复、项目/角色/任务/验收/证据持久化、合并治理，并在 DSH `0.2.1-rc.2` 和真实外部仓库上完成派单→验证→评审→merge→回归的 dogfood。
 
 ## 现在能做什么
 
@@ -198,7 +198,8 @@ dsh --profile web --no-open --port 0
 - **v2.5.3**：仓库根目录补 `dsh` 清单，可直接从 GitHub 根目录安装并被 `dsh-plugin` 生态发现。
 - **v2.6.0**：阶段门禁、Definition of Ready 清单、产物登记、Owner 豁免、任务需求引用。
 - **v2.7.0**：Trigger Inbox / Thread，外部事件先进入收件箱，由人决定转为任务；同 Thread 事件关联到已有任务，不自动派单/合并。
-- **v2.8.0（当前）**：Workshop Room，记录各角色独立意见、汇总和 Owner 决策；不自动合并，AI 自动执行留到后续版本。
+- **v2.8.0**：Workshop Room，记录各角色独立意见、汇总和 Owner 决策。
+- **v2.8.1（当前）**：Workshop AI 独立评审，每个参与角色独立调用 DSH Agent；汇总和 Owner 决策仍由人确认，不自动合并。
 - **下一步 v2.9（规划）**：Prototype（Demo 阶段）或 Provider Profiles，按真实痛点决定。
 - **v1.0**：用工作台完成一个完整垂直切片，再抽象为可复用插件。
 

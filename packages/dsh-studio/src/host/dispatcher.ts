@@ -18,17 +18,17 @@ import type { StudioStore } from "./store.js";
 import { WorkspaceManager } from "./workspace.js";
 import type { TaskWorkspace } from "./workspace.js";
 
-interface MessageContent {
+export interface MessageContent {
   type: string;
   text?: string;
 }
 
-interface AgentMessage {
+export interface AgentMessage {
   role: string;
   content: MessageContent[];
 }
 
-interface AgentLike {
+export interface AgentLike {
   status: string;
   session: {
     id: string;
@@ -42,12 +42,12 @@ interface AgentLike {
   }): unknown;
 }
 
-interface AgentHandleLike {
+export interface AgentHandleLike {
   agent: AgentLike;
   dispose(): Promise<void>;
 }
 
-interface AgentsLike {
+export interface AgentsLike {
   create(options: {
     sessionId: string;
     agentOptions?: { provider: string; model: string };
@@ -56,20 +56,20 @@ interface AgentsLike {
   }): Promise<AgentHandleLike>;
 }
 
-interface AgentPresetsLike {
+export interface AgentPresetsLike {
   mount(agentCtx: unknown, id?: string): Promise<{ id: string }>;
 }
 
-interface AgentDefaultModelLike {
+export interface AgentDefaultModelLike {
   currentSelection(): { provider: string; model: string };
 }
 
-interface LlmLike {
+export interface LlmLike {
   listProviders(): Array<{ id: string }>;
   listModels(providerId: string): Promise<Array<{ id: string }>>;
 }
 
-interface TokenMeterLike {
+export interface TokenMeterLike {
   measure(session: unknown): { totalTokens: number };
 }
 

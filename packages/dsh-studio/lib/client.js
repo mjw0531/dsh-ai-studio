@@ -362,6 +362,13 @@ var StudioClient = class {
     );
     return data.workshop;
   }
+  async runWorkshop(workshopId) {
+    const data = await this.request(
+      `/workshops/${encodeURIComponent(workshopId)}/run`,
+      { method: "POST", body: {} }
+    );
+    return data.workshop;
+  }
   async decideWorkshop(workshopId, decision) {
     const data = await this.request(
       `/workshops/${encodeURIComponent(workshopId)}/decide`,
@@ -1153,6 +1160,15 @@ function StudioPage() {
       "Owner \u51B3\u7B56\u5DF2\u8BB0\u5F55"
     );
   };
+  const runWorkshop = async (workshopId) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.runWorkshop(workshopId);
+      },
+      "AI \u72EC\u7ACB\u8BC4\u5BA1\u5DF2\u5B8C\u6210"
+    );
+  };
   const readProjectDoc = async (docPath) => {
     if (client === null) return null;
     try {
@@ -1600,7 +1616,8 @@ function StudioPage() {
             onCreateWorkshop: createWorkshop,
             onAddWorkshopNote: addWorkshopNote,
             onSynthesizeWorkshop: synthesizeWorkshop,
-            onDecideWorkshop: decideWorkshop
+            onDecideWorkshop: decideWorkshop,
+            onRunWorkshop: runWorkshop
           }
         ) : null,
         tab === "tasks" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
@@ -2637,7 +2654,8 @@ function WorkshopPanel({
   onCreate,
   onAddNote,
   onSynthesize,
-  onDecide
+  onDecide,
+  onRun
 }) {
   const active = workshops.find(
     (workshop) => workshop.status === "collecting" || workshop.status === "synthesized"
@@ -2780,6 +2798,17 @@ function WorkshopPanel({
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-pill", "data-tone": "accent", children: active.status === "collecting" ? "\u6536\u96C6\u610F\u89C1" : "\u5DF2\u6C47\u603B" })
       ] }),
+      active.status === "collecting" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        "button",
+        {
+          className: "studio-btn",
+          type: "button",
+          disabled: busy || active.participantRoleIds.length === 0,
+          onClick: () => void onRun(active.id),
+          title: "\u6BCF\u4E2A\u53C2\u4E0E\u89D2\u8272\u72EC\u7ACB\u8C03\u7528 DSH Agent\uFF1B\u4E0D\u4F1A\u4FEE\u6539\u6587\u4EF6\u6216\u81EA\u52A8\u5408\u5E76",
+          children: "AI \u72EC\u7ACB\u8BC4\u5BA1"
+        }
+      ) : null,
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-workshop-notes", children: active.notes.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-hint", children: "\u6BCF\u4F4D\u53C2\u4E0E\u8005\u72EC\u7ACB\u63D0\u4EA4\u610F\u89C1\uFF1B\u53EF\u4EE5\u7C98\u8D34\u5404 AI \u7684\u8F93\u51FA\u3002\u4E0D\u8981\u5728\u540C\u4E00\u4E2A\u4E0A\u4E0B\u6587\u91CC\u8F6E\u8F6C\u3002" }) : active.notes.map((note) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-workshop-note", children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: note.roleName }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { children: note.summary }),
@@ -3364,7 +3393,8 @@ function MissionView({
   onCreateWorkshop,
   onAddWorkshopNote,
   onSynthesizeWorkshop,
-  onDecideWorkshop
+  onDecideWorkshop,
+  onRunWorkshop
 }) {
   const project = data.project;
   const nextStage = project === null ? null : nextProjectStage(project.stage);
@@ -3446,7 +3476,8 @@ function MissionView({
         onCreate: onCreateWorkshop,
         onAddNote: onAddWorkshopNote,
         onSynthesize: onSynthesizeWorkshop,
-        onDecide: onDecideWorkshop
+        onDecide: onDecideWorkshop,
+        onRun: onRunWorkshop
       }
     ) : null,
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-grid-stats", children: [

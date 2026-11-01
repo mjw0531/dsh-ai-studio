@@ -2259,6 +2259,28 @@ export class StudioStore {
     });
   }
 
+  async getWorkshopContext(workshopId: string): Promise<{
+    workshop: Workshop;
+    project: Project;
+    roles: Role[];
+  }> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const workshop = this.findWorkshop(state, workshopId);
+      const project = this.findProject(state, workshop.projectId);
+      const roles = state.roles.filter(
+        (role) =>
+          role.projectId === workshop.projectId &&
+          workshop.participantRoleIds.includes(role.id),
+      );
+      return {
+        workshop: structuredClone(workshop),
+        project: structuredClone(project),
+        roles: structuredClone(roles),
+      };
+    });
+  }
+
   async createWorkshop(input: CreateWorkshopInput): Promise<Workshop> {
     return this.runExclusive(async () => {
       const state = this.requireState();
