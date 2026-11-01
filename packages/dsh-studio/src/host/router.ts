@@ -14,6 +14,8 @@ import type {
   CreateTriggerInput,
   CreateWorkshopInput,
   CreateProviderProfileInput,
+  CreatePrototypeDemoInput,
+  UpdatePrototypeDemoInput,
   UpdateProviderProfileInput,
   ProviderProfile,
   ProviderProbeResult,
@@ -379,6 +381,49 @@ function asAgentExecutor(value: unknown): AgentExecutor | undefined {
     "invalid_input",
     "executor 必须是 dsh / claude-code / codex",
   );
+}
+
+function asPrototypeDemoResult(
+  value: unknown,
+): CreatePrototypeDemoInput["result"] {
+  if (value === "passed" || value === "failed") return value;
+  throw new HttpError(
+    400,
+    "invalid_input",
+    "result 必须是 passed 或 failed",
+  );
+}
+
+function asCreatePrototypeDemo(
+  body: Record<string, unknown>,
+): CreatePrototypeDemoInput {
+  return {
+    title: asString(body.title, "title"),
+    entry: asOptionalString(body.entry, "entry"),
+    startCommand: asOptionalString(body.startCommand, "startCommand"),
+    steps: asOptionalString(body.steps, "steps"),
+    result: asPrototypeDemoResult(body.result),
+    screenshotPath: asOptionalString(body.screenshotPath, "screenshotPath"),
+    notes: asOptionalString(body.notes, "notes"),
+  };
+}
+
+function asUpdatePrototypeDemo(
+  body: Record<string, unknown>,
+): UpdatePrototypeDemoInput {
+  return {
+    title:
+      body.title === undefined ? undefined : asString(body.title, "title"),
+    entry: asOptionalString(body.entry, "entry"),
+    startCommand: asOptionalString(body.startCommand, "startCommand"),
+    steps: asOptionalString(body.steps, "steps"),
+    result:
+      body.result === undefined
+        ? undefined
+        : asPrototypeDemoResult(body.result),
+    screenshotPath: asOptionalString(body.screenshotPath, "screenshotPath"),
+    notes: asOptionalString(body.notes, "notes"),
+  };
 }
 
 function asCreateProviderProfile(
@@ -942,6 +987,36 @@ export class StudioRouter {
         asUpdateTriggerRules(await readJson(req)),
       );
       sendJson(res, 200, { ok: true, rules });
+      return;
+    }
+
+    const prototypeDemos =
+      /^\/studio-api\/projects\/([^/]+)\/prototype-demos$/.exec(
+        parsed.pathname,
+      );
+    if (prototypeDemos !== null) {
+      this.requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const demo = await this.store.createPrototypeDemo(
+        asCreatePrototypeDemo(await readJson(req)),
+        decodeSegment(prototypeDemos[1] ?? ""),
+      );
+      sendJson(res, 201, { ok: true, demo });
+      return;
+    }
+
+    const prototypeDemo =
+      /^\/studio-api\/projects\/([^/]+)\/prototype-demos\/([^/]+)$/.exec(
+        parsed.pathname,
+      );
+    if (prototypeDemo !== null) {
+      this.requireMethod(parsed, ["PATCH"]);
+      assertJsonRequest(req);
+      const demo = await this.store.updatePrototypeDemo(
+        decodeSegment(prototypeDemo[2] ?? ""),
+        asUpdatePrototypeDemo(await readJson(req)),
+      );
+      sendJson(res, 200, { ok: true, demo });
       return;
     }
 

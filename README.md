@@ -2,7 +2,7 @@
 
 一套构建在 **DeepSeek Harness（DSH）** 之上的多角色 AI Studio：把「一个聊天窗口」变成一间**有工作室仪表盘、Agent 派单、token 预算、决策台、支线/契约冲突、worktree 代码执行、项目、角色、任务、验收、合并治理**的工作室。
 
-> 当前状态：**v2.16.0 可运行**。已完成工作室级 Owner Dashboard、Agent 派单与结构化回执、角色模型/token 预算、DSH token 计量、决策台、支线/契约冲突自动升级、git worktree 代码执行与自动提交、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、ADR 草稿与落盘、人工触发 Git merge 与合并后回归、合并失败升级与回滚、改修票诊断/计划门禁、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、Claude Code / Codex CLI 执行器、项目包导出、数据导出/导入恢复、项目/角色/任务/验收/证据持久化、合并治理，并在 DSH `0.2.1-rc.2` 和真实外部仓库上完成派单→验证→评审→merge→回归的 dogfood。
+> 当前状态：**v2.17.0 可运行**。已完成工作室级 Owner Dashboard、Agent 派单与结构化回执、角色模型/token 预算、DSH token 计量、决策台、支线/契约冲突自动升级、git worktree 代码执行与自动提交、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、ADR 草稿与落盘、人工触发 Git merge 与合并后回归、合并失败升级与回滚、改修票诊断/计划门禁、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、Claude Code / Codex CLI 执行器、项目包导出、数据导出/导入恢复、项目/角色/任务/验收/证据持久化、合并治理，并在 DSH `0.2.1-rc.2` 和真实外部仓库上完成派单→验证→评审→merge→回归的 dogfood。
 
 ## 现在能做什么
 
@@ -46,6 +46,7 @@
 - **2.14 Run 执行快照**：每次 Run 记录 providerProfileId / executor / provider / model；后续改绑不会改变历史归属。
 - **2.15 Provider 实时探测**：检查 DSH provider/model 是否存在、外部 CLI 是否可执行；结果只展示，不自动切换。
 - **2.16 Trigger Webhook**：GitHub/CI/IM 通过 HMAC 签名进入收件箱；repo/label/author/mention 规则过滤，人工确认转任务。
+- **2.17 手动 Demo 记录**：记录入口、启动命令、验证步骤、结果、截图和备注；不执行命令，不自动截图。
 - **Agent 分析派单**：Task Room 把任务派给负责人角色，Agent 返回结构化回执；回执缺 `summary`/`evidence` 时任务退回可开始，不能进入验收。
 - **薪资与预算**：角色配置模型、单任务/每日 token 预算；项目配置总 token 预算。
 - **独立工作台页面**：DSH 侧栏点击「工作台」，进入公司仪表盘，不占用聊天会话。
@@ -215,8 +216,9 @@ dsh --profile web --no-open --port 0
 - **v2.13.0**：人工备用切换；把绑定降级 Profile 的角色改绑到建议的 Profile，需确认，不自动 failover。
 - **v2.14.0**：Run 级执行快照；Run 记录 providerProfileId / executor / provider / model，健康度按快照聚合。
 - **v2.15.0**：Provider 实时探测；检查 DSH provider/model 是否存在，外部 CLI 是否可执行，不自动切换。
-- **v2.16.0（当前）**：Trigger Webhook；HMAC 签名、来源白名单、repo/label/author/mention 确定性过滤，人工确认后才转任务。
-- **下一步 v2.17（规划）**：Prototype 手动 Demo 记录，详见 [迭代计划](docs/08-迭代计划.md)。
+- **v2.16.0**：Trigger Webhook；HMAC 签名、来源白名单、repo/label/author/mention 确定性过滤，人工确认后才转任务。
+- **v2.17.0（当前）**：Prototype 手动 Demo 记录；记录入口、启动命令、步骤、结果、截图和备注，通过记录可作为 Demo 门禁证据。
+- **下一步 v2.18（规划）**：Workshop 自动汇总，详见 [迭代计划](docs/08-迭代计划.md)。
 - **v1.0**：用工作台完成一个完整垂直切片，再抽象为可复用插件。
 
 升级、备份与兼容性见 [兼容性与安装](docs/04-兼容性与安装.md)。

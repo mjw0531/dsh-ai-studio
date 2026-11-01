@@ -56,6 +56,10 @@ _Avoid_: 自动派单规则（规则命中仍需人工确认）
 外部系统通过 HMAC-SHA256 签名投递事件的入口；密钥来自环境变量 `DSH_STUDIO_WEBHOOK_SECRET`，不写入状态或导出。
 _Avoid_: 公共回调地址、免鉴权 API
 
+**Prototype Demo（手动 Demo 记录）**:
+原型阶段的人工验证记录：入口、启动命令、步骤、结果、截图、备注；命令只记录不执行，`passed` 可作为进入 development 的 demo 证据。
+_Avoid_: 自动 Demo、测试报告（Prototype Demo 是人工证据）
+
 **Workshop（研讨会）**:
 围绕一个议题的多角色独立意见集合，包含反对、风险、推荐、汇总和 Owner 决策；AI 独立评审只是意见，不是群聊，也不能替代 Owner。
 _Avoid_: 群聊、会议记录（Workshop 是结构化产物）

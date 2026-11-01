@@ -2,8 +2,8 @@
 import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 24;
-var STUDIO_PLUGIN_VERSION = "2.16.0";
+var STUDIO_SCHEMA_VERSION = 25;
+var STUDIO_PLUGIN_VERSION = "2.17.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -832,6 +832,12 @@ function buildCompany(state, now) {
 function isTriggerRules(value) {
   return isRecord(value) && typeof value.enabled === "boolean" && Array.isArray(value.sources) && value.sources.every(isTriggerSource) && Array.isArray(value.repos) && value.repos.every((item) => typeof item === "string") && Array.isArray(value.labels) && value.labels.every((item) => typeof item === "string") && Array.isArray(value.authors) && value.authors.every((item) => typeof item === "string") && typeof value.mention === "string";
 }
+function isPrototypeDemoResult(value) {
+  return value === "passed" || value === "failed";
+}
+function isPrototypeDemo(value) {
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.entry === "string" && typeof value.startCommand === "string" && typeof value.steps === "string" && isPrototypeDemoResult(value.result) && typeof value.screenshotPath === "string" && typeof value.notes === "string" && typeof value.recordedBy === "string" && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
+}
 function isProject(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.name === "string" && typeof value.description === "string" && (value.tokenBudget === null || typeof value.tokenBudget === "number") && (value.repoPath === null || typeof value.repoPath === "string") && (value.prdPath === null || value.prdPath === void 0 || typeof value.prdPath === "string") && (value.invariantsPath === null || value.invariantsPath === void 0 || typeof value.invariantsPath === "string") && (value.modulesPath === null || value.modulesPath === void 0 || typeof value.modulesPath === "string") && isTriggerRules(value.triggerRules) && isProjectStage(value.stage) && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
 }
@@ -1192,11 +1198,18 @@ function migrateState(value) {
   if (state.schemaVersion === 23) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 24,
       projects: state.projects.map((project) => ({
         ...project,
         triggerRules: defaultTriggerRules()
       }))
+    };
+  }
+  if (state.schemaVersion === 24) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      prototypeDemos: []
     };
   }
   return state;
@@ -1213,7 +1226,7 @@ function assertState(value) {
   if (typeof value.companyName !== "string" || value.companyName.trim() === "") {
     throw new Error("Studio state must contain a companyName");
   }
-  if (!Array.isArray(value.projects) || !Array.isArray(value.stageGates) || !Array.isArray(value.triggers) || !Array.isArray(value.threads) || !Array.isArray(value.workshops) || !Array.isArray(value.providerProfiles) || !Array.isArray(value.roles) || !Array.isArray(value.modules) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.runs) || !Array.isArray(value.branches) || !Array.isArray(value.contractChanges) || !Array.isArray(value.decisions) || !Array.isArray(value.verifications) || !Array.isArray(value.reviews) || !Array.isArray(value.events)) {
+  if (!Array.isArray(value.projects) || !Array.isArray(value.stageGates) || !Array.isArray(value.triggers) || !Array.isArray(value.threads) || !Array.isArray(value.workshops) || !Array.isArray(value.providerProfiles) || !Array.isArray(value.prototypeDemos) || !Array.isArray(value.roles) || !Array.isArray(value.modules) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.runs) || !Array.isArray(value.branches) || !Array.isArray(value.contractChanges) || !Array.isArray(value.decisions) || !Array.isArray(value.verifications) || !Array.isArray(value.reviews) || !Array.isArray(value.events)) {
     throw new Error("Studio state collections are missing");
   }
   if (!value.projects.every(isProject)) {
@@ -1233,6 +1246,9 @@ function assertState(value) {
   }
   if (!value.providerProfiles.every(isProviderProfile)) {
     throw new Error("Studio state contains an invalid provider profile");
+  }
+  if (!value.prototypeDemos.every(isPrototypeDemo)) {
+    throw new Error("Studio state contains an invalid prototype demo");
   }
   if (!value.roles.every(isRole)) {
     throw new Error("Studio state contains an invalid role");
@@ -1361,6 +1377,9 @@ var StudioStore = class {
         (profile) => profile.projectId === project.id
       );
       const providerHealth = project === null ? [] : buildProviderHealth(state, project.id);
+      const prototypeDemos = project === null ? [] : state.prototypeDemos.filter((demo) => demo.projectId === project.id).sort(
+        (left, right) => right.createdAt.localeCompare(left.createdAt)
+      );
       const roles = project === null ? [] : state.roles.filter((role) => role.projectId === project.id);
       const modules = project === null ? [] : state.modules.filter((module) => module.projectId === project.id);
       const tasks = project === null ? [] : state.tasks.filter((task) => task.projectId === project.id);
@@ -1413,6 +1432,7 @@ var StudioStore = class {
         workshops,
         providerProfiles,
         providerHealth,
+        prototypeDemos,
         roles,
         modules,
         tasks,
@@ -1446,7 +1466,8 @@ var StudioStore = class {
           triggerWebhook: true,
           workshop: true,
           providerProfiles: true,
-          providerHealth: true
+          providerHealth: true,
+          prototypeDemoRecord: true
         }
       };
     });
@@ -1617,7 +1638,9 @@ var StudioStore = class {
         "waiverReason",
         1e3
       );
-      const missingDemo = stage === "development" && !gate.artifacts.some((artifact) => artifact.kind === "demo");
+      const missingDemo = stage === "development" && !gate.artifacts.some((artifact) => artifact.kind === "demo") && !state.prototypeDemos.some(
+        (demo) => demo.projectId === projectId && demo.result === "passed"
+      );
       const incomplete = gate.checklist.length === 0 || gate.checklist.some((item) => !item.done) || gate.artifacts.length === 0;
       if ((incomplete || missingDemo) && waiverReason === "") {
         if (missingDemo && !incomplete) {
@@ -2019,6 +2042,104 @@ ${normalized.body}`.includes(rules.mention)) {
         roles: structuredClone(roles),
         providerProfiles: structuredClone(providerProfiles)
       };
+    });
+  }
+  async createPrototypeDemo(input, projectId) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const project = this.pickProject(state, projectId);
+      if (project === null) {
+        throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
+      }
+      if (!isPrototypeDemoResult(input.result)) {
+        throw new StudioStoreError(
+          "invalid_input",
+          "Demo \u7ED3\u679C\u5FC5\u987B\u662F passed \u6216 failed"
+        );
+      }
+      const at = nowIso(this.now);
+      const demo = {
+        id: newId("demo"),
+        projectId: project.id,
+        title: requiredText(input.title, "title", 200),
+        entry: optionalText(input.entry, "entry", 1e3),
+        startCommand: optionalText(input.startCommand, "startCommand", 1e3),
+        steps: optionalText(input.steps, "steps", 8e3),
+        result: input.result,
+        screenshotPath: optionalText(
+          input.screenshotPath,
+          "screenshotPath",
+          1e3
+        ),
+        notes: optionalText(input.notes, "notes", 4e3),
+        recordedBy: "Owner",
+        createdAt: at,
+        updatedAt: at
+      };
+      state.prototypeDemos.push(demo);
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "prototype.demo_recorded",
+        at,
+        projectId: project.id,
+        payload: { demoId: demo.id, result: demo.result }
+      });
+      await this.save();
+      return structuredClone(demo);
+    });
+  }
+  async updatePrototypeDemo(demoId, input) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const demo = state.prototypeDemos.find((item) => item.id === demoId);
+      if (demo === void 0) {
+        throw new StudioStoreError("demo_not_found", "Demo \u8BB0\u5F55\u4E0D\u5B58\u5728", 404);
+      }
+      if (input.title !== void 0) {
+        demo.title = requiredText(input.title, "title", 200);
+      }
+      if (input.entry !== void 0) {
+        demo.entry = optionalText(input.entry, "entry", 1e3);
+      }
+      if (input.startCommand !== void 0) {
+        demo.startCommand = optionalText(
+          input.startCommand,
+          "startCommand",
+          1e3
+        );
+      }
+      if (input.steps !== void 0) {
+        demo.steps = optionalText(input.steps, "steps", 8e3);
+      }
+      if (input.result !== void 0) {
+        if (!isPrototypeDemoResult(input.result)) {
+          throw new StudioStoreError(
+            "invalid_input",
+            "Demo \u7ED3\u679C\u5FC5\u987B\u662F passed \u6216 failed"
+          );
+        }
+        demo.result = input.result;
+      }
+      if (input.screenshotPath !== void 0) {
+        demo.screenshotPath = optionalText(
+          input.screenshotPath,
+          "screenshotPath",
+          1e3
+        );
+      }
+      if (input.notes !== void 0) {
+        demo.notes = optionalText(input.notes, "notes", 4e3);
+      }
+      demo.updatedAt = nowIso(this.now);
+      state.updatedAt = demo.updatedAt;
+      this.recordEvent(state, {
+        type: "prototype.demo_updated",
+        at: demo.updatedAt,
+        projectId: demo.projectId,
+        payload: { demoId: demo.id, result: demo.result }
+      });
+      await this.save();
+      return structuredClone(demo);
     });
   }
   async createWorkshop(input) {
@@ -4568,6 +4689,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       threads: [],
       workshops: [],
       providerProfiles: [],
+      prototypeDemos: [],
       roles,
       modules: [],
       tasks,
@@ -5982,6 +6104,36 @@ function asAgentExecutor(value) {
     "executor \u5FC5\u987B\u662F dsh / claude-code / codex"
   );
 }
+function asPrototypeDemoResult(value) {
+  if (value === "passed" || value === "failed") return value;
+  throw new HttpError(
+    400,
+    "invalid_input",
+    "result \u5FC5\u987B\u662F passed \u6216 failed"
+  );
+}
+function asCreatePrototypeDemo(body) {
+  return {
+    title: asString(body.title, "title"),
+    entry: asOptionalString(body.entry, "entry"),
+    startCommand: asOptionalString(body.startCommand, "startCommand"),
+    steps: asOptionalString(body.steps, "steps"),
+    result: asPrototypeDemoResult(body.result),
+    screenshotPath: asOptionalString(body.screenshotPath, "screenshotPath"),
+    notes: asOptionalString(body.notes, "notes")
+  };
+}
+function asUpdatePrototypeDemo(body) {
+  return {
+    title: body.title === void 0 ? void 0 : asString(body.title, "title"),
+    entry: asOptionalString(body.entry, "entry"),
+    startCommand: asOptionalString(body.startCommand, "startCommand"),
+    steps: asOptionalString(body.steps, "steps"),
+    result: body.result === void 0 ? void 0 : asPrototypeDemoResult(body.result),
+    screenshotPath: asOptionalString(body.screenshotPath, "screenshotPath"),
+    notes: asOptionalString(body.notes, "notes")
+  };
+}
 function asCreateProviderProfile(body) {
   return {
     name: asString(body.name, "name"),
@@ -6407,6 +6559,32 @@ var StudioRouter = class {
         asUpdateTriggerRules(await readJson(req))
       );
       sendJson(res, 200, { ok: true, rules });
+      return;
+    }
+    const prototypeDemos = /^\/studio-api\/projects\/([^/]+)\/prototype-demos$/.exec(
+      parsed.pathname
+    );
+    if (prototypeDemos !== null) {
+      this.requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const demo = await this.store.createPrototypeDemo(
+        asCreatePrototypeDemo(await readJson(req)),
+        decodeSegment(prototypeDemos[1] ?? "")
+      );
+      sendJson(res, 201, { ok: true, demo });
+      return;
+    }
+    const prototypeDemo = /^\/studio-api\/projects\/([^/]+)\/prototype-demos\/([^/]+)$/.exec(
+      parsed.pathname
+    );
+    if (prototypeDemo !== null) {
+      this.requireMethod(parsed, ["PATCH"]);
+      assertJsonRequest(req);
+      const demo = await this.store.updatePrototypeDemo(
+        decodeSegment(prototypeDemo[2] ?? ""),
+        asUpdatePrototypeDemo(await readJson(req))
+      );
+      sendJson(res, 200, { ok: true, demo });
       return;
     }
     const projectMatch = /^\/studio-api\/projects\/([^/]+)$/.exec(parsed.pathname);

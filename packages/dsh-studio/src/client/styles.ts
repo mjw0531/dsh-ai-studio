@@ -716,6 +716,43 @@ export const studioCss = `
   border-top: 1px solid var(--st-border);
 }
 
+.studio-demo-panel { margin-bottom: 12px; }
+.studio-demo-form {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.studio-demo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 10px;
+}
+.studio-demo-row {
+  padding: 8px 10px;
+  border: 1px solid var(--st-border);
+  border-radius: 8px;
+  background: var(--st-panel-2);
+  font-size: 11px;
+}
+.studio-demo-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.studio-demo-command {
+  margin-top: 4px;
+  color: var(--st-warn);
+  font-size: 10px;
+}
+.studio-demo-copy {
+  margin-top: 4px;
+  color: var(--st-muted);
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
 .studio-needs {
   display: flex;
   flex-direction: column;

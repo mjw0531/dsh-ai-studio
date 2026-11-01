@@ -59,6 +59,10 @@ import type {
   OwnerNeed,
   Project,
   ProjectStage,
+  CreatePrototypeDemoInput,
+  PrototypeDemo,
+  PrototypeDemoResult,
+  UpdatePrototypeDemoInput,
   ProviderProfile,
   ProviderProfileHealth,
   Role,
@@ -968,6 +972,30 @@ function isTriggerRules(value: unknown): value is TriggerRules {
   );
 }
 
+function isPrototypeDemoResult(
+  value: unknown,
+): value is PrototypeDemoResult {
+  return value === "passed" || value === "failed";
+}
+
+function isPrototypeDemo(value: unknown): value is PrototypeDemo {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.projectId === "string" &&
+    typeof value.title === "string" &&
+    typeof value.entry === "string" &&
+    typeof value.startCommand === "string" &&
+    typeof value.steps === "string" &&
+    isPrototypeDemoResult(value.result) &&
+    typeof value.screenshotPath === "string" &&
+    typeof value.notes === "string" &&
+    typeof value.recordedBy === "string" &&
+    typeof value.createdAt === "string" &&
+    typeof value.updatedAt === "string"
+  );
+}
+
 function isProject(value: unknown): value is Project {
   return (
     isRecord(value) &&
@@ -1724,11 +1752,18 @@ function migrateState(value: unknown): StudioState {
   if (state.schemaVersion === 23) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 24,
       projects: state.projects.map((project) => ({
         ...project,
         triggerRules: defaultTriggerRules(),
       })),
+    };
+  }
+  if (state.schemaVersion === 24) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      prototypeDemos: [],
     };
   }
   return state;
@@ -1753,6 +1788,7 @@ function assertState(value: unknown): asserts value is StudioState {
     !Array.isArray(value.threads) ||
     !Array.isArray(value.workshops) ||
     !Array.isArray(value.providerProfiles) ||
+    !Array.isArray(value.prototypeDemos) ||
     !Array.isArray(value.roles) ||
     !Array.isArray(value.modules) ||
     !Array.isArray(value.tasks) ||
@@ -1784,6 +1820,9 @@ function assertState(value: unknown): asserts value is StudioState {
   }
   if (!value.providerProfiles.every(isProviderProfile)) {
     throw new Error("Studio state contains an invalid provider profile");
+  }
+  if (!value.prototypeDemos.every(isPrototypeDemo)) {
+    throw new Error("Studio state contains an invalid prototype demo");
   }
   if (!value.roles.every(isRole)) {
     throw new Error("Studio state contains an invalid role");
@@ -1940,6 +1979,14 @@ export class StudioStore {
           );
       const providerHealth =
         project === null ? [] : buildProviderHealth(state, project.id);
+      const prototypeDemos =
+        project === null
+          ? []
+          : state.prototypeDemos
+              .filter((demo) => demo.projectId === project.id)
+              .sort((left, right) =>
+                right.createdAt.localeCompare(left.createdAt),
+              );
       const roles = project === null
         ? []
         : state.roles.filter((role) => role.projectId === project.id);
@@ -2025,6 +2072,7 @@ export class StudioStore {
         workshops,
         providerProfiles,
         providerHealth,
+        prototypeDemos,
         roles,
         modules,
         tasks,
@@ -2059,6 +2107,7 @@ export class StudioStore {
           workshop: true,
           providerProfiles: true,
           providerHealth: true,
+          prototypeDemoRecord: true,
         },
       };
     });
@@ -2254,7 +2303,11 @@ export class StudioStore {
       );
       const missingDemo =
         stage === "development" &&
-        !gate.artifacts.some((artifact) => artifact.kind === "demo");
+        !gate.artifacts.some((artifact) => artifact.kind === "demo") &&
+        !state.prototypeDemos.some(
+          (demo) =>
+            demo.projectId === projectId && demo.result === "passed",
+        );
       const incomplete =
         gate.checklist.length === 0 ||
         gate.checklist.some((item) => !item.done) ||
@@ -2731,6 +2784,112 @@ export class StudioStore {
         roles: structuredClone(roles),
         providerProfiles: structuredClone(providerProfiles),
       };
+    });
+  }
+
+  async createPrototypeDemo(
+    input: CreatePrototypeDemoInput,
+    projectId?: string,
+  ): Promise<PrototypeDemo> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const project = this.pickProject(state, projectId);
+      if (project === null) {
+        throw new StudioStoreError("project_required", "请先创建一个项目");
+      }
+      if (!isPrototypeDemoResult(input.result)) {
+        throw new StudioStoreError(
+          "invalid_input",
+          "Demo 结果必须是 passed 或 failed",
+        );
+      }
+      const at = nowIso(this.now);
+      const demo: PrototypeDemo = {
+        id: newId("demo"),
+        projectId: project.id,
+        title: requiredText(input.title, "title", 200),
+        entry: optionalText(input.entry, "entry", 1000),
+        startCommand: optionalText(input.startCommand, "startCommand", 1000),
+        steps: optionalText(input.steps, "steps", 8000),
+        result: input.result,
+        screenshotPath: optionalText(
+          input.screenshotPath,
+          "screenshotPath",
+          1000,
+        ),
+        notes: optionalText(input.notes, "notes", 4000),
+        recordedBy: "Owner",
+        createdAt: at,
+        updatedAt: at,
+      };
+      state.prototypeDemos.push(demo);
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "prototype.demo_recorded",
+        at,
+        projectId: project.id,
+        payload: { demoId: demo.id, result: demo.result },
+      });
+      await this.save();
+      return structuredClone(demo);
+    });
+  }
+
+  async updatePrototypeDemo(
+    demoId: string,
+    input: UpdatePrototypeDemoInput,
+  ): Promise<PrototypeDemo> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const demo = state.prototypeDemos.find((item) => item.id === demoId);
+      if (demo === undefined) {
+        throw new StudioStoreError("demo_not_found", "Demo 记录不存在", 404);
+      }
+      if (input.title !== undefined) {
+        demo.title = requiredText(input.title, "title", 200);
+      }
+      if (input.entry !== undefined) {
+        demo.entry = optionalText(input.entry, "entry", 1000);
+      }
+      if (input.startCommand !== undefined) {
+        demo.startCommand = optionalText(
+          input.startCommand,
+          "startCommand",
+          1000,
+        );
+      }
+      if (input.steps !== undefined) {
+        demo.steps = optionalText(input.steps, "steps", 8000);
+      }
+      if (input.result !== undefined) {
+        if (!isPrototypeDemoResult(input.result)) {
+          throw new StudioStoreError(
+            "invalid_input",
+            "Demo 结果必须是 passed 或 failed",
+          );
+        }
+        demo.result = input.result;
+      }
+      if (input.screenshotPath !== undefined) {
+        demo.screenshotPath = optionalText(
+          input.screenshotPath,
+          "screenshotPath",
+          1000,
+        );
+      }
+      if (input.notes !== undefined) {
+        demo.notes = optionalText(input.notes, "notes", 4000);
+      }
+      demo.updatedAt = nowIso(this.now);
+      state.updatedAt = demo.updatedAt;
+      this.recordEvent(state, {
+        type: "prototype.demo_updated",
+        at: demo.updatedAt,
+        projectId: demo.projectId,
+        payload: { demoId: demo.id, result: demo.result },
+      });
+      await this.save();
+      return structuredClone(demo);
     });
   }
 
@@ -5752,6 +5911,7 @@ export class StudioStore {
       threads: [],
       workshops: [],
       providerProfiles: [],
+      prototypeDemos: [],
       roles,
       modules: [],
       tasks,

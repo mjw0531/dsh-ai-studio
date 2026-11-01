@@ -585,7 +585,7 @@ test("exports a portable copy of the state", async () => {
   await withStore(async (store) => {
     await store.bootstrap();
     const exported = await store.exportState();
-    assert.equal(exported.schemaVersion, 24);
+    assert.equal(exported.schemaVersion, 25);
     assert.ok(exported.projects.length >= 1);
     assert.ok(exported.tasks.length >= 1);
     assert.ok(Array.isArray(exported.runs));
@@ -964,7 +964,7 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
     assert.deepEqual(data.runs, []);
     assert.deepEqual(data.decisions, []);
     const migrated = JSON.parse(await readFile(file, "utf8"));
-    assert.equal(migrated.schemaVersion, 24);
+    assert.equal(migrated.schemaVersion, 25);
     assert.equal(migrated.companyName, "AI工作室");
     assert.ok(migrated.roles.every((role) => role.executor === "dsh"));
     assert.ok(migrated.runs.every((run) => run.status !== undefined));
@@ -1002,6 +1002,7 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
     assert.ok(Array.isArray(migrated.threads));
     assert.ok(Array.isArray(migrated.workshops));
     assert.ok(Array.isArray(migrated.providerProfiles));
+    assert.ok(Array.isArray(migrated.prototypeDemos));
     assert.ok(migrated.roles.every((role) => role.providerProfileId === null));
     assert.ok(
       migrated.projects.every(
@@ -1648,5 +1649,80 @@ test("filters webhook triggers by deterministic rules", async () => {
     assert.ok(
       data.events.some((event) => event.type === "trigger.webhook_filtered"),
     );
+  });
+});
+
+test("records and updates a manual prototype demo", async () => {
+  await withStore(async (store) => {
+    const project = await store.createProject({ name: "Demo record" });
+    const demo = await store.createPrototypeDemo(
+      {
+        title: "Login demo",
+        entry: "http://localhost:5173",
+        startCommand: "pnpm dev",
+        steps: "Open login, submit form",
+        result: "failed",
+        notes: "Missing error state",
+      },
+      project.id,
+    );
+    assert.equal(demo.result, "failed");
+    assert.equal(demo.startCommand, "pnpm dev");
+
+    const updated = await store.updatePrototypeDemo(demo.id, {
+      result: "passed",
+      notes: "Error state added",
+    });
+    assert.equal(updated.result, "passed");
+    const data = await store.bootstrap(project.id);
+    assert.equal(data.prototypeDemos.length, 1);
+  });
+});
+
+test("allows a passed prototype demo record as the demo gate evidence", async () => {
+  await withStore(async (store) => {
+    const project = await store.createProject({
+      name: "Demo gate alternative",
+      repoPath: "D:\\dsh-ai-studio",
+    });
+    const complete = async (stage) => {
+      const gate = await store.getStageGate(project.id, stage);
+      return store.updateStageGate(project.id, stage, {
+        checklist: gate.checklist.map((item) => ({ ...item, done: true })),
+        artifacts: [
+          { kind: "architecture", label: "Architecture", path: "docs/ARCH.md" },
+        ],
+      });
+    };
+    await complete("architecture");
+    await store.approveStageGate(project.id, "architecture");
+    await complete("prototype");
+    await store.approveStageGate(project.id, "prototype");
+    await store.createPrototypeDemo(
+      {
+        title: "Gate demo",
+        result: "passed",
+        entry: "http://localhost:5173",
+      },
+      project.id,
+    );
+    const development = await store.getStageGate(
+      project.id,
+      "development",
+    );
+    await store.updateStageGate(project.id, "development", {
+      checklist: development.checklist.map((item) => ({
+        ...item,
+        done: true,
+      })),
+      artifacts: [
+        { kind: "architecture", label: "Architecture", path: "docs/ARCH.md" },
+      ],
+    });
+    const approved = await store.approveStageGate(
+      project.id,
+      "development",
+    );
+    assert.equal(approved.status, "approved");
   });
 });

@@ -25,6 +25,9 @@ import type {
   UpdateProviderProfileInput,
   ProviderProfile,
   ProviderProbeResult,
+  CreatePrototypeDemoInput,
+  PrototypeDemo,
+  UpdatePrototypeDemoInput,
   StageGate,
   Trigger,
   TriggerRules,
@@ -370,6 +373,29 @@ export class StudioClient {
       { method: "PATCH", body: input },
     );
     return data.profile;
+  }
+
+  async createPrototypeDemo(
+    projectId: string,
+    input: CreatePrototypeDemoInput,
+  ): Promise<PrototypeDemo> {
+    const data = await this.request<{ demo: PrototypeDemo }>(
+      `/projects/${encodeURIComponent(projectId)}/prototype-demos`,
+      { method: "POST", body: input },
+    );
+    return data.demo;
+  }
+
+  async updatePrototypeDemo(
+    projectId: string,
+    demoId: string,
+    input: UpdatePrototypeDemoInput,
+  ): Promise<PrototypeDemo> {
+    const data = await this.request<{ demo: PrototypeDemo }>(
+      `/projects/${encodeURIComponent(projectId)}/prototype-demos/${encodeURIComponent(demoId)}`,
+      { method: "PATCH", body: input },
+    );
+    return data.demo;
   }
 
   async probeProviderProfile(profileId: string): Promise<ProviderProbeResult> {

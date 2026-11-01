@@ -362,6 +362,20 @@ var StudioClient = class {
     );
     return data.profile;
   }
+  async createPrototypeDemo(projectId, input) {
+    const data = await this.request(
+      `/projects/${encodeURIComponent(projectId)}/prototype-demos`,
+      { method: "POST", body: input }
+    );
+    return data.demo;
+  }
+  async updatePrototypeDemo(projectId, demoId, input) {
+    const data = await this.request(
+      `/projects/${encodeURIComponent(projectId)}/prototype-demos/${encodeURIComponent(demoId)}`,
+      { method: "PATCH", body: input }
+    );
+    return data.demo;
+  }
   async probeProviderProfile(profileId) {
     const data = await this.request(
       `/provider-profiles/${encodeURIComponent(profileId)}/probe`,
@@ -1222,6 +1236,24 @@ function StudioPage() {
       "Webhook \u89C4\u5219\u5DF2\u66F4\u65B0"
     );
   };
+  const createPrototypeDemo = async (input) => {
+    return run(
+      async () => {
+        if (client === null || data.project === null) return;
+        await client.createPrototypeDemo(data.project.id, input);
+      },
+      "Demo \u8BB0\u5F55\u5DF2\u4FDD\u5B58"
+    );
+  };
+  const updatePrototypeDemo = async (demoId, input) => {
+    return run(
+      async () => {
+        if (client === null || data.project === null) return;
+        await client.updatePrototypeDemo(data.project.id, demoId, input);
+      },
+      "Demo \u8BB0\u5F55\u5DF2\u66F4\u65B0"
+    );
+  };
   const createWorkshop = async (input) => {
     return run(
       async () => {
@@ -1712,6 +1744,8 @@ function StudioPage() {
             onAcceptTrigger: (trigger) => void acceptTrigger(trigger),
             onIgnoreTrigger: (trigger) => void ignoreTrigger(trigger),
             onSaveTriggerRules: updateTriggerRules,
+            onCreatePrototypeDemo: createPrototypeDemo,
+            onUpdatePrototypeDemo: updatePrototypeDemo,
             onCreateWorkshop: createWorkshop,
             onAddWorkshopNote: addWorkshopNote,
             onSynthesizeWorkshop: synthesizeWorkshop,
@@ -3074,6 +3108,202 @@ function WorkshopPanel({
     ] }) })
   ] });
 }
+function PrototypeDemoPanel({
+  project,
+  demos,
+  busy,
+  onCreate,
+  onUpdate
+}) {
+  const [title, setTitle] = (0, import_react.useState)("");
+  const [entry, setEntry] = (0, import_react.useState)("");
+  const [startCommand, setStartCommand] = (0, import_react.useState)("");
+  const [steps, setSteps] = (0, import_react.useState)("");
+  const [result, setResult] = (0, import_react.useState)("passed");
+  const [screenshotPath, setScreenshotPath] = (0, import_react.useState)("");
+  const [notes, setNotes] = (0, import_react.useState)("");
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "studio-panel studio-demo-panel", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-panel-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconSpark, { width: 14, height: 14 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h3", { children: "\u539F\u578B Demo \u8BB0\u5F55 / Prototype Demo" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-muted", children: demos.length === 0 ? "\u8FD8\u6CA1\u6709\u8BB0\u5F55" : `${String(demos.length)} \u6761` })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-panel-body", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-hint", children: [
+        "\u8FD9\u662F",
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("b", { children: "\u624B\u52A8\u8BB0\u5F55" }),
+        "\uFF1AStudio \u4E0D\u542F\u52A8\u547D\u4EE4\u3001\u4E0D\u68C0\u6D4B\u7AEF\u53E3\u3001\u4E0D\u81EA\u52A8\u622A\u56FE\u3002\u8BB0\u5F55\u4F1A\u4F5C\u4E3A\u8FDB\u5165\u6301\u7EED\u5F00\u53D1\u7684 demo \u8BC1\u636E\u3002"
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+        "form",
+        {
+          className: "studio-demo-form",
+          onSubmit: (event) => {
+            event.preventDefault();
+            if (title.trim() === "") return;
+            void onCreate({
+              title: title.trim(),
+              entry: entry.trim(),
+              startCommand: startCommand.trim(),
+              steps: steps.trim(),
+              result,
+              screenshotPath: screenshotPath.trim(),
+              notes: notes.trim()
+            }).then((ok) => {
+              if (ok) {
+                setTitle("");
+                setEntry("");
+                setStartCommand("");
+                setSteps("");
+                setScreenshotPath("");
+                setNotes("");
+              }
+            });
+          },
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field-row", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { children: "\u6807\u9898" }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                  "input",
+                  {
+                    value: title,
+                    disabled: busy,
+                    placeholder: "\u4F8B\u5982\uFF1A\u767B\u5F55\u6D41\u7A0B Demo",
+                    onChange: (event) => setTitle(event.target.value)
+                  }
+                )
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { children: "\u7ED3\u679C" }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+                  "select",
+                  {
+                    value: result,
+                    disabled: busy,
+                    onChange: (event) => setResult(event.target.value),
+                    children: [
+                      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "passed", children: "\u901A\u8FC7" }),
+                      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "failed", children: "\u5931\u8D25" })
+                    ]
+                  }
+                )
+              ] })
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field-row", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { children: "\u5165\u53E3 URL / \u8DEF\u5F84" }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                  "input",
+                  {
+                    value: entry,
+                    disabled: busy,
+                    placeholder: "http://localhost:5173 \u6216 dist/demo",
+                    onChange: (event) => setEntry(event.target.value)
+                  }
+                )
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { children: "\u542F\u52A8\u547D\u4EE4\uFF08\u53EA\u8BB0\u5F55\uFF0C\u4E0D\u6267\u884C\uFF09" }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                  "input",
+                  {
+                    value: startCommand,
+                    disabled: busy,
+                    placeholder: "pnpm dev",
+                    onChange: (event) => setStartCommand(event.target.value)
+                  }
+                )
+              ] })
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { children: "\u9A8C\u8BC1\u6B65\u9AA4" }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                "textarea",
+                {
+                  value: steps,
+                  disabled: busy,
+                  onChange: (event) => setSteps(event.target.value)
+                }
+              )
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field-row", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { children: "\u622A\u56FE / \u5F55\u50CF\u8DEF\u5F84" }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                  "input",
+                  {
+                    value: screenshotPath,
+                    disabled: busy,
+                    onChange: (event) => setScreenshotPath(event.target.value)
+                  }
+                )
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { children: "\u5DF2\u77E5\u9650\u5236 / \u5907\u6CE8" }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                  "input",
+                  {
+                    value: notes,
+                    disabled: busy,
+                    onChange: (event) => setNotes(event.target.value)
+                  }
+                )
+              ] })
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "button",
+              {
+                className: "studio-btn",
+                "data-variant": "primary",
+                type: "submit",
+                disabled: busy || title.trim() === "",
+                children: "\u4FDD\u5B58 Demo \u8BB0\u5F55"
+              }
+            )
+          ]
+        }
+      ),
+      demos.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-demo-list", children: demos.map((demo) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-demo-row", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-demo-head", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: demo.title }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-pill", children: demo.result === "passed" ? "\u901A\u8FC7" : "\u5931\u8D25" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-muted", children: demo.recordedBy })
+        ] }),
+        demo.entry ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-mono", children: demo.entry }) : null,
+        demo.startCommand ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-demo-command", children: [
+          "\u547D\u4EE4\uFF08\u672A\u6267\u884C\uFF09\uFF1A",
+          demo.startCommand
+        ] }) : null,
+        demo.steps ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-demo-copy", children: demo.steps }) : null,
+        demo.screenshotPath ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-demo-copy", children: [
+          "\u622A\u56FE\uFF1A",
+          demo.screenshotPath
+        ] }) : null,
+        demo.notes ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-demo-copy", children: [
+          "\u5907\u6CE8\uFF1A",
+          demo.notes
+        ] }) : null,
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+          "button",
+          {
+            className: "studio-btn",
+            "data-size": "sm",
+            type: "button",
+            disabled: busy,
+            onClick: () => void onUpdate(demo.id, {
+              result: demo.result === "passed" ? "failed" : "passed"
+            }),
+            children: [
+              "\u6807\u8BB0\u4E3A",
+              demo.result === "passed" ? "\u5931\u8D25" : "\u901A\u8FC7"
+            ]
+          }
+        )
+      ] }, demo.id)) }) : null
+    ] })
+  ] });
+}
 function TriggerInbox({
   project,
   triggers,
@@ -3635,6 +3865,8 @@ function MissionView({
   onAcceptTrigger,
   onIgnoreTrigger,
   onSaveTriggerRules,
+  onCreatePrototypeDemo,
+  onUpdatePrototypeDemo,
   onCreateWorkshop,
   onAddWorkshopNote,
   onSynthesizeWorkshop,
@@ -3699,6 +3931,16 @@ function MissionView({
         onSave: onSaveStageGate,
         onApprove: onApproveStageGate,
         onReject: onRejectStageGate
+      }
+    ) : null,
+    project !== null && project.stage === "prototype" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+      PrototypeDemoPanel,
+      {
+        project,
+        demos: data.prototypeDemos,
+        busy,
+        onCreate: onCreatePrototypeDemo,
+        onUpdate: onUpdatePrototypeDemo
       }
     ) : null,
     project !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
@@ -7451,6 +7693,43 @@ var studioCss = `
   width: 100%;
   padding-top: 5px;
   border-top: 1px solid var(--st-border);
+}
+
+.studio-demo-panel { margin-bottom: 12px; }
+.studio-demo-form {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.studio-demo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 10px;
+}
+.studio-demo-row {
+  padding: 8px 10px;
+  border: 1px solid var(--st-border);
+  border-radius: 8px;
+  background: var(--st-panel-2);
+  font-size: 11px;
+}
+.studio-demo-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.studio-demo-command {
+  margin-top: 4px;
+  color: var(--st-warn);
+  font-size: 10px;
+}
+.studio-demo-copy {
+  margin-top: 4px;
+  color: var(--st-muted);
+  line-height: 1.45;
+  white-space: pre-wrap;
 }
 
 .studio-needs {

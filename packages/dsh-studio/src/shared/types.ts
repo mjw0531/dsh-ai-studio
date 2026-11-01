@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 24;
-export const STUDIO_PLUGIN_VERSION = "2.16.0";
+export const STUDIO_SCHEMA_VERSION = 25;
+export const STUDIO_PLUGIN_VERSION = "2.17.0";
 
 export type TaskStatus =
   | "backlog"
@@ -303,6 +303,35 @@ export interface ProviderRecentRun {
   errorPreview: string | null;
 }
 
+export type PrototypeDemoResult = "passed" | "failed";
+
+export interface PrototypeDemo {
+  id: string;
+  projectId: string;
+  title: string;
+  entry: string;
+  startCommand: string;
+  steps: string;
+  result: PrototypeDemoResult;
+  screenshotPath: string;
+  notes: string;
+  recordedBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePrototypeDemoInput {
+  title: string;
+  entry?: string;
+  startCommand?: string;
+  steps?: string;
+  result: PrototypeDemoResult;
+  screenshotPath?: string;
+  notes?: string;
+}
+
+export type UpdatePrototypeDemoInput = Partial<CreatePrototypeDemoInput>;
+
 export interface ProviderProbeResult {
   profileId: string;
   executor: AgentExecutor;
@@ -594,6 +623,7 @@ export interface StudioState {
   threads: Thread[];
   workshops: Workshop[];
   providerProfiles: ProviderProfile[];
+  prototypeDemos: PrototypeDemo[];
   roles: Role[];
   modules: Module[];
   tasks: Task[];
@@ -728,6 +758,7 @@ export interface BootstrapResponse {
   workshops: Workshop[];
   providerProfiles: ProviderProfile[];
   providerHealth: ProviderProfileHealth[];
+  prototypeDemos: PrototypeDemo[];
   roles: Role[];
   modules: Module[];
   tasks: Task[];
@@ -762,6 +793,7 @@ export interface BootstrapResponse {
     workshop: boolean;
     providerProfiles: boolean;
     providerHealth: boolean;
+    prototypeDemoRecord: boolean;
   };
 }
 
