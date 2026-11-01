@@ -3,7 +3,7 @@
 > 参考文章：DeepSeekHarness《Super-agent 设计探索：迈向更自主的 Agent 系统》  
 > https://www.bilibili.com/opus/1265361021143351318  
 > 阅读时间：2026-11-01  
-> 落地状态：v2.7.0 已实现 Trigger Inbox / Thread；v2.8.0 实现 Workshop Room；v2.8.1 实现 Workshop AI 独立评审；v2.9.0 增加原型 Demo 门禁；v2.10.0 增加 Provider Profiles；v2.11.0 增加 Provider 健康度；v2.12.0 增加失败率、失败原因和备用建议；v2.13.0 增加人工改绑备用 Profile。语义过滤、Webhook、自动 merge 留到后续版本。
+> 落地状态：v2.7.0 已实现 Trigger Inbox / Thread；v2.8.0 实现 Workshop Room；v2.8.1 实现 Workshop AI 独立评审；v2.9.0 增加原型 Demo 门禁；v2.10.0 增加 Provider Profiles；v2.11.0 增加 Provider 健康度；v2.12.0 增加失败率、失败原因和备用建议；v2.13.0 增加人工改绑备用 Profile；v2.14.0 增加 Run 级执行快照。语义过滤、Webhook、自动 merge 留到后续版本。
 
 ---
 

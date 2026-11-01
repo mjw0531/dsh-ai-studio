@@ -585,7 +585,7 @@ test("exports a portable copy of the state", async () => {
   await withStore(async (store) => {
     await store.bootstrap();
     const exported = await store.exportState();
-    assert.equal(exported.schemaVersion, 22);
+    assert.equal(exported.schemaVersion, 23);
     assert.ok(exported.projects.length >= 1);
     assert.ok(exported.tasks.length >= 1);
     assert.ok(Array.isArray(exported.runs));
@@ -964,7 +964,7 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
     assert.deepEqual(data.runs, []);
     assert.deepEqual(data.decisions, []);
     const migrated = JSON.parse(await readFile(file, "utf8"));
-    assert.equal(migrated.schemaVersion, 22);
+    assert.equal(migrated.schemaVersion, 23);
     assert.equal(migrated.companyName, "AI工作室");
     assert.ok(migrated.roles.every((role) => role.executor === "dsh"));
     assert.ok(migrated.runs.every((run) => run.status !== undefined));
@@ -1003,6 +1003,14 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
     assert.ok(Array.isArray(migrated.workshops));
     assert.ok(Array.isArray(migrated.providerProfiles));
     assert.ok(migrated.roles.every((role) => role.providerProfileId === null));
+    assert.ok(
+      migrated.runs.every(
+        (run) =>
+          run.providerProfileId === null &&
+          run.executor === "dsh" &&
+          run.provider === null,
+      ),
+    );
     assert.ok(migrated.projects.every((project) => project.stage === "development"));
   });
 });
@@ -1525,5 +1533,55 @@ test("reassigns roles to a fallback provider profile", async () => {
       (error) =>
         error instanceof StudioStoreError && error.code === "invalid_input",
     );
+  });
+});
+
+test("keeps the provider snapshot on a run after role reassignment", async () => {
+  await withStore(async (store) => {
+    const primary = await store.createProviderProfile({
+      name: "Snapshot primary",
+      provider: "deepseek-account",
+      model: "deepseek-flash",
+    });
+    const fallback = await store.createProviderProfile({
+      name: "Snapshot fallback",
+      model: "deepseek-pro",
+    });
+    const role = await store.createRole({
+      name: "Snapshot role",
+      providerProfileId: primary.id,
+    });
+    const task = await store.createTask({
+      title: "Snapshot run",
+      ownerRoleId: role.id,
+      reviewerRoleId: role.id,
+      acceptance: ["Run is recorded"],
+    });
+    const run = await store.beginRun(task.id, "snapshot prompt", undefined, {
+      providerProfileId: primary.id,
+      executor: "dsh",
+      provider: "deepseek-account",
+      model: "deepseek-flash",
+    });
+    assert.equal(run.providerProfileId, primary.id);
+    assert.equal(run.provider, "deepseek-account");
+    assert.equal(run.executor, "dsh");
+    await store.completeRun(run.id, {
+      output: "failed",
+      receipt: null,
+      tokens: 5,
+    });
+
+    await store.reassignProviderProfile(primary.id, fallback.id);
+    const data = await store.bootstrap();
+    const primaryHealth = data.providerHealth.find(
+      (item) => item.profileId === primary.id,
+    );
+    const fallbackHealth = data.providerHealth.find(
+      (item) => item.profileId === fallback.id,
+    );
+    assert.equal(primaryHealth?.runCount, 1);
+    assert.equal(fallbackHealth?.runCount, 0);
+    assert.equal(data.runs[0].providerProfileId, primary.id);
   });
 });

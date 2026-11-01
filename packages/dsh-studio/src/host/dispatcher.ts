@@ -440,7 +440,12 @@ export class AgentDispatcher {
         ? undefined
         : await this.workspaces.prepare(context.project.repoPath, taskId);
     const prompt = buildPrompt(context, workspace);
-    const run = await this.store.beginRun(taskId, prompt, workspace);
+    const run = await this.store.beginRun(taskId, prompt, workspace, {
+      providerProfileId: context.providerProfile?.id ?? null,
+      executor,
+      provider: selection.provider,
+      model: selection.model,
+    });
     if (executor === "dsh") {
       void this.execute(run, selection, workspace);
     } else if (workspace !== undefined) {

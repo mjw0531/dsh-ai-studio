@@ -433,8 +433,10 @@ function buildProviderHealth(
       .filter(
         (run) =>
           run.projectId === projectId &&
-          run.roleId !== null &&
-          roleIds.has(run.roleId),
+          (run.providerProfileId === profile.id ||
+            (run.providerProfileId === null &&
+              run.roleId !== null &&
+              roleIds.has(run.roleId))),
       )
       .sort((left, right) =>
         (left.endedAt ?? left.startedAt).localeCompare(
@@ -936,6 +938,12 @@ function isAgentRun(value: unknown): value is AgentRun {
     typeof value.projectId === "string" &&
     typeof value.taskId === "string" &&
     (value.roleId === null || typeof value.roleId === "string") &&
+    (value.providerProfileId === null ||
+      typeof value.providerProfileId === "string") &&
+    (value.executor === "dsh" ||
+      value.executor === "claude-code" ||
+      value.executor === "codex") &&
+    (value.provider === null || typeof value.provider === "string") &&
     (value.branchId === null || typeof value.branchId === "string") &&
     (value.branchName === null || typeof value.branchName === "string") &&
     (value.workspacePath === null || typeof value.workspacePath === "string") &&
@@ -1582,11 +1590,23 @@ function migrateState(value: unknown): StudioState {
   if (state.schemaVersion === 21) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 22,
       providerProfiles: [],
       roles: state.roles.map((role) => ({
         ...role,
         providerProfileId: null,
+      })),
+    };
+  }
+  if (state.schemaVersion === 22) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      runs: state.runs.map((run) => ({
+        ...run,
+        providerProfileId: null,
+        executor: "dsh",
+        provider: null,
       })),
     };
   }
@@ -2870,6 +2890,12 @@ export class StudioStore {
     taskId: string,
     prompt: string,
     workspace?: { path: string; branch: string },
+    execution?: {
+      providerProfileId: string | null;
+      executor: AgentRun["executor"];
+      provider: string | null;
+      model: string | null;
+    },
   ): Promise<AgentRun> {
     return this.runExclusive(async () => {
       const state = this.requireState();
@@ -2957,13 +2983,17 @@ export class StudioStore {
         projectId: task.projectId,
         taskId: task.id,
         roleId: role.id,
+        providerProfileId:
+          execution?.providerProfileId ?? role.providerProfileId,
+        executor: execution?.executor ?? role.executor ?? "dsh",
+        provider: execution?.provider ?? null,
         branchId: branch.id,
         branchName: workspace?.branch ?? null,
         workspacePath: workspace?.path ?? null,
         diffStat: null,
         sessionId: null,
         status: "queued",
-        model: role.model,
+        model: execution?.model ?? role.model,
         prompt,
         output: "",
         receipt: null,

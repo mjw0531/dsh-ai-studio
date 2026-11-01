@@ -13,8 +13,8 @@ import os from "node:os";
 import path from "node:path";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 22;
-var STUDIO_PLUGIN_VERSION = "2.13.0";
+var STUDIO_SCHEMA_VERSION = 23;
+var STUDIO_PLUGIN_VERSION = "2.14.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -330,7 +330,7 @@ function buildProviderHealth(state, projectId) {
       ).map((role) => role.id)
     );
     const runs = state.runs.filter(
-      (run) => run.projectId === projectId && run.roleId !== null && roleIds.has(run.roleId)
+      (run) => run.projectId === projectId && (run.providerProfileId === profile.id || run.providerProfileId === null && run.roleId !== null && roleIds.has(run.roleId))
     ).sort(
       (left, right) => (left.endedAt ?? left.startedAt).localeCompare(
         right.endedAt ?? right.startedAt
@@ -695,7 +695,7 @@ function isAgentRunStatus(value) {
   return value === "queued" || value === "running" || value === "succeeded" || value === "failed";
 }
 function isAgentRun(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.branchName === null || typeof value.branchName === "string") && (value.workspacePath === null || typeof value.workspacePath === "string") && (value.diffStat === null || typeof value.diffStat === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.providerProfileId === null || typeof value.providerProfileId === "string") && (value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && (value.provider === null || typeof value.provider === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.branchName === null || typeof value.branchName === "string") && (value.workspacePath === null || typeof value.workspacePath === "string") && (value.diffStat === null || typeof value.diffStat === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
 }
 function isTask(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence) && (value.verifyCommand === null || value.verifyCommand === void 0 || typeof value.verifyCommand === "string") && (value.module === null || value.module === void 0 || typeof value.module === "string") && (value.contractRef === null || value.contractRef === void 0 || typeof value.contractRef === "string") && Array.isArray(value.requirementRefs) && value.requirementRefs.every((item) => typeof item === "string") && (value.kind === void 0 || value.kind === "new" || value.kind === "fix") && (value.integration === void 0 || typeof value.integration === "boolean") && (value.originTaskId === null || value.originTaskId === void 0 || typeof value.originTaskId === "string") && (value.docsSynced === void 0 || typeof value.docsSynced === "boolean") && (value.diagnosis === void 0 || typeof value.diagnosis === "string") && (value.plan === void 0 || typeof value.plan === "string");
@@ -1019,11 +1019,23 @@ function migrateState(value) {
   if (state.schemaVersion === 21) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 22,
       providerProfiles: [],
       roles: state.roles.map((role) => ({
         ...role,
         providerProfileId: null
+      }))
+    };
+  }
+  if (state.schemaVersion === 22) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      runs: state.runs.map((run) => ({
+        ...run,
+        providerProfileId: null,
+        executor: "dsh",
+        provider: null
       }))
     };
   }
@@ -2061,7 +2073,7 @@ var StudioStore = class {
       };
     });
   }
-  async beginRun(taskId, prompt, workspace) {
+  async beginRun(taskId, prompt, workspace, execution) {
     return this.runExclusive(async () => {
       const state = this.requireState();
       const task = this.findTask(state, taskId);
@@ -2133,13 +2145,16 @@ var StudioStore = class {
         projectId: task.projectId,
         taskId: task.id,
         roleId: role.id,
+        providerProfileId: execution?.providerProfileId ?? role.providerProfileId,
+        executor: execution?.executor ?? role.executor ?? "dsh",
+        provider: execution?.provider ?? null,
         branchId: branch.id,
         branchName: workspace?.branch ?? null,
         workspacePath: workspace?.path ?? null,
         diffStat: null,
         sessionId: null,
         status: "queued",
-        model: role.model,
+        model: execution?.model ?? role.model,
         prompt,
         output: "",
         receipt: null,

@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 22;
-export const STUDIO_PLUGIN_VERSION = "2.13.0";
+export const STUDIO_SCHEMA_VERSION = 23;
+export const STUDIO_PLUGIN_VERSION = "2.14.0";
 
 export type TaskStatus =
   | "backlog"
@@ -462,6 +462,9 @@ export interface AgentRun {
   projectId: string;
   taskId: string;
   roleId: string | null;
+  providerProfileId: string | null;
+  executor: AgentExecutor;
+  provider: string | null;
   branchId: string | null;
   branchName: string | null;
   workspacePath: string | null;
