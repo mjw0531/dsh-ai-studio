@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 26;
-var STUDIO_PLUGIN_VERSION = "3.0.3";
+var STUDIO_PLUGIN_VERSION = "3.0.4";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -158,7 +158,7 @@ import { mkdir as mkdir2, readdir, writeFile as writeFile2 } from "node:fs/promi
 import path3 from "node:path";
 
 // src/host/store.ts
-import { randomUUID } from "node:crypto";
+import { randomUUID as randomUUID3 } from "node:crypto";
 import { existsSync } from "node:fs";
 import {
   copyFile,
@@ -1132,7 +1132,7 @@ function buildCompany(state, now) {
   };
 }
 
-// src/host/store.ts
+// src/host/store/errors.ts
 var StudioStoreError = class extends Error {
   code;
   status;
@@ -1143,21 +1143,17 @@ var StudioStoreError = class extends Error {
     this.status = status;
   }
 };
-function defaultStudioDataDir() {
-  const home = process.env.DSH_HOME?.trim();
-  return path2.join(
-    home !== void 0 && home !== "" ? home : path2.join(os.homedir(), ".dsh"),
-    "studio"
-  );
-}
-function nowIso(now) {
-  return now().toISOString();
-}
-function newId(prefix) {
-  return `${prefix}-${randomUUID().slice(0, 8)}`;
-}
+
+// src/host/store/seed.ts
+import { randomUUID as randomUUID2 } from "node:crypto";
+
+// src/host/store/inputs.ts
+import { randomUUID } from "node:crypto";
 function isRecord3(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function newId(prefix) {
+  return `${prefix}-${randomUUID().replaceAll("-", "").slice(0, 12)}`;
 }
 function requiredText(value, field, max = 200) {
   if (typeof value !== "string") {
@@ -1373,6 +1369,229 @@ function normalizeEvidence(value, existing, at) {
     };
   });
 }
+
+// src/host/store/seed.ts
+function nowIso(now) {
+  return now().toISOString();
+}
+function createSeedState(now) {
+  const at = nowIso(now);
+  const project = {
+    id: "proj-demo",
+    name: "\u793A\u4F8B\u9879\u76EE",
+    description: "\u7528\u4E00\u6761\u6700\u5C0F\u94FE\u8DEF\u9A8C\u8BC1\u5DE5\u4F5C\u53F0\uFF1A\u4EFB\u52A1\u3001\u89D2\u8272\u3001\u9A8C\u6536\u548C\u72B6\u6001\u673A\u3002",
+    tokenBudget: null,
+    repoPath: null,
+    prdPath: null,
+    invariantsPath: null,
+    modulesPath: null,
+    triggerRules: defaultTriggerRules2(),
+    stage: "development",
+    createdAt: at,
+    updatedAt: at
+  };
+  const role = (id, name2, title, mission, responsibilities, decisionRights = []) => ({
+    id,
+    projectId: project.id,
+    name: name2,
+    title,
+    mission,
+    responsibilities,
+    nonGoals: [],
+    decisionRights,
+    providerProfileId: null,
+    model: null,
+    executor: "dsh",
+    tokenBudget: null,
+    dailyTokenBudget: null,
+    createdAt: at,
+    updatedAt: at
+  });
+  const roles = [
+    role(
+      "role-lead",
+      "Lead",
+      "\u5236\u4F5C\u4EBA / \u8C03\u5EA6",
+      "\u628A\u76EE\u6807\u53D8\u6210\u53EF\u6267\u884C\u7684\u4EFB\u52A1\u56FE\uFF0C\u5E76\u4FDD\u6301\u4EA4\u4ED8\u8282\u594F\u3002",
+      ["\u62C6\u4EFB\u52A1", "\u6D3E\u5355", "\u8DDF\u8E2A\u963B\u585E", "\u7EC4\u7EC7\u590D\u76D8"],
+      ["\u4EFB\u52A1\u4F18\u5148\u7EA7", "\u6D3E\u5355\u5BF9\u8C61"]
+    ),
+    role(
+      "role-architect",
+      "Architect",
+      "\u67B6\u6784\u5E08",
+      "\u5B88\u4F4F\u67B6\u6784\u5B8C\u6574\u6027\u4E0E\u63A5\u53E3\u5951\u7EA6\u3002",
+      ["\u5199 ADR", "\u5B9A\u5951\u7EA6", "\u6280\u672F\u88C1\u51B3", "\u8BC4\u5BA1\u9AD8\u98CE\u9669\u53D8\u66F4"],
+      ["\u6280\u672F\u65B9\u6848", "\u63A5\u53E3\u5951\u7EA6"]
+    ),
+    role(
+      "role-builder",
+      "Builder",
+      "\u5F00\u53D1\u5DE5\u7A0B\u5E08",
+      "\u4EA4\u4ED8\u53EF\u8FD0\u884C\u7684\u529F\u80FD\u5B9E\u73B0\u548C\u6D4B\u8BD5\u3002",
+      ["\u5B9E\u73B0\u529F\u80FD", "\u4FEE\u590D\u7F3A\u9677", "\u8865\u6D4B\u8BD5", "\u7EF4\u62A4\u6784\u5EFA"]
+    ),
+    role(
+      "role-verifier",
+      "Verifier",
+      "QA / \u9A8C\u6536",
+      "\u72EC\u7ACB\u9A8C\u8BC1\u4EA7\u7269\uFF0C\u5B88\u4F4F\u8D28\u91CF\u95E8\u3002",
+      ["\u8DD1\u6D4B\u8BD5", "\u590D\u73B0\u7F3A\u9677", "\u68C0\u67E5\u9A8C\u6536\u6807\u51C6", "\u8BB0\u5F55\u8BC1\u636E"],
+      ["\u9A8C\u6536\u7ED3\u8BBA"]
+    )
+  ];
+  const acceptance = (...texts) => texts.map((text2, index) => ({
+    id: `acc-demo-${String(index)}-${randomUUID2().slice(0, 4)}`,
+    text: text2,
+    done: false
+  }));
+  const task = (id, title, goal, status, priority, ownerRoleId, reviewerRoleId, items, branch = null) => ({
+    id,
+    projectId: project.id,
+    title,
+    goal,
+    status,
+    priority,
+    ownerRoleId,
+    reviewerRoleId,
+    acceptance: items,
+    evidence: [],
+    branch,
+    verifyCommand: null,
+    module: null,
+    contractRef: null,
+    requirementRefs: [],
+    kind: "new",
+    diagnosis: "",
+    plan: "",
+    integration: false,
+    originTaskId: null,
+    docsSynced: false,
+    createdAt: at,
+    updatedAt: at
+  });
+  const tasks = [
+    task(
+      "task-001",
+      "\u786E\u5B9A\u9879\u76EE\u8303\u56F4\u4E0E\u9A8C\u6536\u6807\u51C6",
+      "\u5199\u6E05\u695A\u8FD9\u4E00\u7248\u505A\u4EC0\u4E48\u3001\u4E0D\u505A\u4EC0\u4E48\uFF0C\u4EE5\u53CA\u53EF\u9A8C\u8BC1\u7684\u9A8C\u6536\u53E3\u5F84\u3002",
+      "done",
+      "P0",
+      "role-lead",
+      "role-architect",
+      acceptance("\u8303\u56F4\u6587\u6863\u5DF2\u8BC4\u5BA1", "\u975E\u76EE\u6807\u6E05\u5355\u5DF2\u786E\u8BA4", "\u9A8C\u6536\u53E3\u5F84\u5DF2\u5BF9\u9F50").map(
+        (item) => ({ ...item, done: true })
+      )
+    ),
+    task(
+      "task-002",
+      "\u642D\u5EFA\u9879\u76EE\u9AA8\u67B6",
+      "\u5EFA\u7ACB\u6700\u5C0F\u53EF\u8FD0\u884C\u7ED3\u6784\uFF0C\u5E76\u786E\u4FDD\u6D4B\u8BD5\u547D\u4EE4\u53EF\u4EE5\u6267\u884C\u3002",
+      "review",
+      "P0",
+      "role-architect",
+      "role-verifier",
+      acceptance("\u7ED3\u6784\u53EF\u8FD0\u884C", "\u6D4B\u8BD5\u547D\u4EE4\u53EF\u6267\u884C", "\u6784\u5EFA\u53EF\u91CD\u590D").map(
+        (item, index) => ({ ...item, done: index < 2 })
+      ),
+      "task/002-skeleton"
+    ),
+    task(
+      "task-003",
+      "\u5B9E\u73B0\u7B2C\u4E00\u4E2A\u529F\u80FD",
+      "\u5B8C\u6210\u4E00\u6761\u53EF\u6F14\u793A\u7684\u529F\u80FD\u94FE\u8DEF\uFF0C\u5E76\u8865\u4E0A\u8FB9\u754C\u6D4B\u8BD5\u3002",
+      "running",
+      "P0",
+      "role-builder",
+      "role-architect",
+      acceptance("\u529F\u80FD\u53EF\u6F14\u793A", "\u8FB9\u754C\u6709\u6D4B\u8BD5", "\u65E0\u963B\u65AD\u7F3A\u9677").map(
+        (item, index) => ({ ...item, done: index === 0 })
+      ),
+      "task/003-first-feature"
+    ),
+    task(
+      "task-004",
+      "\u5EFA\u7ACB\u9A8C\u8BC1\u4E0E\u8BB0\u5F55\u57FA\u7EBF",
+      "\u6BCF\u6B21\u5408\u5E76\u90FD\u80FD\u8DD1\u540C\u4E00\u5957\u9A8C\u8BC1\uFF0C\u5E76\u8BB0\u5F55\u7ED3\u679C\u3002",
+      "ready",
+      "P1",
+      "role-verifier",
+      "role-lead",
+      acceptance("\u9A8C\u8BC1\u547D\u4EE4\u53EF\u91CD\u590D", "\u7ED3\u679C\u6709\u6301\u4E45\u5316\u8BB0\u5F55")
+    ),
+    task(
+      "task-005",
+      "\u9996\u8F6E\u9A8C\u6536\u95EE\u9898\u6E05\u5355",
+      "\u6309\u9A8C\u6536\u6807\u51C6\u8D70\u4E00\u904D\uFF0C\u8BB0\u5F55\u963B\u65AD\u3001\u91CD\u8981\u548C\u5EFA\u8BAE\u95EE\u9898\u3002",
+      "backlog",
+      "P1",
+      "role-lead",
+      "role-verifier",
+      acceptance("\u81F3\u5C11\u8D70\u5B8C 1 \u6761\u5B8C\u6574\u94FE\u8DEF", "\u95EE\u9898\u6309\u963B\u65AD/\u91CD\u8981/\u5EFA\u8BAE\u5206\u7EA7")
+    )
+  ];
+  return {
+    schemaVersion: STUDIO_SCHEMA_VERSION,
+    companyName: "AI\u5DE5\u4F5C\u5BA4",
+    createdAt: at,
+    updatedAt: at,
+    activeProjectId: project.id,
+    projects: [project],
+    stageGates: [],
+    triggers: [],
+    threads: [],
+    workshops: [],
+    providerProfiles: [],
+    prototypeDemos: [],
+    roles,
+    modules: [],
+    tasks,
+    mergeProposals: [],
+    runs: [],
+    branches: tasks.filter((task2) => task2.branch !== null).map((task2) => ({
+      id: `branch-${task2.id}`,
+      projectId: task2.projectId,
+      taskId: task2.id,
+      name: task2.branch,
+      goal: task2.goal,
+      roleId: task2.ownerRoleId,
+      contractKeys: [],
+      status: task2.status === "review" ? "review" : "open",
+      createdAt: task2.createdAt,
+      updatedAt: task2.updatedAt
+    })),
+    contractChanges: [],
+    decisions: [],
+    verifications: [],
+    reviews: [],
+    events: [
+      {
+        id: "evt-demo",
+        type: "studio.seeded",
+        at,
+        actor: "system",
+        projectId: project.id,
+        taskId: null,
+        payload: { message: "\u6F14\u793A\u9879\u76EE\u5DF2\u521B\u5EFA" }
+      }
+    ]
+  };
+}
+
+// src/host/store.ts
+function defaultStudioDataDir() {
+  const home = process.env.DSH_HOME?.trim();
+  return path2.join(
+    home !== void 0 && home !== "" ? home : path2.join(os.homedir(), ".dsh"),
+    "studio"
+  );
+}
+function nowIso2(now) {
+  return now().toISOString();
+}
+function newId2(prefix) {
+  return `${prefix}-${randomUUID3().slice(0, 8)}`;
+}
 var StudioStore = class {
   dataDir;
   file;
@@ -1402,7 +1621,7 @@ var StudioStore = class {
     return this.runExclusive(async () => {
       const state = this.requireState();
       const value = requiredText(name2, "companyName", 80);
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       state.companyName = value;
       state.updatedAt = at;
       this.recordEvent(state, {
@@ -1569,9 +1788,9 @@ var StudioStore = class {
   async createProject(input) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       const project = {
-        id: newId("proj"),
+        id: newId2("proj"),
         name: requiredText(input.name, "name", 80),
         description: optionalText(input.description, "description", 600),
         tokenBudget: optionalTokenBudget(input.tokenBudget, "tokenBudget"),
@@ -1792,7 +2011,7 @@ var StudioStore = class {
       if (input.modulesPath !== void 0) {
         project.modulesPath = optionalText(input.modulesPath, "modulesPath", 500) || null;
       }
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       project.updatedAt = at;
       state.updatedAt = at;
       this.recordEvent(state, {
@@ -1828,9 +2047,9 @@ var StudioStore = class {
         (item) => item.projectId === projectId && item.stage === stage
       );
       if (gate === void 0) {
-        const at = nowIso(this.now);
+        const at = nowIso2(this.now);
         gate = {
-          id: newId("gate"),
+          id: newId2("gate"),
           projectId,
           stage,
           status: "pending",
@@ -1876,7 +2095,7 @@ var StudioStore = class {
       gate.approvedBy = "";
       gate.approvedAt = null;
       gate.waiverReason = null;
-      gate.updatedAt = nowIso(this.now);
+      gate.updatedAt = nowIso2(this.now);
       state.updatedAt = gate.updatedAt;
       await this.save();
       return structuredClone(gate);
@@ -1926,7 +2145,7 @@ var StudioStore = class {
           409
         );
       }
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       gate.status = "approved";
       gate.approvedBy = "Owner";
       gate.approvedAt = at;
@@ -1968,7 +2187,7 @@ var StudioStore = class {
           409
         );
       }
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       gate.status = "rejected";
       gate.note = reason;
       gate.approvedBy = "";
@@ -2006,15 +2225,15 @@ var StudioStore = class {
         );
         if (duplicate !== void 0) return structuredClone(duplicate);
       }
-      const threadKey = optionalText(input.threadKey, "threadKey", 240) || externalId || `thread-${randomUUID().slice(0, 8)}`;
+      const threadKey = optionalText(input.threadKey, "threadKey", 240) || externalId || `thread-${randomUUID3().slice(0, 8)}`;
       const title = requiredText(input.title, "title", 240);
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       let thread = state.threads.find(
         (item) => item.projectId === project.id && item.key === threadKey
       );
       if (thread === void 0) {
         thread = {
-          id: newId("thread"),
+          id: newId2("thread"),
           projectId: project.id,
           key: threadKey,
           source: input.source,
@@ -2027,7 +2246,7 @@ var StudioStore = class {
         state.threads.push(thread);
       }
       const trigger = {
-        id: newId("trigger"),
+        id: newId2("trigger"),
         projectId: project.id,
         source: input.source,
         externalId,
@@ -2097,7 +2316,7 @@ var StudioStore = class {
           120
         );
       }
-      project.updatedAt = nowIso(this.now);
+      project.updatedAt = nowIso2(this.now);
       state.updatedAt = project.updatedAt;
       this.recordEvent(state, {
         type: "trigger.rules_updated",
@@ -2156,7 +2375,7 @@ ${normalized.body}`.includes(rules.mention)) {
   async rejectWebhook(projectId, source, reason) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       this.recordEvent(state, {
         type: "trigger.webhook_filtered",
         at,
@@ -2187,13 +2406,13 @@ ${normalized.body}`.includes(rules.mention)) {
       }
       const thread = trigger.threadId === null ? void 0 : state.threads.find((item) => item.id === trigger.threadId);
       if (thread?.taskId !== null && thread?.taskId !== void 0) {
-        const at2 = nowIso(this.now);
+        const at2 = nowIso2(this.now);
         const task2 = this.findTask(state, thread.taskId);
         trigger.status = "accepted";
         trigger.taskId = task2.id;
         trigger.updatedAt = at2;
         task2.evidence.push({
-          id: newId("ev"),
+          id: newId2("ev"),
           text: `\u89E6\u53D1\u4E8B\u4EF6\uFF1A${trigger.title}`,
           createdAt: at2
         });
@@ -2215,13 +2434,13 @@ ${normalized.body}`.includes(rules.mention)) {
       const roles = state.roles.filter((role) => role.projectId === project.id);
       const lead = roles.find((role) => role.name.toLowerCase() === "lead") ?? roles[0];
       const reviewer = roles.find((role) => role.name.toLowerCase() === "verifier") ?? roles.find((role) => role.name.toLowerCase() === "architect") ?? lead;
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       const acceptance = normalizeAcceptance(
         input.acceptance !== void 0 && input.acceptance.length > 0 ? input.acceptance : ["\u4EBA\u5DE5\u786E\u8BA4\u89E6\u53D1\u5185\u5BB9\u4E0E\u9A8C\u6536\u6807\u51C6"],
         []
       );
       const task = {
-        id: newId("task"),
+        id: newId2("task"),
         projectId: project.id,
         title: trigger.title,
         goal: trigger.body || trigger.title,
@@ -2279,7 +2498,7 @@ ${normalized.body}`.includes(rules.mention)) {
           409
         );
       }
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       trigger.status = "ignored";
       trigger.note = optionalText(note, "note", 2e3);
       trigger.updatedAt = at;
@@ -2327,9 +2546,9 @@ ${normalized.body}`.includes(rules.mention)) {
           "Demo \u7ED3\u679C\u5FC5\u987B\u662F passed \u6216 failed"
         );
       }
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       const demo = {
-        id: newId("demo"),
+        id: newId2("demo"),
         projectId: project.id,
         title: requiredText(input.title, "title", 200),
         entry: optionalText(input.entry, "entry", 1e3),
@@ -2400,7 +2619,7 @@ ${normalized.body}`.includes(rules.mention)) {
       if (input.notes !== void 0) {
         demo.notes = optionalText(input.notes, "notes", 4e3);
       }
-      demo.updatedAt = nowIso(this.now);
+      demo.updatedAt = nowIso2(this.now);
       state.updatedAt = demo.updatedAt;
       this.recordEvent(state, {
         type: "prototype.demo_updated",
@@ -2430,9 +2649,9 @@ ${normalized.body}`.includes(rules.mention)) {
           "\u7814\u8BA8\u4F1A\u81F3\u5C11\u9700\u8981\u4E00\u4E2A\u53C2\u4E0E\u89D2\u8272"
         );
       }
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       const workshop = {
-        id: newId("workshop"),
+        id: newId2("workshop"),
         projectId: project.id,
         title: requiredText(input.title, "title", 200),
         topic: optionalText(input.topic, "topic", 4e3),
@@ -2482,9 +2701,9 @@ ${normalized.body}`.includes(rules.mention)) {
           409
         );
       }
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       const note = {
-        id: newId("note"),
+        id: newId2("note"),
         roleId,
         roleName: role.name,
         summary: requiredText(input.summary, "summary", 8e3),
@@ -2529,7 +2748,7 @@ ${normalized.body}`.includes(rules.mention)) {
           409
         );
       }
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       workshop.aiSummary = {
         consensus: textList(summary.consensus, "consensus", 20),
         disagreements: textList(
@@ -2569,7 +2788,7 @@ ${normalized.body}`.includes(rules.mention)) {
           409
         );
       }
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       workshop.synthesis = requiredText(synthesis, "synthesis", 12e3);
       workshop.status = "synthesized";
       workshop.updatedAt = at;
@@ -2595,7 +2814,7 @@ ${normalized.body}`.includes(rules.mention)) {
           409
         );
       }
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       workshop.decision = requiredText(decision, "decision", 12e3);
       workshop.status = "decided";
       workshop.decidedBy = "Owner";
@@ -2620,7 +2839,7 @@ ${normalized.body}`.includes(rules.mention)) {
         throw new StudioStoreError("project_not_found", "\u9879\u76EE\u4E0D\u5B58\u5728", 404);
       }
       state.activeProjectId = project.id;
-      state.updatedAt = nowIso(this.now);
+      state.updatedAt = nowIso2(this.now);
       await this.save();
       return structuredClone(project);
     });
@@ -2725,9 +2944,9 @@ ${normalized.body}`.includes(rules.mention)) {
     return this.runExclusive(async () => {
       const state = this.requireState();
       const task = this.findTask(state, taskId);
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       const review = {
-        id: newId("review"),
+        id: newId2("review"),
         projectId: task.projectId,
         taskId,
         runId: input.runId ?? null,
@@ -2743,7 +2962,7 @@ ${normalized.body}`.includes(rules.mention)) {
       if (review.verdict === "pass") {
         const text2 = `\u72EC\u7ACB\u8BC4\u5BA1\u901A\u8FC7\uFF08${input.model}\uFF09\uFF1A${review.summary}`;
         if (!task.evidence.some((item) => item.text === text2)) {
-          task.evidence.push({ id: newId("ev"), text: text2, createdAt: at });
+          task.evidence.push({ id: newId2("ev"), text: text2, createdAt: at });
         }
       }
       state.updatedAt = at;
@@ -2822,7 +3041,7 @@ ${normalized.body}`.includes(rules.mention)) {
           409
         );
       }
-      const today = nowIso(this.now).slice(0, 10);
+      const today = nowIso2(this.now).slice(0, 10);
       const dailySpent = state.runs.filter(
         (run4) => run4.roleId === role.id && run4.startedAt.slice(0, 10) === today
       ).reduce((sum, run4) => sum + (run4.tokens ?? 0), 0);
@@ -2835,13 +3054,13 @@ ${normalized.body}`.includes(rules.mention)) {
           409
         );
       }
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       if (workspace !== void 0) {
         task.branch = workspace.branch;
       }
       const branch = this.ensureBranch(state, task, at);
       const run3 = {
-        id: newId("run"),
+        id: newId2("run"),
         projectId: task.projectId,
         taskId: task.id,
         roleId: role.id,
@@ -2901,7 +3120,7 @@ ${normalized.body}`.includes(rules.mention)) {
       if (run3 === void 0) {
         throw new StudioStoreError("run_not_found", "Agent Run \u4E0D\u5B58\u5728", 404);
       }
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       const task = state.tasks.find((item) => item.id === run3.taskId);
       const project = state.projects.find(
         (item) => item.id === run3.projectId
@@ -2977,7 +3196,7 @@ ${normalized.body}`.includes(rules.mention)) {
           for (const text2 of input.receipt.evidence.slice(0, 10)) {
             if (existing.has(text2)) continue;
             task.evidence.push({
-              id: newId("ev"),
+              id: newId2("ev"),
               text: text2,
               createdAt: at
             });
@@ -3009,7 +3228,7 @@ ${normalized.body}`.includes(rules.mention)) {
               (item) => item.branchId === branch.id && item.contract === contract && item.change === change
             )) {
               state.contractChanges.push({
-                id: newId("contract"),
+                id: newId2("contract"),
                 projectId: run3.projectId,
                 branchId: branch.id,
                 taskId: run3.taskId,
@@ -3042,7 +3261,7 @@ ${normalized.body}`.includes(rules.mention)) {
               (item) => item.id === conflict.branchId
             );
             const decision = {
-              id: newId("dec"),
+              id: newId2("dec"),
               projectId: run3.projectId,
               taskId: run3.taskId,
               runId: run3.id,
@@ -3097,7 +3316,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
             continue;
           }
           const decision = {
-            id: newId("dec"),
+            id: newId2("dec"),
             projectId: run3.projectId,
             taskId: run3.taskId,
             runId: run3.id,
@@ -3154,7 +3373,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       if (run3 === void 0) {
         throw new StudioStoreError("run_not_found", "Agent Run \u4E0D\u5B58\u5728", 404);
       }
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       run3.status = "failed";
       run3.error = error.slice(0, 4e3);
       run3.endedAt = at;
@@ -3211,7 +3430,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         return false;
       });
       if (violations.length === 0) return [];
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       task.status = "blocked";
       task.updatedAt = at;
       const title = `\u5951\u7EA6\u8D8A\u754C\uFF1A${task.title.slice(0, 160)}`;
@@ -3220,7 +3439,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       )) {
         const run3 = state.runs.find((item) => item.id === runId);
         state.decisions.push({
-          id: newId("dec"),
+          id: newId2("dec"),
           projectId: task.projectId,
           taskId: task.id,
           runId,
@@ -3265,14 +3484,14 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
     return this.runExclusive(async () => {
       const state = this.requireState();
       const task = this.findTask(state, taskId);
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       const run3 = input.runId ? state.runs.find((item) => item.id === input.runId) : [...state.runs].filter(
         (item) => item.taskId === taskId && item.workspacePath !== null
       ).sort(
         (left, right) => right.startedAt.localeCompare(left.startedAt)
       )[0];
       const verification = {
-        id: newId("verify"),
+        id: newId2("verify"),
         projectId: task.projectId,
         taskId,
         runId: run3?.id ?? null,
@@ -3288,7 +3507,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         const text2 = `\u9A8C\u8BC1\u901A\u8FC7\uFF1A\`${verification.command}\`\uFF08exit 0\uFF09`;
         if (!task.evidence.some((item) => item.text === text2)) {
           task.evidence.push({
-            id: newId("ev"),
+            id: newId2("ev"),
             text: text2,
             createdAt: at
           });
@@ -3353,7 +3572,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           404
         );
       }
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       decision.adrPath = adrPath;
       state.updatedAt = at;
       this.recordEvent(state, {
@@ -3377,9 +3596,9 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       )) {
         return null;
       }
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       const decision = {
-        id: newId("dec"),
+        id: newId2("dec"),
         projectId: task.projectId,
         taskId: task.id,
         runId: null,
@@ -3448,9 +3667,9 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         }
         taskId = task.id;
       }
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       const decision = {
-        id: newId("dec"),
+        id: newId2("dec"),
         projectId: project.id,
         taskId,
         runId: null,
@@ -3519,7 +3738,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           409
         );
       }
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       decision.status = input.status;
       decision.decision = optionalText(input.decision, "decision", 4e3);
       decision.note = optionalText(input.note, "note", 2e3);
@@ -3580,9 +3799,9 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           409
         );
       }
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       const module = {
-        id: newId("module"),
+        id: newId2("module"),
         projectId: project.id,
         name: name2,
         responsibility: optionalText(
@@ -3659,7 +3878,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       if (input.dependsOn !== void 0) {
         module.dependsOn = textList(input.dependsOn, "dependsOn", 20);
       }
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       module.updatedAt = at;
       state.updatedAt = at;
       this.recordEvent(state, {
@@ -3679,9 +3898,9 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       if (project === null) {
         throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
       }
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       const profile = {
-        id: newId("provider"),
+        id: newId2("provider"),
         projectId: project.id,
         name: requiredText(input.name, "name", 80),
         executor: input.executor === "claude-code" || input.executor === "codex" ? input.executor : "dsh",
@@ -3722,7 +3941,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       if (input.note !== void 0) {
         profile.note = optionalText(input.note, "note", 500);
       }
-      profile.updatedAt = nowIso(this.now);
+      profile.updatedAt = nowIso2(this.now);
       state.updatedAt = profile.updatedAt;
       await this.save();
       return structuredClone(profile);
@@ -3742,7 +3961,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       state.providerProfiles = state.providerProfiles.filter(
         (item) => item.id !== profile.id
       );
-      state.updatedAt = nowIso(this.now);
+      state.updatedAt = nowIso2(this.now);
       await this.save();
     });
   }
@@ -3765,7 +3984,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           400
         );
       }
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       const movedRoleIds = [];
       for (const role of state.roles) {
         if (role.projectId === from.projectId && role.providerProfileId === fromProfileId) {
@@ -3816,7 +4035,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       if (project === null) {
         throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
       }
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       const providerProfileId = optionalText(input.providerProfileId, "providerProfileId", 120) || null;
       if (providerProfileId !== null) {
         const profile = this.findProviderProfile(state, providerProfileId);
@@ -3829,7 +4048,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         }
       }
       const role = {
-        id: newId("role"),
+        id: newId2("role"),
         projectId: project.id,
         name: requiredText(input.name, "name", 60),
         title: optionalText(input.title, "title", 80),
@@ -3917,7 +4136,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           "dailyTokenBudget"
         );
       }
-      role.updatedAt = nowIso(this.now);
+      role.updatedAt = nowIso2(this.now);
       state.updatedAt = role.updatedAt;
       this.recordEvent(state, {
         type: "role.updated",
@@ -3936,7 +4155,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       if (project === null) {
         throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
       }
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       const ownerRoleId = this.resolveRoleId(
         state,
         project.id,
@@ -3950,7 +4169,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         "reviewerRoleId"
       );
       const task = {
-        id: newId("task"),
+        id: newId2("task"),
         projectId: project.id,
         title: requiredText(input.title, "title", 160),
         goal: optionalText(input.goal, "goal", 2e3),
@@ -3997,7 +4216,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           "\u5DF2\u5B8C\u6210\u7684\u4EFB\u52A1\u4E0D\u80FD\u76F4\u63A5\u4FEE\u6539\uFF0C\u8BF7\u521B\u5EFA\u4E00\u4E2A\u540E\u7EED\u4EFB\u52A1"
         );
       }
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       if (input.title !== void 0) {
         task.title = requiredText(input.title, "title", 160);
       }
@@ -4141,7 +4360,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         }
       }
       const from = task.status;
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       task.status = next;
       task.updatedAt = at;
       state.updatedAt = at;
@@ -4176,7 +4395,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
     if (lead === void 0) return;
     const index = generated + 1;
     const task = {
-      id: newId("task"),
+      id: newId2("task"),
       projectId,
       title: `\u96C6\u6210\u9A8C\u6536\uFF08\u81EA\u52A8 #${String(index)}\uFF09`,
       goal: "\u6BCF 3 \u4E2A\u5B8C\u6210\u4EFB\u52A1\u540E\u7684\u96C6\u6210 gate\uFF1A\u6253\u5305\u5F53\u524D build\uFF0C\u4EBA\u73A9 10 \u5206\u949F\uFF0C\u8BB0\u5F55\u963B\u65AD\u95EE\u9898\u4E0E\u53EF\u7EE7\u7EED\u8FED\u4EE3\u7684\u5224\u65AD\u3002",
@@ -4186,12 +4405,12 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       reviewerRoleId: verifier?.id ?? lead.id,
       acceptance: [
         {
-          id: newId("acc"),
+          id: newId2("acc"),
           text: "\u6253\u5305\u51FA\u53EF\u8FD0\u884C build",
           done: false
         },
         {
-          id: newId("acc"),
+          id: newId2("acc"),
           text: "\u4EBA\u73A9 10 \u5206\u949F\u5E76\u8BB0\u5F55\u963B\u65AD\u95EE\u9898",
           done: false
         }
@@ -4285,7 +4504,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       if (!isMergeRisk(risk)) {
         throw new StudioStoreError("invalid_input", "risk \u5FC5\u987B\u662F low/medium/high");
       }
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       const latestRun = [...state.runs].filter((run3) => run3.taskId === task.id).sort(
         (left, right) => right.startedAt.localeCompare(left.startedAt)
       )[0];
@@ -4294,7 +4513,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       )[0];
       const changedFiles = latestRun?.diffStat === null || latestRun?.diffStat === void 0 ? [] : latestRun.diffStat.split("\n").filter((line) => /^[ MARC?]{1,2} \S/.test(line)).map((line) => line.slice(3).trim()).filter(Boolean);
       const proposal = {
-        id: newId("merge"),
+        id: newId2("merge"),
         projectId: task.projectId,
         taskId: task.id,
         branch,
@@ -4349,7 +4568,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           409
         );
       }
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       proposal.status = "approved";
       proposal.reviewNote = optionalText(note, "note", 1e3);
       proposal.decidedAt = at;
@@ -4377,7 +4596,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           409
         );
       }
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       proposal.status = "rejected";
       proposal.reviewNote = requiredText(note, "note", 1e3);
       proposal.decidedAt = at;
@@ -4445,7 +4664,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           409
         );
       }
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       proposal.status = "merged";
       proposal.mergeCommit = optionalText(mergeCommit, "mergeCommit", 160) || null;
       proposal.mergedAt = at;
@@ -4470,7 +4689,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       const state = this.requireState();
       const proposal = this.findMergeProposal(state, proposalId);
       proposal.postMergeVerificationId = verificationId;
-      proposal.updatedAt = nowIso(this.now);
+      proposal.updatedAt = nowIso2(this.now);
       state.updatedAt = proposal.updatedAt;
       await this.save();
       return structuredClone(proposal);
@@ -4487,7 +4706,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           409
         );
       }
-      const at = nowIso(this.now);
+      const at = nowIso2(this.now);
       proposal.rollbackCommit = requiredText(
         rollbackCommit,
         "rollbackCommit",
@@ -4537,10 +4756,10 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
   }
   async save() {
     const state = this.requireState();
-    state.updatedAt = nowIso(this.now);
+    state.updatedAt = nowIso2(this.now);
     const serialized = `${JSON.stringify(state, null, 2)}
 `;
-    const temp = `${this.file}.${randomUUID()}.tmp`;
+    const temp = `${this.file}.${randomUUID3()}.tmp`;
     await writeFile(temp, serialized, "utf8");
     try {
       await rename(temp, this.file);
@@ -4591,7 +4810,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       ) ?? state.roles.find((role) => role.id === task.ownerRoleId);
       if (architect !== void 0) {
         const resplit = {
-          id: newId("task"),
+          id: newId2("task"),
           projectId: task.projectId,
           title: `\u91CD\u62C6\uFF1A${task.title}`.slice(0, 160),
           goal: `\u539F\u4EFB\u52A1\u8FDE\u7EED\u5931\u8D25 ${String(failures)} \u6B21\u3002\u5148\u8BCA\u65AD\u6839\u56E0\uFF0C\u91CD\u62C6\u4EFB\u52A1/\u5951\u7EA6\uFF0C\u4EA7\u51FA\u53EF\u6267\u884C\u7684\u65B0 ticket \u4E0E\u9A8C\u6536\u6807\u51C6\uFF1B\u4E0D\u8981\u76F4\u63A5\u5199\u4E1A\u52A1\u4EE3\u7801\u3002\u6700\u540E\u4E00\u6B21\u5931\u8D25\uFF1A${reason}`,
@@ -4601,12 +4820,12 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           reviewerRoleId: task.reviewerRoleId,
           acceptance: [
             {
-              id: newId("acc"),
+              id: newId2("acc"),
               text: "\u7ED9\u51FA\u91CD\u62C6\u540E\u7684\u4EFB\u52A1/\u5951\u7EA6",
               done: false
             },
             {
-              id: newId("acc"),
+              id: newId2("acc"),
               text: "\u6807\u660E\u53EF\u6267\u884C ticket \u4E0E\u9A8C\u6536\u6807\u51C6",
               done: false
             }
@@ -4646,7 +4865,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       return;
     }
     const decision = {
-      id: newId("dec"),
+      id: newId2("dec"),
       projectId: task.projectId,
       taskId: task.id,
       runId: run3.id,
@@ -4811,7 +5030,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
   }
   recordEvent(state, input) {
     const event = {
-      id: newId("evt"),
+      id: newId2("evt"),
       type: input.type,
       at: input.at,
       actor: "human",
@@ -4833,207 +5052,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
     return next;
   }
   seedState() {
-    const at = nowIso(this.now);
-    const project = {
-      id: "proj-demo",
-      name: "\u793A\u4F8B\u9879\u76EE",
-      description: "\u7528\u4E00\u6761\u6700\u5C0F\u94FE\u8DEF\u9A8C\u8BC1\u5DE5\u4F5C\u53F0\uFF1A\u4EFB\u52A1\u3001\u89D2\u8272\u3001\u9A8C\u6536\u548C\u72B6\u6001\u673A\u3002",
-      tokenBudget: null,
-      repoPath: null,
-      prdPath: null,
-      invariantsPath: null,
-      modulesPath: null,
-      triggerRules: defaultTriggerRules2(),
-      stage: "development",
-      createdAt: at,
-      updatedAt: at
-    };
-    const role = (id, name2, title, mission, responsibilities, decisionRights = []) => ({
-      id,
-      projectId: project.id,
-      name: name2,
-      title,
-      mission,
-      responsibilities,
-      nonGoals: [],
-      decisionRights,
-      providerProfileId: null,
-      model: null,
-      executor: "dsh",
-      tokenBudget: null,
-      dailyTokenBudget: null,
-      createdAt: at,
-      updatedAt: at
-    });
-    const roles = [
-      role(
-        "role-lead",
-        "Lead",
-        "\u5236\u4F5C\u4EBA / \u8C03\u5EA6",
-        "\u628A\u76EE\u6807\u53D8\u6210\u53EF\u6267\u884C\u7684\u4EFB\u52A1\u56FE\uFF0C\u5E76\u4FDD\u6301\u4EA4\u4ED8\u8282\u594F\u3002",
-        ["\u62C6\u4EFB\u52A1", "\u6D3E\u5355", "\u8DDF\u8E2A\u963B\u585E", "\u7EC4\u7EC7\u590D\u76D8"],
-        ["\u4EFB\u52A1\u4F18\u5148\u7EA7", "\u6D3E\u5355\u5BF9\u8C61"]
-      ),
-      role(
-        "role-architect",
-        "Architect",
-        "\u67B6\u6784\u5E08",
-        "\u5B88\u4F4F\u67B6\u6784\u5B8C\u6574\u6027\u4E0E\u63A5\u53E3\u5951\u7EA6\u3002",
-        ["\u5199 ADR", "\u5B9A\u5951\u7EA6", "\u6280\u672F\u88C1\u51B3", "\u8BC4\u5BA1\u9AD8\u98CE\u9669\u53D8\u66F4"],
-        ["\u6280\u672F\u65B9\u6848", "\u63A5\u53E3\u5951\u7EA6"]
-      ),
-      role(
-        "role-builder",
-        "Builder",
-        "\u5F00\u53D1\u5DE5\u7A0B\u5E08",
-        "\u4EA4\u4ED8\u53EF\u8FD0\u884C\u7684\u529F\u80FD\u5B9E\u73B0\u548C\u6D4B\u8BD5\u3002",
-        ["\u5B9E\u73B0\u529F\u80FD", "\u4FEE\u590D\u7F3A\u9677", "\u8865\u6D4B\u8BD5", "\u7EF4\u62A4\u6784\u5EFA"]
-      ),
-      role(
-        "role-verifier",
-        "Verifier",
-        "QA / \u9A8C\u6536",
-        "\u72EC\u7ACB\u9A8C\u8BC1\u4EA7\u7269\uFF0C\u5B88\u4F4F\u8D28\u91CF\u95E8\u3002",
-        ["\u8DD1\u6D4B\u8BD5", "\u590D\u73B0\u7F3A\u9677", "\u68C0\u67E5\u9A8C\u6536\u6807\u51C6", "\u8BB0\u5F55\u8BC1\u636E"],
-        ["\u9A8C\u6536\u7ED3\u8BBA"]
-      )
-    ];
-    const acceptance = (...texts) => texts.map((text2, index) => ({
-      id: `acc-demo-${String(index)}-${randomUUID().slice(0, 4)}`,
-      text: text2,
-      done: false
-    }));
-    const task = (id, title, goal, status, priority, ownerRoleId, reviewerRoleId, items, branch = null) => ({
-      id,
-      projectId: project.id,
-      title,
-      goal,
-      status,
-      priority,
-      ownerRoleId,
-      reviewerRoleId,
-      acceptance: items,
-      evidence: [],
-      branch,
-      verifyCommand: null,
-      module: null,
-      contractRef: null,
-      requirementRefs: [],
-      kind: "new",
-      diagnosis: "",
-      plan: "",
-      integration: false,
-      originTaskId: null,
-      docsSynced: false,
-      createdAt: at,
-      updatedAt: at
-    });
-    const tasks = [
-      task(
-        "task-001",
-        "\u786E\u5B9A\u9879\u76EE\u8303\u56F4\u4E0E\u9A8C\u6536\u6807\u51C6",
-        "\u5199\u6E05\u695A\u8FD9\u4E00\u7248\u505A\u4EC0\u4E48\u3001\u4E0D\u505A\u4EC0\u4E48\uFF0C\u4EE5\u53CA\u53EF\u9A8C\u8BC1\u7684\u9A8C\u6536\u53E3\u5F84\u3002",
-        "done",
-        "P0",
-        "role-lead",
-        "role-architect",
-        acceptance("\u8303\u56F4\u6587\u6863\u5DF2\u8BC4\u5BA1", "\u975E\u76EE\u6807\u6E05\u5355\u5DF2\u786E\u8BA4", "\u9A8C\u6536\u53E3\u5F84\u5DF2\u5BF9\u9F50").map(
-          (item) => ({ ...item, done: true })
-        )
-      ),
-      task(
-        "task-002",
-        "\u642D\u5EFA\u9879\u76EE\u9AA8\u67B6",
-        "\u5EFA\u7ACB\u6700\u5C0F\u53EF\u8FD0\u884C\u7ED3\u6784\uFF0C\u5E76\u786E\u4FDD\u6D4B\u8BD5\u547D\u4EE4\u53EF\u4EE5\u6267\u884C\u3002",
-        "review",
-        "P0",
-        "role-architect",
-        "role-verifier",
-        acceptance("\u7ED3\u6784\u53EF\u8FD0\u884C", "\u6D4B\u8BD5\u547D\u4EE4\u53EF\u6267\u884C", "\u6784\u5EFA\u53EF\u91CD\u590D").map(
-          (item, index) => ({ ...item, done: index < 2 })
-        ),
-        "task/002-skeleton"
-      ),
-      task(
-        "task-003",
-        "\u5B9E\u73B0\u7B2C\u4E00\u4E2A\u529F\u80FD",
-        "\u5B8C\u6210\u4E00\u6761\u53EF\u6F14\u793A\u7684\u529F\u80FD\u94FE\u8DEF\uFF0C\u5E76\u8865\u4E0A\u8FB9\u754C\u6D4B\u8BD5\u3002",
-        "running",
-        "P0",
-        "role-builder",
-        "role-architect",
-        acceptance("\u529F\u80FD\u53EF\u6F14\u793A", "\u8FB9\u754C\u6709\u6D4B\u8BD5", "\u65E0\u963B\u65AD\u7F3A\u9677").map(
-          (item, index) => ({ ...item, done: index === 0 })
-        ),
-        "task/003-first-feature"
-      ),
-      task(
-        "task-004",
-        "\u5EFA\u7ACB\u9A8C\u8BC1\u4E0E\u8BB0\u5F55\u57FA\u7EBF",
-        "\u6BCF\u6B21\u5408\u5E76\u90FD\u80FD\u8DD1\u540C\u4E00\u5957\u9A8C\u8BC1\uFF0C\u5E76\u8BB0\u5F55\u7ED3\u679C\u3002",
-        "ready",
-        "P1",
-        "role-verifier",
-        "role-lead",
-        acceptance("\u9A8C\u8BC1\u547D\u4EE4\u53EF\u91CD\u590D", "\u7ED3\u679C\u6709\u6301\u4E45\u5316\u8BB0\u5F55")
-      ),
-      task(
-        "task-005",
-        "\u9996\u8F6E\u9A8C\u6536\u95EE\u9898\u6E05\u5355",
-        "\u6309\u9A8C\u6536\u6807\u51C6\u8D70\u4E00\u904D\uFF0C\u8BB0\u5F55\u963B\u65AD\u3001\u91CD\u8981\u548C\u5EFA\u8BAE\u95EE\u9898\u3002",
-        "backlog",
-        "P1",
-        "role-lead",
-        "role-verifier",
-        acceptance("\u81F3\u5C11\u8D70\u5B8C 1 \u6761\u5B8C\u6574\u94FE\u8DEF", "\u95EE\u9898\u6309\u963B\u65AD/\u91CD\u8981/\u5EFA\u8BAE\u5206\u7EA7")
-      )
-    ];
-    return {
-      schemaVersion: STUDIO_SCHEMA_VERSION,
-      companyName: "AI\u5DE5\u4F5C\u5BA4",
-      createdAt: at,
-      updatedAt: at,
-      activeProjectId: project.id,
-      projects: [project],
-      stageGates: [],
-      triggers: [],
-      threads: [],
-      workshops: [],
-      providerProfiles: [],
-      prototypeDemos: [],
-      roles,
-      modules: [],
-      tasks,
-      mergeProposals: [],
-      runs: [],
-      branches: tasks.filter((task2) => task2.branch !== null).map((task2) => ({
-        id: `branch-${task2.id}`,
-        projectId: task2.projectId,
-        taskId: task2.id,
-        name: task2.branch,
-        goal: task2.goal,
-        roleId: task2.ownerRoleId,
-        contractKeys: [],
-        status: task2.status === "review" ? "review" : "open",
-        createdAt: task2.createdAt,
-        updatedAt: task2.updatedAt
-      })),
-      contractChanges: [],
-      decisions: [],
-      verifications: [],
-      reviews: [],
-      events: [
-        {
-          id: "evt-demo",
-          type: "studio.seeded",
-          at,
-          actor: "system",
-          projectId: project.id,
-          taskId: null,
-          payload: { message: "\u6F14\u793A\u9879\u76EE\u5DF2\u521B\u5EFA" }
-        }
-      ]
-    };
+    return createSeedState(this.now);
   }
 };
 
@@ -5303,7 +5322,7 @@ var ProjectBundleService = class {
 };
 
 // src/host/dispatcher.ts
-import { randomUUID as randomUUID2 } from "node:crypto";
+import { randomUUID as randomUUID4 } from "node:crypto";
 import { spawn } from "node:child_process";
 import { mkdtemp as mkdtemp2, readFile as readFile4, rm as rm3 } from "node:fs/promises";
 import os3 from "node:os";
@@ -5669,7 +5688,7 @@ var AgentDispatcher = class {
     let output = "";
     try {
       handle = await this.ctx.agents.create({
-        sessionId: `review-${randomUUID2()}`,
+        sessionId: `review-${randomUUID4()}`,
         meta: { cwd: context.run.workspacePath },
         agentOptions: selection,
         setup: async (agentCtx, agent) => {
@@ -5749,7 +5768,7 @@ var AgentDispatcher = class {
     let handle = null;
     try {
       handle = await this.ctx.agents.create({
-        sessionId: `run-${randomUUID2()}`,
+        sessionId: `run-${randomUUID4()}`,
         meta: { cwd: workspace?.path ?? process.cwd() },
         agentOptions: selection,
         setup: async (agentCtx, agent) => {
@@ -7383,7 +7402,7 @@ function handleRouterError(res, error) {
 }
 
 // src/host/workshop-runner.ts
-import { randomUUID as randomUUID3 } from "node:crypto";
+import { randomUUID as randomUUID5 } from "node:crypto";
 function assistantText2(messages) {
   const assistant = [...messages].reverse().find((message) => message.role === "assistant");
   if (assistant === void 0) return "";
@@ -7508,7 +7527,7 @@ ${note.summary}
     let handle = null;
     try {
       handle = await this.ctx.agents.create({
-        sessionId: `workshop-summary-${randomUUID3()}`,
+        sessionId: `workshop-summary-${randomUUID5()}`,
         meta: { cwd: context.project.repoPath ?? process.cwd() },
         agentOptions: selection,
         setup: async (agentCtx, agent) => {
@@ -7547,7 +7566,7 @@ ${note.summary}
     let handle = null;
     try {
       handle = await this.ctx.agents.create({
-        sessionId: `workshop-${randomUUID3()}`,
+        sessionId: `workshop-${randomUUID5()}`,
         meta: { cwd: repoPath ?? process.cwd() },
         agentOptions: selection,
         setup: async (agentCtx, agent) => {

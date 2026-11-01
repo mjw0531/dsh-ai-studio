@@ -2,7 +2,7 @@
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
 
-// src/host/store.ts
+// src/host/store/errors.ts
 var StudioStoreError = class extends Error {
   code;
   status;

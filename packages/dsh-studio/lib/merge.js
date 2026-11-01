@@ -1,7 +1,7 @@
 // src/host/merge.ts
 import { execFile } from "node:child_process";
 
-// src/host/store.ts
+// src/host/store/errors.ts
 var StudioStoreError = class extends Error {
   code;
   status;

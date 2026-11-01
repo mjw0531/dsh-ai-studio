@@ -2,7 +2,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-// src/host/store.ts
+// src/host/store/errors.ts
 var StudioStoreError = class extends Error {
   code;
   status;

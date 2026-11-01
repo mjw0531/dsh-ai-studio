@@ -33,7 +33,7 @@ __export(index_exports, {
 module.exports = __toCommonJS(index_exports);
 
 // src/client/StudioPage.tsx
-var import_react8 = require("react");
+var import_react11 = require("react");
 
 // src/shared/types.ts
 var PROJECT_STAGE_ORDER = [
@@ -5576,8 +5576,584 @@ function MissionView({
   ] });
 }
 
-// src/client/StudioPage.tsx
+// src/client/views/TasksView.tsx
+var import_react8 = require("react");
 var import_jsx_runtime11 = require("react/jsx-runtime");
+function TasksView({
+  data,
+  onOpenTask
+}) {
+  const [filter, setFilter] = (0, import_react8.useState)("all");
+  const tasks = filter === "all" ? data.tasks : data.tasks.filter((task) => task.status === filter);
+  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "studio-page-head", children: /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "studio-eyebrow", children: "Task Board" }),
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("h1", { className: "studio-title", children: "\u4EFB\u52A1" }),
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("p", { className: "studio-subtitle", children: "\u4EFB\u52A1\u72B6\u6001\u3001\u8D1F\u8D23\u4EBA\u548C\u9A8C\u6536\u6807\u51C6\u662F\u540C\u4E00\u4EFD\u4E8B\u5B9E\u3002Agent \u4E0D\u80FD\u81EA\u5DF1\u628A\u4EFB\u52A1\u6807\u8BB0\u4E3A\u5B8C\u6210\u3002" })
+    ] }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-toolbar", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-tabs", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
+          "button",
+          {
+            type: "button",
+            className: "studio-tab",
+            "data-active": filter === "all",
+            onClick: () => setFilter("all"),
+            children: [
+              "\u5168\u90E8 ",
+              data.stats.total
+            ]
+          }
+        ),
+        TASK_STATUS_ORDER.map((status) => /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
+          "button",
+          {
+            type: "button",
+            className: "studio-tab",
+            "data-active": filter === status,
+            onClick: () => setFilter(status),
+            children: [
+              TASK_STATUS_LABELS[status],
+              " ",
+              data.stats[status]
+            ]
+          },
+          status
+        ))
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "studio-toolbar-spacer" }),
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { className: "studio-muted", children: [
+        "\u9A8C\u6536\u9879 ",
+        data.stats.acceptanceDone,
+        "/",
+        data.stats.acceptanceTotal
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+      TaskBoard,
+      {
+        tasks,
+        roles: data.roles,
+        mergeProposals: data.mergeProposals,
+        onOpenTask
+      }
+    )
+  ] });
+}
+
+// src/client/views/MergeView.tsx
+var import_react9 = require("react");
+var import_jsx_runtime12 = require("react/jsx-runtime");
+function MergeView({
+  data,
+  busy,
+  onOpenTask,
+  onApprove,
+  onReject,
+  onComplete
+}) {
+  const proposals = [...data.mergeProposals].sort((left, right) => {
+    const order = { review: 0, approved: 1, rejected: 2, merged: 3 };
+    const byStatus = order[left.status] - order[right.status];
+    return byStatus !== 0 ? byStatus : right.createdAt.localeCompare(left.createdAt);
+  });
+  const rejected = data.mergeProposals.filter(
+    (proposal) => proposal.status === "rejected"
+  ).length;
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "studio-page-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "studio-eyebrow", children: "Merge Queue" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h1", { className: "studio-title", children: "\u5408\u5E76\u6CBB\u7406" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { className: "studio-subtitle", children: "\u5206\u652F\u4E0D\u4F1A\u81EA\u5DF1\u6C47\u5165\u4E3B\u5E72\u3002\u6BCF\u4E2A\u63D0\u6848\u90FD\u8981\u6709\u6458\u8981\u3001\u98CE\u9669\u3001\u56DE\u6EDA\u548C\u8BC4\u5BA1\u8BB0\u5F55\uFF1BStudio \u8BB0\u5F55\u6CBB\u7406\u72B6\u6001\uFF0CGit \u547D\u4EE4\u7531\u4EBA\u6216 Integrator \u6267\u884C\u3002" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "studio-head-actions", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { className: "studio-pill", "data-tone": "accent", children: [
+          "\u5F85\u8BC4\u5BA1 ",
+          data.stats.mergeReview
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { className: "studio-pill", "data-tone": "p1", children: [
+          "\u5F85\u5408\u5E76 ",
+          data.stats.mergeApproved
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { className: "studio-pill", "data-tone": "ok", children: [
+          "\u5DF2\u5408\u5E76 ",
+          data.stats.mergeMerged
+        ] })
+      ] })
+    ] }),
+    proposals.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "studio-empty", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("strong", { children: "\u8FD8\u6CA1\u6709\u5408\u5E76\u63D0\u6848" }),
+      "\u4EFB\u52A1\u5B8C\u6210\u9A8C\u6536\u5E76\u8BB0\u5F55\u8BC1\u636E\u540E\uFF0C\u5728 Task Room \u7684\u300C\u5408\u5E76\u6CBB\u7406\u300D\u91CC\u63D0\u4EA4\u7B2C\u4E00\u4E2A\u63D0\u6848\u3002"
+    ] }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "studio-merge-list", children: [
+      proposals.map((proposal) => {
+        const task = data.tasks.find(
+          (item) => item.id === proposal.taskId
+        );
+        return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+          MergeProposalCard,
+          {
+            proposal,
+            task: task ?? null,
+            busy,
+            onOpenTask,
+            onApprove,
+            onReject,
+            onComplete
+          },
+          proposal.id
+        );
+      }),
+      rejected > 0 ? /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "studio-action-note", children: [
+        "\u6709 ",
+        rejected,
+        " \u4E2A\u63D0\u6848\u88AB\u6253\u56DE\uFF1B\u4EFB\u52A1\u56DE\u5230\u6267\u884C\u4E2D\uFF0C\u4FEE\u6539\u540E\u53EF\u91CD\u65B0\u63D0\u4EA4\u3002"
+      ] }) : null
+    ] })
+  ] });
+}
+function MergeProposalCard({
+  proposal,
+  task,
+  busy,
+  onOpenTask,
+  onApprove,
+  onReject,
+  onComplete
+}) {
+  const [note, setNote] = (0, import_react9.useState)("");
+  const [commit, setCommit] = (0, import_react9.useState)("");
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("article", { className: "studio-merge-card", "data-status": proposal.status, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "studio-merge-top", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(MergePill, { proposal }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "studio-pill", "data-tone": "p2", children: MERGE_RISK_LABELS[proposal.risk] }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { className: "studio-muted", style: { marginLeft: "auto" }, children: [
+        proposal.branch,
+        " \u2192 ",
+        proposal.base
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "studio-merge-title", children: [
+      task === null ? proposal.taskId : /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("button", { type: "button", onClick: () => onOpenTask(proposal.taskId), children: task.title }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "studio-mono", children: proposal.id })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("dl", { className: "studio-kv", style: { marginTop: 9 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("dt", { children: "\u53D8\u66F4\u6458\u8981" }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("dd", { children: proposal.summary }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("dt", { children: "\u56DE\u6EDA\u65B9\u6848" }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("dd", { children: proposal.rollback }),
+      proposal.reviewNote !== "" ? /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("dt", { children: "\u8BC4\u5BA1\u5907\u6CE8" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("dd", { children: proposal.reviewNote })
+      ] }) : null,
+      proposal.mergeCommit !== null ? /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("dt", { children: "\u5408\u5E76\u63D0\u4EA4" }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("dd", { className: "studio-mono", children: proposal.mergeCommit })
+      ] }) : null,
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("dt", { children: "\u521B\u5EFA" }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("dd", { children: formatDate(proposal.createdAt) })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "studio-merge-command", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { className: "studio-faint", children: "\u4EBA\u5DE5\u6267\u884C\uFF1A" }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("code", { children: [
+        "git switch ",
+        proposal.base,
+        " && git merge --no-ff ",
+        proposal.branch
+      ] })
+    ] }),
+    proposal.status === "review" ? /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "studio-merge-actions", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+        "input",
+        {
+          value: note,
+          onChange: (event) => setNote(event.target.value),
+          placeholder: "\u8BC4\u5BA1\u5907\u6CE8\uFF08\u6253\u56DE\u65F6\u5FC5\u586B\uFF09",
+          disabled: busy
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "studio-actions", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
+          "button",
+          {
+            type: "button",
+            className: "studio-btn",
+            "data-variant": "primary",
+            "data-size": "sm",
+            disabled: busy,
+            onClick: () => onApprove(proposal, note.trim() || void 0),
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(IconCheck, { width: 13, height: 13 }),
+              "\u6279\u51C6"
+            ]
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+          "button",
+          {
+            type: "button",
+            className: "studio-btn",
+            "data-variant": "danger",
+            "data-size": "sm",
+            disabled: busy || note.trim() === "",
+            title: note.trim() === "" ? "\u6253\u56DE\u5FC5\u987B\u5199\u6E05\u695A\u539F\u56E0" : "\u6253\u56DE\u5E76\u9000\u56DE\u6267\u884C",
+            onClick: () => onReject(proposal, note.trim()),
+            children: "\u6253\u56DE"
+          }
+        )
+      ] })
+    ] }) : proposal.status === "approved" ? /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "studio-merge-actions", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+        "input",
+        {
+          value: commit,
+          onChange: (event) => setCommit(event.target.value),
+          placeholder: "\u5408\u5E76\u63D0\u4EA4 SHA\uFF08\u53EF\u9009\uFF09",
+          disabled: busy
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
+        "button",
+        {
+          type: "button",
+          className: "studio-btn",
+          "data-variant": "primary",
+          "data-size": "sm",
+          disabled: busy,
+          onClick: () => onComplete(proposal, commit.trim() || void 0),
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(IconCheck, { width: 13, height: 13 }),
+            "\u6807\u8BB0\u5DF2\u5408\u5E76"
+          ]
+        }
+      )
+    ] }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className: "studio-action-note", children: proposal.status === "merged" ? `\u5DF2\u5408\u5E76${proposal.mergedAt !== null ? ` \xB7 ${formatDate(proposal.mergedAt)}` : ""}` : "\u5DF2\u6253\u56DE\uFF1B\u4EFB\u52A1\u56DE\u5230\u6267\u884C\u4E2D\uFF0C\u4FEE\u6539\u540E\u53EF\u91CD\u65B0\u63D0\u4EA4\u3002" })
+  ] });
+}
+
+// src/client/views/SettingsView.tsx
+var import_react10 = require("react");
+var import_jsx_runtime13 = require("react/jsx-runtime");
+function SettingsView({
+  boot,
+  data,
+  theme,
+  onTheme,
+  onNewProject,
+  onBindRepo,
+  onReload,
+  onCompany,
+  onBundle,
+  onImportBundle
+}) {
+  const [companyName, setCompanyName] = (0, import_react10.useState)(data.company.name);
+  const [savingCompany, setSavingCompany] = (0, import_react10.useState)(false);
+  (0, import_react10.useEffect)(() => {
+    setCompanyName(data.company.name);
+  }, [data.company.name]);
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "studio-page-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "studio-eyebrow", children: "Runtime" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("h1", { className: "studio-title", children: "\u8BBE\u7F6E" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("p", { className: "studio-subtitle", children: "\u8FD9\u91CC\u53EA\u5C55\u793A\u8FD0\u884C\u4E8B\u5B9E\uFF0C\u4E0D\u63D0\u4F9B\u201C\u6539\u914D\u7F6E\u91CD\u542F\u201D\u4E4B\u7C7B\u7684\u9690\u5F0F\u64CD\u4F5C\u3002\u6570\u636E\u5728\u672C\u5730\u6587\u4EF6\u91CC\uFF0C\u5237\u65B0/\u91CD\u542F\u4E0D\u4E22\u3002" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "studio-head-actions", children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("button", { className: "studio-btn", type: "button", onClick: onReload, children: "\u91CD\u65B0\u52A0\u8F7D" }) })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "studio-settings-grid", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("section", { className: "studio-settings-card", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("h3", { children: "\u5DE5\u4F5C\u5BA4" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(
+          "form",
+          {
+            className: "studio-field",
+            onSubmit: (event) => {
+              event.preventDefault();
+              if (savingCompany || companyName.trim() === "") return;
+              setSavingCompany(true);
+              void onCompany(companyName.trim()).finally(
+                () => setSavingCompany(false)
+              );
+            },
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("label", { htmlFor: "company-name", children: "\u5DE5\u4F5C\u5BA4\u540D\u79F0" }),
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+                "input",
+                {
+                  id: "company-name",
+                  value: companyName,
+                  maxLength: 80,
+                  onChange: (event) => setCompanyName(event.target.value)
+                }
+              ),
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("p", { className: "studio-hint", children: "\u663E\u793A\u5728\u9876\u90E8\u54C1\u724C\u548C\u5DE5\u4F5C\u5BA4\u4EEA\u8868\u76D8\uFF1B\u9ED8\u8BA4\u300CAI\u5DE5\u4F5C\u5BA4\u300D\u3002" }),
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+                "button",
+                {
+                  className: "studio-btn",
+                  "data-size": "sm",
+                  "data-variant": "primary",
+                  type: "submit",
+                  disabled: savingCompany || companyName.trim() === "",
+                  children: savingCompany ? "\u4FDD\u5B58\u4E2D\u2026" : "\u4FDD\u5B58\u5DE5\u4F5C\u5BA4\u540D\u79F0"
+                }
+              )
+            ]
+          }
+        )
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("section", { className: "studio-settings-card", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("h3", { children: "\u7248\u672C\u4E0E\u517C\u5BB9\u6027" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("dl", { className: "studio-kv", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dt", { children: "\u63D2\u4EF6" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("dd", { className: "studio-mono", children: [
+            "v",
+            boot.pluginVersion
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dt", { children: "DSH" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dd", { className: "studio-mono", children: data.app.dshVersion }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dt", { children: "\u517C\u5BB9\u72B6\u6001" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dd", { children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+            "span",
+            {
+              className: "studio-pill",
+              "data-tone": data.app.compatibility.status === "supported" ? "ok" : data.app.compatibility.status === "untested" ? "p0" : "p1",
+              children: data.app.compatibility.status
+            }
+          ) }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dt", { children: "\u9A8C\u8BC1\u57FA\u7EBF" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dd", { className: "studio-mono", children: data.app.compatibility.testedWith })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("p", { className: "studio-hint", style: { marginTop: 10 }, children: data.app.compatibility.message })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("section", { className: "studio-settings-card", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("h3", { children: "\u6570\u636E" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("dl", { className: "studio-kv", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dt", { children: "\u6570\u636E\u76EE\u5F55" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dd", { className: "studio-mono", children: data.app.dataDir }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dt", { children: "Schema" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("dd", { className: "studio-mono", children: [
+            "v",
+            String(data.app.schemaVersion)
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dt", { children: "\u670D\u52A1\u65F6\u95F4" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dd", { children: formatDate(data.app.serverTime) }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dt", { children: "\u9879\u76EE" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("dd", { children: [
+            data.projects.length,
+            " \u4E2A"
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { style: { marginTop: 12 }, children: /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("button", { className: "studio-btn", "data-size": "sm", type: "button", onClick: onNewProject, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconPlus, { width: 13, height: 13 }),
+          "\u65B0\u5EFA\u9879\u76EE"
+        ] }) })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("section", { className: "studio-settings-card", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("h3", { children: "\u4EE3\u7801\u4ED3\u5E93" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("dl", { className: "studio-kv", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dt", { children: "\u9879\u76EE" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dd", { children: data.project?.name ?? "\u672A\u9009\u62E9" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dt", { children: "\u4ED3\u5E93\u8DEF\u5F84" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dd", { className: "studio-mono", children: data.project?.repoPath ?? "\u672A\u7ED1\u5B9A\uFF08\u53EA\u505A\u5206\u6790\uFF09" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("p", { className: "studio-hint", style: { marginTop: 8 }, children: "\u7ED1\u5B9A git \u4ED3\u5E93\u540E\uFF0C\u6D3E\u5355\u4F1A\u4E3A\u6BCF\u4E2A\u4EFB\u52A1\u521B\u5EFA\u72EC\u7ACB worktree \u548C `studio/<taskId>` \u5206\u652F\uFF1B\u4E0D\u7ED1\u5B9A\u5219\u53EA\u505A\u53EA\u8BFB\u5206\u6790\u3002" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { style: { marginTop: 12 }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+            "button",
+            {
+              className: "studio-btn",
+              "data-size": "sm",
+              type: "button",
+              onClick: onBindRepo,
+              disabled: data.project === null,
+              children: "\u7ED1\u5B9A / \u66F4\u6362\u4ED3\u5E93"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+            "button",
+            {
+              className: "studio-btn",
+              "data-size": "sm",
+              type: "button",
+              onClick: () => void onBundle(),
+              disabled: data.project === null || data.project.repoPath === null,
+              title: "\u5BFC\u51FA\u72B6\u6001 + Git \u5386\u53F2 + \u8FC1\u79FB\u8BF4\u660E",
+              children: "\u5BFC\u51FA\u9879\u76EE\u5305"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+            "button",
+            {
+              className: "studio-btn",
+              "data-size": "sm",
+              type: "button",
+              onClick: () => void onImportBundle(),
+              title: "\u4ECE\u9879\u76EE\u5305\u6062\u590D\u72B6\u6001\u5E76 clone \u4ED3\u5E93",
+              children: "\u5BFC\u5165\u9879\u76EE\u5305"
+            }
+          )
+        ] })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("section", { className: "studio-settings-card", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("h3", { children: "\u80FD\u529B\u8FB9\u754C" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("dl", { className: "studio-kv", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dt", { children: "\u72EC\u7ACB\u9875\u9762" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dd", { children: data.features.independentPage ? "\u53EF\u7528" : "\u4E0D\u53EF\u7528" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dt", { children: "\u6587\u4EF6\u6301\u4E45\u5316" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dd", { children: data.features.filePersistence ? "\u53EF\u7528" : "\u4E0D\u53EF\u7528" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dt", { children: "\u516C\u53F8\u4EEA\u8868\u76D8" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dd", { children: data.features.ownerDashboard ? "\u53EF\u7528" : "\u4E0D\u53EF\u7528" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dt", { children: "\u51B3\u7B56\u53F0" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dd", { children: data.features.decisionBoard ? "\u53EF\u7528" : "\u4E0D\u53EF\u7528" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dt", { children: "\u652F\u7EBF/\u5951\u7EA6" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dd", { children: data.features.branchBoard ? "\u53EF\u7528" : "\u4E0D\u53EF\u7528" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dt", { children: "\u4EE3\u7801\u6267\u884C" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dd", { children: data.features.codeExecution ? "\u53EF\u7528\uFF08worktree\uFF09" : "\u4E0D\u53EF\u7528" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dt", { children: "\u72EC\u7ACB\u9A8C\u8BC1" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dd", { children: data.features.verification ? "\u53EF\u7528\uFF08Host \u6267\u884C\uFF09" : "\u4E0D\u53EF\u7528" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dt", { children: "\u5951\u7EA6\u62A4\u680F" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dd", { children: data.features.contractGuard ? "\u53EF\u7528\uFF08\u5951\u7EA6/\u7981\u6B62\u8DEF\u5F84\u8D8A\u754C\u81EA\u52A8\u5347\u7EA7\uFF09" : "\u4E0D\u53EF\u7528" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dt", { children: "\u72EC\u7ACB\u8BC4\u5BA1" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dd", { children: data.features.independentReview ? "\u53EF\u7528\uFF08\u9A8C\u6536\u4EBA Agent\uFF09" : "\u4E0D\u53EF\u7528" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dt", { children: "\u5408\u5E76\u6CBB\u7406" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dd", { children: data.features.mergeGovernance ? "\u53EF\u7528\uFF08\u8BB0\u5F55\u8BC4\u5BA1\uFF0C\u4EBA\u5DE5\u6267\u884C Git\uFF09" : "\u4E0D\u53EF\u7528" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dt", { children: "Agent \u6D3E\u5355" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dd", { children: data.features.agentExecution ? "\u53EF\u7528\uFF08\u5206\u6790 / worktree \u4EE3\u7801\uFF0C\u7ED3\u6784\u5316\u56DE\u6267\uFF09" : "\u4E0D\u53EF\u7528" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dt", { children: "Git \u81EA\u52A8\u5408\u5E76" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("dd", { className: "studio-faint", children: data.features.gitMerge ? "\u5DF2\u542F\u7528" : "\u672A\u542F\u7528\uFF08\u6709\u610F\uFF09" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("p", { className: "studio-hint", style: { marginTop: 10 }, children: "v0.9 \u53EA\u4F7F\u7528 DSH Web Server \u8DEF\u7531\u3001client slots\u3001React \u548C\u516C\u5F00 Agent API\uFF0C \u4E0D\u4F9D\u8D56\u79C1\u6709 Remote \u751F\u6210\u5668\uFF1BAgent \u5728 worktree \u5199\u4EE3\u7801\uFF0CHost \u72EC\u7ACB\u9A8C\u8BC1\u5E76\u6267\u884C\u5951\u7EA6\u62A4\u680F\uFF0C\u51B3\u7B56\u4E0E\u5408\u5E76\u7531\u4EBA\u62CD\u677F\u3002" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("section", { className: "studio-settings-card", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("h3", { children: "\u754C\u9762" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("label", { htmlFor: "studio-theme", children: "\u4E3B\u9898" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(
+            "select",
+            {
+              id: "studio-theme",
+              value: theme,
+              onChange: (event) => onTheme(event.target.value === "light" ? "light" : "dark"),
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("option", { value: "dark", children: "\u6DF1\u8272" }),
+                /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("option", { value: "light", children: "\u6D45\u8272" })
+              ]
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("p", { className: "studio-hint", style: { marginTop: 10 }, children: "\u4E3B\u9898\u4FDD\u5B58\u5728\u5F53\u524D\u6D4F\u89C8\u5668\uFF1B\u6570\u636E\u4E0E\u4E3B\u9898\u4E92\u4E0D\u5F71\u54CD\u3002" })
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("section", { className: "studio-panel", style: { marginTop: 14 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "studio-panel-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconAlert, { width: 14, height: 14 }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("h3", { children: "\u5B89\u5168\u8BF4\u660E" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "studio-panel-body", children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("p", { className: "studio-hint", style: { margin: 0, lineHeight: 1.7 }, children: "Studio API \u4F7F\u7528\u6BCF\u6B21\u8FDB\u7A0B\u542F\u52A8\u968F\u673A\u751F\u6210\u7684 Bearer token\uFF0Ctoken \u53EA\u6CE8\u5165\u5230 \u5F53\u524D DSH \u9875\u9762\uFF1B\u63A5\u53E3\u540C\u6E90\u3001\u65E0 CORS\u3001\u7981\u7528\u7F13\u5B58\u3002\u6570\u636E\u5199\u5230\u672C\u673A DSH_HOME/studio/studio.json\uFF0C\u4E0D\u5305\u542B\u6A21\u578B\u5BC6\u94A5\u3002\u4E0D\u8981\u628A token \u8D34\u5230\u804A\u5929\u6216\u65E5\u5FD7\u91CC\u3002" }) })
+    ] })
+  ] });
+}
+
+// src/client/components/States.tsx
+var import_jsx_runtime14 = require("react/jsx-runtime");
+function LoadingState() {
+  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { className: "studio-root", "data-theme": "dark", children: /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "studio-loading", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { className: "studio-spinner" }),
+    "\u6B63\u5728\u52A0\u8F7D Studio\u2026"
+  ] }) });
+}
+function ErrorState({
+  message,
+  onRetry
+}) {
+  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { className: "studio-root", "data-theme": "dark", children: /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className: "studio-loading", style: { flexDirection: "column", padding: 30 }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { className: "studio-alert", style: { maxWidth: 560 }, children: message }),
+    /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+      "button",
+      {
+        className: "studio-btn",
+        "data-variant": "primary",
+        type: "button",
+        onClick: onRetry,
+        style: { marginTop: 12 },
+        children: "\u91CD\u8BD5"
+      }
+    )
+  ] }) });
+}
+function MissingHost({
+  error,
+  onRetry
+}) {
+  const transport = window.__DSH_TRANSPORT__;
+  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { className: "studio-root", "data-theme": "dark", children: /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
+    "div",
+    {
+      className: "studio-loading",
+      style: { flexDirection: "column", textAlign: "center", padding: 30 },
+      children: [
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { className: "studio-alert", "data-tone": "warn", style: { maxWidth: 680 }, children: "Studio Host \u6CA1\u6709\u8FD4\u56DE\u542F\u52A8\u53C2\u6570\u3002\u63D2\u4EF6\u53EF\u80FD\u521A\u542F\u7528\uFF0C\u6216\u5F53\u524D\u9875\u9762\u7684 DSH \u4F1A\u8BDD\u8FD8\u6CA1\u6709\u5B8C\u6210\u8BA4\u8BC1\u3002" }),
+        error !== null ? /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+          "div",
+          {
+            className: "studio-mono",
+            style: {
+              marginTop: 10,
+              maxWidth: 720,
+              color: "var(--st-muted)",
+              overflowWrap: "anywhere"
+            },
+            children: error
+          }
+        ) : null,
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { className: "studio-faint", style: { marginTop: 12, maxWidth: 620 }, children: "\u68C0\u67E5\u987A\u5E8F\uFF1APlugins \u2192 Studio \u662F\u5426\u542F\u7528\uFF1B\u5237\u65B0\u9875\u9762\uFF1B\u5982\u679C\u4ECD\u5931\u8D25\uFF0C\u91CD\u542F DSH \u540E\u518D\u8BD5\u3002\u684C\u9762\u7AEF\u548C Web \u7AEF\u90FD\u901A\u8FC7\u540C\u4E00\u4E2A Host \u8DEF\u7531\u83B7\u53D6\u542F\u52A8\u53C2\u6570\u3002" }),
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+          "button",
+          {
+            className: "studio-btn",
+            "data-variant": "primary",
+            type: "button",
+            style: { marginTop: 14 },
+            onClick: onRetry,
+            children: "\u5237\u65B0\u91CD\u8BD5"
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
+          "details",
+          {
+            className: "studio-faint",
+            style: { marginTop: 18, maxWidth: 680, textAlign: "left", fontSize: 10 },
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("summary", { style: { cursor: "pointer" }, children: "\u8BCA\u65AD\u4FE1\u606F" }),
+              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+                "pre",
+                {
+                  className: "studio-mono",
+                  style: { whiteSpace: "pre-wrap", overflowWrap: "anywhere", marginTop: 8 },
+                  children: JSON.stringify(
+                    {
+                      error,
+                      href: window.location.href,
+                      origin: window.location.origin,
+                      transportBase: transport?.streamBaseUrl ?? null
+                    },
+                    null,
+                    2
+                  )
+                }
+              )
+            ]
+          }
+        )
+      ]
+    }
+  ) });
+}
+
+// src/client/StudioPage.tsx
+var import_jsx_runtime15 = require("react/jsx-runtime");
 var NAV_ITEMS = [
   { id: "company", label: "\u516C\u53F8", caption: "Owner Dashboard" },
   { id: "boardroom", label: "\u51B3\u7B56\u53F0", caption: "Decision Desk" },
@@ -5608,44 +6184,44 @@ function readStoredTaskId() {
   }
 }
 function StudioPage() {
-  const initialBoot = (0, import_react8.useMemo)(() => readStudioBoot(), []);
-  const [boot, setBoot] = (0, import_react8.useState)(initialBoot);
-  const [bootError, setBootError] = (0, import_react8.useState)(null);
-  const [bootChecked, setBootChecked] = (0, import_react8.useState)(initialBoot !== null);
-  const client = (0, import_react8.useMemo)(
+  const initialBoot = (0, import_react11.useMemo)(() => readStudioBoot(), []);
+  const [boot, setBoot] = (0, import_react11.useState)(initialBoot);
+  const [bootError, setBootError] = (0, import_react11.useState)(null);
+  const [bootChecked, setBootChecked] = (0, import_react11.useState)(initialBoot !== null);
+  const client = (0, import_react11.useMemo)(
     () => boot === null ? null : new StudioClient(boot),
     [boot]
   );
-  const [data, setData] = (0, import_react8.useState)(null);
-  const [loading, setLoading] = (0, import_react8.useState)(true);
-  const [busy, setBusy] = (0, import_react8.useState)(false);
-  const [error, setError] = (0, import_react8.useState)(null);
-  const [tab, setTab] = (0, import_react8.useState)(readStoredTab);
-  const [selectedTaskId, setSelectedTaskId] = (0, import_react8.useState)(
+  const [data, setData] = (0, import_react11.useState)(null);
+  const [loading, setLoading] = (0, import_react11.useState)(true);
+  const [busy, setBusy] = (0, import_react11.useState)(false);
+  const [error, setError] = (0, import_react11.useState)(null);
+  const [tab, setTab] = (0, import_react11.useState)(readStoredTab);
+  const [selectedTaskId, setSelectedTaskId] = (0, import_react11.useState)(
     readStoredTaskId
   );
-  const [modal, setModal] = (0, import_react8.useState)(null);
-  const [toast, setToast] = (0, import_react8.useState)(null);
-  const [theme, setTheme] = (0, import_react8.useState)(() => {
+  const [modal, setModal] = (0, import_react11.useState)(null);
+  const [toast, setToast] = (0, import_react11.useState)(null);
+  const [theme, setTheme] = (0, import_react11.useState)(() => {
     try {
       return localStorage.getItem("studio.theme") === "light" ? "light" : "dark";
     } catch {
       return "dark";
     }
   });
-  (0, import_react8.useEffect)(() => {
+  (0, import_react11.useEffect)(() => {
     try {
       localStorage.setItem("studio.theme", theme);
     } catch {
     }
   }, [theme]);
-  (0, import_react8.useEffect)(() => {
+  (0, import_react11.useEffect)(() => {
     try {
       localStorage.setItem(STUDIO_TAB_KEY, tab);
     } catch {
     }
   }, [tab]);
-  (0, import_react8.useEffect)(() => {
+  (0, import_react11.useEffect)(() => {
     try {
       if (selectedTaskId === null) {
         localStorage.removeItem(STUDIO_TASK_KEY);
@@ -5655,13 +6231,13 @@ function StudioPage() {
     } catch {
     }
   }, [selectedTaskId]);
-  (0, import_react8.useEffect)(() => {
+  (0, import_react11.useEffect)(() => {
     if (data === null || selectedTaskId === null) return;
     if (!data.tasks.some((task) => task.id === selectedTaskId)) {
       setSelectedTaskId(null);
     }
   }, [data, selectedTaskId]);
-  (0, import_react8.useEffect)(() => {
+  (0, import_react11.useEffect)(() => {
     if (boot !== null || bootChecked) return;
     let cancelled = false;
     void resolveStudioBoot().then((result) => {
@@ -5674,7 +6250,7 @@ function StudioPage() {
       cancelled = true;
     };
   }, [boot, bootChecked]);
-  const load = (0, import_react8.useCallback)(
+  const load = (0, import_react11.useCallback)(
     async (projectId, silent = false) => {
       if (client === null) return;
       if (!silent) setLoading(true);
@@ -5696,19 +6272,19 @@ function StudioPage() {
     },
     [client]
   );
-  (0, import_react8.useEffect)(() => {
+  (0, import_react11.useEffect)(() => {
     if (client === null) {
       setLoading(false);
       return;
     }
     void load();
   }, [client, load]);
-  (0, import_react8.useEffect)(() => {
+  (0, import_react11.useEffect)(() => {
     if (toast === null) return;
     const timer = window.setTimeout(() => setToast(null), 4200);
     return () => window.clearTimeout(timer);
   }, [toast]);
-  (0, import_react8.useEffect)(() => {
+  (0, import_react11.useEffect)(() => {
     const onKey = (event) => {
       if (event.key !== "Escape") return;
       if (selectedTaskId !== null) setSelectedTaskId(null);
@@ -5717,7 +6293,7 @@ function StudioPage() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [selectedTaskId, modal]);
-  const run = (0, import_react8.useCallback)(
+  const run = (0, import_react11.useCallback)(
     async (action, successMessage) => {
       if (client === null) return false;
       setBusy(true);
@@ -5735,7 +6311,7 @@ function StudioPage() {
     },
     [client, load]
   );
-  const selectProject = (0, import_react8.useCallback)(
+  const selectProject = (0, import_react11.useCallback)(
     async (projectId) => {
       if (client === null) return false;
       setBusy(true);
@@ -5752,7 +6328,7 @@ function StudioPage() {
     },
     [client, load]
   );
-  const openCompanyProject = (0, import_react8.useCallback)(
+  const openCompanyProject = (0, import_react11.useCallback)(
     async (projectId) => {
       if (projectId !== data?.activeProjectId) {
         const ok = await selectProject(projectId);
@@ -5762,7 +6338,7 @@ function StudioPage() {
     },
     [data?.activeProjectId, selectProject]
   );
-  const openCompanyNeed = (0, import_react8.useCallback)(
+  const openCompanyNeed = (0, import_react11.useCallback)(
     async (need) => {
       if (need.projectId !== data?.activeProjectId) {
         const ok = await selectProject(need.projectId);
@@ -5777,7 +6353,7 @@ function StudioPage() {
     },
     [data?.activeProjectId, selectProject]
   );
-  (0, import_react8.useEffect)(() => {
+  (0, import_react11.useEffect)(() => {
     if (data === null || !data.runs.some(
       (run2) => run2.status === "running" || run2.status === "queued"
     )) {
@@ -5789,9 +6365,9 @@ function StudioPage() {
     return () => window.clearInterval(timer);
   }, [data?.runs, load]);
   const selectedTask = data?.tasks.find((task) => task.id === selectedTaskId) ?? null;
-  if (!bootChecked) return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(LoadingState, {});
+  if (!bootChecked) return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(LoadingState, {});
   if (boot === null) {
-    return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
       MissingHost,
       {
         error: bootError,
@@ -5800,8 +6376,8 @@ function StudioPage() {
     );
   }
   if (data === null) {
-    if (error === null || loading) return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(LoadingState, {});
-    return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+    if (error === null || loading) return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(LoadingState, {});
+    return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
       ErrorState,
       {
         message: error,
@@ -6348,16 +6924,16 @@ function StudioPage() {
       "ADR \u5DF2\u5199\u5165 docs/adr"
     );
   };
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-root", "data-theme": theme, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("header", { className: "studio-header", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-brand", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "studio-mark", children: "S" }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "studio-brand-name", children: data.company.name }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "studio-brand-sub", children: "AI Studio" })
+  return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "studio-root", "data-theme": theme, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("header", { className: "studio-header", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "studio-brand", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "studio-mark", children: "S" }),
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "studio-brand-name", children: data.company.name }),
+          /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "studio-brand-sub", children: "AI Studio" })
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "studio-project-picker", children: data.projects.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "studio-muted", children: "\u8FD8\u6CA1\u6709\u9879\u76EE" }) : /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "studio-project-picker", children: data.projects.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: "studio-muted", children: "\u8FD8\u6CA1\u6709\u9879\u76EE" }) : /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
         "select",
         {
           className: "studio-select",
@@ -6365,16 +6941,16 @@ function StudioPage() {
           onChange: (event) => void selectProject(event.target.value),
           disabled: busy,
           "aria-label": "\u5207\u6362\u9879\u76EE",
-          children: data.projects.map((item) => /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("option", { value: item.id, children: item.name }, item.id))
+          children: data.projects.map((item) => /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("option", { value: item.id, children: item.name }, item.id))
         }
       ) }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-header-actions", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { className: "studio-status", title: "Host \u4E0E\u9875\u9762\u5DF2\u8FDE\u63A5", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "studio-status-dot" }),
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "studio-header-actions", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("span", { className: "studio-status", title: "Host \u4E0E\u9875\u9762\u5DF2\u8FDE\u63A5", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: "studio-status-dot" }),
           "\u672C\u5730 \xB7 v",
           boot.pluginVersion
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
           "button",
           {
             className: "studio-btn",
@@ -6385,7 +6961,7 @@ function StudioPage() {
             children: "\u5BFC\u51FA"
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
           "input",
           {
             id: "studio-import-file",
@@ -6395,7 +6971,7 @@ function StudioPage() {
             onChange: (event) => void importData(event)
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
           "button",
           {
             className: "studio-btn",
@@ -6406,7 +6982,7 @@ function StudioPage() {
             children: "\u5BFC\u5165"
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
           "button",
           {
             className: "studio-btn",
@@ -6415,10 +6991,10 @@ function StudioPage() {
             onClick: () => setTheme((current) => current === "dark" ? "light" : "dark"),
             title: theme === "dark" ? "\u5207\u6362\u5230\u6D45\u8272" : "\u5207\u6362\u5230\u6DF1\u8272",
             "aria-label": "\u5207\u6362\u4E3B\u9898",
-            children: theme === "dark" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconSun, { width: 15, height: 15 }) : /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconMoon, { width: 15, height: 15 })
+            children: theme === "dark" ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(IconSun, { width: 15, height: 15 }) : /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(IconMoon, { width: 15, height: 15 })
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
           "button",
           {
             className: "studio-btn",
@@ -6428,17 +7004,17 @@ function StudioPage() {
             disabled: project === null || data.roles.length === 0,
             title: project === null ? "\u8BF7\u5148\u521B\u5EFA\u9879\u76EE" : data.roles.length === 0 ? "\u8BF7\u5148\u521B\u5EFA\u81F3\u5C11\u4E00\u4E2A\u89D2\u8272" : "\u65B0\u5EFA\u4EFB\u52A1",
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconPlus, { width: 14, height: 14 }),
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(IconPlus, { width: 14, height: 14 }),
               "\u65B0\u5EFA\u4EFB\u52A1"
             ]
           }
         )
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-body", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("nav", { className: "studio-nav", "aria-label": "Studio \u5BFC\u822A", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "studio-nav-label", children: "Workspace" }),
-        NAV_ITEMS.map((item) => /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
+    /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "studio-body", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("nav", { className: "studio-nav", "aria-label": "Studio \u5BFC\u822A", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "studio-nav-label", children: "Workspace" }),
+        NAV_ITEMS.map((item) => /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
           "button",
           {
             type: "button",
@@ -6446,15 +7022,15 @@ function StudioPage() {
             "data-active": tab === item.id,
             onClick: () => setTab(item.id),
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(NavIcon, { tab: item.id }),
-              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { children: item.label }),
-              item.id === "company" && data.company.needs.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "studio-nav-count", children: data.company.needs.length }) : item.id === "boardroom" && data.company.totals.pendingDecisions > 0 ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "studio-nav-count", children: data.company.totals.pendingDecisions }) : item.id === "mission" && reviewCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "studio-nav-count", children: reviewCount }) : item.id === "tasks" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "studio-nav-count", children: data.stats.total }) : item.id === "merges" && mergeCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "studio-nav-count", children: mergeCount }) : item.id === "team" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "studio-nav-count", children: data.roles.length }) : null
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(NavIcon, { tab: item.id }),
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { children: item.label }),
+              item.id === "company" && data.company.needs.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: "studio-nav-count", children: data.company.needs.length }) : item.id === "boardroom" && data.company.totals.pendingDecisions > 0 ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: "studio-nav-count", children: data.company.totals.pendingDecisions }) : item.id === "mission" && reviewCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: "studio-nav-count", children: reviewCount }) : item.id === "tasks" ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: "studio-nav-count", children: data.stats.total }) : item.id === "merges" && mergeCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: "studio-nav-count", children: mergeCount }) : item.id === "team" ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: "studio-nav-count", children: data.roles.length }) : null
             ]
           },
           item.id
         )),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-nav-footer", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("strong", { children: tab === "company" ? "\u8D5B\u535A\u516C\u53F8" : project?.name ?? "\u672A\u9009\u62E9\u9879\u76EE" }),
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "studio-nav-footer", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("strong", { children: tab === "company" ? "\u8D5B\u535A\u516C\u53F8" : project?.name ?? "\u672A\u9009\u62E9\u9879\u76EE" }),
           tab === "company" ? `${String(data.company.totals.projects)} \u4E2A\u9879\u76EE \xB7 ${String(
             data.company.totals.openTasks
           )} \u4E2A\u672A\u5B8C\u6210` : `${String(data.stats.total)} \u4E2A\u4EFB\u52A1 \xB7 ${String(
@@ -6462,10 +7038,10 @@ function StudioPage() {
           )} \u4E2A\u89D2\u8272`
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("main", { className: "studio-main", children: /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-main-inner", children: [
-        error !== null ? /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-alert", "data-tone": "warn", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("main", { className: "studio-main", children: /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "studio-main-inner", children: [
+        error !== null ? /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "studio-alert", "data-tone": "warn", children: [
           error,
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
             "button",
             {
               type: "button",
@@ -6477,8 +7053,8 @@ function StudioPage() {
             }
           )
         ] }) : null,
-        data.app.warning !== null && data.app.warning !== void 0 ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "studio-alert", "data-tone": "warn", children: data.app.warning }) : null,
-        tab === "company" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+        data.app.warning !== null && data.app.warning !== void 0 ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "studio-alert", "data-tone": "warn", children: data.app.warning }) : null,
+        tab === "company" ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
           CompanyView,
           {
             data,
@@ -6488,7 +7064,7 @@ function StudioPage() {
             onNewProject: () => setModal({ kind: "project" })
           }
         ) : null,
-        tab === "boardroom" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+        tab === "boardroom" ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
           BoardroomView,
           {
             decisions: data.decisions,
@@ -6500,7 +7076,7 @@ function StudioPage() {
             onWriteAdr: writeAdr
           }
         ) : null,
-        tab === "knowledge" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+        tab === "knowledge" ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
           KnowledgeView,
           {
             project: data.project,
@@ -6511,7 +7087,7 @@ function StudioPage() {
             onNewModule: () => setModal({ kind: "module" })
           }
         ) : null,
-        tab === "mission" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+        tab === "mission" ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
           MissionView,
           {
             data,
@@ -6537,14 +7113,14 @@ function StudioPage() {
             onSummarizeWorkshop: summarizeWorkshopAi
           }
         ) : null,
-        tab === "tasks" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+        tab === "tasks" ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
           TasksView,
           {
             data,
             onOpenTask: setSelectedTaskId
           }
         ) : null,
-        tab === "merges" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+        tab === "merges" ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
           MergeView,
           {
             data,
@@ -6555,7 +7131,7 @@ function StudioPage() {
             onComplete: (proposal, commit) => void completeMerge(proposal, commit)
           }
         ) : null,
-        tab === "team" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+        tab === "team" ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
           TeamView,
           {
             data,
@@ -6570,7 +7146,7 @@ function StudioPage() {
             onProbeProvider: probeProviderProfile
           }
         ) : null,
-        tab === "settings" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+        tab === "settings" ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
           SettingsView,
           {
             boot,
@@ -6587,7 +7163,7 @@ function StudioPage() {
         ) : null
       ] }) })
     ] }),
-    selectedTask !== null ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+    selectedTask !== null ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
       TaskDrawer,
       {
         task: selectedTask,
@@ -6635,7 +7211,7 @@ function StudioPage() {
       },
       selectedTask.id
     ) : null,
-    modal?.kind === "task" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+    modal?.kind === "task" ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
       TaskForm,
       {
         roles: data.roles,
@@ -6644,7 +7220,7 @@ function StudioPage() {
         onSubmit: (input) => void createTask(input)
       }
     ) : null,
-    modal?.kind === "role" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+    modal?.kind === "role" ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
       RoleForm,
       {
         busy,
@@ -6653,7 +7229,7 @@ function StudioPage() {
         onSubmit: (input) => void createRole(input)
       }
     ) : null,
-    modal?.kind === "project" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+    modal?.kind === "project" ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
       ProjectForm,
       {
         busy,
@@ -6662,7 +7238,7 @@ function StudioPage() {
         onSubmitTemplate: (input) => void createProjectFromTemplate(input)
       }
     ) : null,
-    modal?.kind === "repo" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+    modal?.kind === "repo" ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
       RepoForm,
       {
         initial: data.project?.repoPath ?? "",
@@ -6671,7 +7247,7 @@ function StudioPage() {
         onSubmit: (repoPath) => void updateProjectRepo(repoPath)
       }
     ) : null,
-    modal?.kind === "module" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+    modal?.kind === "module" ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
       ModuleForm,
       {
         busy,
@@ -6679,7 +7255,7 @@ function StudioPage() {
         onSubmit: (input) => void createModule(input)
       }
     ) : null,
-    modal?.kind === "decision" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+    modal?.kind === "decision" ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
       DecisionForm,
       {
         tasks: data.tasks,
@@ -6688,572 +7264,11 @@ function StudioPage() {
         onSubmit: (input) => void createDecision(input)
       }
     ) : null,
-    toast !== null ? /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-toast", "data-kind": toast.kind, role: "status", children: [
-      toast.kind === "ok" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconCheck, { width: 14, height: 14 }) : /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconAlert, { width: 14, height: 14 }),
+    toast !== null ? /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "studio-toast", "data-kind": toast.kind, role: "status", children: [
+      toast.kind === "ok" ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(IconCheck, { width: 14, height: 14 }) : /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(IconAlert, { width: 14, height: 14 }),
       toast.text
     ] }) : null
   ] });
-}
-function TasksView({
-  data,
-  onOpenTask
-}) {
-  const [filter, setFilter] = (0, import_react8.useState)("all");
-  const tasks = filter === "all" ? data.tasks : data.tasks.filter((task) => task.status === filter);
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "studio-page-head", children: /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "studio-eyebrow", children: "Task Board" }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("h1", { className: "studio-title", children: "\u4EFB\u52A1" }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("p", { className: "studio-subtitle", children: "\u4EFB\u52A1\u72B6\u6001\u3001\u8D1F\u8D23\u4EBA\u548C\u9A8C\u6536\u6807\u51C6\u662F\u540C\u4E00\u4EFD\u4E8B\u5B9E\u3002Agent \u4E0D\u80FD\u81EA\u5DF1\u628A\u4EFB\u52A1\u6807\u8BB0\u4E3A\u5B8C\u6210\u3002" })
-    ] }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-toolbar", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-tabs", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
-          "button",
-          {
-            type: "button",
-            className: "studio-tab",
-            "data-active": filter === "all",
-            onClick: () => setFilter("all"),
-            children: [
-              "\u5168\u90E8 ",
-              data.stats.total
-            ]
-          }
-        ),
-        TASK_STATUS_ORDER.map((status) => /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
-          "button",
-          {
-            type: "button",
-            className: "studio-tab",
-            "data-active": filter === status,
-            onClick: () => setFilter(status),
-            children: [
-              TASK_STATUS_LABELS[status],
-              " ",
-              data.stats[status]
-            ]
-          },
-          status
-        ))
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "studio-toolbar-spacer" }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { className: "studio-muted", children: [
-        "\u9A8C\u6536\u9879 ",
-        data.stats.acceptanceDone,
-        "/",
-        data.stats.acceptanceTotal
-      ] })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
-      TaskBoard,
-      {
-        tasks,
-        roles: data.roles,
-        mergeProposals: data.mergeProposals,
-        onOpenTask
-      }
-    )
-  ] });
-}
-function MergeView({
-  data,
-  busy,
-  onOpenTask,
-  onApprove,
-  onReject,
-  onComplete
-}) {
-  const proposals = [...data.mergeProposals].sort((left, right) => {
-    const order = { review: 0, approved: 1, rejected: 2, merged: 3 };
-    const byStatus = order[left.status] - order[right.status];
-    return byStatus !== 0 ? byStatus : right.createdAt.localeCompare(left.createdAt);
-  });
-  const rejected = data.mergeProposals.filter(
-    (proposal) => proposal.status === "rejected"
-  ).length;
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-page-head", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "studio-eyebrow", children: "Merge Queue" }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("h1", { className: "studio-title", children: "\u5408\u5E76\u6CBB\u7406" }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("p", { className: "studio-subtitle", children: "\u5206\u652F\u4E0D\u4F1A\u81EA\u5DF1\u6C47\u5165\u4E3B\u5E72\u3002\u6BCF\u4E2A\u63D0\u6848\u90FD\u8981\u6709\u6458\u8981\u3001\u98CE\u9669\u3001\u56DE\u6EDA\u548C\u8BC4\u5BA1\u8BB0\u5F55\uFF1BStudio \u8BB0\u5F55\u6CBB\u7406\u72B6\u6001\uFF0CGit \u547D\u4EE4\u7531\u4EBA\u6216 Integrator \u6267\u884C\u3002" })
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-head-actions", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { className: "studio-pill", "data-tone": "accent", children: [
-          "\u5F85\u8BC4\u5BA1 ",
-          data.stats.mergeReview
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { className: "studio-pill", "data-tone": "p1", children: [
-          "\u5F85\u5408\u5E76 ",
-          data.stats.mergeApproved
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { className: "studio-pill", "data-tone": "ok", children: [
-          "\u5DF2\u5408\u5E76 ",
-          data.stats.mergeMerged
-        ] })
-      ] })
-    ] }),
-    proposals.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-empty", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("strong", { children: "\u8FD8\u6CA1\u6709\u5408\u5E76\u63D0\u6848" }),
-      "\u4EFB\u52A1\u5B8C\u6210\u9A8C\u6536\u5E76\u8BB0\u5F55\u8BC1\u636E\u540E\uFF0C\u5728 Task Room \u7684\u300C\u5408\u5E76\u6CBB\u7406\u300D\u91CC\u63D0\u4EA4\u7B2C\u4E00\u4E2A\u63D0\u6848\u3002"
-    ] }) : /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-merge-list", children: [
-      proposals.map((proposal) => {
-        const task = data.tasks.find(
-          (item) => item.id === proposal.taskId
-        );
-        return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
-          MergeProposalCard,
-          {
-            proposal,
-            task: task ?? null,
-            busy,
-            onOpenTask,
-            onApprove,
-            onReject,
-            onComplete
-          },
-          proposal.id
-        );
-      }),
-      rejected > 0 ? /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-action-note", children: [
-        "\u6709 ",
-        rejected,
-        " \u4E2A\u63D0\u6848\u88AB\u6253\u56DE\uFF1B\u4EFB\u52A1\u56DE\u5230\u6267\u884C\u4E2D\uFF0C\u4FEE\u6539\u540E\u53EF\u91CD\u65B0\u63D0\u4EA4\u3002"
-      ] }) : null
-    ] })
-  ] });
-}
-function MergeProposalCard({
-  proposal,
-  task,
-  busy,
-  onOpenTask,
-  onApprove,
-  onReject,
-  onComplete
-}) {
-  const [note, setNote] = (0, import_react8.useState)("");
-  const [commit, setCommit] = (0, import_react8.useState)("");
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("article", { className: "studio-merge-card", "data-status": proposal.status, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-merge-top", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(MergePill, { proposal }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "studio-pill", "data-tone": "p2", children: MERGE_RISK_LABELS[proposal.risk] }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { className: "studio-muted", style: { marginLeft: "auto" }, children: [
-        proposal.branch,
-        " \u2192 ",
-        proposal.base
-      ] })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-merge-title", children: [
-      task === null ? proposal.taskId : /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("button", { type: "button", onClick: () => onOpenTask(proposal.taskId), children: task.title }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "studio-mono", children: proposal.id })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("dl", { className: "studio-kv", style: { marginTop: 9 }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dt", { children: "\u53D8\u66F4\u6458\u8981" }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dd", { children: proposal.summary }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dt", { children: "\u56DE\u6EDA\u65B9\u6848" }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dd", { children: proposal.rollback }),
-      proposal.reviewNote !== "" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dt", { children: "\u8BC4\u5BA1\u5907\u6CE8" }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dd", { children: proposal.reviewNote })
-      ] }) : null,
-      proposal.mergeCommit !== null ? /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dt", { children: "\u5408\u5E76\u63D0\u4EA4" }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dd", { className: "studio-mono", children: proposal.mergeCommit })
-      ] }) : null,
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dt", { children: "\u521B\u5EFA" }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dd", { children: formatDate(proposal.createdAt) })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-merge-command", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "studio-faint", children: "\u4EBA\u5DE5\u6267\u884C\uFF1A" }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("code", { children: [
-        "git switch ",
-        proposal.base,
-        " && git merge --no-ff ",
-        proposal.branch
-      ] })
-    ] }),
-    proposal.status === "review" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-merge-actions", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
-        "input",
-        {
-          value: note,
-          onChange: (event) => setNote(event.target.value),
-          placeholder: "\u8BC4\u5BA1\u5907\u6CE8\uFF08\u6253\u56DE\u65F6\u5FC5\u586B\uFF09",
-          disabled: busy
-        }
-      ),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-actions", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
-          "button",
-          {
-            type: "button",
-            className: "studio-btn",
-            "data-variant": "primary",
-            "data-size": "sm",
-            disabled: busy,
-            onClick: () => onApprove(proposal, note.trim() || void 0),
-            children: [
-              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconCheck, { width: 13, height: 13 }),
-              "\u6279\u51C6"
-            ]
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
-          "button",
-          {
-            type: "button",
-            className: "studio-btn",
-            "data-variant": "danger",
-            "data-size": "sm",
-            disabled: busy || note.trim() === "",
-            title: note.trim() === "" ? "\u6253\u56DE\u5FC5\u987B\u5199\u6E05\u695A\u539F\u56E0" : "\u6253\u56DE\u5E76\u9000\u56DE\u6267\u884C",
-            onClick: () => onReject(proposal, note.trim()),
-            children: "\u6253\u56DE"
-          }
-        )
-      ] })
-    ] }) : proposal.status === "approved" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-merge-actions", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
-        "input",
-        {
-          value: commit,
-          onChange: (event) => setCommit(event.target.value),
-          placeholder: "\u5408\u5E76\u63D0\u4EA4 SHA\uFF08\u53EF\u9009\uFF09",
-          disabled: busy
-        }
-      ),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
-        "button",
-        {
-          type: "button",
-          className: "studio-btn",
-          "data-variant": "primary",
-          "data-size": "sm",
-          disabled: busy,
-          onClick: () => onComplete(proposal, commit.trim() || void 0),
-          children: [
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconCheck, { width: 13, height: 13 }),
-            "\u6807\u8BB0\u5DF2\u5408\u5E76"
-          ]
-        }
-      )
-    ] }) : /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "studio-action-note", children: proposal.status === "merged" ? `\u5DF2\u5408\u5E76${proposal.mergedAt !== null ? ` \xB7 ${formatDate(proposal.mergedAt)}` : ""}` : "\u5DF2\u6253\u56DE\uFF1B\u4EFB\u52A1\u56DE\u5230\u6267\u884C\u4E2D\uFF0C\u4FEE\u6539\u540E\u53EF\u91CD\u65B0\u63D0\u4EA4\u3002" })
-  ] });
-}
-function SettingsView({
-  boot,
-  data,
-  theme,
-  onTheme,
-  onNewProject,
-  onBindRepo,
-  onReload,
-  onCompany,
-  onBundle,
-  onImportBundle
-}) {
-  const [companyName, setCompanyName] = (0, import_react8.useState)(data.company.name);
-  const [savingCompany, setSavingCompany] = (0, import_react8.useState)(false);
-  (0, import_react8.useEffect)(() => {
-    setCompanyName(data.company.name);
-  }, [data.company.name]);
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-page-head", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "studio-eyebrow", children: "Runtime" }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("h1", { className: "studio-title", children: "\u8BBE\u7F6E" }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("p", { className: "studio-subtitle", children: "\u8FD9\u91CC\u53EA\u5C55\u793A\u8FD0\u884C\u4E8B\u5B9E\uFF0C\u4E0D\u63D0\u4F9B\u201C\u6539\u914D\u7F6E\u91CD\u542F\u201D\u4E4B\u7C7B\u7684\u9690\u5F0F\u64CD\u4F5C\u3002\u6570\u636E\u5728\u672C\u5730\u6587\u4EF6\u91CC\uFF0C\u5237\u65B0/\u91CD\u542F\u4E0D\u4E22\u3002" })
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "studio-head-actions", children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("button", { className: "studio-btn", type: "button", onClick: onReload, children: "\u91CD\u65B0\u52A0\u8F7D" }) })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-settings-grid", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("section", { className: "studio-settings-card", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("h3", { children: "\u5DE5\u4F5C\u5BA4" }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
-          "form",
-          {
-            className: "studio-field",
-            onSubmit: (event) => {
-              event.preventDefault();
-              if (savingCompany || companyName.trim() === "") return;
-              setSavingCompany(true);
-              void onCompany(companyName.trim()).finally(
-                () => setSavingCompany(false)
-              );
-            },
-            children: [
-              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("label", { htmlFor: "company-name", children: "\u5DE5\u4F5C\u5BA4\u540D\u79F0" }),
-              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
-                "input",
-                {
-                  id: "company-name",
-                  value: companyName,
-                  maxLength: 80,
-                  onChange: (event) => setCompanyName(event.target.value)
-                }
-              ),
-              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("p", { className: "studio-hint", children: "\u663E\u793A\u5728\u9876\u90E8\u54C1\u724C\u548C\u5DE5\u4F5C\u5BA4\u4EEA\u8868\u76D8\uFF1B\u9ED8\u8BA4\u300CAI\u5DE5\u4F5C\u5BA4\u300D\u3002" }),
-              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
-                "button",
-                {
-                  className: "studio-btn",
-                  "data-size": "sm",
-                  "data-variant": "primary",
-                  type: "submit",
-                  disabled: savingCompany || companyName.trim() === "",
-                  children: savingCompany ? "\u4FDD\u5B58\u4E2D\u2026" : "\u4FDD\u5B58\u5DE5\u4F5C\u5BA4\u540D\u79F0"
-                }
-              )
-            ]
-          }
-        )
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("section", { className: "studio-settings-card", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("h3", { children: "\u7248\u672C\u4E0E\u517C\u5BB9\u6027" }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("dl", { className: "studio-kv", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dt", { children: "\u63D2\u4EF6" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("dd", { className: "studio-mono", children: [
-            "v",
-            boot.pluginVersion
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dt", { children: "DSH" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dd", { className: "studio-mono", children: data.app.dshVersion }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dt", { children: "\u517C\u5BB9\u72B6\u6001" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dd", { children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
-            "span",
-            {
-              className: "studio-pill",
-              "data-tone": data.app.compatibility.status === "supported" ? "ok" : data.app.compatibility.status === "untested" ? "p0" : "p1",
-              children: data.app.compatibility.status
-            }
-          ) }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dt", { children: "\u9A8C\u8BC1\u57FA\u7EBF" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dd", { className: "studio-mono", children: data.app.compatibility.testedWith })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("p", { className: "studio-hint", style: { marginTop: 10 }, children: data.app.compatibility.message })
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("section", { className: "studio-settings-card", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("h3", { children: "\u6570\u636E" }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("dl", { className: "studio-kv", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dt", { children: "\u6570\u636E\u76EE\u5F55" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dd", { className: "studio-mono", children: data.app.dataDir }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dt", { children: "Schema" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("dd", { className: "studio-mono", children: [
-            "v",
-            String(data.app.schemaVersion)
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dt", { children: "\u670D\u52A1\u65F6\u95F4" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dd", { children: formatDate(data.app.serverTime) }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dt", { children: "\u9879\u76EE" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("dd", { children: [
-            data.projects.length,
-            " \u4E2A"
-          ] })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { style: { marginTop: 12 }, children: /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("button", { className: "studio-btn", "data-size": "sm", type: "button", onClick: onNewProject, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconPlus, { width: 13, height: 13 }),
-          "\u65B0\u5EFA\u9879\u76EE"
-        ] }) })
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("section", { className: "studio-settings-card", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("h3", { children: "\u4EE3\u7801\u4ED3\u5E93" }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("dl", { className: "studio-kv", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dt", { children: "\u9879\u76EE" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dd", { children: data.project?.name ?? "\u672A\u9009\u62E9" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dt", { children: "\u4ED3\u5E93\u8DEF\u5F84" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dd", { className: "studio-mono", children: data.project?.repoPath ?? "\u672A\u7ED1\u5B9A\uFF08\u53EA\u505A\u5206\u6790\uFF09" })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("p", { className: "studio-hint", style: { marginTop: 8 }, children: "\u7ED1\u5B9A git \u4ED3\u5E93\u540E\uFF0C\u6D3E\u5355\u4F1A\u4E3A\u6BCF\u4E2A\u4EFB\u52A1\u521B\u5EFA\u72EC\u7ACB worktree \u548C `studio/<taskId>` \u5206\u652F\uFF1B\u4E0D\u7ED1\u5B9A\u5219\u53EA\u505A\u53EA\u8BFB\u5206\u6790\u3002" }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { style: { marginTop: 12 }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
-            "button",
-            {
-              className: "studio-btn",
-              "data-size": "sm",
-              type: "button",
-              onClick: onBindRepo,
-              disabled: data.project === null,
-              children: "\u7ED1\u5B9A / \u66F4\u6362\u4ED3\u5E93"
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
-            "button",
-            {
-              className: "studio-btn",
-              "data-size": "sm",
-              type: "button",
-              onClick: () => void onBundle(),
-              disabled: data.project === null || data.project.repoPath === null,
-              title: "\u5BFC\u51FA\u72B6\u6001 + Git \u5386\u53F2 + \u8FC1\u79FB\u8BF4\u660E",
-              children: "\u5BFC\u51FA\u9879\u76EE\u5305"
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
-            "button",
-            {
-              className: "studio-btn",
-              "data-size": "sm",
-              type: "button",
-              onClick: () => void onImportBundle(),
-              title: "\u4ECE\u9879\u76EE\u5305\u6062\u590D\u72B6\u6001\u5E76 clone \u4ED3\u5E93",
-              children: "\u5BFC\u5165\u9879\u76EE\u5305"
-            }
-          )
-        ] })
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("section", { className: "studio-settings-card", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("h3", { children: "\u80FD\u529B\u8FB9\u754C" }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("dl", { className: "studio-kv", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dt", { children: "\u72EC\u7ACB\u9875\u9762" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dd", { children: data.features.independentPage ? "\u53EF\u7528" : "\u4E0D\u53EF\u7528" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dt", { children: "\u6587\u4EF6\u6301\u4E45\u5316" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dd", { children: data.features.filePersistence ? "\u53EF\u7528" : "\u4E0D\u53EF\u7528" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dt", { children: "\u516C\u53F8\u4EEA\u8868\u76D8" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dd", { children: data.features.ownerDashboard ? "\u53EF\u7528" : "\u4E0D\u53EF\u7528" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dt", { children: "\u51B3\u7B56\u53F0" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dd", { children: data.features.decisionBoard ? "\u53EF\u7528" : "\u4E0D\u53EF\u7528" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dt", { children: "\u652F\u7EBF/\u5951\u7EA6" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dd", { children: data.features.branchBoard ? "\u53EF\u7528" : "\u4E0D\u53EF\u7528" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dt", { children: "\u4EE3\u7801\u6267\u884C" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dd", { children: data.features.codeExecution ? "\u53EF\u7528\uFF08worktree\uFF09" : "\u4E0D\u53EF\u7528" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dt", { children: "\u72EC\u7ACB\u9A8C\u8BC1" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dd", { children: data.features.verification ? "\u53EF\u7528\uFF08Host \u6267\u884C\uFF09" : "\u4E0D\u53EF\u7528" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dt", { children: "\u5951\u7EA6\u62A4\u680F" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dd", { children: data.features.contractGuard ? "\u53EF\u7528\uFF08\u5951\u7EA6/\u7981\u6B62\u8DEF\u5F84\u8D8A\u754C\u81EA\u52A8\u5347\u7EA7\uFF09" : "\u4E0D\u53EF\u7528" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dt", { children: "\u72EC\u7ACB\u8BC4\u5BA1" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dd", { children: data.features.independentReview ? "\u53EF\u7528\uFF08\u9A8C\u6536\u4EBA Agent\uFF09" : "\u4E0D\u53EF\u7528" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dt", { children: "\u5408\u5E76\u6CBB\u7406" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dd", { children: data.features.mergeGovernance ? "\u53EF\u7528\uFF08\u8BB0\u5F55\u8BC4\u5BA1\uFF0C\u4EBA\u5DE5\u6267\u884C Git\uFF09" : "\u4E0D\u53EF\u7528" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dt", { children: "Agent \u6D3E\u5355" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dd", { children: data.features.agentExecution ? "\u53EF\u7528\uFF08\u5206\u6790 / worktree \u4EE3\u7801\uFF0C\u7ED3\u6784\u5316\u56DE\u6267\uFF09" : "\u4E0D\u53EF\u7528" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dt", { children: "Git \u81EA\u52A8\u5408\u5E76" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("dd", { className: "studio-faint", children: data.features.gitMerge ? "\u5DF2\u542F\u7528" : "\u672A\u542F\u7528\uFF08\u6709\u610F\uFF09" })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("p", { className: "studio-hint", style: { marginTop: 10 }, children: "v0.9 \u53EA\u4F7F\u7528 DSH Web Server \u8DEF\u7531\u3001client slots\u3001React \u548C\u516C\u5F00 Agent API\uFF0C \u4E0D\u4F9D\u8D56\u79C1\u6709 Remote \u751F\u6210\u5668\uFF1BAgent \u5728 worktree \u5199\u4EE3\u7801\uFF0CHost \u72EC\u7ACB\u9A8C\u8BC1\u5E76\u6267\u884C\u5951\u7EA6\u62A4\u680F\uFF0C\u51B3\u7B56\u4E0E\u5408\u5E76\u7531\u4EBA\u62CD\u677F\u3002" })
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("section", { className: "studio-settings-card", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("h3", { children: "\u754C\u9762" }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("label", { htmlFor: "studio-theme", children: "\u4E3B\u9898" }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
-            "select",
-            {
-              id: "studio-theme",
-              value: theme,
-              onChange: (event) => onTheme(event.target.value === "light" ? "light" : "dark"),
-              children: [
-                /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("option", { value: "dark", children: "\u6DF1\u8272" }),
-                /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("option", { value: "light", children: "\u6D45\u8272" })
-              ]
-            }
-          )
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("p", { className: "studio-hint", style: { marginTop: 10 }, children: "\u4E3B\u9898\u4FDD\u5B58\u5728\u5F53\u524D\u6D4F\u89C8\u5668\uFF1B\u6570\u636E\u4E0E\u4E3B\u9898\u4E92\u4E0D\u5F71\u54CD\u3002" })
-      ] })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("section", { className: "studio-panel", style: { marginTop: 14 }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-panel-head", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconAlert, { width: 14, height: 14 }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("h3", { children: "\u5B89\u5168\u8BF4\u660E" })
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "studio-panel-body", children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("p", { className: "studio-hint", style: { margin: 0, lineHeight: 1.7 }, children: "Studio API \u4F7F\u7528\u6BCF\u6B21\u8FDB\u7A0B\u542F\u52A8\u968F\u673A\u751F\u6210\u7684 Bearer token\uFF0Ctoken \u53EA\u6CE8\u5165\u5230 \u5F53\u524D DSH \u9875\u9762\uFF1B\u63A5\u53E3\u540C\u6E90\u3001\u65E0 CORS\u3001\u7981\u7528\u7F13\u5B58\u3002\u6570\u636E\u5199\u5230\u672C\u673A DSH_HOME/studio/studio.json\uFF0C\u4E0D\u5305\u542B\u6A21\u578B\u5BC6\u94A5\u3002\u4E0D\u8981\u628A token \u8D34\u5230\u804A\u5929\u6216\u65E5\u5FD7\u91CC\u3002" }) })
-    ] })
-  ] });
-}
-function LoadingState() {
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "studio-root", "data-theme": "dark", children: /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-loading", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "studio-spinner" }),
-    "\u6B63\u5728\u52A0\u8F7D Studio\u2026"
-  ] }) });
-}
-function ErrorState({
-  message,
-  onRetry
-}) {
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "studio-root", "data-theme": "dark", children: /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-loading", style: { flexDirection: "column", padding: 30 }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "studio-alert", style: { maxWidth: 560 }, children: message }),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
-      "button",
-      {
-        className: "studio-btn",
-        "data-variant": "primary",
-        type: "button",
-        onClick: onRetry,
-        style: { marginTop: 12 },
-        children: "\u91CD\u8BD5"
-      }
-    )
-  ] }) });
-}
-function MissingHost({
-  error,
-  onRetry
-}) {
-  const transport = window.__DSH_TRANSPORT__;
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "studio-root", "data-theme": "dark", children: /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
-    "div",
-    {
-      className: "studio-loading",
-      style: { flexDirection: "column", textAlign: "center", padding: 30 },
-      children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "studio-alert", "data-tone": "warn", style: { maxWidth: 680 }, children: "Studio Host \u6CA1\u6709\u8FD4\u56DE\u542F\u52A8\u53C2\u6570\u3002\u63D2\u4EF6\u53EF\u80FD\u521A\u542F\u7528\uFF0C\u6216\u5F53\u524D\u9875\u9762\u7684 DSH \u4F1A\u8BDD\u8FD8\u6CA1\u6709\u5B8C\u6210\u8BA4\u8BC1\u3002" }),
-        error !== null ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
-          "div",
-          {
-            className: "studio-mono",
-            style: {
-              marginTop: 10,
-              maxWidth: 720,
-              color: "var(--st-muted)",
-              overflowWrap: "anywhere"
-            },
-            children: error
-          }
-        ) : null,
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "studio-faint", style: { marginTop: 12, maxWidth: 620 }, children: "\u68C0\u67E5\u987A\u5E8F\uFF1APlugins \u2192 Studio \u662F\u5426\u542F\u7528\uFF1B\u5237\u65B0\u9875\u9762\uFF1B\u5982\u679C\u4ECD\u5931\u8D25\uFF0C\u91CD\u542F DSH \u540E\u518D\u8BD5\u3002\u684C\u9762\u7AEF\u548C Web \u7AEF\u90FD\u901A\u8FC7\u540C\u4E00\u4E2A Host \u8DEF\u7531\u83B7\u53D6\u542F\u52A8\u53C2\u6570\u3002" }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
-          "button",
-          {
-            className: "studio-btn",
-            "data-variant": "primary",
-            type: "button",
-            style: { marginTop: 14 },
-            onClick: onRetry,
-            children: "\u5237\u65B0\u91CD\u8BD5"
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
-          "details",
-          {
-            className: "studio-faint",
-            style: { marginTop: 18, maxWidth: 680, textAlign: "left", fontSize: 10 },
-            children: [
-              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("summary", { style: { cursor: "pointer" }, children: "\u8BCA\u65AD\u4FE1\u606F" }),
-              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
-                "pre",
-                {
-                  className: "studio-mono",
-                  style: { whiteSpace: "pre-wrap", overflowWrap: "anywhere", marginTop: 8 },
-                  children: JSON.stringify(
-                    {
-                      error,
-                      href: window.location.href,
-                      origin: window.location.origin,
-                      transportBase: transport?.streamBaseUrl ?? null
-                    },
-                    null,
-                    2
-                  )
-                }
-              )
-            ]
-          }
-        )
-      ]
-    }
-  ) });
 }
 
 // src/client/styles.ts
@@ -8951,11 +8966,11 @@ var studioCss = `
 `;
 
 // src/client/index.tsx
-var import_jsx_runtime12 = require("react/jsx-runtime");
+var import_jsx_runtime16 = require("react/jsx-runtime");
 var name = "dsh-studio-client";
 var inject = ["slots", "layout"];
 function StudioIcon() {
-  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
     "svg",
     {
       width: "16",
@@ -8968,8 +8983,8 @@ function StudioIcon() {
       strokeLinejoin: "round",
       "aria-hidden": "true",
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: "M4 7.5 12 3l8 4.5v9L12 21l-8-4.5Z" }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("path", { d: "M8 10.5v4M12 8.5v7M16 10.5v4" })
+        /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("path", { d: "M4 7.5 12 3l8 4.5v9L12 21l-8-4.5Z" }),
+        /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("path", { d: "M8 10.5v4M12 8.5v7M16 10.5v4" })
       ]
     }
   );
