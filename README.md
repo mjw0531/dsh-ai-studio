@@ -64,7 +64,7 @@ dsh plugin --profile web add "D:\dsh-ai-studio\packages\dsh-studio"
 dsh --profile web
 ```
 
-详细安装、打包分发、安全说明见 [插件 README](packages/dsh-studio/README.md)；想先理解整体工作流、角色和开发术语，读 [项目介绍与开发指南](docs/06-项目介绍.md)；完整操作步骤见 [使用说明书](docs/05-使用说明书.md)；兼容性、升级、备份见 [兼容性与安装](docs/04-兼容性与安装.md)。
+详细安装、打包分发、安全说明见 [插件 README](packages/dsh-studio/README.md)；想先理解整体工作流、角色和开发术语，读 [项目介绍与开发指南](docs/06-项目介绍.md)；对 Super-agent / Router / Thread 的架构启发见 [Super-agent 启发](docs/07-Super-agent-启发.md)；完整操作步骤见 [使用说明书](docs/05-使用说明书.md)；兼容性、升级、备份见 [兼容性与安装](docs/04-兼容性与安装.md)。
 
 DSH 生态发现：GitHub topic 为 `dsh-plugin`，npm keywords 包含 `dsh-plugin` / `deepseek-harness` / `dsh`，包内提供 `dsh.bundle.patch` 与 `dsh.client.platform`。
 
@@ -195,6 +195,7 @@ dsh --profile web --no-open --port 0
 - **v2.5.2**：发布包名改为无 scope 的 `dsh-ai-studio`，修复 DSH 侧栏入口。
 - **v2.5.3**：仓库根目录补 `dsh` 清单，可直接从 GitHub 根目录安装并被 `dsh-plugin` 生态发现。
 - **v2.6.0（当前）**：阶段门禁、Definition of Ready 清单、产物登记、Owner 豁免、任务需求引用。
+- **下一步 v2.7（规划）**：Trigger Router / Thread，把外部事件路由到任务，而不是先堆多 AI 群聊。见 [Super-agent 启发](docs/07-Super-agent-启发.md)。
 - **v1.0**：用工作台完成一个完整垂直切片，再抽象为可复用插件。
 
 升级、备份与兼容性见 [兼容性与安装](docs/04-兼容性与安装.md)。
