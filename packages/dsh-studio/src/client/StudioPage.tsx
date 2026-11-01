@@ -618,6 +618,19 @@ export function StudioPage() {
     );
   };
 
+  const reassignProviderProfile = async (
+    fromProfileId: string,
+    toProfileId: string,
+  ): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.reassignProviderProfile(fromProfileId, toProfileId);
+      },
+      "角色已改绑到备用 Profile",
+    );
+  };
+
   const createProject = async (input: CreateProjectInput): Promise<void> => {
     const ok = await run(
       async () => {
@@ -1395,6 +1408,7 @@ export function StudioPage() {
                 onCreateProvider={createProviderProfile}
                 onUpdateProvider={updateProviderProfile}
                 onDeleteProvider={deleteProviderProfile}
+                onReassignProvider={reassignProviderProfile}
               />
             ) : null}
 
@@ -4031,6 +4045,7 @@ function ProviderProfilesPanel({
   onCreate,
   onUpdate,
   onDelete,
+  onReassign,
 }: {
   profiles: ProviderProfile[];
   health: ProviderProfileHealth[];
@@ -4041,6 +4056,10 @@ function ProviderProfilesPanel({
     input: UpdateProviderProfileInput,
   ) => Promise<boolean>;
   onDelete: (profileId: string) => Promise<boolean>;
+  onReassign: (
+    fromProfileId: string,
+    toProfileId: string,
+  ) => Promise<boolean>;
 }) {
   const [name, setName] = useState("");
   const [executor, setExecutor] = useState<AgentExecutor>("dsh");
@@ -4147,6 +4166,27 @@ function ProviderProfilesPanel({
                     {profiles.find(
                       (item) => item.id === current.suggestedProfileId,
                     )?.name ?? current.suggestedProfileId}
+                    <button
+                      className="studio-btn"
+                      data-size="sm"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        const target = profiles.find(
+                          (item) => item.id === current.suggestedProfileId,
+                        );
+                        if (
+                          target !== undefined &&
+                          window.confirm(
+                            `把绑定「${profile.name}」的角色改绑到「${target.name}」？`,
+                          )
+                        ) {
+                          void onReassign(profile.id, target.id);
+                        }
+                      }}
+                    >
+                      改绑
+                    </button>
                   </span>
                 ) : null}
                 <button
@@ -4195,6 +4235,7 @@ function TeamView({
   onCreateProvider,
   onUpdateProvider,
   onDeleteProvider,
+  onReassignProvider,
 }: {
   data: BootstrapResponse;
   busy: boolean;
@@ -4212,6 +4253,10 @@ function TeamView({
     input: UpdateProviderProfileInput,
   ) => Promise<boolean>;
   onDeleteProvider: (profileId: string) => Promise<boolean>;
+  onReassignProvider: (
+    fromProfileId: string,
+    toProfileId: string,
+  ) => Promise<boolean>;
 }) {
   return (
     <>
@@ -4245,6 +4290,7 @@ function TeamView({
         onCreate={onCreateProvider}
         onUpdate={onUpdateProvider}
         onDelete={onDeleteProvider}
+        onReassign={onReassignProvider}
       />
 
       {data.roles.length === 0 ? (

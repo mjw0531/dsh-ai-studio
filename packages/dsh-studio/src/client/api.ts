@@ -358,6 +358,16 @@ export class StudioClient {
     return data.profile;
   }
 
+  async reassignProviderProfile(
+    fromProfileId: string,
+    toProfileId: string,
+  ): Promise<{ movedRoleIds: string[] }> {
+    return this.request<{ movedRoleIds: string[] }>(
+      `/provider-profiles/${encodeURIComponent(fromProfileId)}/reassign`,
+      { method: "POST", body: { toProfileId } },
+    );
+  }
+
   async deleteProviderProfile(profileId: string): Promise<void> {
     await this.request<{ ok: boolean }>(
       `/provider-profiles/${encodeURIComponent(profileId)}`,

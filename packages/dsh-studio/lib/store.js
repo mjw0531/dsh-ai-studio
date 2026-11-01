@@ -14,7 +14,7 @@ import path from "node:path";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 22;
-var STUDIO_PLUGIN_VERSION = "2.12.0";
+var STUDIO_PLUGIN_VERSION = "2.13.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -3029,6 +3029,52 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       );
       state.updatedAt = nowIso(this.now);
       await this.save();
+    });
+  }
+  async reassignProviderProfile(fromProfileId, toProfileId) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      if (fromProfileId === toProfileId) {
+        throw new StudioStoreError(
+          "invalid_input",
+          "\u5907\u7528 Profile \u4E0D\u80FD\u662F\u5F53\u524D Profile",
+          400
+        );
+      }
+      const from = this.findProviderProfile(state, fromProfileId);
+      const to = this.findProviderProfile(state, toProfileId);
+      if (from.projectId !== to.projectId) {
+        throw new StudioStoreError(
+          "invalid_input",
+          "\u5907\u7528 Profile \u5FC5\u987B\u5C5E\u4E8E\u540C\u4E00\u9879\u76EE",
+          400
+        );
+      }
+      const at = nowIso(this.now);
+      const movedRoleIds = [];
+      for (const role of state.roles) {
+        if (role.projectId === from.projectId && role.providerProfileId === fromProfileId) {
+          role.providerProfileId = toProfileId;
+          role.updatedAt = at;
+          movedRoleIds.push(role.id);
+        }
+      }
+      if (movedRoleIds.length === 0) {
+        throw new StudioStoreError(
+          "provider_profile_unused",
+          "\u6CA1\u6709\u89D2\u8272\u7ED1\u5B9A\u8FD9\u4E2A Provider Profile",
+          409
+        );
+      }
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "provider.reassigned",
+        at,
+        projectId: from.projectId,
+        payload: { fromProfileId, toProfileId, movedRoleIds }
+      });
+      await this.save();
+      return { fromProfileId, toProfileId, movedRoleIds };
     });
   }
   async getRoleProvider(roleId) {

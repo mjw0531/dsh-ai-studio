@@ -954,6 +954,22 @@ export class StudioRouter {
       return;
     }
 
+    const providerReassign =
+      /^\/studio-api\/provider-profiles\/([^/]+)\/reassign$/.exec(
+        parsed.pathname,
+      );
+    if (providerReassign !== null) {
+      this.requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const body = await readJson(req);
+      const result = await this.store.reassignProviderProfile(
+        decodeSegment(providerReassign[1] ?? ""),
+        asString(body.toProfileId, "toProfileId"),
+      );
+      sendJson(res, 200, { ok: true, ...result });
+      return;
+    }
+
     const providerProfileMatch =
       /^\/studio-api\/provider-profiles\/([^/]+)$/.exec(parsed.pathname);
     if (providerProfileMatch !== null) {

@@ -4006,6 +4006,63 @@ export class StudioStore {
     });
   }
 
+  async reassignProviderProfile(
+    fromProfileId: string,
+    toProfileId: string,
+  ): Promise<{
+    fromProfileId: string;
+    toProfileId: string;
+    movedRoleIds: string[];
+  }> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      if (fromProfileId === toProfileId) {
+        throw new StudioStoreError(
+          "invalid_input",
+          "备用 Profile 不能是当前 Profile",
+          400,
+        );
+      }
+      const from = this.findProviderProfile(state, fromProfileId);
+      const to = this.findProviderProfile(state, toProfileId);
+      if (from.projectId !== to.projectId) {
+        throw new StudioStoreError(
+          "invalid_input",
+          "备用 Profile 必须属于同一项目",
+          400,
+        );
+      }
+      const at = nowIso(this.now);
+      const movedRoleIds: string[] = [];
+      for (const role of state.roles) {
+        if (
+          role.projectId === from.projectId &&
+          role.providerProfileId === fromProfileId
+        ) {
+          role.providerProfileId = toProfileId;
+          role.updatedAt = at;
+          movedRoleIds.push(role.id);
+        }
+      }
+      if (movedRoleIds.length === 0) {
+        throw new StudioStoreError(
+          "provider_profile_unused",
+          "没有角色绑定这个 Provider Profile",
+          409,
+        );
+      }
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "provider.reassigned",
+        at,
+        projectId: from.projectId,
+        payload: { fromProfileId, toProfileId, movedRoleIds },
+      });
+      await this.save();
+      return { fromProfileId, toProfileId, movedRoleIds };
+    });
+  }
+
   async getRoleProvider(roleId: string): Promise<ProviderProfile | null> {
     return this.runExclusive(async () => {
       const state = this.requireState();

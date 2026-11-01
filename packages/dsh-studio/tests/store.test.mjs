@@ -1493,3 +1493,37 @@ test("aggregates provider health from bound role runs", async () => {
     assert.equal(degraded?.suggestedProfileId, backup.id);
   });
 });
+
+test("reassigns roles to a fallback provider profile", async () => {
+  await withStore(async (store) => {
+    const primary = await store.createProviderProfile({
+      name: "Primary",
+    });
+    const fallback = await store.createProviderProfile({
+      name: "Fallback",
+    });
+    const role = await store.createRole({
+      name: "Primary role",
+      providerProfileId: primary.id,
+    });
+
+    const result = await store.reassignProviderProfile(
+      primary.id,
+      fallback.id,
+    );
+    assert.deepEqual(result.movedRoleIds, [role.id]);
+    const data = await store.bootstrap();
+    const updated = data.roles.find((item) => item.id === role.id);
+    assert.equal(updated?.providerProfileId, fallback.id);
+    assert.equal(
+      data.providerProfiles.find((item) => item.id === primary.id)?.id,
+      primary.id,
+    );
+
+    await assert.rejects(
+      () => store.reassignProviderProfile(primary.id, primary.id),
+      (error) =>
+        error instanceof StudioStoreError && error.code === "invalid_input",
+    );
+  });
+});

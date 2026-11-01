@@ -355,6 +355,12 @@ var StudioClient = class {
     );
     return data.profile;
   }
+  async reassignProviderProfile(fromProfileId, toProfileId) {
+    return this.request(
+      `/provider-profiles/${encodeURIComponent(fromProfileId)}/reassign`,
+      { method: "POST", body: { toProfileId } }
+    );
+  }
   async deleteProviderProfile(profileId) {
     await this.request(
       `/provider-profiles/${encodeURIComponent(profileId)}`,
@@ -1080,6 +1086,15 @@ function StudioPage() {
       "Provider Profile \u5DF2\u5220\u9664"
     );
   };
+  const reassignProviderProfile = async (fromProfileId, toProfileId) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.reassignProviderProfile(fromProfileId, toProfileId);
+      },
+      "\u89D2\u8272\u5DF2\u6539\u7ED1\u5230\u5907\u7528 Profile"
+    );
+  };
   const createProject = async (input) => {
     const ok = await run(
       async () => {
@@ -1704,7 +1719,8 @@ function StudioPage() {
             onProvider: updateRoleProvider,
             onCreateProvider: createProviderProfile,
             onUpdateProvider: updateProviderProfile,
-            onDeleteProvider: deleteProviderProfile
+            onDeleteProvider: deleteProviderProfile,
+            onReassignProvider: reassignProviderProfile
           }
         ) : null,
         tab === "settings" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
@@ -3989,7 +4005,8 @@ function ProviderProfilesPanel({
   busy,
   onCreate,
   onUpdate,
-  onDelete
+  onDelete,
+  onReassign
 }) {
   const [name2, setName] = (0, import_react.useState)("");
   const [executor, setExecutor] = (0, import_react.useState)("dsh");
@@ -4107,7 +4124,27 @@ function ProviderProfilesPanel({
             "\u5EFA\u8BAE\u5207\u6362\uFF1A",
             profiles.find(
               (item) => item.id === current.suggestedProfileId
-            )?.name ?? current.suggestedProfileId
+            )?.name ?? current.suggestedProfileId,
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "button",
+              {
+                className: "studio-btn",
+                "data-size": "sm",
+                type: "button",
+                disabled: busy,
+                onClick: () => {
+                  const target = profiles.find(
+                    (item) => item.id === current.suggestedProfileId
+                  );
+                  if (target !== void 0 && window.confirm(
+                    `\u628A\u7ED1\u5B9A\u300C${profile.name}\u300D\u7684\u89D2\u8272\u6539\u7ED1\u5230\u300C${target.name}\u300D\uFF1F`
+                  )) {
+                    void onReassign(profile.id, target.id);
+                  }
+                },
+                children: "\u6539\u7ED1"
+              }
+            )
           ] }) : null,
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
             "button",
@@ -4153,7 +4190,8 @@ function TeamView({
   onProvider,
   onCreateProvider,
   onUpdateProvider,
-  onDeleteProvider
+  onDeleteProvider,
+  onReassignProvider
 }) {
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-page-head", children: [
@@ -4186,7 +4224,8 @@ function TeamView({
         busy,
         onCreate: onCreateProvider,
         onUpdate: onUpdateProvider,
-        onDelete: onDeleteProvider
+        onDelete: onDeleteProvider,
+        onReassign: onReassignProvider
       }
     ),
     data.roles.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-empty", children: [
