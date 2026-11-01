@@ -1,4 +1,5 @@
 import { MERGE_STATUS_LABELS } from "../../shared/types.js";
+import { StudioStoreError, newId, type StoreContext } from "./core.js";
 import { isMergeRisk } from "./validation.js";
 import type {
   CreateMergeProposalInput,
@@ -7,11 +8,8 @@ import type {
   Task,
   Verification,
 } from "../../shared/types.js";
-import { StudioStoreError } from "./errors.js";
 import { optionalText, requiredText } from "./inputs.js";
-import { newId } from "./ids.js";
 import { findMergeProposal, findTask } from "./lookups.js";
-import type { StoreContext } from "./context.js";
 
 export async function createMergeProposal(
   ctx: StoreContext,

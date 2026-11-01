@@ -3,11 +3,9 @@ import type {
   ProviderProfile,
   UpdateProviderProfileInput,
 } from "../../shared/types.js";
-import type { StoreContext } from "./context.js";
-import { StudioStoreError } from "./errors.js";
+import { StudioStoreError, newId, type StoreContext } from "./core.js";
 import { optionalText, requiredText } from "./inputs.js";
 import { findProviderProfile, pickProject } from "./lookups.js";
-import { newId } from "./ids.js";
 
 export async function createProviderProfile(
   ctx: StoreContext,

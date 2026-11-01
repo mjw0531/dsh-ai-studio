@@ -14,7 +14,7 @@ import path from "node:path";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 26;
-var STUDIO_PLUGIN_VERSION = "3.1.2";
+var STUDIO_PLUGIN_VERSION = "3.1.3";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -1021,7 +1021,8 @@ function buildCompany(state, now) {
   };
 }
 
-// src/host/store/errors.ts
+// src/host/store/core.ts
+import { randomUUID } from "node:crypto";
 var StudioStoreError = class extends Error {
   code;
   status;
@@ -1032,17 +1033,20 @@ var StudioStoreError = class extends Error {
     this.status = status;
   }
 };
+function newId(prefix) {
+  return `${prefix}-${randomUUID().replaceAll("-", "").slice(0, 12)}`;
+}
 
 // src/host/store/seed.ts
-import { randomUUID as randomUUID2 } from "node:crypto";
+import { randomUUID as randomUUID3 } from "node:crypto";
 
 // src/host/store/inputs.ts
-import { randomUUID } from "node:crypto";
+import { randomUUID as randomUUID2 } from "node:crypto";
 function isRecord3(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function newId(prefix) {
-  return `${prefix}-${randomUUID().replaceAll("-", "").slice(0, 12)}`;
+function newId2(prefix) {
+  return `${prefix}-${randomUUID2().replaceAll("-", "").slice(0, 12)}`;
 }
 function requiredText(value, field, max = 200) {
   if (typeof value !== "string") {
@@ -1151,7 +1155,7 @@ function defaultStageChecklist(stage) {
     ]
   };
   return (texts[stage] ?? []).map(
-    (text) => ({ id: newId("check"), text, done: false })
+    (text) => ({ id: newId2("check"), text, done: false })
   );
 }
 function normalizeStageChecklist(value) {
@@ -1166,7 +1170,7 @@ function normalizeStageChecklist(value) {
       );
     }
     return {
-      id: typeof raw.id === "string" && raw.id !== "" ? raw.id : newId("check"),
+      id: typeof raw.id === "string" && raw.id !== "" ? raw.id : newId2("check"),
       text: requiredText(raw.text, `checklist[${String(index)}].text`, 500),
       done: raw.done === true
     };
@@ -1185,7 +1189,7 @@ function normalizeStageArtifacts(value) {
     }
     const kind = isStageArtifactKind(raw.kind) ? raw.kind : "other";
     return {
-      id: typeof raw.id === "string" && raw.id !== "" ? raw.id : newId("artifact"),
+      id: typeof raw.id === "string" && raw.id !== "" ? raw.id : newId2("artifact"),
       kind,
       label: requiredText(
         raw.label,
@@ -1214,7 +1218,7 @@ function normalizeAcceptance(value, existing = []) {
   return value.slice(0, 20).map((raw, index) => {
     if (typeof raw === "string") {
       const text2 = requiredText(raw, `acceptance[${String(index)}]`, 400);
-      return { id: newId("acc"), text: text2, done: false };
+      return { id: newId2("acc"), text: text2, done: false };
     }
     if (!isRecord3(raw)) {
       throw new StudioStoreError(
@@ -1227,7 +1231,7 @@ function normalizeAcceptance(value, existing = []) {
       `acceptance[${String(index)}].text`,
       400
     );
-    const id = typeof raw.id === "string" && raw.id !== "" ? raw.id : newId("acc");
+    const id = typeof raw.id === "string" && raw.id !== "" ? raw.id : newId2("acc");
     const previous = byId.get(id);
     return {
       id,
@@ -1249,7 +1253,7 @@ function normalizeEvidence(value, existing, at) {
       );
     }
     const text = requiredText(raw.text, `evidence[${String(index)}].text`, 800);
-    const id = typeof raw.id === "string" && raw.id !== "" ? raw.id : newId("ev");
+    const id = typeof raw.id === "string" && raw.id !== "" ? raw.id : newId2("ev");
     const previous = byId.get(id);
     return {
       id,
@@ -1330,7 +1334,7 @@ function createSeedState(now) {
     )
   ];
   const acceptance = (...texts) => texts.map((text, index) => ({
-    id: `acc-demo-${String(index)}-${randomUUID2().slice(0, 4)}`,
+    id: `acc-demo-${String(index)}-${randomUUID3().slice(0, 4)}`,
     text,
     done: false
   }));
@@ -1716,12 +1720,6 @@ function pickProject(state, projectId) {
   return state.projects[0] ?? null;
 }
 
-// src/host/store/ids.ts
-import { randomUUID as randomUUID3 } from "node:crypto";
-function newId2(prefix) {
-  return `${prefix}-${randomUUID3().replaceAll("-", "").slice(0, 12)}`;
-}
-
 // src/host/store/providers.ts
 async function createProviderProfile(ctx, input) {
   return ctx.runExclusive(async () => {
@@ -1732,7 +1730,7 @@ async function createProviderProfile(ctx, input) {
     }
     const at = ctx.now();
     const profile = {
-      id: newId2("provider"),
+      id: newId("provider"),
       projectId: project.id,
       name: requiredText(input.name, "name", 80),
       executor: input.executor === "claude-code" || input.executor === "codex" ? input.executor : "dsh",
@@ -1930,7 +1928,7 @@ async function createMergeProposal(ctx, taskId, input) {
     )[0];
     const changedFiles = latestRun?.diffStat === null || latestRun?.diffStat === void 0 ? [] : latestRun.diffStat.split("\n").filter((line) => /^[ MARC?]{1,2} \S/.test(line)).map((line) => line.slice(3).trim()).filter(Boolean);
     const proposal = {
-      id: newId2("merge"),
+      id: newId("merge"),
       projectId: task.projectId,
       taskId: task.id,
       branch,
@@ -2178,7 +2176,7 @@ async function ingestTrigger(ctx, input) {
     );
     if (thread === void 0) {
       thread = {
-        id: newId2("thread"),
+        id: newId("thread"),
         projectId: project.id,
         key: threadKey,
         source: input.source,
@@ -2191,7 +2189,7 @@ async function ingestTrigger(ctx, input) {
       state.threads.push(thread);
     }
     const trigger = {
-      id: newId2("trigger"),
+      id: newId("trigger"),
       projectId: project.id,
       source: input.source,
       externalId,
@@ -2357,7 +2355,7 @@ async function acceptTrigger(ctx, triggerId, input = {}) {
       trigger.taskId = task2.id;
       trigger.updatedAt = at2;
       task2.evidence.push({
-        id: newId2("ev"),
+        id: newId("ev"),
         text: `\u89E6\u53D1\u4E8B\u4EF6\uFF1A${trigger.title}`,
         createdAt: at2
       });
@@ -2385,7 +2383,7 @@ async function acceptTrigger(ctx, triggerId, input = {}) {
       []
     );
     const task = {
-      id: newId2("task"),
+      id: newId("task"),
       projectId: project.id,
       title: trigger.title,
       goal: trigger.body || trigger.title,
@@ -2482,7 +2480,7 @@ async function createTask(ctx, input) {
       "reviewerRoleId"
     );
     const task = {
-      id: newId2("task"),
+      id: newId("task"),
       projectId: project.id,
       title: requiredText(input.title, "title", 160),
       goal: optionalText(input.goal, "goal", 2e3),
@@ -2708,7 +2706,7 @@ function scheduleIntegrationGate(ctx, state, projectId, at) {
   if (lead === void 0) return;
   const index = generated + 1;
   const task = {
-    id: newId2("task"),
+    id: newId("task"),
     projectId,
     title: `\u96C6\u6210\u9A8C\u6536\uFF08\u81EA\u52A8 #${String(index)}\uFF09`,
     goal: "\u6BCF 3 \u4E2A\u5B8C\u6210\u4EFB\u52A1\u540E\u7684\u96C6\u6210 gate\uFF1A\u6253\u5305\u5F53\u524D build\uFF0C\u4EBA\u73A9 10 \u5206\u949F\uFF0C\u8BB0\u5F55\u963B\u65AD\u95EE\u9898\u4E0E\u53EF\u7EE7\u7EED\u8FED\u4EE3\u7684\u5224\u65AD\u3002",
@@ -2718,12 +2716,12 @@ function scheduleIntegrationGate(ctx, state, projectId, at) {
     reviewerRoleId: verifier?.id ?? lead.id,
     acceptance: [
       {
-        id: newId2("acc"),
+        id: newId("acc"),
         text: "\u6253\u5305\u51FA\u53EF\u8FD0\u884C build",
         done: false
       },
       {
-        id: newId2("acc"),
+        id: newId("acc"),
         text: "\u4EBA\u73A9 10 \u5206\u949F\u5E76\u8BB0\u5F55\u963B\u65AD\u95EE\u9898",
         done: false
       }
@@ -2811,7 +2809,7 @@ async function recordReview(ctx, taskId, input) {
     const task = findTask(state, taskId);
     const at = ctx.now();
     const review = {
-      id: newId2("review"),
+      id: newId("review"),
       projectId: task.projectId,
       taskId,
       runId: input.runId ?? null,
@@ -2827,7 +2825,7 @@ async function recordReview(ctx, taskId, input) {
     if (review.verdict === "pass") {
       const text = `\u72EC\u7ACB\u8BC4\u5BA1\u901A\u8FC7\uFF08${input.model}\uFF09\uFF1A${review.summary}`;
       if (!task.evidence.some((item) => item.text === text)) {
-        task.evidence.push({ id: newId2("ev"), text, createdAt: at });
+        task.evidence.push({ id: newId("ev"), text, createdAt: at });
       }
     }
     state.updatedAt = at;
@@ -2868,7 +2866,7 @@ async function recordVerification(ctx, taskId, input) {
       (left, right) => right.startedAt.localeCompare(left.startedAt)
     )[0];
     const verification = {
-      id: newId2("verify"),
+      id: newId("verify"),
       projectId: task.projectId,
       taskId,
       runId: run?.id ?? null,
@@ -2884,7 +2882,7 @@ async function recordVerification(ctx, taskId, input) {
       const text = `\u9A8C\u8BC1\u901A\u8FC7\uFF1A\`${verification.command}\`\uFF08exit 0\uFF09`;
       if (!task.evidence.some((item) => item.text === text)) {
         task.evidence.push({
-          id: newId2("ev"),
+          id: newId("ev"),
           text,
           createdAt: at
         });
@@ -2977,7 +2975,7 @@ async function beginRun(ctx, taskId, prompt, workspace, execution) {
     }
     const branch = ensureBranch(ctx, state, task, at);
     const run = {
-      id: newId2("run"),
+      id: newId("run"),
       projectId: task.projectId,
       taskId: task.id,
       roleId: role.id,
@@ -3114,7 +3112,7 @@ async function completeRun(ctx, runId, input) {
         for (const text of input.receipt.evidence.slice(0, 10)) {
           if (existing.has(text)) continue;
           task.evidence.push({
-            id: newId2("ev"),
+            id: newId("ev"),
             text,
             createdAt: at
           });
@@ -3146,7 +3144,7 @@ async function completeRun(ctx, runId, input) {
             (item) => item.branchId === branch.id && item.contract === contract && item.change === change
           )) {
             state.contractChanges.push({
-              id: newId2("contract"),
+              id: newId("contract"),
               projectId: run.projectId,
               branchId: branch.id,
               taskId: run.taskId,
@@ -3179,7 +3177,7 @@ async function completeRun(ctx, runId, input) {
             (item) => item.id === conflict.branchId
           );
           const decision = {
-            id: newId2("dec"),
+            id: newId("dec"),
             projectId: run.projectId,
             taskId: run.taskId,
             runId: run.id,
@@ -3234,7 +3232,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           continue;
         }
         const decision = {
-          id: newId2("dec"),
+          id: newId("dec"),
           projectId: run.projectId,
           taskId: run.taskId,
           runId: run.id,
@@ -3352,7 +3350,7 @@ async function enforceContractScope(ctx, taskId, runId, changedFiles) {
     )) {
       const run = state.runs.find((item) => item.id === runId);
       state.decisions.push({
-        id: newId2("dec"),
+        id: newId("dec"),
         projectId: task.projectId,
         taskId: task.id,
         runId,
@@ -3409,7 +3407,7 @@ function escalateRepeatedFailure(ctx, state, task, at, reason, run) {
     ) ?? state.roles.find((role) => role.id === task.ownerRoleId);
     if (architect !== void 0) {
       const resplit = {
-        id: newId2("task"),
+        id: newId("task"),
         projectId: task.projectId,
         title: `\u91CD\u62C6\uFF1A${task.title}`.slice(0, 160),
         goal: `\u539F\u4EFB\u52A1\u8FDE\u7EED\u5931\u8D25 ${String(failures)} \u6B21\u3002\u5148\u8BCA\u65AD\u6839\u56E0\uFF0C\u91CD\u62C6\u4EFB\u52A1/\u5951\u7EA6\uFF0C\u4EA7\u51FA\u53EF\u6267\u884C\u7684\u65B0 ticket \u4E0E\u9A8C\u6536\u6807\u51C6\uFF1B\u4E0D\u8981\u76F4\u63A5\u5199\u4E1A\u52A1\u4EE3\u7801\u3002\u6700\u540E\u4E00\u6B21\u5931\u8D25\uFF1A${reason}`,
@@ -3419,12 +3417,12 @@ function escalateRepeatedFailure(ctx, state, task, at, reason, run) {
         reviewerRoleId: task.reviewerRoleId,
         acceptance: [
           {
-            id: newId2("acc"),
+            id: newId("acc"),
             text: "\u7ED9\u51FA\u91CD\u62C6\u540E\u7684\u4EFB\u52A1/\u5951\u7EA6",
             done: false
           },
           {
-            id: newId2("acc"),
+            id: newId("acc"),
             text: "\u6807\u660E\u53EF\u6267\u884C ticket \u4E0E\u9A8C\u6536\u6807\u51C6",
             done: false
           }
@@ -3464,7 +3462,7 @@ function escalateRepeatedFailure(ctx, state, task, at, reason, run) {
     return;
   }
   const decision = {
-    id: newId2("dec"),
+    id: newId("dec"),
     projectId: task.projectId,
     taskId: task.id,
     runId: run.id,
@@ -3572,7 +3570,7 @@ async function createPrototypeDemo(ctx, input, projectId) {
     }
     const at = ctx.now();
     const demo = {
-      id: newId2("demo"),
+      id: newId("demo"),
       projectId: project.id,
       title: requiredText(input.title, "title", 200),
       entry: optionalText(input.entry, "entry", 1e3),
@@ -3675,7 +3673,7 @@ async function createWorkshop(ctx, input) {
     }
     const at = ctx.now();
     const workshop = {
-      id: newId2("workshop"),
+      id: newId("workshop"),
       projectId: project.id,
       title: requiredText(input.title, "title", 200),
       topic: optionalText(input.topic, "topic", 4e3),
@@ -3727,7 +3725,7 @@ async function addWorkshopNote(ctx, workshopId, input) {
     }
     const at = ctx.now();
     const note = {
-      id: newId2("note"),
+      id: newId("note"),
       roleId,
       roleName: role.name,
       summary: requiredText(input.summary, "summary", 8e3),

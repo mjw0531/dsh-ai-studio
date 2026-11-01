@@ -14,9 +14,9 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 // src/shared/types.ts
-var STUDIO_PLUGIN_VERSION = "3.1.2";
+var STUDIO_PLUGIN_VERSION = "3.1.3";
 
-// src/host/store/errors.ts
+// src/host/store/core.ts
 var StudioStoreError = class extends Error {
   code;
   status;

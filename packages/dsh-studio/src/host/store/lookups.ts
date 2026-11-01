@@ -1,4 +1,5 @@
 import { nextProjectStage } from "../../shared/types.js";
+import { StudioStoreError } from "./core.js";
 import type {
   Project,
   ProjectStage,
@@ -11,7 +12,6 @@ import type {
   Trigger,
   Workshop,
 } from "../../shared/types.js";
-import { StudioStoreError } from "./errors.js";
 
 export function findProject(state: StudioState, projectId: string): Project {
     const project = state.projects.find((item) => item.id === projectId);

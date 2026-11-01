@@ -111,8 +111,8 @@ import {
   statsFor,
 } from "./store/read-model.js";
 
-import { StudioStoreError } from "./store/errors.js";
-export { StudioStoreError } from "./store/errors.js";
+import { StudioStoreError, type StoreContext } from "./store/core.js";
+export { StudioStoreError } from "./store/core.js";
 import { createSeedState } from "./store/seed.js";
 import { projectTemplates } from "./store/templates.js";
 import {
@@ -126,7 +126,7 @@ import {
   pickProject,
   resolveRoleId,
 } from "./store/lookups.js";
-import type { StoreContext } from "./store/context.js";
+
 import {
   createProviderProfile as createProviderProfileImpl,
   deleteProviderProfile as deleteProviderProfileImpl,

@@ -4,6 +4,7 @@ import {
   isTaskPriority,
   isTaskStatus,
 } from "../../shared/types.js";
+import { StudioStoreError, newId, type StoreContext } from "./core.js";
 import type {
   CreateTaskInput,
   StudioState,
@@ -11,7 +12,6 @@ import type {
   TaskStatus,
   UpdateTaskInput,
 } from "../../shared/types.js";
-import { StudioStoreError } from "./errors.js";
 import {
   normalizeAcceptance,
   normalizeEvidence,
@@ -19,9 +19,7 @@ import {
   requiredText,
   textList,
 } from "./inputs.js";
-import { newId } from "./ids.js";
 import { findTask, pickProject, resolveRoleId } from "./lookups.js";
-import type { StoreContext } from "./context.js";
 
 export async function createTask(
   ctx: StoreContext,input: CreateTaskInput): Promise<Task> {

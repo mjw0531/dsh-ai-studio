@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { StudioStoreError } from "./errors.js";
+import { StudioStoreError } from "./core.js";
 import { isStageArtifactKind } from "./validation.js";
 
 import type {

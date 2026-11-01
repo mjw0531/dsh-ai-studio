@@ -2,7 +2,7 @@
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-// src/host/store/errors.ts
+// src/host/store/core.ts
 var StudioStoreError = class extends Error {
   code;
   status;

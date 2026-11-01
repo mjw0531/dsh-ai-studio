@@ -6,10 +6,8 @@ import type {
   StudioState,
   Task,
 } from "../../shared/types.js";
-import { StudioStoreError } from "./errors.js";
-import { newId } from "./ids.js";
+import { StudioStoreError, newId, type StoreContext } from "./core.js";
 import { findTask } from "./lookups.js";
-import type { StoreContext } from "./context.js";
 
 export async function beginRun(
   ctx: StoreContext,

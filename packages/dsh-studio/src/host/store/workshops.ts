@@ -1,4 +1,5 @@
 import { isProjectStage } from "../../shared/types.js";
+import { StudioStoreError, newId, type StoreContext } from "./core.js";
 import type {
   AddWorkshopNoteInput,
   CreatePrototypeDemoInput,
@@ -12,16 +13,13 @@ import type {
   WorkshopAiSummary,
   WorkshopNote,
 } from "../../shared/types.js";
-import { StudioStoreError } from "./errors.js";
 import {
   optionalText,
   requiredText,
   textList,
 } from "./inputs.js";
-import { newId } from "./ids.js";
 import { isPrototypeDemoResult } from "./validation.js";
 import { findProject, findWorkshop, pickProject } from "./lookups.js";
-import type { StoreContext } from "./context.js";
 
 export async function getWorkshopContext(
   ctx: StoreContext,workshopId: string): Promise<{
