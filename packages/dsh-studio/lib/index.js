@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 26;
-var STUDIO_PLUGIN_VERSION = "3.0.5";
+var STUDIO_PLUGIN_VERSION = "3.0.6";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -158,7 +158,7 @@ import { mkdir as mkdir2, readdir, writeFile as writeFile2 } from "node:fs/promi
 import path3 from "node:path";
 
 // src/host/store.ts
-import { randomUUID as randomUUID3 } from "node:crypto";
+import { randomUUID as randomUUID4 } from "node:crypto";
 import { existsSync } from "node:fs";
 import {
   copyFile,
@@ -1827,6 +1827,151 @@ function pickProject(state, projectId) {
   return state.projects[0] ?? null;
 }
 
+// src/host/store/ids.ts
+import { randomUUID as randomUUID3 } from "node:crypto";
+function newId2(prefix) {
+  return `${prefix}-${randomUUID3().replaceAll("-", "").slice(0, 12)}`;
+}
+
+// src/host/store/providers.ts
+async function createProviderProfile(ctx, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const project = pickProject(state, void 0);
+    if (project === null) {
+      throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
+    }
+    const at = ctx.now();
+    const profile = {
+      id: newId2("provider"),
+      projectId: project.id,
+      name: requiredText(input.name, "name", 80),
+      executor: input.executor === "claude-code" || input.executor === "codex" ? input.executor : "dsh",
+      provider: optionalText(input.provider, "provider", 120),
+      model: optionalText(input.model, "model", 160),
+      note: optionalText(input.note, "note", 500),
+      createdAt: at,
+      updatedAt: at
+    };
+    state.providerProfiles.push(profile);
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "provider.created",
+      at,
+      projectId: project.id,
+      payload: { profileId: profile.id, name: profile.name }
+    });
+    await ctx.save();
+    return structuredClone(profile);
+  });
+}
+async function updateProviderProfile(ctx, profileId, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const profile = findProviderProfile(state, profileId);
+    if (input.name !== void 0) {
+      profile.name = requiredText(input.name, "name", 80);
+    }
+    if (input.executor !== void 0) {
+      profile.executor = input.executor === "claude-code" || input.executor === "codex" ? input.executor : "dsh";
+    }
+    if (input.provider !== void 0) {
+      profile.provider = optionalText(input.provider, "provider", 120);
+    }
+    if (input.model !== void 0) {
+      profile.model = optionalText(input.model, "model", 160);
+    }
+    if (input.note !== void 0) {
+      profile.note = optionalText(input.note, "note", 500);
+    }
+    profile.updatedAt = ctx.now();
+    state.updatedAt = profile.updatedAt;
+    await ctx.save();
+    return structuredClone(profile);
+  });
+}
+async function deleteProviderProfile(ctx, profileId) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const profile = findProviderProfile(state, profileId);
+    if (state.roles.some((role) => role.providerProfileId === profileId)) {
+      throw new StudioStoreError(
+        "provider_profile_in_use",
+        "\u8FD8\u6709\u89D2\u8272\u5728\u4F7F\u7528\u8FD9\u4E2A Provider Profile\uFF0C\u4E0D\u80FD\u5220\u9664",
+        409
+      );
+    }
+    state.providerProfiles = state.providerProfiles.filter(
+      (item) => item.id !== profile.id
+    );
+    state.updatedAt = ctx.now();
+    await ctx.save();
+  });
+}
+async function reassignProviderProfile(ctx, fromProfileId, toProfileId) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    if (fromProfileId === toProfileId) {
+      throw new StudioStoreError(
+        "invalid_input",
+        "\u5907\u7528 Profile \u4E0D\u80FD\u662F\u5F53\u524D Profile",
+        400
+      );
+    }
+    const from = findProviderProfile(state, fromProfileId);
+    const to = findProviderProfile(state, toProfileId);
+    if (from.projectId !== to.projectId) {
+      throw new StudioStoreError(
+        "invalid_input",
+        "\u5907\u7528 Profile \u5FC5\u987B\u5C5E\u4E8E\u540C\u4E00\u9879\u76EE",
+        400
+      );
+    }
+    const at = ctx.now();
+    const movedRoleIds = [];
+    for (const role of state.roles) {
+      if (role.projectId === from.projectId && role.providerProfileId === fromProfileId) {
+        role.providerProfileId = toProfileId;
+        role.updatedAt = at;
+        movedRoleIds.push(role.id);
+      }
+    }
+    if (movedRoleIds.length === 0) {
+      throw new StudioStoreError(
+        "provider_profile_unused",
+        "\u6CA1\u6709\u89D2\u8272\u7ED1\u5B9A\u8FD9\u4E2A Provider Profile",
+        409
+      );
+    }
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "provider.reassigned",
+      at,
+      projectId: from.projectId,
+      payload: { fromProfileId, toProfileId, movedRoleIds }
+    });
+    await ctx.save();
+    return { fromProfileId, toProfileId, movedRoleIds };
+  });
+}
+async function getProviderProfile(ctx, profileId) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    return structuredClone(findProviderProfile(state, profileId));
+  });
+}
+async function getRoleProvider(ctx, roleId) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const role = state.roles.find((item) => item.id === roleId);
+    if (role === void 0 || role.providerProfileId === null) return null;
+    const profile = state.providerProfiles.find(
+      (item) => item.id === role.providerProfileId && item.projectId === role.projectId
+    );
+    return profile === void 0 ? null : structuredClone(profile);
+  });
+}
+
 // src/host/store.ts
 function defaultStudioDataDir() {
   const home = process.env.DSH_HOME?.trim();
@@ -1838,8 +1983,8 @@ function defaultStudioDataDir() {
 function nowIso2(now) {
   return now().toISOString();
 }
-function newId2(prefix) {
-  return `${prefix}-${randomUUID3().slice(0, 8)}`;
+function newId3(prefix) {
+  return `${prefix}-${randomUUID4().slice(0, 8)}`;
 }
 var StudioStore = class {
   dataDir;
@@ -1848,10 +1993,18 @@ var StudioStore = class {
   state = null;
   queue = Promise.resolve();
   warning = null;
+  context;
   constructor(options = {}) {
     this.dataDir = options.dataDir ?? defaultStudioDataDir();
     this.file = path2.join(this.dataDir, "studio.json");
     this.now = options.now ?? (() => /* @__PURE__ */ new Date());
+    this.context = {
+      runExclusive: (work) => this.runExclusive(work),
+      requireState: () => this.requireState(),
+      save: () => this.save(),
+      recordEvent: (state, input) => this.recordEvent(state, input),
+      now: () => nowIso2(this.now)
+    };
   }
   async init() {
     await this.runExclusive(async () => {
@@ -2039,7 +2192,7 @@ var StudioStore = class {
       const state = this.requireState();
       const at = nowIso2(this.now);
       const project = {
-        id: newId2("proj"),
+        id: newId3("proj"),
         name: requiredText(input.name, "name", 80),
         description: optionalText(input.description, "description", 600),
         tokenBudget: optionalTokenBudget(input.tokenBudget, "tokenBudget"),
@@ -2160,7 +2313,7 @@ var StudioStore = class {
       if (gate === void 0) {
         const at = nowIso2(this.now);
         gate = {
-          id: newId2("gate"),
+          id: newId3("gate"),
           projectId,
           stage,
           status: "pending",
@@ -2336,7 +2489,7 @@ var StudioStore = class {
         );
         if (duplicate !== void 0) return structuredClone(duplicate);
       }
-      const threadKey = optionalText(input.threadKey, "threadKey", 240) || externalId || `thread-${randomUUID3().slice(0, 8)}`;
+      const threadKey = optionalText(input.threadKey, "threadKey", 240) || externalId || `thread-${randomUUID4().slice(0, 8)}`;
       const title = requiredText(input.title, "title", 240);
       const at = nowIso2(this.now);
       let thread = state.threads.find(
@@ -2344,7 +2497,7 @@ var StudioStore = class {
       );
       if (thread === void 0) {
         thread = {
-          id: newId2("thread"),
+          id: newId3("thread"),
           projectId: project.id,
           key: threadKey,
           source: input.source,
@@ -2357,7 +2510,7 @@ var StudioStore = class {
         state.threads.push(thread);
       }
       const trigger = {
-        id: newId2("trigger"),
+        id: newId3("trigger"),
         projectId: project.id,
         source: input.source,
         externalId,
@@ -2523,7 +2676,7 @@ ${normalized.body}`.includes(rules.mention)) {
         trigger.taskId = task2.id;
         trigger.updatedAt = at2;
         task2.evidence.push({
-          id: newId2("ev"),
+          id: newId3("ev"),
           text: `\u89E6\u53D1\u4E8B\u4EF6\uFF1A${trigger.title}`,
           createdAt: at2
         });
@@ -2551,7 +2704,7 @@ ${normalized.body}`.includes(rules.mention)) {
         []
       );
       const task = {
-        id: newId2("task"),
+        id: newId3("task"),
         projectId: project.id,
         title: trigger.title,
         goal: trigger.body || trigger.title,
@@ -2659,7 +2812,7 @@ ${normalized.body}`.includes(rules.mention)) {
       }
       const at = nowIso2(this.now);
       const demo = {
-        id: newId2("demo"),
+        id: newId3("demo"),
         projectId: project.id,
         title: requiredText(input.title, "title", 200),
         entry: optionalText(input.entry, "entry", 1e3),
@@ -2762,7 +2915,7 @@ ${normalized.body}`.includes(rules.mention)) {
       }
       const at = nowIso2(this.now);
       const workshop = {
-        id: newId2("workshop"),
+        id: newId3("workshop"),
         projectId: project.id,
         title: requiredText(input.title, "title", 200),
         topic: optionalText(input.topic, "topic", 4e3),
@@ -2814,7 +2967,7 @@ ${normalized.body}`.includes(rules.mention)) {
       }
       const at = nowIso2(this.now);
       const note = {
-        id: newId2("note"),
+        id: newId3("note"),
         roleId,
         roleName: role.name,
         summary: requiredText(input.summary, "summary", 8e3),
@@ -3057,7 +3210,7 @@ ${normalized.body}`.includes(rules.mention)) {
       const task = findTask(state, taskId);
       const at = nowIso2(this.now);
       const review = {
-        id: newId2("review"),
+        id: newId3("review"),
         projectId: task.projectId,
         taskId,
         runId: input.runId ?? null,
@@ -3073,7 +3226,7 @@ ${normalized.body}`.includes(rules.mention)) {
       if (review.verdict === "pass") {
         const text2 = `\u72EC\u7ACB\u8BC4\u5BA1\u901A\u8FC7\uFF08${input.model}\uFF09\uFF1A${review.summary}`;
         if (!task.evidence.some((item) => item.text === text2)) {
-          task.evidence.push({ id: newId2("ev"), text: text2, createdAt: at });
+          task.evidence.push({ id: newId3("ev"), text: text2, createdAt: at });
         }
       }
       state.updatedAt = at;
@@ -3171,7 +3324,7 @@ ${normalized.body}`.includes(rules.mention)) {
       }
       const branch = this.ensureBranch(state, task, at);
       const run3 = {
-        id: newId2("run"),
+        id: newId3("run"),
         projectId: task.projectId,
         taskId: task.id,
         roleId: role.id,
@@ -3307,7 +3460,7 @@ ${normalized.body}`.includes(rules.mention)) {
           for (const text2 of input.receipt.evidence.slice(0, 10)) {
             if (existing.has(text2)) continue;
             task.evidence.push({
-              id: newId2("ev"),
+              id: newId3("ev"),
               text: text2,
               createdAt: at
             });
@@ -3339,7 +3492,7 @@ ${normalized.body}`.includes(rules.mention)) {
               (item) => item.branchId === branch.id && item.contract === contract && item.change === change
             )) {
               state.contractChanges.push({
-                id: newId2("contract"),
+                id: newId3("contract"),
                 projectId: run3.projectId,
                 branchId: branch.id,
                 taskId: run3.taskId,
@@ -3372,7 +3525,7 @@ ${normalized.body}`.includes(rules.mention)) {
               (item) => item.id === conflict.branchId
             );
             const decision = {
-              id: newId2("dec"),
+              id: newId3("dec"),
               projectId: run3.projectId,
               taskId: run3.taskId,
               runId: run3.id,
@@ -3427,7 +3580,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
             continue;
           }
           const decision = {
-            id: newId2("dec"),
+            id: newId3("dec"),
             projectId: run3.projectId,
             taskId: run3.taskId,
             runId: run3.id,
@@ -3550,7 +3703,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       )) {
         const run3 = state.runs.find((item) => item.id === runId);
         state.decisions.push({
-          id: newId2("dec"),
+          id: newId3("dec"),
           projectId: task.projectId,
           taskId: task.id,
           runId,
@@ -3602,7 +3755,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         (left, right) => right.startedAt.localeCompare(left.startedAt)
       )[0];
       const verification = {
-        id: newId2("verify"),
+        id: newId3("verify"),
         projectId: task.projectId,
         taskId,
         runId: run3?.id ?? null,
@@ -3618,7 +3771,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         const text2 = `\u9A8C\u8BC1\u901A\u8FC7\uFF1A\`${verification.command}\`\uFF08exit 0\uFF09`;
         if (!task.evidence.some((item) => item.text === text2)) {
           task.evidence.push({
-            id: newId2("ev"),
+            id: newId3("ev"),
             text: text2,
             createdAt: at
           });
@@ -3709,7 +3862,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       }
       const at = nowIso2(this.now);
       const decision = {
-        id: newId2("dec"),
+        id: newId3("dec"),
         projectId: task.projectId,
         taskId: task.id,
         runId: null,
@@ -3780,7 +3933,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       }
       const at = nowIso2(this.now);
       const decision = {
-        id: newId2("dec"),
+        id: newId3("dec"),
         projectId: project.id,
         taskId,
         runId: null,
@@ -3912,7 +4065,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       }
       const at = nowIso2(this.now);
       const module = {
-        id: newId2("module"),
+        id: newId3("module"),
         projectId: project.id,
         name: name2,
         responsibility: optionalText(
@@ -4003,141 +4156,22 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
     });
   }
   async createProviderProfile(input) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const project = pickProject(state, void 0);
-      if (project === null) {
-        throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
-      }
-      const at = nowIso2(this.now);
-      const profile = {
-        id: newId2("provider"),
-        projectId: project.id,
-        name: requiredText(input.name, "name", 80),
-        executor: input.executor === "claude-code" || input.executor === "codex" ? input.executor : "dsh",
-        provider: optionalText(input.provider, "provider", 120),
-        model: optionalText(input.model, "model", 160),
-        note: optionalText(input.note, "note", 500),
-        createdAt: at,
-        updatedAt: at
-      };
-      state.providerProfiles.push(profile);
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "provider.created",
-        at,
-        projectId: project.id,
-        payload: { profileId: profile.id, name: profile.name }
-      });
-      await this.save();
-      return structuredClone(profile);
-    });
+    return createProviderProfile(this.context, input);
   }
   async updateProviderProfile(profileId, input) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const profile = findProviderProfile(state, profileId);
-      if (input.name !== void 0) {
-        profile.name = requiredText(input.name, "name", 80);
-      }
-      if (input.executor !== void 0) {
-        profile.executor = input.executor === "claude-code" || input.executor === "codex" ? input.executor : "dsh";
-      }
-      if (input.provider !== void 0) {
-        profile.provider = optionalText(input.provider, "provider", 120);
-      }
-      if (input.model !== void 0) {
-        profile.model = optionalText(input.model, "model", 160);
-      }
-      if (input.note !== void 0) {
-        profile.note = optionalText(input.note, "note", 500);
-      }
-      profile.updatedAt = nowIso2(this.now);
-      state.updatedAt = profile.updatedAt;
-      await this.save();
-      return structuredClone(profile);
-    });
+    return updateProviderProfile(this.context, profileId, input);
   }
   async deleteProviderProfile(profileId) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const profile = findProviderProfile(state, profileId);
-      if (state.roles.some((role) => role.providerProfileId === profileId)) {
-        throw new StudioStoreError(
-          "provider_profile_in_use",
-          "\u8FD8\u6709\u89D2\u8272\u5728\u4F7F\u7528\u8FD9\u4E2A Provider Profile\uFF0C\u4E0D\u80FD\u5220\u9664",
-          409
-        );
-      }
-      state.providerProfiles = state.providerProfiles.filter(
-        (item) => item.id !== profile.id
-      );
-      state.updatedAt = nowIso2(this.now);
-      await this.save();
-    });
+    return deleteProviderProfile(this.context, profileId);
   }
   async reassignProviderProfile(fromProfileId, toProfileId) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      if (fromProfileId === toProfileId) {
-        throw new StudioStoreError(
-          "invalid_input",
-          "\u5907\u7528 Profile \u4E0D\u80FD\u662F\u5F53\u524D Profile",
-          400
-        );
-      }
-      const from = findProviderProfile(state, fromProfileId);
-      const to = findProviderProfile(state, toProfileId);
-      if (from.projectId !== to.projectId) {
-        throw new StudioStoreError(
-          "invalid_input",
-          "\u5907\u7528 Profile \u5FC5\u987B\u5C5E\u4E8E\u540C\u4E00\u9879\u76EE",
-          400
-        );
-      }
-      const at = nowIso2(this.now);
-      const movedRoleIds = [];
-      for (const role of state.roles) {
-        if (role.projectId === from.projectId && role.providerProfileId === fromProfileId) {
-          role.providerProfileId = toProfileId;
-          role.updatedAt = at;
-          movedRoleIds.push(role.id);
-        }
-      }
-      if (movedRoleIds.length === 0) {
-        throw new StudioStoreError(
-          "provider_profile_unused",
-          "\u6CA1\u6709\u89D2\u8272\u7ED1\u5B9A\u8FD9\u4E2A Provider Profile",
-          409
-        );
-      }
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "provider.reassigned",
-        at,
-        projectId: from.projectId,
-        payload: { fromProfileId, toProfileId, movedRoleIds }
-      });
-      await this.save();
-      return { fromProfileId, toProfileId, movedRoleIds };
-    });
+    return reassignProviderProfile(this.context, fromProfileId, toProfileId);
   }
   async getProviderProfile(profileId) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      return structuredClone(findProviderProfile(state, profileId));
-    });
+    return getProviderProfile(this.context, profileId);
   }
   async getRoleProvider(roleId) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const role = state.roles.find((item) => item.id === roleId);
-      if (role === void 0 || role.providerProfileId === null) return null;
-      const profile = state.providerProfiles.find(
-        (item) => item.id === role.providerProfileId && item.projectId === role.projectId
-      );
-      return profile === void 0 ? null : structuredClone(profile);
-    });
+    return getRoleProvider(this.context, roleId);
   }
   async createRole(input) {
     return this.runExclusive(async () => {
@@ -4159,7 +4193,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         }
       }
       const role = {
-        id: newId2("role"),
+        id: newId3("role"),
         projectId: project.id,
         name: requiredText(input.name, "name", 60),
         title: optionalText(input.title, "title", 80),
@@ -4280,7 +4314,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         "reviewerRoleId"
       );
       const task = {
-        id: newId2("task"),
+        id: newId3("task"),
         projectId: project.id,
         title: requiredText(input.title, "title", 160),
         goal: optionalText(input.goal, "goal", 2e3),
@@ -4506,7 +4540,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
     if (lead === void 0) return;
     const index = generated + 1;
     const task = {
-      id: newId2("task"),
+      id: newId3("task"),
       projectId,
       title: `\u96C6\u6210\u9A8C\u6536\uFF08\u81EA\u52A8 #${String(index)}\uFF09`,
       goal: "\u6BCF 3 \u4E2A\u5B8C\u6210\u4EFB\u52A1\u540E\u7684\u96C6\u6210 gate\uFF1A\u6253\u5305\u5F53\u524D build\uFF0C\u4EBA\u73A9 10 \u5206\u949F\uFF0C\u8BB0\u5F55\u963B\u65AD\u95EE\u9898\u4E0E\u53EF\u7EE7\u7EED\u8FED\u4EE3\u7684\u5224\u65AD\u3002",
@@ -4516,12 +4550,12 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       reviewerRoleId: verifier?.id ?? lead.id,
       acceptance: [
         {
-          id: newId2("acc"),
+          id: newId3("acc"),
           text: "\u6253\u5305\u51FA\u53EF\u8FD0\u884C build",
           done: false
         },
         {
-          id: newId2("acc"),
+          id: newId3("acc"),
           text: "\u4EBA\u73A9 10 \u5206\u949F\u5E76\u8BB0\u5F55\u963B\u65AD\u95EE\u9898",
           done: false
         }
@@ -4624,7 +4658,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       )[0];
       const changedFiles = latestRun?.diffStat === null || latestRun?.diffStat === void 0 ? [] : latestRun.diffStat.split("\n").filter((line) => /^[ MARC?]{1,2} \S/.test(line)).map((line) => line.slice(3).trim()).filter(Boolean);
       const proposal = {
-        id: newId2("merge"),
+        id: newId3("merge"),
         projectId: task.projectId,
         taskId: task.id,
         branch,
@@ -4870,7 +4904,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
     state.updatedAt = nowIso2(this.now);
     const serialized = `${JSON.stringify(state, null, 2)}
 `;
-    const temp = `${this.file}.${randomUUID3()}.tmp`;
+    const temp = `${this.file}.${randomUUID4()}.tmp`;
     await writeFile(temp, serialized, "utf8");
     try {
       await rename(temp, this.file);
@@ -4905,7 +4939,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       ) ?? state.roles.find((role) => role.id === task.ownerRoleId);
       if (architect !== void 0) {
         const resplit = {
-          id: newId2("task"),
+          id: newId3("task"),
           projectId: task.projectId,
           title: `\u91CD\u62C6\uFF1A${task.title}`.slice(0, 160),
           goal: `\u539F\u4EFB\u52A1\u8FDE\u7EED\u5931\u8D25 ${String(failures)} \u6B21\u3002\u5148\u8BCA\u65AD\u6839\u56E0\uFF0C\u91CD\u62C6\u4EFB\u52A1/\u5951\u7EA6\uFF0C\u4EA7\u51FA\u53EF\u6267\u884C\u7684\u65B0 ticket \u4E0E\u9A8C\u6536\u6807\u51C6\uFF1B\u4E0D\u8981\u76F4\u63A5\u5199\u4E1A\u52A1\u4EE3\u7801\u3002\u6700\u540E\u4E00\u6B21\u5931\u8D25\uFF1A${reason}`,
@@ -4915,12 +4949,12 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           reviewerRoleId: task.reviewerRoleId,
           acceptance: [
             {
-              id: newId2("acc"),
+              id: newId3("acc"),
               text: "\u7ED9\u51FA\u91CD\u62C6\u540E\u7684\u4EFB\u52A1/\u5951\u7EA6",
               done: false
             },
             {
-              id: newId2("acc"),
+              id: newId3("acc"),
               text: "\u6807\u660E\u53EF\u6267\u884C ticket \u4E0E\u9A8C\u6536\u6807\u51C6",
               done: false
             }
@@ -4960,7 +4994,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       return;
     }
     const decision = {
-      id: newId2("dec"),
+      id: newId3("dec"),
       projectId: task.projectId,
       taskId: task.id,
       runId: run3.id,
@@ -5034,7 +5068,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
   }
   recordEvent(state, input) {
     const event = {
-      id: newId2("evt"),
+      id: newId3("evt"),
       type: input.type,
       at: input.at,
       actor: "human",
@@ -5326,7 +5360,7 @@ var ProjectBundleService = class {
 };
 
 // src/host/dispatcher.ts
-import { randomUUID as randomUUID4 } from "node:crypto";
+import { randomUUID as randomUUID5 } from "node:crypto";
 import { spawn } from "node:child_process";
 import { mkdtemp as mkdtemp2, readFile as readFile4, rm as rm3 } from "node:fs/promises";
 import os3 from "node:os";
@@ -5692,7 +5726,7 @@ var AgentDispatcher = class {
     let output = "";
     try {
       handle = await this.ctx.agents.create({
-        sessionId: `review-${randomUUID4()}`,
+        sessionId: `review-${randomUUID5()}`,
         meta: { cwd: context.run.workspacePath },
         agentOptions: selection,
         setup: async (agentCtx, agent) => {
@@ -5772,7 +5806,7 @@ var AgentDispatcher = class {
     let handle = null;
     try {
       handle = await this.ctx.agents.create({
-        sessionId: `run-${randomUUID4()}`,
+        sessionId: `run-${randomUUID5()}`,
         meta: { cwd: workspace?.path ?? process.cwd() },
         agentOptions: selection,
         setup: async (agentCtx, agent) => {
@@ -7406,7 +7440,7 @@ function handleRouterError(res, error) {
 }
 
 // src/host/workshop-runner.ts
-import { randomUUID as randomUUID5 } from "node:crypto";
+import { randomUUID as randomUUID6 } from "node:crypto";
 function assistantText2(messages) {
   const assistant = [...messages].reverse().find((message) => message.role === "assistant");
   if (assistant === void 0) return "";
@@ -7531,7 +7565,7 @@ ${note.summary}
     let handle = null;
     try {
       handle = await this.ctx.agents.create({
-        sessionId: `workshop-summary-${randomUUID5()}`,
+        sessionId: `workshop-summary-${randomUUID6()}`,
         meta: { cwd: context.project.repoPath ?? process.cwd() },
         agentOptions: selection,
         setup: async (agentCtx, agent) => {
@@ -7570,7 +7604,7 @@ ${note.summary}
     let handle = null;
     try {
       handle = await this.ctx.agents.create({
-        sessionId: `workshop-${randomUUID5()}`,
+        sessionId: `workshop-${randomUUID6()}`,
         meta: { cwd: repoPath ?? process.cwd() },
         agentOptions: selection,
         setup: async (agentCtx, agent) => {

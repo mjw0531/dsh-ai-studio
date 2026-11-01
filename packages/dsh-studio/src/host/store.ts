@@ -126,6 +126,15 @@ import {
   pickProject,
   resolveRoleId,
 } from "./store/lookups.js";
+import type { StoreContext } from "./store/context.js";
+import {
+  createProviderProfile as createProviderProfileImpl,
+  deleteProviderProfile as deleteProviderProfileImpl,
+  getProviderProfile as getProviderProfileImpl,
+  getRoleProvider as getRoleProviderImpl,
+  reassignProviderProfile as reassignProviderProfileImpl,
+  updateProviderProfile as updateProviderProfileImpl,
+} from "./store/providers.js";
 import {
   defaultStageChecklist,
   defaultTriggerRules,
@@ -174,11 +183,19 @@ export class StudioStore {
   private state: StudioState | null = null;
   private queue: Promise<unknown> = Promise.resolve();
   private warning: string | null = null;
+  private readonly context: StoreContext;
 
   constructor(options: StudioStoreOptions = {}) {
     this.dataDir = options.dataDir ?? defaultStudioDataDir();
     this.file = path.join(this.dataDir, "studio.json");
     this.now = options.now ?? (() => new Date());
+    this.context = {
+      runExclusive: (work) => this.runExclusive(work),
+      requireState: () => this.requireState(),
+      save: () => this.save(),
+      recordEvent: (state, input) => this.recordEvent(state, input),
+      now: () => nowIso(this.now),
+    };
   }
 
   async init(): Promise<void> {
@@ -2763,91 +2780,18 @@ export class StudioStore {
   async createProviderProfile(
     input: CreateProviderProfileInput,
   ): Promise<ProviderProfile> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const project = pickProject(state, undefined);
-      if (project === null) {
-        throw new StudioStoreError("project_required", "请先创建一个项目");
-      }
-      const at = nowIso(this.now);
-      const profile: ProviderProfile = {
-        id: newId("provider"),
-        projectId: project.id,
-        name: requiredText(input.name, "name", 80),
-        executor:
-          input.executor === "claude-code" || input.executor === "codex"
-            ? input.executor
-            : "dsh",
-        provider: optionalText(input.provider, "provider", 120),
-        model: optionalText(input.model, "model", 160),
-        note: optionalText(input.note, "note", 500),
-        createdAt: at,
-        updatedAt: at,
-      };
-      state.providerProfiles.push(profile);
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "provider.created",
-        at,
-        projectId: project.id,
-        payload: { profileId: profile.id, name: profile.name },
-      });
-      await this.save();
-      return structuredClone(profile);
-    });
+    return createProviderProfileImpl(this.context, input);
   }
 
   async updateProviderProfile(
     profileId: string,
     input: UpdateProviderProfileInput,
   ): Promise<ProviderProfile> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const profile = findProviderProfile(state, profileId);
-      if (input.name !== undefined) {
-        profile.name = requiredText(input.name, "name", 80);
-      }
-      if (input.executor !== undefined) {
-        profile.executor =
-          input.executor === "claude-code" || input.executor === "codex"
-            ? input.executor
-            : "dsh";
-      }
-      if (input.provider !== undefined) {
-        profile.provider = optionalText(input.provider, "provider", 120);
-      }
-      if (input.model !== undefined) {
-        profile.model = optionalText(input.model, "model", 160);
-      }
-      if (input.note !== undefined) {
-        profile.note = optionalText(input.note, "note", 500);
-      }
-      profile.updatedAt = nowIso(this.now);
-      state.updatedAt = profile.updatedAt;
-      await this.save();
-      return structuredClone(profile);
-    });
+    return updateProviderProfileImpl(this.context, profileId, input);
   }
 
   async deleteProviderProfile(profileId: string): Promise<void> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const profile = findProviderProfile(state, profileId);
-      if (
-        state.roles.some((role) => role.providerProfileId === profileId)
-      ) {
-        throw new StudioStoreError(
-          "provider_profile_in_use",
-          "还有角色在使用这个 Provider Profile，不能删除",
-          409,
-        );
-      }
-      state.providerProfiles = state.providerProfiles.filter(
-        (item) => item.id !== profile.id,
-      );
-      state.updatedAt = nowIso(this.now);
-      await this.save();
-    });
+    return deleteProviderProfileImpl(this.context, profileId);
   }
 
   async reassignProviderProfile(
@@ -2858,74 +2802,15 @@ export class StudioStore {
     toProfileId: string;
     movedRoleIds: string[];
   }> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      if (fromProfileId === toProfileId) {
-        throw new StudioStoreError(
-          "invalid_input",
-          "备用 Profile 不能是当前 Profile",
-          400,
-        );
-      }
-      const from = findProviderProfile(state, fromProfileId);
-      const to = findProviderProfile(state, toProfileId);
-      if (from.projectId !== to.projectId) {
-        throw new StudioStoreError(
-          "invalid_input",
-          "备用 Profile 必须属于同一项目",
-          400,
-        );
-      }
-      const at = nowIso(this.now);
-      const movedRoleIds: string[] = [];
-      for (const role of state.roles) {
-        if (
-          role.projectId === from.projectId &&
-          role.providerProfileId === fromProfileId
-        ) {
-          role.providerProfileId = toProfileId;
-          role.updatedAt = at;
-          movedRoleIds.push(role.id);
-        }
-      }
-      if (movedRoleIds.length === 0) {
-        throw new StudioStoreError(
-          "provider_profile_unused",
-          "没有角色绑定这个 Provider Profile",
-          409,
-        );
-      }
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "provider.reassigned",
-        at,
-        projectId: from.projectId,
-        payload: { fromProfileId, toProfileId, movedRoleIds },
-      });
-      await this.save();
-      return { fromProfileId, toProfileId, movedRoleIds };
-    });
+    return reassignProviderProfileImpl(this.context, fromProfileId, toProfileId);
   }
 
   async getProviderProfile(profileId: string): Promise<ProviderProfile> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      return structuredClone(findProviderProfile(state, profileId));
-    });
+    return getProviderProfileImpl(this.context, profileId);
   }
 
   async getRoleProvider(roleId: string): Promise<ProviderProfile | null> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const role = state.roles.find((item) => item.id === roleId);
-      if (role === undefined || role.providerProfileId === null) return null;
-      const profile = state.providerProfiles.find(
-        (item) =>
-          item.id === role.providerProfileId &&
-          item.projectId === role.projectId,
-      );
-      return profile === undefined ? null : structuredClone(profile);
-    });
+    return getRoleProviderImpl(this.context, roleId);
   }
 
   async createRole(input: CreateRoleInput): Promise<Role> {
