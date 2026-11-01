@@ -136,6 +136,15 @@ import {
   updateProviderProfile as updateProviderProfileImpl,
 } from "./store/providers.js";
 import {
+  approveMergeProposal as approveMergeProposalImpl,
+  completeMergeProposal as completeMergeProposalImpl,
+  createMergeProposal as createMergeProposalImpl,
+  getMergeContext as getMergeContextImpl,
+  recordRollback as recordRollbackImpl,
+  rejectMergeProposal as rejectMergeProposalImpl,
+  setMergePostVerification as setMergePostVerificationImpl,
+} from "./store/merge.js";
+import {
   defaultStageChecklist,
   defaultTriggerRules,
   isRecord,
@@ -3282,210 +3291,21 @@ export class StudioStore {
     taskId: string,
     input: CreateMergeProposalInput,
   ): Promise<MergeProposal> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const task = findTask(state, taskId);
-      if (task.status !== "done") {
-        throw new StudioStoreError(
-          "task_not_accepted",
-          "任务验收通过后才能提交合并提案",
-          409,
-        );
-      }
-      if (task.acceptance.length === 0 || task.acceptance.some((item) => !item.done)) {
-        throw new StudioStoreError(
-          "acceptance_incomplete",
-          "所有验收标准完成前不能提交合并提案",
-          409,
-        );
-      }
-      if (task.evidence.length === 0) {
-        throw new StudioStoreError(
-          "evidence_required",
-          "提交合并提案前至少记录一条证据",
-          409,
-        );
-      }
-      const project = state.projects.find(
-        (item) => item.id === task.projectId,
-      );
-      if (project?.repoPath !== null && project?.repoPath !== undefined) {
-        const passed = state.verifications.some(
-          (item) => item.taskId === task.id && item.passed,
-        );
-        if (!passed) {
-          throw new StudioStoreError(
-            "verification_required",
-            "代码项目提交合并提案前必须有一条通过的独立验证",
-            409,
-          );
-        }
-      }
-      const active = state.mergeProposals.find(
-        (proposal) =>
-          proposal.taskId === task.id &&
-          (proposal.status === "review" ||
-            proposal.status === "approved" ||
-            proposal.status === "merged"),
-      );
-      if (active !== undefined) {
-        throw new StudioStoreError(
-          "merge_exists",
-          `该任务已有合并提案（${MERGE_STATUS_LABELS[active.status]}）`,
-          409,
-        );
-      }
-      const branch = requiredText(
-        input.branch ?? task.branch ?? "",
-        "branch",
-        160,
-      );
-      const risk = input.risk ?? "medium";
-      if (!isMergeRisk(risk)) {
-        throw new StudioStoreError("invalid_input", "risk 必须是 low/medium/high");
-      }
-      const at = nowIso(this.now);
-      const latestRun = [...state.runs]
-        .filter((run) => run.taskId === task.id)
-        .sort((left, right) =>
-          right.startedAt.localeCompare(left.startedAt),
-        )[0];
-      const latestVerification = [...state.verifications]
-        .filter((verification) => verification.taskId === task.id)
-        .sort((left, right) =>
-          right.createdAt.localeCompare(left.createdAt),
-        )[0];
-      const changedFiles =
-        latestRun?.diffStat === null || latestRun?.diffStat === undefined
-          ? []
-          : latestRun.diffStat
-              .split("\n")
-              .filter((line) => /^[ MARC?]{1,2} \S/.test(line))
-              .map((line) => line.slice(3).trim())
-              .filter(Boolean);
-      const proposal: MergeProposal = {
-        id: newId("merge"),
-        projectId: task.projectId,
-        taskId: task.id,
-        branch,
-        base: optionalText(input.base ?? "main", "base", 160) || "main",
-        summary: requiredText(input.summary, "summary", 1000),
-        risk,
-        rollback: requiredText(input.rollback, "rollback", 1000),
-        status: "review",
-        reviewNote: "",
-        mergeCommit: null,
-        diffStat: latestRun?.diffStat ?? null,
-        changedFiles,
-        verificationId: latestVerification?.id ?? null,
-        postMergeVerificationId: null,
-        rollbackCommit: null,
-        rolledBackAt: null,
-        createdAt: at,
-        updatedAt: at,
-        decidedAt: null,
-        mergedAt: null,
-      };
-      if (task.branch !== branch) {
-        task.branch = branch;
-        task.updatedAt = at;
-      }
-      state.mergeProposals.push(proposal);
-      this.recordEvent(state, {
-        type: "merge.proposed",
-        at,
-        projectId: task.projectId,
-        taskId: task.id,
-        payload: {
-          proposalId: proposal.id,
-          branch: proposal.branch,
-          base: proposal.base,
-          risk: proposal.risk,
-        },
-      });
-      state.updatedAt = at;
-      await this.save();
-      return structuredClone(proposal);
-    });
+    return createMergeProposalImpl(this.context, taskId, input);
   }
 
   async approveMergeProposal(
     proposalId: string,
     note?: string,
   ): Promise<MergeProposal> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const proposal = findMergeProposal(state, proposalId);
-      if (proposal.status !== "review") {
-        throw new StudioStoreError(
-          "invalid_merge_status",
-          `只有待评审的合并提案可以批准；当前是「${MERGE_STATUS_LABELS[proposal.status]}」`,
-          409,
-        );
-      }
-      const at = nowIso(this.now);
-      proposal.status = "approved";
-      proposal.reviewNote = optionalText(note, "note", 1000);
-      proposal.decidedAt = at;
-      proposal.updatedAt = at;
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "merge.approved",
-        at,
-        projectId: proposal.projectId,
-        taskId: proposal.taskId,
-        payload: { proposalId: proposal.id, note: proposal.reviewNote },
-      });
-      await this.save();
-      return structuredClone(proposal);
-    });
+    return approveMergeProposalImpl(this.context, proposalId, note);
   }
 
   async rejectMergeProposal(
     proposalId: string,
     note: string,
   ): Promise<MergeProposal> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const proposal = findMergeProposal(state, proposalId);
-      if (proposal.status !== "review") {
-        throw new StudioStoreError(
-          "invalid_merge_status",
-          `只有待评审的合并提案可以打回；当前是「${MERGE_STATUS_LABELS[proposal.status]}」`,
-          409,
-        );
-      }
-      const at = nowIso(this.now);
-      proposal.status = "rejected";
-      proposal.reviewNote = requiredText(note, "note", 1000);
-      proposal.decidedAt = at;
-      proposal.updatedAt = at;
-      const task = state.tasks.find((item) => item.id === proposal.taskId);
-      if (
-        task !== undefined &&
-        (task.status === "review" || task.status === "done")
-      ) {
-        task.status = "running";
-        task.updatedAt = at;
-        this.recordEvent(state, {
-          type: "task.reopened",
-          at,
-          projectId: task.projectId,
-          taskId: task.id,
-          payload: { reason: "merge_rejected", proposalId: proposal.id },
-        });
-      }
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "merge.rejected",
-        at,
-        projectId: proposal.projectId,
-        taskId: proposal.taskId,
-        payload: { proposalId: proposal.id, note: proposal.reviewNote },
-      });
-      await this.save();
-      return structuredClone(proposal);
-    });
+    return rejectMergeProposalImpl(this.context, proposalId, note);
   }
 
   async getMergeContext(proposalId: string): Promise<{
@@ -3494,128 +3314,28 @@ export class StudioStore {
     task: Task;
     verification: Verification | null;
   }> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const proposal = findMergeProposal(state, proposalId);
-      const project = state.projects.find(
-        (item) => item.id === proposal.projectId,
-      );
-      const task = state.tasks.find(
-        (item) => item.id === proposal.taskId,
-      );
-      if (project === undefined || task === undefined) {
-        throw new StudioStoreError(
-          "project_not_found",
-          "合并提案对应的项目不存在",
-          404,
-        );
-      }
-      const verification =
-        proposal.postMergeVerificationId === null
-          ? undefined
-          : state.verifications.find(
-              (item) => item.id === proposal.postMergeVerificationId,
-            );
-      return {
-        proposal: structuredClone(proposal),
-        project: structuredClone(project),
-        task: structuredClone(task),
-        verification:
-          verification === undefined
-            ? null
-            : structuredClone(verification),
-      };
-    });
+    return getMergeContextImpl(this.context, proposalId);
   }
 
   async completeMergeProposal(
     proposalId: string,
     mergeCommit?: string,
   ): Promise<MergeProposal> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const proposal = findMergeProposal(state, proposalId);
-      if (proposal.status !== "approved") {
-        throw new StudioStoreError(
-          "invalid_merge_status",
-          `只有已批准的合并提案可以标记合并；当前是「${MERGE_STATUS_LABELS[proposal.status]}」`,
-          409,
-        );
-      }
-      const at = nowIso(this.now);
-      proposal.status = "merged";
-      proposal.mergeCommit =
-        optionalText(mergeCommit, "mergeCommit", 160) || null;
-      proposal.mergedAt = at;
-      proposal.updatedAt = at;
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "merge.merged",
-        at,
-        projectId: proposal.projectId,
-        taskId: proposal.taskId,
-        payload: {
-          proposalId: proposal.id,
-          mergeCommit: proposal.mergeCommit,
-        },
-      });
-      await this.save();
-      return structuredClone(proposal);
-    });
+    return completeMergeProposalImpl(this.context, proposalId, mergeCommit);
   }
 
   async setMergePostVerification(
     proposalId: string,
     verificationId: string,
   ): Promise<MergeProposal> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const proposal = findMergeProposal(state, proposalId);
-      proposal.postMergeVerificationId = verificationId;
-      proposal.updatedAt = nowIso(this.now);
-      state.updatedAt = proposal.updatedAt;
-      await this.save();
-      return structuredClone(proposal);
-    });
+    return setMergePostVerificationImpl(this.context, proposalId, verificationId);
   }
 
   async recordRollback(
     proposalId: string,
     rollbackCommit: string,
   ): Promise<MergeProposal> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const proposal = findMergeProposal(state, proposalId);
-      if (proposal.status !== "merged") {
-        throw new StudioStoreError(
-          "rollback_not_merged",
-          "只有已合并的提案可以回滚",
-          409,
-        );
-      }
-      const at = nowIso(this.now);
-      proposal.rollbackCommit = requiredText(
-        rollbackCommit,
-        "rollbackCommit",
-        160,
-      );
-      proposal.rolledBackAt = at;
-      proposal.updatedAt = at;
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "merge.rolled_back",
-        at,
-        projectId: proposal.projectId,
-        taskId: proposal.taskId,
-        payload: {
-          proposalId,
-          mergeCommit: proposal.mergeCommit,
-          rollbackCommit: proposal.rollbackCommit,
-        },
-      });
-      await this.save();
-      return structuredClone(proposal);
-    });
+    return recordRollbackImpl(this.context, proposalId, rollbackCommit);
   }
 
   private async load(): Promise<void> {

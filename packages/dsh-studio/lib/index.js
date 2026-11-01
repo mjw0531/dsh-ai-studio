@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 26;
-var STUDIO_PLUGIN_VERSION = "3.0.6";
+var STUDIO_PLUGIN_VERSION = "3.0.7";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -1969,6 +1969,293 @@ async function getRoleProvider(ctx, roleId) {
       (item) => item.id === role.providerProfileId && item.projectId === role.projectId
     );
     return profile === void 0 ? null : structuredClone(profile);
+  });
+}
+
+// src/host/store/merge.ts
+async function createMergeProposal(ctx, taskId, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const task = findTask(state, taskId);
+    if (task.status !== "done") {
+      throw new StudioStoreError(
+        "task_not_accepted",
+        "\u4EFB\u52A1\u9A8C\u6536\u901A\u8FC7\u540E\u624D\u80FD\u63D0\u4EA4\u5408\u5E76\u63D0\u6848",
+        409
+      );
+    }
+    if (task.acceptance.length === 0 || task.acceptance.some((item) => !item.done)) {
+      throw new StudioStoreError(
+        "acceptance_incomplete",
+        "\u6240\u6709\u9A8C\u6536\u6807\u51C6\u5B8C\u6210\u524D\u4E0D\u80FD\u63D0\u4EA4\u5408\u5E76\u63D0\u6848",
+        409
+      );
+    }
+    if (task.evidence.length === 0) {
+      throw new StudioStoreError(
+        "evidence_required",
+        "\u63D0\u4EA4\u5408\u5E76\u63D0\u6848\u524D\u81F3\u5C11\u8BB0\u5F55\u4E00\u6761\u8BC1\u636E",
+        409
+      );
+    }
+    const project = state.projects.find(
+      (item) => item.id === task.projectId
+    );
+    if (project?.repoPath !== null && project?.repoPath !== void 0) {
+      const passed = state.verifications.some(
+        (item) => item.taskId === task.id && item.passed
+      );
+      if (!passed) {
+        throw new StudioStoreError(
+          "verification_required",
+          "\u4EE3\u7801\u9879\u76EE\u63D0\u4EA4\u5408\u5E76\u63D0\u6848\u524D\u5FC5\u987B\u6709\u4E00\u6761\u901A\u8FC7\u7684\u72EC\u7ACB\u9A8C\u8BC1",
+          409
+        );
+      }
+    }
+    const active = state.mergeProposals.find(
+      (proposal2) => proposal2.taskId === task.id && (proposal2.status === "review" || proposal2.status === "approved" || proposal2.status === "merged")
+    );
+    if (active !== void 0) {
+      throw new StudioStoreError(
+        "merge_exists",
+        `\u8BE5\u4EFB\u52A1\u5DF2\u6709\u5408\u5E76\u63D0\u6848\uFF08${MERGE_STATUS_LABELS[active.status]}\uFF09`,
+        409
+      );
+    }
+    const branch = requiredText(
+      input.branch ?? task.branch ?? "",
+      "branch",
+      160
+    );
+    const risk = input.risk ?? "medium";
+    if (!isMergeRisk(risk)) {
+      throw new StudioStoreError("invalid_input", "risk \u5FC5\u987B\u662F low/medium/high");
+    }
+    const at = ctx.now();
+    const latestRun = [...state.runs].filter((run3) => run3.taskId === task.id).sort(
+      (left, right) => right.startedAt.localeCompare(left.startedAt)
+    )[0];
+    const latestVerification = [...state.verifications].filter((verification) => verification.taskId === task.id).sort(
+      (left, right) => right.createdAt.localeCompare(left.createdAt)
+    )[0];
+    const changedFiles = latestRun?.diffStat === null || latestRun?.diffStat === void 0 ? [] : latestRun.diffStat.split("\n").filter((line) => /^[ MARC?]{1,2} \S/.test(line)).map((line) => line.slice(3).trim()).filter(Boolean);
+    const proposal = {
+      id: newId2("merge"),
+      projectId: task.projectId,
+      taskId: task.id,
+      branch,
+      base: optionalText(input.base ?? "main", "base", 160) || "main",
+      summary: requiredText(input.summary, "summary", 1e3),
+      risk,
+      rollback: requiredText(input.rollback, "rollback", 1e3),
+      status: "review",
+      reviewNote: "",
+      mergeCommit: null,
+      diffStat: latestRun?.diffStat ?? null,
+      changedFiles,
+      verificationId: latestVerification?.id ?? null,
+      postMergeVerificationId: null,
+      rollbackCommit: null,
+      rolledBackAt: null,
+      createdAt: at,
+      updatedAt: at,
+      decidedAt: null,
+      mergedAt: null
+    };
+    if (task.branch !== branch) {
+      task.branch = branch;
+      task.updatedAt = at;
+    }
+    state.mergeProposals.push(proposal);
+    ctx.recordEvent(state, {
+      type: "merge.proposed",
+      at,
+      projectId: task.projectId,
+      taskId: task.id,
+      payload: {
+        proposalId: proposal.id,
+        branch: proposal.branch,
+        base: proposal.base,
+        risk: proposal.risk
+      }
+    });
+    state.updatedAt = at;
+    await ctx.save();
+    return structuredClone(proposal);
+  });
+}
+async function approveMergeProposal(ctx, proposalId, note) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const proposal = findMergeProposal(state, proposalId);
+    if (proposal.status !== "review") {
+      throw new StudioStoreError(
+        "invalid_merge_status",
+        `\u53EA\u6709\u5F85\u8BC4\u5BA1\u7684\u5408\u5E76\u63D0\u6848\u53EF\u4EE5\u6279\u51C6\uFF1B\u5F53\u524D\u662F\u300C${MERGE_STATUS_LABELS[proposal.status]}\u300D`,
+        409
+      );
+    }
+    const at = ctx.now();
+    proposal.status = "approved";
+    proposal.reviewNote = optionalText(note, "note", 1e3);
+    proposal.decidedAt = at;
+    proposal.updatedAt = at;
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "merge.approved",
+      at,
+      projectId: proposal.projectId,
+      taskId: proposal.taskId,
+      payload: { proposalId: proposal.id, note: proposal.reviewNote }
+    });
+    await ctx.save();
+    return structuredClone(proposal);
+  });
+}
+async function rejectMergeProposal(ctx, proposalId, note) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const proposal = findMergeProposal(state, proposalId);
+    if (proposal.status !== "review") {
+      throw new StudioStoreError(
+        "invalid_merge_status",
+        `\u53EA\u6709\u5F85\u8BC4\u5BA1\u7684\u5408\u5E76\u63D0\u6848\u53EF\u4EE5\u6253\u56DE\uFF1B\u5F53\u524D\u662F\u300C${MERGE_STATUS_LABELS[proposal.status]}\u300D`,
+        409
+      );
+    }
+    const at = ctx.now();
+    proposal.status = "rejected";
+    proposal.reviewNote = requiredText(note, "note", 1e3);
+    proposal.decidedAt = at;
+    proposal.updatedAt = at;
+    const task = state.tasks.find((item) => item.id === proposal.taskId);
+    if (task !== void 0 && (task.status === "review" || task.status === "done")) {
+      task.status = "running";
+      task.updatedAt = at;
+      ctx.recordEvent(state, {
+        type: "task.reopened",
+        at,
+        projectId: task.projectId,
+        taskId: task.id,
+        payload: { reason: "merge_rejected", proposalId: proposal.id }
+      });
+    }
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "merge.rejected",
+      at,
+      projectId: proposal.projectId,
+      taskId: proposal.taskId,
+      payload: { proposalId: proposal.id, note: proposal.reviewNote }
+    });
+    await ctx.save();
+    return structuredClone(proposal);
+  });
+}
+async function getMergeContext(ctx, proposalId) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const proposal = findMergeProposal(state, proposalId);
+    const project = state.projects.find(
+      (item) => item.id === proposal.projectId
+    );
+    const task = state.tasks.find(
+      (item) => item.id === proposal.taskId
+    );
+    if (project === void 0 || task === void 0) {
+      throw new StudioStoreError(
+        "project_not_found",
+        "\u5408\u5E76\u63D0\u6848\u5BF9\u5E94\u7684\u9879\u76EE\u4E0D\u5B58\u5728",
+        404
+      );
+    }
+    const verification = proposal.postMergeVerificationId === null ? void 0 : state.verifications.find(
+      (item) => item.id === proposal.postMergeVerificationId
+    );
+    return {
+      proposal: structuredClone(proposal),
+      project: structuredClone(project),
+      task: structuredClone(task),
+      verification: verification === void 0 ? null : structuredClone(verification)
+    };
+  });
+}
+async function completeMergeProposal(ctx, proposalId, mergeCommit) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const proposal = findMergeProposal(state, proposalId);
+    if (proposal.status !== "approved") {
+      throw new StudioStoreError(
+        "invalid_merge_status",
+        `\u53EA\u6709\u5DF2\u6279\u51C6\u7684\u5408\u5E76\u63D0\u6848\u53EF\u4EE5\u6807\u8BB0\u5408\u5E76\uFF1B\u5F53\u524D\u662F\u300C${MERGE_STATUS_LABELS[proposal.status]}\u300D`,
+        409
+      );
+    }
+    const at = ctx.now();
+    proposal.status = "merged";
+    proposal.mergeCommit = optionalText(mergeCommit, "mergeCommit", 160) || null;
+    proposal.mergedAt = at;
+    proposal.updatedAt = at;
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "merge.merged",
+      at,
+      projectId: proposal.projectId,
+      taskId: proposal.taskId,
+      payload: {
+        proposalId: proposal.id,
+        mergeCommit: proposal.mergeCommit
+      }
+    });
+    await ctx.save();
+    return structuredClone(proposal);
+  });
+}
+async function setMergePostVerification(ctx, proposalId, verificationId) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const proposal = findMergeProposal(state, proposalId);
+    proposal.postMergeVerificationId = verificationId;
+    proposal.updatedAt = ctx.now();
+    state.updatedAt = proposal.updatedAt;
+    await ctx.save();
+    return structuredClone(proposal);
+  });
+}
+async function recordRollback(ctx, proposalId, rollbackCommit) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const proposal = findMergeProposal(state, proposalId);
+    if (proposal.status !== "merged") {
+      throw new StudioStoreError(
+        "rollback_not_merged",
+        "\u53EA\u6709\u5DF2\u5408\u5E76\u7684\u63D0\u6848\u53EF\u4EE5\u56DE\u6EDA",
+        409
+      );
+    }
+    const at = ctx.now();
+    proposal.rollbackCommit = requiredText(
+      rollbackCommit,
+      "rollbackCommit",
+      160
+    );
+    proposal.rolledBackAt = at;
+    proposal.updatedAt = at;
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "merge.rolled_back",
+      at,
+      projectId: proposal.projectId,
+      taskId: proposal.taskId,
+      payload: {
+        proposalId,
+        mergeCommit: proposal.mergeCommit,
+        rollbackCommit: proposal.rollbackCommit
+      }
+    });
+    await ctx.save();
+    return structuredClone(proposal);
   });
 }
 
@@ -4591,289 +4878,25 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
     });
   }
   async createMergeProposal(taskId, input) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const task = findTask(state, taskId);
-      if (task.status !== "done") {
-        throw new StudioStoreError(
-          "task_not_accepted",
-          "\u4EFB\u52A1\u9A8C\u6536\u901A\u8FC7\u540E\u624D\u80FD\u63D0\u4EA4\u5408\u5E76\u63D0\u6848",
-          409
-        );
-      }
-      if (task.acceptance.length === 0 || task.acceptance.some((item) => !item.done)) {
-        throw new StudioStoreError(
-          "acceptance_incomplete",
-          "\u6240\u6709\u9A8C\u6536\u6807\u51C6\u5B8C\u6210\u524D\u4E0D\u80FD\u63D0\u4EA4\u5408\u5E76\u63D0\u6848",
-          409
-        );
-      }
-      if (task.evidence.length === 0) {
-        throw new StudioStoreError(
-          "evidence_required",
-          "\u63D0\u4EA4\u5408\u5E76\u63D0\u6848\u524D\u81F3\u5C11\u8BB0\u5F55\u4E00\u6761\u8BC1\u636E",
-          409
-        );
-      }
-      const project = state.projects.find(
-        (item) => item.id === task.projectId
-      );
-      if (project?.repoPath !== null && project?.repoPath !== void 0) {
-        const passed = state.verifications.some(
-          (item) => item.taskId === task.id && item.passed
-        );
-        if (!passed) {
-          throw new StudioStoreError(
-            "verification_required",
-            "\u4EE3\u7801\u9879\u76EE\u63D0\u4EA4\u5408\u5E76\u63D0\u6848\u524D\u5FC5\u987B\u6709\u4E00\u6761\u901A\u8FC7\u7684\u72EC\u7ACB\u9A8C\u8BC1",
-            409
-          );
-        }
-      }
-      const active = state.mergeProposals.find(
-        (proposal2) => proposal2.taskId === task.id && (proposal2.status === "review" || proposal2.status === "approved" || proposal2.status === "merged")
-      );
-      if (active !== void 0) {
-        throw new StudioStoreError(
-          "merge_exists",
-          `\u8BE5\u4EFB\u52A1\u5DF2\u6709\u5408\u5E76\u63D0\u6848\uFF08${MERGE_STATUS_LABELS[active.status]}\uFF09`,
-          409
-        );
-      }
-      const branch = requiredText(
-        input.branch ?? task.branch ?? "",
-        "branch",
-        160
-      );
-      const risk = input.risk ?? "medium";
-      if (!isMergeRisk(risk)) {
-        throw new StudioStoreError("invalid_input", "risk \u5FC5\u987B\u662F low/medium/high");
-      }
-      const at = nowIso2(this.now);
-      const latestRun = [...state.runs].filter((run3) => run3.taskId === task.id).sort(
-        (left, right) => right.startedAt.localeCompare(left.startedAt)
-      )[0];
-      const latestVerification = [...state.verifications].filter((verification) => verification.taskId === task.id).sort(
-        (left, right) => right.createdAt.localeCompare(left.createdAt)
-      )[0];
-      const changedFiles = latestRun?.diffStat === null || latestRun?.diffStat === void 0 ? [] : latestRun.diffStat.split("\n").filter((line) => /^[ MARC?]{1,2} \S/.test(line)).map((line) => line.slice(3).trim()).filter(Boolean);
-      const proposal = {
-        id: newId3("merge"),
-        projectId: task.projectId,
-        taskId: task.id,
-        branch,
-        base: optionalText(input.base ?? "main", "base", 160) || "main",
-        summary: requiredText(input.summary, "summary", 1e3),
-        risk,
-        rollback: requiredText(input.rollback, "rollback", 1e3),
-        status: "review",
-        reviewNote: "",
-        mergeCommit: null,
-        diffStat: latestRun?.diffStat ?? null,
-        changedFiles,
-        verificationId: latestVerification?.id ?? null,
-        postMergeVerificationId: null,
-        rollbackCommit: null,
-        rolledBackAt: null,
-        createdAt: at,
-        updatedAt: at,
-        decidedAt: null,
-        mergedAt: null
-      };
-      if (task.branch !== branch) {
-        task.branch = branch;
-        task.updatedAt = at;
-      }
-      state.mergeProposals.push(proposal);
-      this.recordEvent(state, {
-        type: "merge.proposed",
-        at,
-        projectId: task.projectId,
-        taskId: task.id,
-        payload: {
-          proposalId: proposal.id,
-          branch: proposal.branch,
-          base: proposal.base,
-          risk: proposal.risk
-        }
-      });
-      state.updatedAt = at;
-      await this.save();
-      return structuredClone(proposal);
-    });
+    return createMergeProposal(this.context, taskId, input);
   }
   async approveMergeProposal(proposalId, note) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const proposal = findMergeProposal(state, proposalId);
-      if (proposal.status !== "review") {
-        throw new StudioStoreError(
-          "invalid_merge_status",
-          `\u53EA\u6709\u5F85\u8BC4\u5BA1\u7684\u5408\u5E76\u63D0\u6848\u53EF\u4EE5\u6279\u51C6\uFF1B\u5F53\u524D\u662F\u300C${MERGE_STATUS_LABELS[proposal.status]}\u300D`,
-          409
-        );
-      }
-      const at = nowIso2(this.now);
-      proposal.status = "approved";
-      proposal.reviewNote = optionalText(note, "note", 1e3);
-      proposal.decidedAt = at;
-      proposal.updatedAt = at;
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "merge.approved",
-        at,
-        projectId: proposal.projectId,
-        taskId: proposal.taskId,
-        payload: { proposalId: proposal.id, note: proposal.reviewNote }
-      });
-      await this.save();
-      return structuredClone(proposal);
-    });
+    return approveMergeProposal(this.context, proposalId, note);
   }
   async rejectMergeProposal(proposalId, note) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const proposal = findMergeProposal(state, proposalId);
-      if (proposal.status !== "review") {
-        throw new StudioStoreError(
-          "invalid_merge_status",
-          `\u53EA\u6709\u5F85\u8BC4\u5BA1\u7684\u5408\u5E76\u63D0\u6848\u53EF\u4EE5\u6253\u56DE\uFF1B\u5F53\u524D\u662F\u300C${MERGE_STATUS_LABELS[proposal.status]}\u300D`,
-          409
-        );
-      }
-      const at = nowIso2(this.now);
-      proposal.status = "rejected";
-      proposal.reviewNote = requiredText(note, "note", 1e3);
-      proposal.decidedAt = at;
-      proposal.updatedAt = at;
-      const task = state.tasks.find((item) => item.id === proposal.taskId);
-      if (task !== void 0 && (task.status === "review" || task.status === "done")) {
-        task.status = "running";
-        task.updatedAt = at;
-        this.recordEvent(state, {
-          type: "task.reopened",
-          at,
-          projectId: task.projectId,
-          taskId: task.id,
-          payload: { reason: "merge_rejected", proposalId: proposal.id }
-        });
-      }
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "merge.rejected",
-        at,
-        projectId: proposal.projectId,
-        taskId: proposal.taskId,
-        payload: { proposalId: proposal.id, note: proposal.reviewNote }
-      });
-      await this.save();
-      return structuredClone(proposal);
-    });
+    return rejectMergeProposal(this.context, proposalId, note);
   }
   async getMergeContext(proposalId) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const proposal = findMergeProposal(state, proposalId);
-      const project = state.projects.find(
-        (item) => item.id === proposal.projectId
-      );
-      const task = state.tasks.find(
-        (item) => item.id === proposal.taskId
-      );
-      if (project === void 0 || task === void 0) {
-        throw new StudioStoreError(
-          "project_not_found",
-          "\u5408\u5E76\u63D0\u6848\u5BF9\u5E94\u7684\u9879\u76EE\u4E0D\u5B58\u5728",
-          404
-        );
-      }
-      const verification = proposal.postMergeVerificationId === null ? void 0 : state.verifications.find(
-        (item) => item.id === proposal.postMergeVerificationId
-      );
-      return {
-        proposal: structuredClone(proposal),
-        project: structuredClone(project),
-        task: structuredClone(task),
-        verification: verification === void 0 ? null : structuredClone(verification)
-      };
-    });
+    return getMergeContext(this.context, proposalId);
   }
   async completeMergeProposal(proposalId, mergeCommit) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const proposal = findMergeProposal(state, proposalId);
-      if (proposal.status !== "approved") {
-        throw new StudioStoreError(
-          "invalid_merge_status",
-          `\u53EA\u6709\u5DF2\u6279\u51C6\u7684\u5408\u5E76\u63D0\u6848\u53EF\u4EE5\u6807\u8BB0\u5408\u5E76\uFF1B\u5F53\u524D\u662F\u300C${MERGE_STATUS_LABELS[proposal.status]}\u300D`,
-          409
-        );
-      }
-      const at = nowIso2(this.now);
-      proposal.status = "merged";
-      proposal.mergeCommit = optionalText(mergeCommit, "mergeCommit", 160) || null;
-      proposal.mergedAt = at;
-      proposal.updatedAt = at;
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "merge.merged",
-        at,
-        projectId: proposal.projectId,
-        taskId: proposal.taskId,
-        payload: {
-          proposalId: proposal.id,
-          mergeCommit: proposal.mergeCommit
-        }
-      });
-      await this.save();
-      return structuredClone(proposal);
-    });
+    return completeMergeProposal(this.context, proposalId, mergeCommit);
   }
   async setMergePostVerification(proposalId, verificationId) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const proposal = findMergeProposal(state, proposalId);
-      proposal.postMergeVerificationId = verificationId;
-      proposal.updatedAt = nowIso2(this.now);
-      state.updatedAt = proposal.updatedAt;
-      await this.save();
-      return structuredClone(proposal);
-    });
+    return setMergePostVerification(this.context, proposalId, verificationId);
   }
   async recordRollback(proposalId, rollbackCommit) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const proposal = findMergeProposal(state, proposalId);
-      if (proposal.status !== "merged") {
-        throw new StudioStoreError(
-          "rollback_not_merged",
-          "\u53EA\u6709\u5DF2\u5408\u5E76\u7684\u63D0\u6848\u53EF\u4EE5\u56DE\u6EDA",
-          409
-        );
-      }
-      const at = nowIso2(this.now);
-      proposal.rollbackCommit = requiredText(
-        rollbackCommit,
-        "rollbackCommit",
-        160
-      );
-      proposal.rolledBackAt = at;
-      proposal.updatedAt = at;
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "merge.rolled_back",
-        at,
-        projectId: proposal.projectId,
-        taskId: proposal.taskId,
-        payload: {
-          proposalId,
-          mergeCommit: proposal.mergeCommit,
-          rollbackCommit: proposal.rollbackCommit
-        }
-      });
-      await this.save();
-      return structuredClone(proposal);
-    });
+    return recordRollback(this.context, proposalId, rollbackCommit);
   }
   async load() {
     await mkdir(this.dataDir, { recursive: true });
