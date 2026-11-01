@@ -5,7 +5,7 @@
  */
 
 export const STUDIO_SCHEMA_VERSION = 22;
-export const STUDIO_PLUGIN_VERSION = "2.10.0";
+export const STUDIO_PLUGIN_VERSION = "2.11.0";
 
 export type TaskStatus =
   | "backlog"
@@ -254,6 +254,19 @@ export interface CreateProviderProfileInput {
 }
 
 export type UpdateProviderProfileInput = Partial<CreateProviderProfileInput>;
+
+export type ProviderHealthState = "healthy" | "degraded" | "unknown";
+
+export interface ProviderProfileHealth {
+  profileId: string;
+  runCount: number;
+  successCount: number;
+  failCount: number;
+  tokens: number;
+  lastRunAt: string | null;
+  lastError: string | null;
+  state: ProviderHealthState;
+}
 
 export interface Role {
   id: string;
@@ -650,6 +663,7 @@ export interface BootstrapResponse {
   threads: Thread[];
   workshops: Workshop[];
   providerProfiles: ProviderProfile[];
+  providerHealth: ProviderProfileHealth[];
   roles: Role[];
   modules: Module[];
   tasks: Task[];
@@ -682,6 +696,7 @@ export interface BootstrapResponse {
     triggerInbox: boolean;
     workshop: boolean;
     providerProfiles: boolean;
+    providerHealth: boolean;
   };
 }
 

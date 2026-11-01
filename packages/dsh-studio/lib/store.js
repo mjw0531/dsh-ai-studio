@@ -14,7 +14,7 @@ import path from "node:path";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 22;
-var STUDIO_PLUGIN_VERSION = "2.10.0";
+var STUDIO_PLUGIN_VERSION = "2.11.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -308,6 +308,41 @@ function latestIso(values) {
     latestAt = at;
   }
   return latest;
+}
+function buildProviderHealth(state, projectId) {
+  const profiles = state.providerProfiles.filter(
+    (profile) => profile.projectId === projectId
+  );
+  return profiles.map((profile) => {
+    const roleIds = new Set(
+      state.roles.filter(
+        (role) => role.projectId === projectId && role.providerProfileId === profile.id
+      ).map((role) => role.id)
+    );
+    const runs = state.runs.filter(
+      (run) => run.projectId === projectId && run.roleId !== null && roleIds.has(run.roleId)
+    ).sort(
+      (left, right) => (left.endedAt ?? left.startedAt).localeCompare(
+        right.endedAt ?? right.startedAt
+      )
+    );
+    const successCount = runs.filter(
+      (run) => run.status === "succeeded"
+    ).length;
+    const failCount = runs.filter((run) => run.status === "failed").length;
+    const last = runs[runs.length - 1];
+    const lastError = last?.status === "failed" && last.error !== null ? last.error : [...runs].reverse().find((run) => run.error !== null)?.error ?? null;
+    return {
+      profileId: profile.id,
+      runCount: runs.length,
+      successCount,
+      failCount,
+      tokens: runs.reduce((sum, run) => sum + (run.tokens ?? 0), 0),
+      lastRunAt: last === void 0 ? null : last.endedAt ?? last.startedAt,
+      lastError,
+      state: runs.length === 0 ? "unknown" : last?.status === "failed" ? "degraded" : "healthy"
+    };
+  });
 }
 function buildCompany(state, now) {
   const projects = [];
@@ -1118,6 +1153,7 @@ var StudioStore = class {
       const providerProfiles = project === null ? [] : state.providerProfiles.filter(
         (profile) => profile.projectId === project.id
       );
+      const providerHealth = project === null ? [] : buildProviderHealth(state, project.id);
       const roles = project === null ? [] : state.roles.filter((role) => role.projectId === project.id);
       const modules = project === null ? [] : state.modules.filter((module) => module.projectId === project.id);
       const tasks = project === null ? [] : state.tasks.filter((task) => task.projectId === project.id);
@@ -1169,6 +1205,7 @@ var StudioStore = class {
         threads,
         workshops,
         providerProfiles,
+        providerHealth,
         roles,
         modules,
         tasks,
@@ -1200,7 +1237,8 @@ var StudioStore = class {
           stageGate: true,
           triggerInbox: true,
           workshop: true,
-          providerProfiles: true
+          providerProfiles: true,
+          providerHealth: true
         }
       };
     });

@@ -55,6 +55,7 @@ import type {
   CreateProviderProfileInput,
   UpdateProviderProfileInput,
   ProviderProfile,
+  ProviderProfileHealth,
   Workshop,
   UpdateStageGateInput,
   CreateMergeProposalInput,
@@ -4025,12 +4026,14 @@ function MergeProposalCard({
 
 function ProviderProfilesPanel({
   profiles,
+  health,
   busy,
   onCreate,
   onUpdate,
   onDelete,
 }: {
   profiles: ProviderProfile[];
+  health: ProviderProfileHealth[];
   busy: boolean;
   onCreate: (input: CreateProviderProfileInput) => Promise<boolean>;
   onUpdate: (
@@ -4119,7 +4122,11 @@ function ProviderProfilesPanel({
 
         {profiles.length > 0 ? (
           <div className="studio-provider-list">
-            {profiles.map((profile) => (
+            {profiles.map((profile) => {
+              const current = health.find(
+                (item) => item.profileId === profile.id,
+              );
+              return (
               <div key={profile.id} className="studio-provider-row">
                 <strong>{profile.name}</strong>
                 <span className="studio-pill">
@@ -4127,6 +4134,11 @@ function ProviderProfilesPanel({
                 </span>
                 <span className="studio-mono">
                   {profile.provider || "auto"} / {profile.model || "default"}
+                </span>
+                <span className="studio-muted">
+                  {current?.state ?? "unknown"} · {current?.successCount ?? 0}/
+                  {current?.runCount ?? 0} 成功 ·{" "}
+                  {(current?.tokens ?? 0).toLocaleString()} tokens
                 </span>
                 <button
                   className="studio-btn"
@@ -4156,7 +4168,8 @@ function ProviderProfilesPanel({
                   删除
                 </button>
               </div>
-            ))}
+              );
+            })}
           </div>
         ) : null}
       </div>
@@ -4218,6 +4231,7 @@ function TeamView({
 
       <ProviderProfilesPanel
         profiles={data.providerProfiles}
+        health={data.providerHealth}
         busy={busy}
         onCreate={onCreateProvider}
         onUpdate={onUpdateProvider}

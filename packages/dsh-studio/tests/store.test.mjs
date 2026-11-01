@@ -1415,3 +1415,37 @@ test("binds provider profiles to roles and blocks deleting a profile in use", as
     assert.equal(data.providerProfiles.length, 0);
   });
 });
+
+test("aggregates provider health from bound role runs", async () => {
+  await withStore(async (store) => {
+    const profile = await store.createProviderProfile({
+      name: "Health profile",
+      model: "deepseek-flash",
+    });
+    const role = await store.createRole({
+      name: "Health role",
+      providerProfileId: profile.id,
+    });
+    const task = await store.createTask({
+      title: "Health run",
+      ownerRoleId: role.id,
+      reviewerRoleId: role.id,
+      acceptance: ["Run is recorded"],
+    });
+    const run = await store.beginRun(task.id, "smoke prompt");
+    await store.completeRun(run.id, {
+      output: "incomplete",
+      receipt: null,
+      tokens: 42,
+    });
+    const data = await store.bootstrap();
+    const health = data.providerHealth.find(
+      (item) => item.profileId === profile.id,
+    );
+    assert.ok(health);
+    assert.equal(health.runCount, 1);
+    assert.equal(health.failCount, 1);
+    assert.equal(health.tokens, 42);
+    assert.equal(health.state, "degraded");
+  });
+});

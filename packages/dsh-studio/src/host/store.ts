@@ -60,6 +60,7 @@ import type {
   Project,
   ProjectStage,
   ProviderProfile,
+  ProviderProfileHealth,
   Role,
   RoleLoadSummary,
   StageArtifact,
@@ -398,6 +399,64 @@ function latestIso(values: Array<string | null | undefined>): string | null {
  * the aggregate numbers the Owner Dashboard needs. It is derived from the same
  * durable state, so it never becomes a second source of truth.
  */
+function buildProviderHealth(
+  state: StudioState,
+  projectId: string,
+): ProviderProfileHealth[] {
+  const profiles = state.providerProfiles.filter(
+    (profile) => profile.projectId === projectId,
+  );
+  return profiles.map((profile) => {
+    const roleIds = new Set(
+      state.roles
+        .filter(
+          (role) =>
+            role.projectId === projectId &&
+            role.providerProfileId === profile.id,
+        )
+        .map((role) => role.id),
+    );
+    const runs = state.runs
+      .filter(
+        (run) =>
+          run.projectId === projectId &&
+          run.roleId !== null &&
+          roleIds.has(run.roleId),
+      )
+      .sort((left, right) =>
+        (left.endedAt ?? left.startedAt).localeCompare(
+          right.endedAt ?? right.startedAt,
+        ),
+      );
+    const successCount = runs.filter(
+      (run) => run.status === "succeeded",
+    ).length;
+    const failCount = runs.filter((run) => run.status === "failed").length;
+    const last = runs[runs.length - 1];
+    const lastError =
+      last?.status === "failed" && last.error !== null
+        ? last.error
+        : ([...runs].reverse().find((run) => run.error !== null)?.error ??
+          null);
+    return {
+      profileId: profile.id,
+      runCount: runs.length,
+      successCount,
+      failCount,
+      tokens: runs.reduce((sum, run) => sum + (run.tokens ?? 0), 0),
+      lastRunAt:
+        last === undefined ? null : (last.endedAt ?? last.startedAt),
+      lastError,
+      state:
+        runs.length === 0
+          ? "unknown"
+          : last?.status === "failed"
+            ? "degraded"
+            : "healthy",
+    };
+  });
+}
+
 function buildCompany(state: StudioState, now: Date): CompanySummary {
   const projects: CompanyProjectSummary[] = [];
   const needs: OwnerNeed[] = [];
@@ -1687,6 +1746,8 @@ export class StudioStore {
         : state.providerProfiles.filter(
             (profile) => profile.projectId === project.id,
           );
+      const providerHealth =
+        project === null ? [] : buildProviderHealth(state, project.id);
       const roles = project === null
         ? []
         : state.roles.filter((role) => role.projectId === project.id);
@@ -1771,6 +1832,7 @@ export class StudioStore {
         threads,
         workshops,
         providerProfiles,
+        providerHealth,
         roles,
         modules,
         tasks,
@@ -1803,6 +1865,7 @@ export class StudioStore {
           triggerInbox: true,
           workshop: true,
           providerProfiles: true,
+          providerHealth: true,
         },
       };
     });

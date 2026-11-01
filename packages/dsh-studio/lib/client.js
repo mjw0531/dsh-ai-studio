@@ -3985,6 +3985,7 @@ function MergeProposalCard({
 }
 function ProviderProfilesPanel({
   profiles,
+  health,
   busy,
   onCreate,
   onUpdate,
@@ -4076,46 +4077,62 @@ function ProviderProfilesPanel({
           ]
         }
       ),
-      profiles.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-provider-list", children: profiles.map((profile) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-provider-row", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: profile.name }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-pill", children: AGENT_EXECUTOR_LABELS[profile.executor] }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "studio-mono", children: [
-          profile.provider || "auto",
-          " / ",
-          profile.model || "default"
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-          "button",
-          {
-            className: "studio-btn",
-            "data-size": "sm",
-            type: "button",
-            disabled: busy,
-            onClick: () => {
-              const next = window.prompt("\u65B0\u7684 Profile \u540D\u79F0\uFF1A", profile.name);
-              if (next !== null && next.trim() !== "") {
-                void onUpdate(profile.id, { name: next.trim() });
-              }
-            },
-            children: "\u6539\u540D"
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-          "button",
-          {
-            className: "studio-btn",
-            "data-size": "sm",
-            type: "button",
-            disabled: busy,
-            onClick: () => {
-              if (window.confirm(`\u5220\u9664 Provider Profile\u300C${profile.name}\u300D\uFF1F`)) {
-                void onDelete(profile.id);
-              }
-            },
-            children: "\u5220\u9664"
-          }
-        )
-      ] }, profile.id)) }) : null
+      profiles.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-provider-list", children: profiles.map((profile) => {
+        const current = health.find(
+          (item) => item.profileId === profile.id
+        );
+        return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-provider-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: profile.name }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-pill", children: AGENT_EXECUTOR_LABELS[profile.executor] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "studio-mono", children: [
+            profile.provider || "auto",
+            " / ",
+            profile.model || "default"
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "studio-muted", children: [
+            current?.state ?? "unknown",
+            " \xB7 ",
+            current?.successCount ?? 0,
+            "/",
+            current?.runCount ?? 0,
+            " \u6210\u529F \xB7",
+            " ",
+            (current?.tokens ?? 0).toLocaleString(),
+            " tokens"
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "button",
+            {
+              className: "studio-btn",
+              "data-size": "sm",
+              type: "button",
+              disabled: busy,
+              onClick: () => {
+                const next = window.prompt("\u65B0\u7684 Profile \u540D\u79F0\uFF1A", profile.name);
+                if (next !== null && next.trim() !== "") {
+                  void onUpdate(profile.id, { name: next.trim() });
+                }
+              },
+              children: "\u6539\u540D"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "button",
+            {
+              className: "studio-btn",
+              "data-size": "sm",
+              type: "button",
+              disabled: busy,
+              onClick: () => {
+                if (window.confirm(`\u5220\u9664 Provider Profile\u300C${profile.name}\u300D\uFF1F`)) {
+                  void onDelete(profile.id);
+                }
+              },
+              children: "\u5220\u9664"
+            }
+          )
+        ] }, profile.id);
+      }) }) : null
     ] })
   ] });
 }
@@ -4156,6 +4173,7 @@ function TeamView({
       ProviderProfilesPanel,
       {
         profiles: data.providerProfiles,
+        health: data.providerHealth,
         busy,
         onCreate: onCreateProvider,
         onUpdate: onUpdateProvider,
