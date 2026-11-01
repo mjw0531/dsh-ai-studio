@@ -16,8 +16,11 @@ import type {
   Project,
   ProjectDoc,
   ProjectStage,
+  AcceptTriggerInput,
   ApproveStageGateInput,
+  CreateTriggerInput,
   StageGate,
+  Trigger,
   UpdateStageGateInput,
   UpdateModuleInput,
   Role,
@@ -300,6 +303,32 @@ export class StudioClient {
       { method: "POST", body: { note } },
     );
     return data.gate;
+  }
+
+  async ingestTrigger(input: CreateTriggerInput): Promise<Trigger> {
+    const data = await this.request<{ trigger: Trigger }>("/triggers", {
+      method: "POST",
+      body: input,
+    });
+    return data.trigger;
+  }
+
+  async acceptTrigger(
+    triggerId: string,
+    input: AcceptTriggerInput = {},
+  ): Promise<{ trigger: Trigger; task: Task }> {
+    return this.request<{ trigger: Trigger; task: Task }>(
+      `/triggers/${encodeURIComponent(triggerId)}/accept`,
+      { method: "POST", body: input },
+    );
+  }
+
+  async ignoreTrigger(triggerId: string, note: string): Promise<Trigger> {
+    const data = await this.request<{ trigger: Trigger }>(
+      `/triggers/${encodeURIComponent(triggerId)}/ignore`,
+      { method: "POST", body: { note } },
+    );
+    return data.trigger;
   }
 
   async createModule(input: CreateModuleInput): Promise<Module> {

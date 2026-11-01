@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 19;
-export const STUDIO_PLUGIN_VERSION = "2.6.0";
+export const STUDIO_SCHEMA_VERSION = 20;
+export const STUDIO_PLUGIN_VERSION = "2.7.0";
 
 export type TaskStatus =
   | "backlog"
@@ -96,6 +96,68 @@ export interface UpdateStageGateInput {
 
 export interface ApproveStageGateInput extends UpdateStageGateInput {
   waiverReason?: string;
+}
+
+export type TriggerSource = "manual" | "github" | "ci" | "im" | "email";
+export type TriggerStatus = "pending" | "accepted" | "ignored";
+
+export const TRIGGER_SOURCE_LABELS: Record<TriggerSource, string> = {
+  manual: "手动",
+  github: "GitHub",
+  ci: "CI",
+  im: "IM",
+  email: "邮件",
+};
+
+export const TRIGGER_STATUS_LABELS: Record<TriggerStatus, string> = {
+  pending: "待处理",
+  accepted: "已转任务",
+  ignored: "已忽略",
+};
+
+export interface Trigger {
+  id: string;
+  projectId: string;
+  source: TriggerSource;
+  externalId: string;
+  threadKey: string;
+  title: string;
+  body: string;
+  url: string;
+  status: TriggerStatus;
+  taskId: string | null;
+  threadId: string | null;
+  note: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Thread {
+  id: string;
+  projectId: string;
+  key: string;
+  source: TriggerSource;
+  title: string;
+  taskId: string | null;
+  triggerIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTriggerInput {
+  source: TriggerSource;
+  externalId?: string;
+  threadKey?: string;
+  title: string;
+  body?: string;
+  url?: string;
+}
+
+export interface AcceptTriggerInput {
+  acceptance?: string[];
+  ownerRoleId?: string | null;
+  reviewerRoleId?: string | null;
+  priority?: TaskPriority;
 }
 
 export interface Project {
@@ -376,6 +438,8 @@ export interface StudioState {
   activeProjectId: string | null;
   projects: Project[];
   stageGates: StageGate[];
+  triggers: Trigger[];
+  threads: Thread[];
   roles: Role[];
   modules: Module[];
   tasks: Task[];
@@ -505,6 +569,8 @@ export interface BootstrapResponse {
   activeProjectId: string | null;
   project: Project | null;
   stageGates: StageGate[];
+  triggers: Trigger[];
+  threads: Thread[];
   roles: Role[];
   modules: Module[];
   tasks: Task[];
@@ -534,6 +600,7 @@ export interface BootstrapResponse {
     mergeExecution: boolean;
     gitMerge: boolean;
     stageGate: boolean;
+    triggerInbox: boolean;
   };
 }
 

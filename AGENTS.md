@@ -6,6 +6,7 @@ Studio 是 DSH 的即装即用工作台插件。改领域词、工作流或接�
 
 - **完成门禁**：任务进入 `done` 前，所有 acceptance 必须为 done，且至少有一条 evidence。不要在 UI 或 API 里绕过 `StudioStore.transitionTask`。
 - **阶段门禁**：绑定代码仓库的项目只有 `Project.stage === "development"` 才能派单；阶段只能由 Owner 通过 StageGate 推进。不允许静默跳过；豁免必须写理由并留下审计记录。旧项目迁移默认 `development`。
+- **触发器门禁**：Trigger 只进入收件箱，必须由人确认才能转成 Task；同一 `source + externalId` 去重，同 `threadKey` 归入同一 Thread。不要自动派单、自动 merge 或把外部事件直接当验收结论。
 - **合并门禁**：只有 `done` 任务能提交合并提案；提案必须经过 `review → approved → merged`。`merged` 是治理记录，不是 Git 事实；不要在未经明确设计的情况下自动执行 `git merge`。打回提案会把任务退回 `running`。
 - **v2.5.0 边界**：Host 只依赖 `ctx.webServer` 的路由/结构化 index injection、`ctx.connection.admit()`、公开的 `ctx.agents` / `ctx.agentPresets` / `ctx.llm` / `ctx.tokenMeter`；Client 只依赖 `ctx.slots`、`ctx.layout` 和平台 React。不要引入 DSH 私有 Remote 代码生成器，也不要把 `features.agentExecution` / `features.gitMerge` 改成 true 来假装功能已接入。外部执行器只允许在 worktree 内、以 headless 模式运行，仍必须走 Host 验证和独立评审。
 - **Agent 回执门禁**：Agent 只能把任务推进到 `review`；回执必须包含非空 `summary` 和至少一条 `evidence`，否则 Run 记为 failed、任务退回 `ready`。

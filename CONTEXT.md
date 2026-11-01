@@ -40,6 +40,14 @@ _Avoid_: 任务状态（TaskStatus 是单个任务的流转）
 进入下一阶段前的 Owner 确认记录：检查项、产物、说明、批准/拒绝、豁免理由；未批准的代码项目不能派单。
 _Avoid_: 任务验收（任务验收针对单个 Task）
 
+**Trigger（触发事件）**:
+进入 Studio 的外部事件（manual/github/ci/im/email），先进入收件箱，由人决定是否转为 Task；不是 Task 本身。
+_Avoid_: 消息、通知（Trigger 有来源、去重键与处理状态）
+
+**Thread（线程）**:
+同一 IM 话题或同一个 PR 下的一组 Trigger；用于保持连续上下文，并把后续事件关联到已有 Task。
+_Avoid_: 聊天、会话（Thread 是事件关联，不是 Agent 会话）
+
 **Project Book（项目书）**:
 项目知识的检索索引，按触发词、范围、优先级向 Agent 注入条目；不是项目的本体。
 _Avoid_: 世界书、知识库（过于宽泛）

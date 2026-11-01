@@ -46,6 +46,8 @@ import type {
   CreateProjectInput,
   CreateRoleInput,
   CreateTaskInput,
+  CreateTriggerInput,
+  AcceptTriggerInput,
   ApproveStageGateInput,
   EvidenceItem,
   MergeProposal,
@@ -65,6 +67,10 @@ import type {
   Task,
   TaskPriority,
   TaskStatus,
+  Thread,
+  Trigger,
+  TriggerSource,
+  TriggerStatus,
   UpdateProjectInput,
   UpdateStageGateInput,
   UpdateTaskInput,
@@ -985,6 +991,56 @@ function isStageGate(value: unknown): value is StageGate {
   );
 }
 
+function isTriggerSource(value: unknown): value is TriggerSource {
+  return (
+    value === "manual" ||
+    value === "github" ||
+    value === "ci" ||
+    value === "im" ||
+    value === "email"
+  );
+}
+
+function isTriggerStatus(value: unknown): value is TriggerStatus {
+  return value === "pending" || value === "accepted" || value === "ignored";
+}
+
+function isTrigger(value: unknown): value is Trigger {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.projectId === "string" &&
+    isTriggerSource(value.source) &&
+    typeof value.externalId === "string" &&
+    typeof value.threadKey === "string" &&
+    typeof value.title === "string" &&
+    typeof value.body === "string" &&
+    typeof value.url === "string" &&
+    isTriggerStatus(value.status) &&
+    (value.taskId === null || typeof value.taskId === "string") &&
+    (value.threadId === null || typeof value.threadId === "string") &&
+    typeof value.note === "string" &&
+    typeof value.createdAt === "string" &&
+    typeof value.updatedAt === "string"
+  );
+}
+
+function isThread(value: unknown): value is Thread {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.projectId === "string" &&
+    typeof value.key === "string" &&
+    isTriggerSource(value.source) &&
+    typeof value.title === "string" &&
+    (value.taskId === null || typeof value.taskId === "string") &&
+    Array.isArray(value.triggerIds) &&
+    value.triggerIds.every((item) => typeof item === "string") &&
+    typeof value.createdAt === "string" &&
+    typeof value.updatedAt === "string"
+  );
+}
+
 function isBranchStatus(value: unknown): value is Branch["status"] {
   return (
     value === "open" ||
@@ -1312,7 +1368,7 @@ function migrateState(value: unknown): StudioState {
   if (state.schemaVersion === 18) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 19,
       projects: state.projects.map((project) => ({
         ...project,
         stage: "development",
@@ -1322,6 +1378,14 @@ function migrateState(value: unknown): StudioState {
         ...task,
         requirementRefs: [],
       })),
+    };
+  }
+  if (state.schemaVersion === 19) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      triggers: [],
+      threads: [],
     };
   }
   return state;
@@ -1342,6 +1406,8 @@ function assertState(value: unknown): asserts value is StudioState {
   if (
     !Array.isArray(value.projects) ||
     !Array.isArray(value.stageGates) ||
+    !Array.isArray(value.triggers) ||
+    !Array.isArray(value.threads) ||
     !Array.isArray(value.roles) ||
     !Array.isArray(value.modules) ||
     !Array.isArray(value.tasks) ||
@@ -1361,6 +1427,12 @@ function assertState(value: unknown): asserts value is StudioState {
   }
   if (!value.stageGates.every(isStageGate)) {
     throw new Error("Studio state contains an invalid stage gate");
+  }
+  if (!value.triggers.every(isTrigger)) {
+    throw new Error("Studio state contains an invalid trigger");
+  }
+  if (!value.threads.every(isThread)) {
+    throw new Error("Studio state contains an invalid thread");
   }
   if (!value.roles.every(isRole)) {
     throw new Error("Studio state contains an invalid role");
@@ -1493,6 +1565,16 @@ export class StudioStore {
       const stageGates = project === null
         ? []
         : state.stageGates.filter((gate) => gate.projectId === project.id);
+      const triggers = project === null
+        ? []
+        : state.triggers
+            .filter((trigger) => trigger.projectId === project.id)
+            .sort((left, right) =>
+              right.createdAt.localeCompare(left.createdAt),
+            );
+      const threads = project === null
+        ? []
+        : state.threads.filter((thread) => thread.projectId === project.id);
       const roles = project === null
         ? []
         : state.roles.filter((role) => role.projectId === project.id);
@@ -1573,6 +1655,8 @@ export class StudioStore {
         activeProjectId: state.activeProjectId,
         project,
         stageGates,
+        triggers,
+        threads,
         roles,
         modules,
         tasks,
@@ -1602,6 +1686,7 @@ export class StudioStore {
           mergeExecution: true,
           gitMerge: false,
           stageGate: true,
+          triggerInbox: true,
         },
       };
     });
@@ -1869,6 +1954,236 @@ export class StudioStore {
       });
       await this.save();
       return structuredClone(gate);
+    });
+  }
+
+  async ingestTrigger(input: CreateTriggerInput): Promise<Trigger> {
+    return this.runExclusive(async () => {
+      if (
+        !isTriggerSource(input.source) ||
+        typeof input.title !== "string" ||
+        input.title.trim() === ""
+      ) {
+        throw new StudioStoreError(
+          "invalid_input",
+          "触发事件必须有受支持的 source 和 title",
+        );
+      }
+      const state = this.requireState();
+      const project = this.pickProject(state, undefined);
+      if (project === null) {
+        throw new StudioStoreError("project_required", "请先创建一个项目");
+      }
+      const externalId = optionalText(input.externalId, "externalId", 240);
+      if (externalId !== "") {
+        const duplicate = state.triggers.find(
+          (trigger) =>
+            trigger.projectId === project.id &&
+            trigger.source === input.source &&
+            trigger.externalId === externalId,
+        );
+        if (duplicate !== undefined) return structuredClone(duplicate);
+      }
+      const threadKey =
+        optionalText(input.threadKey, "threadKey", 240) ||
+        externalId ||
+        `thread-${randomUUID().slice(0, 8)}`;
+      const title = requiredText(input.title, "title", 240);
+      const at = nowIso(this.now);
+      let thread = state.threads.find(
+        (item) => item.projectId === project.id && item.key === threadKey,
+      );
+      if (thread === undefined) {
+        thread = {
+          id: newId("thread"),
+          projectId: project.id,
+          key: threadKey,
+          source: input.source,
+          title,
+          taskId: null,
+          triggerIds: [],
+          createdAt: at,
+          updatedAt: at,
+        };
+        state.threads.push(thread);
+      }
+      const trigger: Trigger = {
+        id: newId("trigger"),
+        projectId: project.id,
+        source: input.source,
+        externalId,
+        threadKey,
+        title,
+        body: optionalText(input.body, "body", 8000),
+        url: optionalText(input.url, "url", 1000),
+        status: thread.taskId === null ? "pending" : "accepted",
+        taskId: thread.taskId,
+        threadId: thread.id,
+        note: "",
+        createdAt: at,
+        updatedAt: at,
+      };
+      state.triggers.push(trigger);
+      thread.triggerIds.push(trigger.id);
+      thread.updatedAt = at;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "trigger.received",
+        at,
+        projectId: project.id,
+        taskId: thread.taskId,
+        payload: {
+          source: trigger.source,
+          threadKey,
+          routedToExistingTask: thread.taskId !== null,
+        },
+      });
+      await this.save();
+      return structuredClone(trigger);
+    });
+  }
+
+  async acceptTrigger(
+    triggerId: string,
+    input: AcceptTriggerInput = {},
+  ): Promise<{ trigger: Trigger; task: Task }> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const trigger = this.findTrigger(state, triggerId);
+      if (trigger.status === "ignored") {
+        throw new StudioStoreError(
+          "trigger_ignored",
+          "已忽略的触发事件不能转为任务",
+          409,
+        );
+      }
+      const project = this.findProject(state, trigger.projectId);
+      if (trigger.status === "accepted" && trigger.taskId !== null) {
+        return {
+          trigger: structuredClone(trigger),
+          task: structuredClone(this.findTask(state, trigger.taskId)),
+        };
+      }
+
+      const thread =
+        trigger.threadId === null
+          ? undefined
+          : state.threads.find((item) => item.id === trigger.threadId);
+      if (thread?.taskId !== null && thread?.taskId !== undefined) {
+        const at = nowIso(this.now);
+        const task = this.findTask(state, thread.taskId);
+        trigger.status = "accepted";
+        trigger.taskId = task.id;
+        trigger.updatedAt = at;
+        task.evidence.push({
+          id: newId("ev"),
+          text: `触发事件：${trigger.title}`,
+          createdAt: at,
+        });
+        task.updatedAt = at;
+        state.updatedAt = at;
+        this.recordEvent(state, {
+          type: "trigger.routed",
+          at,
+          projectId: project.id,
+          taskId: task.id,
+          payload: { triggerId: trigger.id, source: trigger.source },
+        });
+        await this.save();
+        return {
+          trigger: structuredClone(trigger),
+          task: structuredClone(task),
+        };
+      }
+
+      const roles = state.roles.filter((role) => role.projectId === project.id);
+      const lead =
+        roles.find((role) => role.name.toLowerCase() === "lead") ?? roles[0];
+      const reviewer =
+        roles.find((role) => role.name.toLowerCase() === "verifier") ??
+        roles.find((role) => role.name.toLowerCase() === "architect") ??
+        lead;
+      const at = nowIso(this.now);
+      const acceptance = normalizeAcceptance(
+        input.acceptance !== undefined && input.acceptance.length > 0
+          ? input.acceptance
+          : ["人工确认触发内容与验收标准"],
+        [],
+      );
+      const task: Task = {
+        id: newId("task"),
+        projectId: project.id,
+        title: trigger.title,
+        goal: trigger.body || trigger.title,
+        status: "backlog",
+        priority: isTaskPriority(input.priority) ? input.priority : "P1",
+        ownerRoleId: input.ownerRoleId ?? lead?.id ?? null,
+        reviewerRoleId: input.reviewerRoleId ?? reviewer?.id ?? null,
+        acceptance,
+        evidence: [],
+        branch: null,
+        verifyCommand: null,
+        module: null,
+        contractRef: null,
+        requirementRefs: [`trigger:${trigger.id}`],
+        kind: "new",
+        diagnosis: "",
+        plan: "",
+        integration: false,
+        originTaskId: null,
+        docsSynced: false,
+        createdAt: at,
+        updatedAt: at,
+      };
+      state.tasks.push(task);
+      trigger.status = "accepted";
+      trigger.taskId = task.id;
+      trigger.updatedAt = at;
+      if (thread !== undefined) {
+        thread.taskId = task.id;
+        thread.updatedAt = at;
+      }
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "trigger.accepted",
+        at,
+        projectId: project.id,
+        taskId: task.id,
+        payload: { triggerId: trigger.id, source: trigger.source },
+      });
+      await this.save();
+      return {
+        trigger: structuredClone(trigger),
+        task: structuredClone(task),
+      };
+    });
+  }
+
+  async ignoreTrigger(triggerId: string, note = ""): Promise<Trigger> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const trigger = this.findTrigger(state, triggerId);
+      if (trigger.status === "accepted") {
+        throw new StudioStoreError(
+          "trigger_accepted",
+          "已转为任务的触发事件不能忽略",
+          409,
+        );
+      }
+      const at = nowIso(this.now);
+      trigger.status = "ignored";
+      trigger.note = optionalText(note, "note", 2000);
+      trigger.updatedAt = at;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "trigger.ignored",
+        at,
+        projectId: trigger.projectId,
+        taskId: null,
+        payload: { triggerId: trigger.id },
+      });
+      await this.save();
+      return structuredClone(trigger);
     });
   }
 
@@ -4182,6 +4497,14 @@ export class StudioStore {
     );
   }
 
+  private findTrigger(state: StudioState, triggerId: string): Trigger {
+    const trigger = state.triggers.find((item) => item.id === triggerId);
+    if (trigger === undefined) {
+      throw new StudioStoreError("trigger_not_found", "触发事件不存在", 404);
+    }
+    return trigger;
+  }
+
   private findTask(state: StudioState, taskId: string): Task {
     const task = state.tasks.find((item) => item.id === taskId);
     if (task === undefined) {
@@ -4441,6 +4764,8 @@ export class StudioStore {
       activeProjectId: project.id,
       projects: [project],
       stageGates: [],
+      triggers: [],
+      threads: [],
       roles,
       modules: [],
       tasks,

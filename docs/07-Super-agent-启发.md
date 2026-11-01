@@ -2,7 +2,8 @@
 
 > 参考文章：DeepSeekHarness《Super-agent 设计探索：迈向更自主的 Agent 系统》  
 > https://www.bilibili.com/opus/1265361021143351318  
-> 阅读时间：2026-11-01
+> 阅读时间：2026-11-01  
+> 落地状态：v2.7.0 已实现 Trigger Inbox / Thread 基础版；语义过滤、Webhook、自动路由留到后续版本。
 
 ---
 

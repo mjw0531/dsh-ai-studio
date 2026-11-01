@@ -585,7 +585,7 @@ test("exports a portable copy of the state", async () => {
   await withStore(async (store) => {
     await store.bootstrap();
     const exported = await store.exportState();
-    assert.equal(exported.schemaVersion, 19);
+    assert.equal(exported.schemaVersion, 20);
     assert.ok(exported.projects.length >= 1);
     assert.ok(exported.tasks.length >= 1);
     assert.ok(Array.isArray(exported.runs));
@@ -964,7 +964,7 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
     assert.deepEqual(data.runs, []);
     assert.deepEqual(data.decisions, []);
     const migrated = JSON.parse(await readFile(file, "utf8"));
-    assert.equal(migrated.schemaVersion, 19);
+    assert.equal(migrated.schemaVersion, 20);
     assert.equal(migrated.companyName, "AI工作室");
     assert.ok(migrated.roles.every((role) => role.executor === "dsh"));
     assert.ok(migrated.runs.every((run) => run.status !== undefined));
@@ -998,6 +998,8 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
       ),
     );
     assert.ok(Array.isArray(migrated.stageGates));
+    assert.ok(Array.isArray(migrated.triggers));
+    assert.ok(Array.isArray(migrated.threads));
     assert.ok(migrated.projects.every((project) => project.stage === "development"));
   });
 });
@@ -1158,6 +1160,97 @@ test("rejects out-of-order and post-approval gate edits", async () => {
       (error) =>
         error instanceof StudioStoreError &&
         error.code === "stage_gate_locked",
+    );
+  });
+});
+
+test("ingests triggers into a thread and dedupes external ids", async () => {
+  await withStore(async (store) => {
+    await store.createProject({ name: "Inbox project" });
+    const first = await store.ingestTrigger({
+      source: "manual",
+      externalId: "evt-1",
+      threadKey: "thread-login",
+      title: "Login returns 500",
+      body: "Repro on staging.",
+    });
+    assert.equal(first.status, "pending");
+    assert.ok(first.threadId);
+
+    const duplicate = await store.ingestTrigger({
+      source: "manual",
+      externalId: "evt-1",
+      threadKey: "thread-login",
+      title: "Duplicate",
+    });
+    assert.equal(duplicate.id, first.id);
+
+    const second = await store.ingestTrigger({
+      source: "github",
+      externalId: "evt-2",
+      threadKey: "thread-login",
+      title: "PR opened",
+    });
+    assert.equal(second.threadId, first.threadId);
+
+    const data = await store.bootstrap();
+    assert.equal(data.triggers.length, 2);
+    assert.equal(data.threads.length, 1);
+    assert.ok(data.threads[0].triggerIds.includes(first.id));
+    assert.ok(data.threads[0].triggerIds.includes(second.id));
+  });
+});
+
+test("accepts a trigger into a task and routes thread events to it", async () => {
+  await withStore(async (store) => {
+    await store.createProject({ name: "Router project" });
+    const first = await store.ingestTrigger({
+      source: "im",
+      externalId: "im-1",
+      threadKey: "incident-1",
+      title: "Users see blank screen",
+    });
+    const accepted = await store.acceptTrigger(first.id, {
+      acceptance: ["The incident is reproduced", "A fix is verified"],
+    });
+    assert.equal(accepted.trigger.status, "accepted");
+    assert.equal(accepted.trigger.taskId, accepted.task.id);
+    assert.equal(accepted.task.requirementRefs[0], `trigger:${first.id}`);
+
+    const second = await store.ingestTrigger({
+      source: "ci",
+      externalId: "ci-1",
+      threadKey: "incident-1",
+      title: "CI failed",
+    });
+    const routed = await store.acceptTrigger(second.id);
+    assert.equal(routed.task.id, accepted.task.id);
+    const data = await store.bootstrap();
+    assert.equal(data.tasks.length, 1);
+    assert.equal(data.threads[0].taskId, accepted.task.id);
+  });
+});
+
+test("ignores a trigger with a note and rejects unknown sources", async () => {
+  await withStore(async (store) => {
+    await store.createProject({ name: "Ignore project" });
+    const trigger = await store.ingestTrigger({
+      source: "email",
+      externalId: "mail-1",
+      title: "Newsletter",
+    });
+    const ignored = await store.ignoreTrigger(trigger.id, "Not actionable.");
+    assert.equal(ignored.status, "ignored");
+    assert.equal(ignored.note, "Not actionable.");
+
+    await assert.rejects(
+      () =>
+        store.ingestTrigger({
+          source: "fax",
+          title: "Not a supported source",
+        }),
+      (error) =>
+        error instanceof StudioStoreError && error.code === "invalid_input",
     );
   });
 });

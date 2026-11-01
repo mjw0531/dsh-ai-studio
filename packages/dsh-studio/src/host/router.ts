@@ -5,9 +5,11 @@ import {
   isProjectStage,
 } from "../shared/types.js";
 import type {
+  AcceptTriggerInput,
   AgentRun,
   ApiErrorBody,
   ApproveStageGateInput,
+  CreateTriggerInput,
   CompatibilityInfo,
   CreateDecisionInput,
   CreateMergeProposalInput,
@@ -486,6 +488,53 @@ function asNote(body: Record<string, unknown>): string | undefined {
   return asOptionalString(body.note, "note");
 }
 
+function asTriggerSource(value: unknown): CreateTriggerInput["source"] {
+  if (
+    value === "manual" ||
+    value === "github" ||
+    value === "ci" ||
+    value === "im" ||
+    value === "email"
+  ) {
+    return value;
+  }
+  throw new HttpError(
+    400,
+    "invalid_input",
+    "source 必须是 manual/github/ci/im/email",
+  );
+}
+
+function asCreateTrigger(body: Record<string, unknown>): CreateTriggerInput {
+  return {
+    source: asTriggerSource(body.source),
+    externalId: asOptionalString(body.externalId, "externalId"),
+    threadKey: asOptionalString(body.threadKey, "threadKey"),
+    title: asString(body.title, "title"),
+    body: asOptionalString(body.body, "body"),
+    url: asOptionalString(body.url, "url"),
+  };
+}
+
+function asAcceptTrigger(body: Record<string, unknown>): AcceptTriggerInput {
+  const priority =
+    body.priority === "P0" || body.priority === "P1" || body.priority === "P2"
+      ? body.priority
+      : undefined;
+  return {
+    acceptance: asStringArray(body.acceptance, "acceptance"),
+    ownerRoleId:
+      body.ownerRoleId === null
+        ? null
+        : asOptionalString(body.ownerRoleId, "ownerRoleId"),
+    reviewerRoleId:
+      body.reviewerRoleId === null
+        ? null
+        : asOptionalString(body.reviewerRoleId, "reviewerRoleId"),
+    priority,
+  };
+}
+
 function asProjectStage(value: unknown): ProjectStage {
   if (isProjectStage(value)) return value;
   throw new HttpError(
@@ -787,6 +836,43 @@ export class StudioRouter {
         decodeSegment(selectProject[1] ?? ""),
       );
       sendJson(res, 200, { ok: true, project });
+      return;
+    }
+
+    if (parsed.pathname === `${API_PREFIX}/triggers`) {
+      this.requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const trigger = await this.store.ingestTrigger(
+        asCreateTrigger(await readJson(req)),
+      );
+      sendJson(res, 201, { ok: true, trigger });
+      return;
+    }
+
+    const triggerAccept =
+      /^\/studio-api\/triggers\/([^/]+)\/accept$/.exec(parsed.pathname);
+    if (triggerAccept !== null) {
+      this.requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const result = await this.store.acceptTrigger(
+        decodeSegment(triggerAccept[1] ?? ""),
+        asAcceptTrigger(await readJson(req)),
+      );
+      sendJson(res, 200, { ok: true, ...result });
+      return;
+    }
+
+    const triggerIgnore =
+      /^\/studio-api\/triggers\/([^/]+)\/ignore$/.exec(parsed.pathname);
+    if (triggerIgnore !== null) {
+      this.requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const body = await readJson(req);
+      const trigger = await this.store.ignoreTrigger(
+        decodeSegment(triggerIgnore[1] ?? ""),
+        asNote(body) ?? "",
+      );
+      sendJson(res, 200, { ok: true, trigger });
       return;
     }
 

@@ -19,6 +19,8 @@ import {
   PROJECT_STAGE_LABELS,
   PROJECT_STAGE_ORDER,
   ROLE_LOAD_LABELS,
+  TRIGGER_SOURCE_LABELS,
+  TRIGGER_STATUS_LABELS,
   TASK_KIND_LABELS,
   TASK_STATUS_LABELS,
   TASK_STATUS_ORDER,
@@ -45,6 +47,9 @@ import type {
   ProjectStage,
   StageArtifact,
   StageGate,
+  Trigger,
+  TriggerSource,
+  CreateTriggerInput,
   UpdateStageGateInput,
   CreateMergeProposalInput,
   CreateProjectInput,
@@ -647,6 +652,42 @@ export function StudioPage() {
     );
   };
 
+  const ingestTrigger = async (
+    input: CreateTriggerInput,
+  ): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.ingestTrigger(input);
+      },
+      "事件已进入收件箱",
+    );
+  };
+
+  const acceptTrigger = async (trigger: Trigger): Promise<void> => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.acceptTrigger(trigger.id, {
+          acceptance: ["人工确认触发内容与验收标准"],
+        });
+      },
+      "触发事件已转为任务",
+    );
+  };
+
+  const ignoreTrigger = async (trigger: Trigger): Promise<void> => {
+    const note = window.prompt("忽略理由（可选）：", "");
+    if (note === null) return;
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.ignoreTrigger(trigger.id, note);
+      },
+      "触发事件已忽略",
+    );
+  };
+
   const readProjectDoc = async (
     docPath: string,
   ): Promise<ProjectDoc | null> => {
@@ -1195,6 +1236,9 @@ export function StudioPage() {
                 onSaveStageGate={saveStageGate}
                 onApproveStageGate={approveStageGate}
                 onRejectStageGate={rejectStageGate}
+                onIngestTrigger={ingestTrigger}
+                onAcceptTrigger={(trigger) => void acceptTrigger(trigger)}
+                onIgnoreTrigger={(trigger) => void ignoreTrigger(trigger)}
               />
             ) : null}
 
@@ -2402,6 +2446,155 @@ function ModuleForm({
   );
 }
 
+function TriggerInbox({
+  triggers,
+  busy,
+  onIngest,
+  onAccept,
+  onIgnore,
+}: {
+  triggers: Trigger[];
+  busy: boolean;
+  onIngest: (input: CreateTriggerInput) => Promise<boolean>;
+  onAccept: (trigger: Trigger) => void;
+  onIgnore: (trigger: Trigger) => void;
+}) {
+  const [source, setSource] = useState<TriggerSource>("manual");
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [threadKey, setThreadKey] = useState("");
+  const pending = triggers.filter((trigger) => trigger.status === "pending");
+
+  const submit = async (event: FormEvent): Promise<void> => {
+    event.preventDefault();
+    if (title.trim() === "") return;
+    const ok = await onIngest({
+      source,
+      title: title.trim(),
+      body: body.trim(),
+      threadKey: threadKey.trim() || undefined,
+    });
+    if (ok) {
+      setTitle("");
+      setBody("");
+      setThreadKey("");
+    }
+  };
+
+  return (
+    <section className="studio-panel studio-trigger-panel">
+      <div className="studio-panel-head">
+        <IconSpark width={14} height={14} />
+        <h3>触发收件箱 / Trigger Inbox</h3>
+        <span className="studio-muted">
+          {pending.length === 0 ? "没有待处理事件" : `${String(pending.length)} 条待处理`}
+        </span>
+      </div>
+      <div className="studio-panel-body">
+        <form className="studio-trigger-form" onSubmit={(event) => void submit(event)}>
+          <select
+            value={source}
+            disabled={busy}
+            onChange={(event) =>
+              setSource(event.target.value as TriggerSource)
+            }
+          >
+            {(Object.keys(TRIGGER_SOURCE_LABELS) as TriggerSource[]).map(
+              (item) => (
+                <option key={item} value={item}>
+                  {TRIGGER_SOURCE_LABELS[item]}
+                </option>
+              ),
+            )}
+          </select>
+          <input
+            value={title}
+            placeholder="事件标题，例如：切换会话时偶发白屏"
+            disabled={busy}
+            onChange={(event) => setTitle(event.target.value)}
+          />
+          <input
+            value={threadKey}
+            placeholder="Thread key（可选）"
+            disabled={busy}
+            onChange={(event) => setThreadKey(event.target.value)}
+          />
+          <button
+            className="studio-btn"
+            data-variant="primary"
+            type="submit"
+            disabled={busy || title.trim() === ""}
+          >
+            捕获
+          </button>
+        </form>
+        <textarea
+          className="studio-trigger-body"
+          value={body}
+          disabled={busy}
+          placeholder="事件正文 / 复现信息（可选）"
+          onChange={(event) => setBody(event.target.value)}
+        />
+        <div className="studio-hint">
+          同一 threadKey 会归入同一条 Thread；后续事件直接关联到已有任务。捕获不会自动派单或合并。
+        </div>
+
+        {pending.length === 0 ? (
+          <div className="studio-empty">
+            <strong>收件箱为空</strong>
+            外部事件会先进入这里，由你决定是否转成任务。
+          </div>
+        ) : (
+          <div className="studio-trigger-list">
+            {pending.map((trigger) => (
+              <div key={trigger.id} className="studio-trigger-row">
+                <div className="studio-trigger-main">
+                  <div className="studio-trigger-title">
+                    <span className="studio-pill">{trigger.source}</span>
+                    <strong>{trigger.title}</strong>
+                    <span className="studio-muted">
+                      {TRIGGER_STATUS_LABELS[trigger.status]}
+                    </span>
+                  </div>
+                  {trigger.body ? (
+                    <div className="studio-trigger-copy">{trigger.body}</div>
+                  ) : null}
+                  <div className="studio-trigger-meta">
+                    Thread: <code>{trigger.threadKey}</code>
+                    {trigger.taskId === null
+                      ? ""
+                      : " · 已关联任务"}
+                  </div>
+                </div>
+                <div className="studio-trigger-actions">
+                  <button
+                    className="studio-btn"
+                    data-size="sm"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => onAccept(trigger)}
+                  >
+                    转为任务
+                  </button>
+                  <button
+                    className="studio-btn"
+                    data-size="sm"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => onIgnore(trigger)}
+                  >
+                    忽略
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function StagePanel({
   project,
   gate,
@@ -2727,6 +2920,9 @@ function MissionView({
   onSaveStageGate,
   onApproveStageGate,
   onRejectStageGate,
+  onIngestTrigger,
+  onAcceptTrigger,
+  onIgnoreTrigger,
 }: {
   data: BootstrapResponse;
   busy: boolean;
@@ -2746,6 +2942,9 @@ function MissionView({
     stage: ProjectStage,
     note: string,
   ) => Promise<boolean>;
+  onIngestTrigger: (input: CreateTriggerInput) => Promise<boolean>;
+  onAcceptTrigger: (trigger: Trigger) => void;
+  onIgnoreTrigger: (trigger: Trigger) => void;
 }) {
   const project = data.project;
   const nextStage = project === null ? null : nextProjectStage(project.stage);
@@ -2817,6 +3016,16 @@ function MissionView({
           onSave={onSaveStageGate}
           onApprove={onApproveStageGate}
           onReject={onRejectStageGate}
+        />
+      ) : null}
+
+      {project !== null ? (
+        <TriggerInbox
+          triggers={data.triggers}
+          busy={busy}
+          onIngest={onIngestTrigger}
+          onAccept={onAcceptTrigger}
+          onIgnore={onIgnoreTrigger}
         />
       ) : null}
 

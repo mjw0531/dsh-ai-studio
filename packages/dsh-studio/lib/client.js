@@ -52,6 +52,18 @@ function nextProjectStage(stage) {
   const index = PROJECT_STAGE_ORDER.indexOf(stage);
   return index < 0 || index === PROJECT_STAGE_ORDER.length - 1 ? null : PROJECT_STAGE_ORDER[index + 1] ?? null;
 }
+var TRIGGER_SOURCE_LABELS = {
+  manual: "\u624B\u52A8",
+  github: "GitHub",
+  ci: "CI",
+  im: "IM",
+  email: "\u90AE\u4EF6"
+};
+var TRIGGER_STATUS_LABELS = {
+  pending: "\u5F85\u5904\u7406",
+  accepted: "\u5DF2\u8F6C\u4EFB\u52A1",
+  ignored: "\u5DF2\u5FFD\u7565"
+};
 var AGENT_EXECUTOR_LABELS = {
   dsh: "DSH Agent",
   "claude-code": "Claude Code",
@@ -308,6 +320,26 @@ var StudioClient = class {
       { method: "POST", body: { note } }
     );
     return data.gate;
+  }
+  async ingestTrigger(input) {
+    const data = await this.request("/triggers", {
+      method: "POST",
+      body: input
+    });
+    return data.trigger;
+  }
+  async acceptTrigger(triggerId, input = {}) {
+    return this.request(
+      `/triggers/${encodeURIComponent(triggerId)}/accept`,
+      { method: "POST", body: input }
+    );
+  }
+  async ignoreTrigger(triggerId, note) {
+    const data = await this.request(
+      `/triggers/${encodeURIComponent(triggerId)}/ignore`,
+      { method: "POST", body: { note } }
+    );
+    return data.trigger;
   }
   async createModule(input) {
     const data = await this.request("/modules", {
@@ -1026,6 +1058,37 @@ function StudioPage() {
       "\u9636\u6BB5\u95E8\u7981\u5DF2\u62D2\u7EDD"
     );
   };
+  const ingestTrigger = async (input) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.ingestTrigger(input);
+      },
+      "\u4E8B\u4EF6\u5DF2\u8FDB\u5165\u6536\u4EF6\u7BB1"
+    );
+  };
+  const acceptTrigger = async (trigger) => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.acceptTrigger(trigger.id, {
+          acceptance: ["\u4EBA\u5DE5\u786E\u8BA4\u89E6\u53D1\u5185\u5BB9\u4E0E\u9A8C\u6536\u6807\u51C6"]
+        });
+      },
+      "\u89E6\u53D1\u4E8B\u4EF6\u5DF2\u8F6C\u4E3A\u4EFB\u52A1"
+    );
+  };
+  const ignoreTrigger = async (trigger) => {
+    const note = window.prompt("\u5FFD\u7565\u7406\u7531\uFF08\u53EF\u9009\uFF09\uFF1A", "");
+    if (note === null) return;
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.ignoreTrigger(trigger.id, note);
+      },
+      "\u89E6\u53D1\u4E8B\u4EF6\u5DF2\u5FFD\u7565"
+    );
+  };
   const readProjectDoc = async (docPath) => {
     if (client === null) return null;
     try {
@@ -1466,7 +1529,10 @@ function StudioPage() {
             onLoadStageGate: (stage) => void loadStageGate(stage),
             onSaveStageGate: saveStageGate,
             onApproveStageGate: approveStageGate,
-            onRejectStageGate: rejectStageGate
+            onRejectStageGate: rejectStageGate,
+            onIngestTrigger: ingestTrigger,
+            onAcceptTrigger: (trigger) => void acceptTrigger(trigger),
+            onIgnoreTrigger: (trigger) => void ignoreTrigger(trigger)
           }
         ) : null,
         tab === "tasks" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
@@ -2495,6 +2561,137 @@ function ModuleForm({
     }
   );
 }
+function TriggerInbox({
+  triggers,
+  busy,
+  onIngest,
+  onAccept,
+  onIgnore
+}) {
+  const [source, setSource] = (0, import_react.useState)("manual");
+  const [title, setTitle] = (0, import_react.useState)("");
+  const [body, setBody] = (0, import_react.useState)("");
+  const [threadKey, setThreadKey] = (0, import_react.useState)("");
+  const pending = triggers.filter((trigger) => trigger.status === "pending");
+  const submit = async (event) => {
+    event.preventDefault();
+    if (title.trim() === "") return;
+    const ok = await onIngest({
+      source,
+      title: title.trim(),
+      body: body.trim(),
+      threadKey: threadKey.trim() || void 0
+    });
+    if (ok) {
+      setTitle("");
+      setBody("");
+      setThreadKey("");
+    }
+  };
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "studio-panel studio-trigger-panel", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-panel-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconSpark, { width: 14, height: 14 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h3", { children: "\u89E6\u53D1\u6536\u4EF6\u7BB1 / Trigger Inbox" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-muted", children: pending.length === 0 ? "\u6CA1\u6709\u5F85\u5904\u7406\u4E8B\u4EF6" : `${String(pending.length)} \u6761\u5F85\u5904\u7406` })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-panel-body", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("form", { className: "studio-trigger-form", onSubmit: (event) => void submit(event), children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          "select",
+          {
+            value: source,
+            disabled: busy,
+            onChange: (event) => setSource(event.target.value),
+            children: Object.keys(TRIGGER_SOURCE_LABELS).map(
+              (item) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: item, children: TRIGGER_SOURCE_LABELS[item] }, item)
+            )
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          "input",
+          {
+            value: title,
+            placeholder: "\u4E8B\u4EF6\u6807\u9898\uFF0C\u4F8B\u5982\uFF1A\u5207\u6362\u4F1A\u8BDD\u65F6\u5076\u53D1\u767D\u5C4F",
+            disabled: busy,
+            onChange: (event) => setTitle(event.target.value)
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          "input",
+          {
+            value: threadKey,
+            placeholder: "Thread key\uFF08\u53EF\u9009\uFF09",
+            disabled: busy,
+            onChange: (event) => setThreadKey(event.target.value)
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          "button",
+          {
+            className: "studio-btn",
+            "data-variant": "primary",
+            type: "submit",
+            disabled: busy || title.trim() === "",
+            children: "\u6355\u83B7"
+          }
+        )
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        "textarea",
+        {
+          className: "studio-trigger-body",
+          value: body,
+          disabled: busy,
+          placeholder: "\u4E8B\u4EF6\u6B63\u6587 / \u590D\u73B0\u4FE1\u606F\uFF08\u53EF\u9009\uFF09",
+          onChange: (event) => setBody(event.target.value)
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-hint", children: "\u540C\u4E00 threadKey \u4F1A\u5F52\u5165\u540C\u4E00\u6761 Thread\uFF1B\u540E\u7EED\u4E8B\u4EF6\u76F4\u63A5\u5173\u8054\u5230\u5DF2\u6709\u4EFB\u52A1\u3002\u6355\u83B7\u4E0D\u4F1A\u81EA\u52A8\u6D3E\u5355\u6216\u5408\u5E76\u3002" }),
+      pending.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-empty", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: "\u6536\u4EF6\u7BB1\u4E3A\u7A7A" }),
+        "\u5916\u90E8\u4E8B\u4EF6\u4F1A\u5148\u8FDB\u5165\u8FD9\u91CC\uFF0C\u7531\u4F60\u51B3\u5B9A\u662F\u5426\u8F6C\u6210\u4EFB\u52A1\u3002"
+      ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-trigger-list", children: pending.map((trigger) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-trigger-row", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-trigger-main", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-trigger-title", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-pill", children: trigger.source }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: trigger.title }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-muted", children: TRIGGER_STATUS_LABELS[trigger.status] })
+          ] }),
+          trigger.body ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-trigger-copy", children: trigger.body }) : null,
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-trigger-meta", children: [
+            "Thread: ",
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("code", { children: trigger.threadKey }),
+            trigger.taskId === null ? "" : " \xB7 \u5DF2\u5173\u8054\u4EFB\u52A1"
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-trigger-actions", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "button",
+            {
+              className: "studio-btn",
+              "data-size": "sm",
+              type: "button",
+              disabled: busy,
+              onClick: () => onAccept(trigger),
+              children: "\u8F6C\u4E3A\u4EFB\u52A1"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "button",
+            {
+              className: "studio-btn",
+              "data-size": "sm",
+              type: "button",
+              disabled: busy,
+              onClick: () => onIgnore(trigger),
+              children: "\u5FFD\u7565"
+            }
+          )
+        ] })
+      ] }, trigger.id)) })
+    ] })
+  ] });
+}
 function StagePanel({
   project,
   gate,
@@ -2783,7 +2980,10 @@ function MissionView({
   onLoadStageGate,
   onSaveStageGate,
   onApproveStageGate,
-  onRejectStageGate
+  onRejectStageGate,
+  onIngestTrigger,
+  onAcceptTrigger,
+  onIgnoreTrigger
 }) {
   const project = data.project;
   const nextStage = project === null ? null : nextProjectStage(project.stage);
@@ -2843,6 +3043,16 @@ function MissionView({
         onSave: onSaveStageGate,
         onApprove: onApproveStageGate,
         onReject: onRejectStageGate
+      }
+    ) : null,
+    project !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+      TriggerInbox,
+      {
+        triggers: data.triggers,
+        busy,
+        onIngest: onIngestTrigger,
+        onAccept: onAcceptTrigger,
+        onIgnore: onIgnoreTrigger
       }
     ) : null,
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-grid-stats", children: [
@@ -6110,6 +6320,76 @@ var studioCss = `
   font-size: 11px;
 }
 
+.studio-trigger-panel { margin-bottom: 12px; }
+.studio-trigger-form {
+  display: grid;
+  grid-template-columns: 110px 1fr 180px auto;
+  gap: 6px;
+  margin-bottom: 7px;
+}
+.studio-trigger-form select,
+.studio-trigger-form input,
+.studio-trigger-body {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid var(--st-border);
+  border-radius: 6px;
+  color: var(--st-text);
+  background: var(--st-panel);
+  font: inherit;
+  font-size: 11px;
+}
+.studio-trigger-form select,
+.studio-trigger-form input { height: 30px; padding: 0 8px; }
+.studio-trigger-body {
+  min-height: 52px;
+  margin-bottom: 6px;
+  padding: 7px 8px;
+  resize: vertical;
+}
+.studio-trigger-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 10px;
+}
+.studio-trigger-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid var(--st-border);
+  border-radius: 8px;
+  background: var(--st-panel-2);
+}
+.studio-trigger-main { min-width: 0; flex: 1; }
+.studio-trigger-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 11px;
+}
+.studio-trigger-copy {
+  margin-top: 4px;
+  color: var(--st-muted);
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+.studio-trigger-meta {
+  margin-top: 4px;
+  color: var(--st-faint);
+  font-size: 10px;
+}
+.studio-trigger-meta code { font-size: 10px; }
+.studio-trigger-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: none;
+}
+
 .studio-needs {
   display: flex;
   flex-direction: column;
@@ -6979,6 +7259,9 @@ var studioCss = `
   .studio-stage-checklist { grid-template-columns: 1fr; }
   .studio-stage-artifact-form { grid-template-columns: 1fr; }
   .studio-stage-empty { align-items: flex-start; flex-direction: column; }
+  .studio-trigger-form { grid-template-columns: 1fr; }
+  .studio-trigger-row { flex-direction: column; }
+  .studio-trigger-actions { flex-direction: row; }
 }
 `;
 
