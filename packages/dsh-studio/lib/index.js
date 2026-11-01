@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 26;
-var STUDIO_PLUGIN_VERSION = "2.18.0";
+var STUDIO_PLUGIN_VERSION = "2.19.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -1480,7 +1480,9 @@ var StudioStore = class {
           workshop: true,
           providerProfiles: true,
           providerHealth: true,
-          prototypeDemoRecord: true
+          prototypeDemoRecord: true,
+          projectTemplates: true,
+          onboarding: true
         }
       };
     });
@@ -1515,6 +1517,182 @@ var StudioStore = class {
       await this.save();
       return structuredClone(project);
     });
+  }
+  async createProjectFromTemplate(input) {
+    const templates = {
+      web: {
+        roles: [
+          {
+            name: "Lead",
+            title: "\u4EA7\u54C1 / \u8C03\u5EA6",
+            mission: "\u5B9A\u4E49\u8303\u56F4\u5E76\u4FDD\u6301\u4EA4\u4ED8\u8282\u594F\u3002",
+            responsibilities: ["\u5199 PRD", "\u62C6\u4EFB\u52A1", "\u6D3E\u5355"],
+            decisionRights: ["\u4F18\u5148\u7EA7"]
+          },
+          {
+            name: "Builder",
+            title: "\u5168\u6808\u5DE5\u7A0B\u5E08",
+            mission: "\u4EA4\u4ED8\u53EF\u8FD0\u884C\u7684 Web \u5782\u76F4\u5207\u7247\u3002",
+            responsibilities: ["\u5B9E\u73B0\u529F\u80FD", "\u8865\u6D4B\u8BD5"],
+            decisionRights: ["\u5B9E\u73B0\u65B9\u6848"]
+          },
+          {
+            name: "Verifier",
+            title: "QA / \u9A8C\u6536",
+            mission: "\u72EC\u7ACB\u9A8C\u8BC1\u53EF\u8FD0\u884C\u6027\u548C\u9A8C\u6536\u6807\u51C6\u3002",
+            responsibilities: ["\u8DD1\u6D4B\u8BD5", "\u8BB0\u5F55\u8BC1\u636E"],
+            decisionRights: ["\u9A8C\u6536\u7ED3\u8BBA"]
+          }
+        ],
+        tasks: [
+          {
+            title: "\u5199 PRD \u548C\u8303\u56F4",
+            goal: "\u660E\u786E\u8FD9\u4E00\u7248\u505A\u4EC0\u4E48\u3001\u4E0D\u505A\u4EC0\u4E48\u3002",
+            owner: "Lead",
+            reviewer: "Verifier",
+            acceptance: ["\u76EE\u6807\u4E0E\u975E\u76EE\u6807\u5DF2\u5199\u660E", "\u9A8C\u6536\u6807\u51C6\u53EF\u89C2\u5BDF"],
+            priority: "P1"
+          },
+          {
+            title: "\u642D\u53EF\u8FD0\u884C\u9AA8\u67B6",
+            goal: "\u5EFA\u7ACB\u6700\u5C0F\u53EF\u8FD0\u884C\u7ED3\u6784\u548C\u6D4B\u8BD5\u547D\u4EE4\u3002",
+            owner: "Builder",
+            reviewer: "Verifier",
+            acceptance: ["\u9879\u76EE\u53EF\u542F\u52A8", "\u6D4B\u8BD5\u547D\u4EE4\u53EF\u8FD0\u884C"],
+            priority: "P0"
+          }
+        ]
+      },
+      game: {
+        roles: [
+          {
+            name: "Lead",
+            title: "\u5236\u4F5C\u4EBA",
+            mission: "\u5B88\u4F4F\u6838\u5FC3\u5FAA\u73AF\u548C\u4EA4\u4ED8\u8282\u594F\u3002",
+            responsibilities: ["\u5B9A\u4E49\u6838\u5FC3\u5FAA\u73AF", "\u6392\u4F18\u5148\u7EA7"],
+            decisionRights: ["\u8303\u56F4", "\u4F18\u5148\u7EA7"]
+          },
+          {
+            name: "Architect",
+            title: "\u6280\u672F\u67B6\u6784",
+            mission: "\u5B88\u4F4F\u6A21\u5757\u8FB9\u754C\u548C\u53EF\u73A9\u6027\u6280\u672F\u98CE\u9669\u3002",
+            responsibilities: ["\u5B9A\u67B6\u6784", "\u8BC4\u5BA1\u9AD8\u98CE\u9669\u53D8\u66F4"],
+            decisionRights: ["\u6280\u672F\u65B9\u6848"]
+          },
+          {
+            name: "Builder",
+            title: "\u6E38\u620F\u5F00\u53D1",
+            mission: "\u4EA4\u4ED8\u53EF\u73A9\u7684\u5782\u76F4\u5207\u7247\u3002",
+            responsibilities: ["\u5B9E\u73B0\u73A9\u6CD5", "\u8865\u6D4B\u8BD5"],
+            decisionRights: ["\u5B9E\u73B0\u65B9\u6848"]
+          },
+          {
+            name: "Verifier",
+            title: "QA / \u9A8C\u6536",
+            mission: "\u72EC\u7ACB\u9A8C\u8BC1\u53EF\u73A9\u6027\u548C\u7A33\u5B9A\u6027\u3002",
+            responsibilities: ["\u8DD1 playtest", "\u8BB0\u5F55\u8BC1\u636E"],
+            decisionRights: ["\u9A8C\u6536\u7ED3\u8BBA"]
+          }
+        ],
+        tasks: [
+          {
+            title: "\u5B9A\u4E49\u6838\u5FC3\u5FAA\u73AF",
+            goal: "\u5199\u6E05\u695A\u73A9\u5BB6\u91CD\u590D\u505A\u4EC0\u4E48\u3001\u4E3A\u4EC0\u4E48\u6709\u8DA3\u3002",
+            owner: "Lead",
+            reviewer: "Architect",
+            acceptance: ["\u6838\u5FC3\u5FAA\u73AF\u4E00\u53E5\u8BDD\u8BF4\u6E05", "\u6709\u53EF\u9A8C\u8BC1\u7684 playtest \u573A\u666F"],
+            priority: "P0"
+          },
+          {
+            title: "\u642D\u53EF\u73A9\u9AA8\u67B6",
+            goal: "\u5EFA\u7ACB\u6700\u5C0F\u53EF\u8FD0\u884C\u573A\u666F\u548C\u8F93\u5165\u3002",
+            owner: "Builder",
+            reviewer: "Verifier",
+            acceptance: ["\u573A\u666F\u53EF\u542F\u52A8", "\u57FA\u672C\u8F93\u5165\u53EF\u7528", "\u6D4B\u8BD5\u547D\u4EE4\u53EF\u8FD0\u884C"],
+            priority: "P0"
+          }
+        ]
+      },
+      tool: {
+        roles: [
+          {
+            name: "Lead",
+            title: "\u5DE5\u5177\u8D1F\u8D23\u4EBA",
+            mission: "\u5B9A\u4E49\u5DE5\u5177\u8FB9\u754C\u548C\u4F7F\u7528\u8005\u3002",
+            responsibilities: ["\u5199\u9700\u6C42", "\u5B9A\u9A8C\u6536"],
+            decisionRights: ["\u8303\u56F4"]
+          },
+          {
+            name: "Builder",
+            title: "\u5DE5\u5177\u5F00\u53D1",
+            mission: "\u4EA4\u4ED8\u53EF\u6267\u884C\u7684\u5DE5\u5177\u3002",
+            responsibilities: ["\u5B9E\u73B0 CLI", "\u8865\u6D4B\u8BD5"],
+            decisionRights: ["\u5B9E\u73B0\u65B9\u6848"]
+          },
+          {
+            name: "Verifier",
+            title: "QA / \u9A8C\u6536",
+            mission: "\u72EC\u7ACB\u9A8C\u8BC1\u8F93\u5165\u8F93\u51FA\u548C\u9519\u8BEF\u8DEF\u5F84\u3002",
+            responsibilities: ["\u8DD1\u6D4B\u8BD5", "\u8BB0\u5F55\u8BC1\u636E"],
+            decisionRights: ["\u9A8C\u6536\u7ED3\u8BBA"]
+          }
+        ],
+        tasks: [
+          {
+            title: "\u5B9A\u4E49 CLI \u5951\u7EA6",
+            goal: "\u5199\u6E05\u695A\u8F93\u5165\u3001\u8F93\u51FA\u548C\u9519\u8BEF\u884C\u4E3A\u3002",
+            owner: "Lead",
+            reviewer: "Verifier",
+            acceptance: ["\u8F93\u5165\u8F93\u51FA\u5DF2\u5199\u660E", "\u9519\u8BEF\u8DEF\u5F84\u6709\u9A8C\u6536"],
+            priority: "P1"
+          },
+          {
+            title: "\u642D\u53EF\u6267\u884C\u9AA8\u67B6",
+            goal: "\u5EFA\u7ACB\u6700\u5C0F\u547D\u4EE4\u548C\u6D4B\u8BD5\u3002",
+            owner: "Builder",
+            reviewer: "Verifier",
+            acceptance: ["\u547D\u4EE4\u53EF\u8FD0\u884C", "\u6D4B\u8BD5\u547D\u4EE4\u53EF\u8FD0\u884C"],
+            priority: "P0"
+          }
+        ]
+      }
+    };
+    const template = templates[input.template];
+    if (template === void 0) {
+      throw new StudioStoreError(
+        "invalid_input",
+        "\u672A\u77E5\u7684\u9879\u76EE\u6A21\u677F"
+      );
+    }
+    const project = await this.createProject({
+      name: input.name,
+      description: input.description,
+      repoPath: input.repoPath
+    });
+    const roles = /* @__PURE__ */ new Map();
+    for (const spec of template.roles) {
+      const role = await this.createRole({
+        name: spec.name,
+        title: spec.title,
+        mission: spec.mission,
+        responsibilities: spec.responsibilities,
+        decisionRights: spec.decisionRights
+      });
+      roles.set(spec.name, role);
+    }
+    for (const spec of template.tasks) {
+      const owner = roles.get(spec.owner);
+      const reviewer = roles.get(spec.reviewer);
+      await this.createTask({
+        title: spec.title,
+        goal: spec.goal,
+        priority: spec.priority,
+        ownerRoleId: owner?.id ?? null,
+        reviewerRoleId: reviewer?.id ?? null,
+        acceptance: spec.acceptance
+      });
+    }
+    return project;
   }
   async updateProject(projectId, input) {
     return this.runExclusive(async () => {
@@ -6084,6 +6262,22 @@ function asUpdateTriggerRules(body) {
   }
   return result;
 }
+function asCreateProjectFromTemplate(body) {
+  const template = body.template;
+  if (template !== "web" && template !== "game" && template !== "tool") {
+    throw new HttpError(
+      400,
+      "invalid_input",
+      "template \u5FC5\u987B\u662F web / game / tool"
+    );
+  }
+  return {
+    template,
+    name: asString(body.name, "name"),
+    description: asOptionalString(body.description, "description"),
+    repoPath: asOptionalString(body.repoPath, "repoPath") ?? null
+  };
+}
 function asCreateProject(body) {
   return {
     name: asString(body.name, "name"),
@@ -6593,6 +6787,15 @@ var StudioRouter = class {
         ok: true,
         schemaVersion: state.schemaVersion
       });
+      return;
+    }
+    if (parsed.pathname === `${API_PREFIX}/projects/from-template`) {
+      this.requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const project = await this.store.createProjectFromTemplate(
+        asCreateProjectFromTemplate(await readJson(req))
+      );
+      sendJson(res, 201, { ok: true, project });
       return;
     }
     if (parsed.pathname === `${API_PREFIX}/projects`) {

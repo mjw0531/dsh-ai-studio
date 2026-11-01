@@ -64,6 +64,7 @@ import type {
   Workshop,
   UpdateStageGateInput,
   CreateMergeProposalInput,
+  CreateProjectFromTemplateInput,
   CreateProjectInput,
   CreateRoleInput,
   CreateTaskInput,
@@ -650,6 +651,19 @@ export function StudioPage() {
         await client.createProject(input);
       },
       "项目已创建",
+    );
+    if (ok) setModal(null);
+  };
+
+  const createProjectFromTemplate = async (
+    input: CreateProjectFromTemplateInput,
+  ): Promise<void> => {
+    const ok = await run(
+      async () => {
+        if (client === null) return;
+        await client.createProjectFromTemplate(input);
+      },
+      "项目已从模板创建",
     );
     if (ok) setModal(null);
   };
@@ -1570,6 +1584,7 @@ export function StudioPage() {
           busy={busy}
           onCancel={() => setModal(null)}
           onSubmit={(input) => void createProject(input)}
+          onSubmitTemplate={(input) => void createProjectFromTemplate(input)}
         />
       ) : null}
 
@@ -1928,6 +1943,95 @@ function DecisionCard({
   );
 }
 
+function OnboardingPanel({
+  data,
+  onNewProject,
+  onOpenProject,
+}: {
+  data: BootstrapResponse;
+  onNewProject: () => void;
+  onOpenProject: (projectId: string) => void;
+}) {
+  const [dismissed, setDismissed] = useState(
+    () => window.localStorage.getItem("studio.onboarding.dismissed") === "1",
+  );
+  const project = data.project;
+  const steps = [
+    {
+      label: "创建项目",
+      done: data.projects.length > 0,
+    },
+    {
+      label: "创建角色",
+      done: data.roles.length > 0,
+    },
+    {
+      label: "创建第一个任务",
+      done: data.tasks.length > 0,
+    },
+    {
+      label: "绑定代码仓库",
+      done: project !== null && project.repoPath !== null,
+    },
+  ];
+  if (dismissed || steps.every((step) => step.done)) return null;
+
+  return (
+    <section className="studio-panel studio-onboarding">
+      <div className="studio-panel-head">
+        <IconSpark width={14} height={14} />
+        <h3>开始使用 / Getting Started</h3>
+        <button
+          className="studio-icon-btn"
+          type="button"
+          onClick={() => {
+            window.localStorage.setItem("studio.onboarding.dismissed", "1");
+            setDismissed(true);
+          }}
+          aria-label="关闭引导"
+        >
+          ×
+        </button>
+      </div>
+      <div className="studio-panel-body">
+        <div className="studio-onboarding-steps">
+          {steps.map((step, index) => (
+            <div
+              key={step.label}
+              className="studio-onboarding-step"
+              data-done={step.done}
+            >
+              <span>{step.done ? "✓" : String(index + 1)}</span>
+              <span>{step.label}</span>
+            </div>
+          ))}
+        </div>
+        <div className="studio-actions">
+          {project === null ? (
+            <button
+              className="studio-btn"
+              data-variant="primary"
+              type="button"
+              onClick={onNewProject}
+            >
+              新建项目
+            </button>
+          ) : (
+            <button
+              className="studio-btn"
+              data-variant="primary"
+              type="button"
+              onClick={() => onOpenProject(project.id)}
+            >
+              打开当前项目
+            </button>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function CompanyView({
   data,
   busy,
@@ -2003,6 +2107,12 @@ function CompanyView({
           )}
         </div>
       </div>
+
+      <OnboardingPanel
+        data={data}
+        onNewProject={onNewProject}
+        onOpenProject={onOpenProject}
+      />
 
       <div className="studio-grid-stats">
         <StatCard
@@ -7082,11 +7192,16 @@ function ProjectForm({
   busy,
   onCancel,
   onSubmit,
+  onSubmitTemplate,
 }: {
   busy: boolean;
   onCancel: () => void;
   onSubmit: (input: CreateProjectInput) => void;
+  onSubmitTemplate: (input: CreateProjectFromTemplateInput) => void;
 }) {
+  const [template, setTemplate] = useState<"blank" | "web" | "game" | "tool">(
+    "blank",
+  );
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [tokenBudget, setTokenBudget] = useState("");
@@ -7109,6 +7224,15 @@ function ProjectForm({
       budget = number === 0 ? null : number;
     }
     setLocalError(null);
+    if (template !== "blank") {
+      onSubmitTemplate({
+        template,
+        name: name.trim(),
+        description: description.trim(),
+        repoPath: repoPath.trim() || null,
+      });
+      return;
+    }
     onSubmit({
       name: name.trim(),
       description: description.trim(),
@@ -7143,6 +7267,29 @@ function ProjectForm({
         {localError !== null ? (
           <div className="studio-alert">{localError}</div>
         ) : null}
+        <div className="studio-field">
+          <label htmlFor="project-template">模板</label>
+          <select
+            id="project-template"
+            value={template}
+            disabled={busy}
+            onChange={(event) =>
+              setTemplate(
+                event.target.value as "blank" | "web" | "game" | "tool",
+              )
+            }
+          >
+            <option value="blank">空白项目</option>
+            <option value="web">Web 应用（含 Lead/Builder/Verifier）</option>
+            <option value="game">游戏原型（含 Lead/Architect/Builder/Verifier）</option>
+            <option value="tool">CLI 工具（含 Lead/Builder/Verifier）</option>
+          </select>
+          {template !== "blank" ? (
+            <div className="studio-hint">
+              会自动创建角色和首批任务；repoPath 可以稍后绑定。
+            </div>
+          ) : null}
+        </div>
         <div className="studio-field">
           <label htmlFor="project-name">项目名</label>
           <input

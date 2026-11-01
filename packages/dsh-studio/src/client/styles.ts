@@ -728,6 +728,30 @@ export const studioCss = `
   border-top: 1px solid var(--st-border);
 }
 
+.studio-onboarding { margin-bottom: 12px; }
+.studio-onboarding-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 7px;
+  margin-bottom: 10px;
+}
+.studio-onboarding-step {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 9px;
+  border: 1px solid var(--st-border);
+  border-radius: 7px;
+  color: var(--st-muted);
+  background: var(--st-panel-2);
+  font-size: 11px;
+}
+.studio-onboarding-step[data-done="true"] {
+  color: var(--st-ok);
+  border-color: rgba(91, 214, 162, 0.22);
+  background: var(--st-ok-soft);
+}
+
 .studio-demo-panel { margin-bottom: 12px; }
 .studio-demo-form {
   display: flex;

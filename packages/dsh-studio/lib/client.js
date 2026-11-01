@@ -287,6 +287,13 @@ var StudioClient = class {
     });
     return data.project;
   }
+  async createProjectFromTemplate(input) {
+    const data = await this.request(
+      "/projects/from-template",
+      { method: "POST", body: input }
+    );
+    return data.project;
+  }
   async updateProject(projectId, input) {
     const data = await this.request(
       `/projects/${encodeURIComponent(projectId)}`,
@@ -1144,6 +1151,16 @@ function StudioPage() {
     );
     if (ok) setModal(null);
   };
+  const createProjectFromTemplate = async (input) => {
+    const ok = await run(
+      async () => {
+        if (client === null) return;
+        await client.createProjectFromTemplate(input);
+      },
+      "\u9879\u76EE\u5DF2\u4ECE\u6A21\u677F\u521B\u5EFA"
+    );
+    if (ok) setModal(null);
+  };
   const updateProjectRepo = async (repoPath) => {
     const ok = await run(
       async () => {
@@ -1891,7 +1908,8 @@ function StudioPage() {
       {
         busy,
         onCancel: () => setModal(null),
-        onSubmit: (input) => void createProject(input)
+        onSubmit: (input) => void createProject(input),
+        onSubmitTemplate: (input) => void createProjectFromTemplate(input)
       }
     ) : null,
     modal?.kind === "repo" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
@@ -2167,6 +2185,87 @@ function DecisionCard({
     ] })
   ] });
 }
+function OnboardingPanel({
+  data,
+  onNewProject,
+  onOpenProject
+}) {
+  const [dismissed, setDismissed] = (0, import_react.useState)(
+    () => window.localStorage.getItem("studio.onboarding.dismissed") === "1"
+  );
+  const project = data.project;
+  const steps = [
+    {
+      label: "\u521B\u5EFA\u9879\u76EE",
+      done: data.projects.length > 0
+    },
+    {
+      label: "\u521B\u5EFA\u89D2\u8272",
+      done: data.roles.length > 0
+    },
+    {
+      label: "\u521B\u5EFA\u7B2C\u4E00\u4E2A\u4EFB\u52A1",
+      done: data.tasks.length > 0
+    },
+    {
+      label: "\u7ED1\u5B9A\u4EE3\u7801\u4ED3\u5E93",
+      done: project !== null && project.repoPath !== null
+    }
+  ];
+  if (dismissed || steps.every((step) => step.done)) return null;
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "studio-panel studio-onboarding", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-panel-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconSpark, { width: 14, height: 14 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h3", { children: "\u5F00\u59CB\u4F7F\u7528 / Getting Started" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        "button",
+        {
+          className: "studio-icon-btn",
+          type: "button",
+          onClick: () => {
+            window.localStorage.setItem("studio.onboarding.dismissed", "1");
+            setDismissed(true);
+          },
+          "aria-label": "\u5173\u95ED\u5F15\u5BFC",
+          children: "\xD7"
+        }
+      )
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-panel-body", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-onboarding-steps", children: steps.map((step, index) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+        "div",
+        {
+          className: "studio-onboarding-step",
+          "data-done": step.done,
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: step.done ? "\u2713" : String(index + 1) }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: step.label })
+          ]
+        },
+        step.label
+      )) }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-actions", children: project === null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        "button",
+        {
+          className: "studio-btn",
+          "data-variant": "primary",
+          type: "button",
+          onClick: onNewProject,
+          children: "\u65B0\u5EFA\u9879\u76EE"
+        }
+      ) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        "button",
+        {
+          className: "studio-btn",
+          "data-variant": "primary",
+          type: "button",
+          onClick: () => onOpenProject(project.id),
+          children: "\u6253\u5F00\u5F53\u524D\u9879\u76EE"
+        }
+      ) })
+    ] })
+  ] });
+}
 function CompanyView({
   data,
   busy,
@@ -2226,6 +2325,14 @@ function CompanyView({
         }
       ) })
     ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+      OnboardingPanel,
+      {
+        data,
+        onNewProject,
+        onOpenProject
+      }
+    ),
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-grid-stats", children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
         StatCard,
@@ -6646,8 +6753,12 @@ function RoleForm({
 function ProjectForm({
   busy,
   onCancel,
-  onSubmit
+  onSubmit,
+  onSubmitTemplate
 }) {
+  const [template, setTemplate] = (0, import_react.useState)(
+    "blank"
+  );
   const [name2, setName] = (0, import_react.useState)("");
   const [description, setDescription] = (0, import_react.useState)("");
   const [tokenBudget, setTokenBudget] = (0, import_react.useState)("");
@@ -6669,6 +6780,15 @@ function ProjectForm({
       budget = number === 0 ? null : number;
     }
     setLocalError(null);
+    if (template !== "blank") {
+      onSubmitTemplate({
+        template,
+        name: name2.trim(),
+        description: description.trim(),
+        repoPath: repoPath.trim() || null
+      });
+      return;
+    }
     onSubmit({
       name: name2.trim(),
       description: description.trim(),
@@ -6698,6 +6818,27 @@ function ProjectForm({
       ] }),
       children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("form", { id: "studio-project-form", className: "studio-modal-body", onSubmit: submit, children: [
         localError !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-alert", children: localError }) : null,
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "project-template", children: "\u6A21\u677F" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+            "select",
+            {
+              id: "project-template",
+              value: template,
+              disabled: busy,
+              onChange: (event) => setTemplate(
+                event.target.value
+              ),
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "blank", children: "\u7A7A\u767D\u9879\u76EE" }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "web", children: "Web \u5E94\u7528\uFF08\u542B Lead/Builder/Verifier\uFF09" }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "game", children: "\u6E38\u620F\u539F\u578B\uFF08\u542B Lead/Architect/Builder/Verifier\uFF09" }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "tool", children: "CLI \u5DE5\u5177\uFF08\u542B Lead/Builder/Verifier\uFF09" })
+              ]
+            }
+          ),
+          template !== "blank" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-hint", children: "\u4F1A\u81EA\u52A8\u521B\u5EFA\u89D2\u8272\u548C\u9996\u6279\u4EFB\u52A1\uFF1BrepoPath \u53EF\u4EE5\u7A0D\u540E\u7ED1\u5B9A\u3002" }) : null
+        ] }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "project-name", children: "\u9879\u76EE\u540D" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
@@ -7757,6 +7898,30 @@ var studioCss = `
   width: 100%;
   padding-top: 5px;
   border-top: 1px solid var(--st-border);
+}
+
+.studio-onboarding { margin-bottom: 12px; }
+.studio-onboarding-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 7px;
+  margin-bottom: 10px;
+}
+.studio-onboarding-step {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 9px;
+  border: 1px solid var(--st-border);
+  border-radius: 7px;
+  color: var(--st-muted);
+  background: var(--st-panel-2);
+  font-size: 11px;
+}
+.studio-onboarding-step[data-done="true"] {
+  color: var(--st-ok);
+  border-color: rgba(91, 214, 162, 0.22);
+  background: var(--st-ok-soft);
 }
 
 .studio-demo-panel { margin-bottom: 12px; }

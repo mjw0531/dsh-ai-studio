@@ -6,6 +6,7 @@ Studio 是 DSH 的即装即用工作台插件。改领域词、工作流或接�
 
 - **完成门禁**：任务进入 `done` 前，所有 acceptance 必须为 done，且至少有一条 evidence。不要在 UI 或 API 里绕过 `StudioStore.transitionTask`。
 - **阶段门禁**：绑定代码仓库的项目只有 `Project.stage === "development"` 才能派单；阶段只能由 Owner 通过 StageGate 推进。不允许静默跳过；豁免必须写理由并留下审计记录。旧项目迁移默认 `development`。从 `prototype` 进入 `development` 前必须登记 `demo` 产物或通过（`passed`）的手动 Prototype Demo 记录，除非有 Owner 豁免理由。
+- **项目模板边界**：模板只初始化项目、角色和 backlog 任务；不自动派单、不生成代码、不绕阶段门禁。
 - **触发器门禁**：Trigger 只进入收件箱，必须由人确认才能转成 Task；同一 `source + externalId` 去重，同 `threadKey` 归入同一 Thread。不要自动派单、自动 merge 或把外部事件直接当验收结论。
 - **Webhook 门禁**：Webhook 只允许 HMAC-SHA256 验证通过的事件，密钥只来自 `DSH_STUDIO_WEBHOOK_SECRET`，不得写入 `studio.json` 或导出；HMAC 通过后仍必须走 source/repo/label/author/mention 规则和人工确认，不能绕过 Bearer 保护的数据接口。
 - **研讨会门禁**：Workshop 只记录参与者独立意见、汇总和 Owner 决策；AI 独立评审只是意见，AI 汇总只是 `aiSummary` 草稿，不能覆盖原始意见、不能自动写 synthesis/decision，也不能自动 merge。评审失败必须记录为缺失意见，不能视为同意。

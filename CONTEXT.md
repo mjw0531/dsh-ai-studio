@@ -60,6 +60,10 @@ _Avoid_: 公共回调地址、免鉴权 API
 原型阶段的人工验证记录：入口、启动命令、步骤、结果、截图、备注；命令只记录不执行，`passed` 可作为进入 development 的 demo 证据。
 _Avoid_: 自动 Demo、测试报告（Prototype Demo 是人工证据）
 
+**Project Template（项目模板）**:
+创建项目时的初始化预设：自动创建角色和首批任务；不自动派单、不绕阶段门禁。
+_Avoid_: 脚手架（模板只初始化 Studio 数据，不生成代码）
+
 **Workshop（研讨会）**:
 围绕一个议题的多角色独立意见集合，包含反对、风险、推荐、汇总和 Owner 决策；AI 独立评审只是意见，AI 汇总只是 `aiSummary` 草稿，不是群聊，也不能替代 Owner。
 _Avoid_: 群聊、会议记录（Workshop 是结构化产物）

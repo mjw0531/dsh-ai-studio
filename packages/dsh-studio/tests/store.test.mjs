@@ -1754,3 +1754,18 @@ test("stores an AI workshop summary draft without touching original notes", asyn
     assert.equal(updated.decision, "");
   });
 });
+
+test("creates a project with roles and starter tasks from a template", async () => {
+  await withStore(async (store) => {
+    const project = await store.createProjectFromTemplate({
+      template: "web",
+      name: "Template project",
+    });
+    const data = await store.bootstrap(project.id);
+    assert.equal(data.project?.id, project.id);
+    assert.equal(data.roles.length, 3);
+    assert.equal(data.tasks.length, 2);
+    assert.ok(data.roles.some((role) => role.name === "Lead"));
+    assert.ok(data.tasks.some((task) => task.title === "写 PRD 和范围"));
+  });
+});

@@ -6,6 +6,7 @@ import type {
   DecideDecisionInput,
   Decision,
   CreateMergeProposalInput,
+  CreateProjectFromTemplateInput,
   CreateProjectInput,
   CreateRoleInput,
   CreateTaskInput,
@@ -257,6 +258,16 @@ export class StudioClient {
       method: "POST",
       body: input,
     });
+    return data.project;
+  }
+
+  async createProjectFromTemplate(
+    input: CreateProjectFromTemplateInput,
+  ): Promise<Project> {
+    const data = await this.request<{ project: Project }>(
+      "/projects/from-template",
+      { method: "POST", body: input },
+    );
     return data.project;
   }
 

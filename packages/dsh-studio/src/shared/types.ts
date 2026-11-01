@@ -5,7 +5,7 @@
  */
 
 export const STUDIO_SCHEMA_VERSION = 26;
-export const STUDIO_PLUGIN_VERSION = "2.18.0";
+export const STUDIO_PLUGIN_VERSION = "2.19.0";
 
 export type TaskStatus =
   | "backlog"
@@ -804,6 +804,8 @@ export interface BootstrapResponse {
     providerProfiles: boolean;
     providerHealth: boolean;
     prototypeDemoRecord: boolean;
+    projectTemplates: boolean;
+    onboarding: boolean;
   };
 }
 
@@ -935,6 +937,15 @@ export interface CreateProjectInput {
   name: string;
   description?: string;
   tokenBudget?: number | null;
+  repoPath?: string | null;
+}
+
+export type ProjectTemplateId = "web" | "game" | "tool";
+
+export interface CreateProjectFromTemplateInput {
+  template: ProjectTemplateId;
+  name: string;
+  description?: string;
   repoPath?: string | null;
 }
 

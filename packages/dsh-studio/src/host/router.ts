@@ -24,6 +24,7 @@ import type {
   CreateDecisionInput,
   CreateMergeProposalInput,
   CreateModuleInput,
+  CreateProjectFromTemplateInput,
   CreateProjectInput,
   CreateRoleInput,
   AgentExecutor,
@@ -281,6 +282,25 @@ function asUpdateTriggerRules(
     result.mention = asOptionalString(body.mention, "mention");
   }
   return result;
+}
+
+function asCreateProjectFromTemplate(
+  body: Record<string, unknown>,
+): CreateProjectFromTemplateInput {
+  const template = body.template;
+  if (template !== "web" && template !== "game" && template !== "tool") {
+    throw new HttpError(
+      400,
+      "invalid_input",
+      "template 必须是 web / game / tool",
+    );
+  }
+  return {
+    template,
+    name: asString(body.name, "name"),
+    description: asOptionalString(body.description, "description"),
+    repoPath: asOptionalString(body.repoPath, "repoPath") ?? null,
+  };
 }
 
 function asCreateProject(body: Record<string, unknown>): CreateProjectInput {
@@ -967,6 +987,16 @@ export class StudioRouter {
         ok: true,
         schemaVersion: state.schemaVersion,
       });
+      return;
+    }
+
+    if (parsed.pathname === `${API_PREFIX}/projects/from-template`) {
+      this.requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const project = await this.store.createProjectFromTemplate(
+        asCreateProjectFromTemplate(await readJson(req)),
+      );
+      sendJson(res, 201, { ok: true, project });
       return;
     }
 
