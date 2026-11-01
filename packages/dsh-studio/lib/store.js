@@ -13,8 +13,8 @@ import os from "node:os";
 import path from "node:path";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 23;
-var STUDIO_PLUGIN_VERSION = "2.15.0";
+var STUDIO_SCHEMA_VERSION = 24;
+var STUDIO_PLUGIN_VERSION = "2.16.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -133,6 +133,44 @@ function textList(value, field, maxItems = 20) {
     throw new StudioStoreError("invalid_input", `${field} \u5FC5\u987B\u662F\u6570\u7EC4`);
   }
   return value.slice(0, maxItems).map((item, index) => requiredText(item, `${field}[${String(index)}]`, 400));
+}
+function defaultTriggerRules() {
+  return {
+    enabled: false,
+    sources: ["github", "ci", "im"],
+    repos: [],
+    labels: [],
+    authors: [],
+    mention: ""
+  };
+}
+function webhookText(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+function normalizeWebhookPayload(source, payload) {
+  const repository = isRecord(payload.repository) ? payload.repository : {};
+  const issue = isRecord(payload.issue) ? payload.issue : isRecord(payload.pull_request) ? payload.pull_request : {};
+  const comment = isRecord(payload.comment) ? payload.comment : {};
+  const sender = isRecord(payload.sender) ? payload.sender : {};
+  const owner = isRecord(issue.user) ? issue.user : {};
+  const repo = webhookText(payload.repo) || webhookText(repository.full_name) || webhookText(repository.name);
+  const labels = Array.isArray(issue.labels) ? issue.labels.map(
+    (label) => typeof label === "string" ? label : isRecord(label) ? webhookText(label.name) : ""
+  ).filter(Boolean) : [];
+  const number = typeof issue.number === "number" ? String(issue.number) : "";
+  const title = webhookText(issue.title) || webhookText(payload.title) || webhookText(payload.summary) || `${source} \u4E8B\u4EF6`;
+  const body = webhookText(issue.body) || webhookText(comment.body) || webhookText(payload.body) || webhookText(payload.message);
+  const externalId = webhookText(payload.id) || webhookText(payload.event_id) || (number !== "" ? `${source}:${repo}#${number}` : `${source}:${String(payload.action ?? "event")}:${title}`);
+  return {
+    title: title.slice(0, 240),
+    body: body.slice(0, 8e3),
+    url: webhookText(issue.html_url) || webhookText(payload.url) || webhookText(payload.html_url),
+    externalId,
+    threadKey: webhookText(payload.threadKey) || webhookText(payload.thread_key) || (number !== "" ? `${source}:${repo}#${number}` : externalId),
+    repo,
+    labels,
+    author: webhookText(sender.login) || webhookText(owner.login) || webhookText(payload.author)
+  };
 }
 function defaultStageChecklist(stage) {
   const texts = {
@@ -682,8 +720,11 @@ function buildCompany(state, now) {
     generatedAt: now.toISOString()
   };
 }
+function isTriggerRules(value) {
+  return isRecord(value) && typeof value.enabled === "boolean" && Array.isArray(value.sources) && value.sources.every(isTriggerSource) && Array.isArray(value.repos) && value.repos.every((item) => typeof item === "string") && Array.isArray(value.labels) && value.labels.every((item) => typeof item === "string") && Array.isArray(value.authors) && value.authors.every((item) => typeof item === "string") && typeof value.mention === "string";
+}
 function isProject(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.name === "string" && typeof value.description === "string" && (value.tokenBudget === null || typeof value.tokenBudget === "number") && (value.repoPath === null || typeof value.repoPath === "string") && (value.prdPath === null || value.prdPath === void 0 || typeof value.prdPath === "string") && (value.invariantsPath === null || value.invariantsPath === void 0 || typeof value.invariantsPath === "string") && (value.modulesPath === null || value.modulesPath === void 0 || typeof value.modulesPath === "string") && isProjectStage(value.stage) && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
+  return isRecord(value) && typeof value.id === "string" && typeof value.name === "string" && typeof value.description === "string" && (value.tokenBudget === null || typeof value.tokenBudget === "number") && (value.repoPath === null || typeof value.repoPath === "string") && (value.prdPath === null || value.prdPath === void 0 || typeof value.prdPath === "string") && (value.invariantsPath === null || value.invariantsPath === void 0 || typeof value.invariantsPath === "string") && (value.modulesPath === null || value.modulesPath === void 0 || typeof value.modulesPath === "string") && isTriggerRules(value.triggerRules) && isProjectStage(value.stage) && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
 }
 function isProviderProfile(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.name === "string" && (value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && typeof value.provider === "string" && typeof value.model === "string" && typeof value.note === "string" && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
@@ -1030,12 +1071,22 @@ function migrateState(value) {
   if (state.schemaVersion === 22) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 23,
       runs: state.runs.map((run) => ({
         ...run,
         providerProfileId: null,
         executor: "dsh",
         provider: null
+      }))
+    };
+  }
+  if (state.schemaVersion === 23) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      projects: state.projects.map((project) => ({
+        ...project,
+        triggerRules: defaultTriggerRules()
       }))
     };
   }
@@ -1283,6 +1334,7 @@ var StudioStore = class {
           gitMerge: false,
           stageGate: true,
           triggerInbox: true,
+          triggerWebhook: true,
           workshop: true,
           providerProfiles: true,
           providerHealth: true
@@ -1303,6 +1355,7 @@ var StudioStore = class {
         prdPath: null,
         invariantsPath: null,
         modulesPath: null,
+        triggerRules: defaultTriggerRules(),
         stage: "discovery",
         createdAt: at,
         updatedAt: at
@@ -1604,6 +1657,112 @@ var StudioStore = class {
       });
       await this.save();
       return structuredClone(trigger);
+    });
+  }
+  async getTriggerRules(projectId) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      return structuredClone(this.findProject(state, projectId).triggerRules);
+    });
+  }
+  async updateTriggerRules(projectId, input) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const project = this.findProject(state, projectId);
+      if (input.enabled !== void 0) {
+        project.triggerRules.enabled = input.enabled;
+      }
+      if (input.sources !== void 0) {
+        project.triggerRules.sources = input.sources.filter(isTriggerSource);
+      }
+      if (input.repos !== void 0) {
+        project.triggerRules.repos = textList(input.repos, "repos", 20);
+      }
+      if (input.labels !== void 0) {
+        project.triggerRules.labels = textList(input.labels, "labels", 20);
+      }
+      if (input.authors !== void 0) {
+        project.triggerRules.authors = textList(
+          input.authors,
+          "authors",
+          20
+        );
+      }
+      if (input.mention !== void 0) {
+        project.triggerRules.mention = optionalText(
+          input.mention,
+          "mention",
+          120
+        );
+      }
+      project.updatedAt = nowIso(this.now);
+      state.updatedAt = project.updatedAt;
+      this.recordEvent(state, {
+        type: "trigger.rules_updated",
+        at: project.updatedAt,
+        projectId: project.id,
+        payload: { enabled: project.triggerRules.enabled }
+      });
+      await this.save();
+      return structuredClone(project.triggerRules);
+    });
+  }
+  async ingestWebhook(projectId, source, payload) {
+    const rules = await this.getTriggerRules(projectId);
+    if (!rules.enabled) {
+      return this.rejectWebhook(projectId, source, "Webhook \u672A\u542F\u7528");
+    }
+    if (!rules.sources.includes(source)) {
+      return this.rejectWebhook(projectId, source, "source \u4E0D\u5728\u5141\u8BB8\u5217\u8868");
+    }
+    const normalized = normalizeWebhookPayload(source, payload);
+    if (rules.repos.length > 0 && !rules.repos.some(
+      (repo) => repo.toLowerCase() === normalized.repo.toLowerCase()
+    )) {
+      return this.rejectWebhook(projectId, source, "repo \u4E0D\u5339\u914D");
+    }
+    if (rules.labels.length > 0 && !rules.labels.some(
+      (label) => normalized.labels.some(
+        (current) => current.toLowerCase() === label.toLowerCase()
+      )
+    )) {
+      return this.rejectWebhook(projectId, source, "label \u4E0D\u5339\u914D");
+    }
+    if (rules.authors.length > 0 && !rules.authors.some(
+      (author) => author.toLowerCase() === normalized.author.toLowerCase()
+    )) {
+      return this.rejectWebhook(projectId, source, "author \u4E0D\u5339\u914D");
+    }
+    if (rules.mention !== "" && !`${normalized.title}
+${normalized.body}`.includes(rules.mention)) {
+      return this.rejectWebhook(projectId, source, "mention \u4E0D\u5339\u914D");
+    }
+    const trigger = await this.ingestTrigger({
+      source,
+      externalId: normalized.externalId,
+      threadKey: normalized.threadKey,
+      title: normalized.title,
+      body: normalized.body,
+      url: normalized.url
+    });
+    return {
+      accepted: true,
+      reason: "accepted",
+      trigger
+    };
+  }
+  async rejectWebhook(projectId, source, reason) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const at = nowIso(this.now);
+      this.recordEvent(state, {
+        type: "trigger.webhook_filtered",
+        at,
+        projectId,
+        payload: { source, reason }
+      });
+      await this.save();
+      return { accepted: false, reason, trigger: null };
     });
   }
   async acceptTrigger(triggerId, input = {}) {
@@ -4143,6 +4302,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       prdPath: null,
       invariantsPath: null,
       modulesPath: null,
+      triggerRules: defaultTriggerRules(),
       stage: "development",
       createdAt: at,
       updatedAt: at

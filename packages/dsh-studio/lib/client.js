@@ -321,6 +321,13 @@ var StudioClient = class {
     );
     return data.gate;
   }
+  async updateTriggerRules(projectId, input) {
+    const data = await this.request(
+      `/projects/${encodeURIComponent(projectId)}/trigger-rules`,
+      { method: "PATCH", body: input }
+    );
+    return data.rules;
+  }
   async ingestTrigger(input) {
     const data = await this.request("/triggers", {
       method: "POST",
@@ -1206,6 +1213,15 @@ function StudioPage() {
       "\u89E6\u53D1\u4E8B\u4EF6\u5DF2\u5FFD\u7565"
     );
   };
+  const updateTriggerRules = async (projectId, input) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.updateTriggerRules(projectId, input);
+      },
+      "Webhook \u89C4\u5219\u5DF2\u66F4\u65B0"
+    );
+  };
   const createWorkshop = async (input) => {
     return run(
       async () => {
@@ -1695,6 +1711,7 @@ function StudioPage() {
             onIngestTrigger: ingestTrigger,
             onAcceptTrigger: (trigger) => void acceptTrigger(trigger),
             onIgnoreTrigger: (trigger) => void ignoreTrigger(trigger),
+            onSaveTriggerRules: updateTriggerRules,
             onCreateWorkshop: createWorkshop,
             onAddWorkshopNote: addWorkshopNote,
             onSynthesizeWorkshop: synthesizeWorkshop,
@@ -3058,16 +3075,36 @@ function WorkshopPanel({
   ] });
 }
 function TriggerInbox({
+  project,
   triggers,
   busy,
   onIngest,
   onAccept,
-  onIgnore
+  onIgnore,
+  onSaveRules
 }) {
   const [source, setSource] = (0, import_react.useState)("manual");
   const [title, setTitle] = (0, import_react.useState)("");
   const [body, setBody] = (0, import_react.useState)("");
   const [threadKey, setThreadKey] = (0, import_react.useState)("");
+  const [rulesEnabled, setRulesEnabled] = (0, import_react.useState)(
+    project.triggerRules.enabled
+  );
+  const [ruleSources, setRuleSources] = (0, import_react.useState)(
+    project.triggerRules.sources
+  );
+  const [ruleRepos, setRuleRepos] = (0, import_react.useState)(
+    project.triggerRules.repos.join("\n")
+  );
+  const [ruleLabels, setRuleLabels] = (0, import_react.useState)(
+    project.triggerRules.labels.join("\n")
+  );
+  const [ruleAuthors, setRuleAuthors] = (0, import_react.useState)(
+    project.triggerRules.authors.join("\n")
+  );
+  const [ruleMention, setRuleMention] = (0, import_react.useState)(
+    project.triggerRules.mention
+  );
   const pending = triggers.filter((trigger) => trigger.status === "pending");
   const submit = async (event) => {
     event.preventDefault();
@@ -3143,6 +3180,118 @@ function TriggerInbox({
         }
       ),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-hint", children: "\u540C\u4E00 threadKey \u4F1A\u5F52\u5165\u540C\u4E00\u6761 Thread\uFF1B\u540E\u7EED\u4E8B\u4EF6\u76F4\u63A5\u5173\u8054\u5230\u5DF2\u6709\u4EFB\u52A1\u3002\u6355\u83B7\u4E0D\u4F1A\u81EA\u52A8\u6D3E\u5355\u6216\u5408\u5E76\u3002" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("details", { className: "studio-webhook-rules", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("summary", { children: "Webhook \u63A5\u5165\u4E0E\u89C4\u5219" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-webhook-body", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-hint", children: [
+            "\u7AEF\u70B9\uFF1A",
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("code", { children: [
+              "/studio-api/webhooks/",
+              project.id,
+              "/github"
+            ] }),
+            "\uFF08ci / im \u540C\u7406\uFF09\u3002 \u670D\u52A1\u7AEF\u5FC5\u987B\u8BBE\u7F6E ",
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("code", { children: "DSH_STUDIO_WEBHOOK_SECRET" }),
+            "\uFF0C \u8BF7\u6C42\u5934\u4F7F\u7528 ",
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("code", { children: "X-Hub-Signature-256: sha256=..." }),
+            "\u3002"
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("label", { className: "studio-stage-check", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "input",
+              {
+                type: "checkbox",
+                checked: rulesEnabled,
+                disabled: busy,
+                onChange: (event) => setRulesEnabled(event.target.checked)
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: "\u542F\u7528 Webhook" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-actions", children: ["github", "ci", "im"].map((item) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("label", { className: "studio-stage-check", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "input",
+              {
+                type: "checkbox",
+                checked: ruleSources.includes(item),
+                disabled: busy,
+                onChange: () => setRuleSources(
+                  (current) => current.includes(item) ? current.filter((value) => value !== item) : [...current, item]
+                )
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: TRIGGER_SOURCE_LABELS[item] })
+          ] }, item)) }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { children: "\u4ED3\u5E93\u767D\u540D\u5355\uFF08\u6BCF\u884C\u4E00\u4E2A\uFF0C\u7A7A = \u4E0D\u9650\uFF09" }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                "textarea",
+                {
+                  value: ruleRepos,
+                  disabled: busy,
+                  onChange: (event) => setRuleRepos(event.target.value)
+                }
+              )
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { children: "\u6807\u7B7E\u767D\u540D\u5355\uFF08\u6BCF\u884C\u4E00\u4E2A\uFF09" }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                "textarea",
+                {
+                  value: ruleLabels,
+                  disabled: busy,
+                  onChange: (event) => setRuleLabels(event.target.value)
+                }
+              )
+            ] })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { children: "\u4F5C\u8005\u767D\u540D\u5355\uFF08\u6BCF\u884C\u4E00\u4E2A\uFF09" }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                "textarea",
+                {
+                  value: ruleAuthors,
+                  disabled: busy,
+                  onChange: (event) => setRuleAuthors(event.target.value)
+                }
+              )
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { children: "\u5FC5\u987B\u5305\u542B\u7684 mention\uFF08\u7A7A = \u4E0D\u9650\uFF09" }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                "input",
+                {
+                  value: ruleMention,
+                  disabled: busy,
+                  onChange: (event) => setRuleMention(event.target.value)
+                }
+              )
+            ] })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "button",
+            {
+              className: "studio-btn",
+              type: "button",
+              disabled: busy,
+              onClick: () => {
+                const lines = (value) => value.split("\n").map((line) => line.trim()).filter(Boolean);
+                void onSaveRules(project.id, {
+                  enabled: rulesEnabled,
+                  sources: ruleSources,
+                  repos: lines(ruleRepos),
+                  labels: lines(ruleLabels),
+                  authors: lines(ruleAuthors),
+                  mention: ruleMention.trim()
+                });
+              },
+              children: "\u4FDD\u5B58 Webhook \u89C4\u5219"
+            }
+          )
+        ] })
+      ] }),
       pending.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-empty", children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: "\u6536\u4EF6\u7BB1\u4E3A\u7A7A" }),
         "\u5916\u90E8\u4E8B\u4EF6\u4F1A\u5148\u8FDB\u5165\u8FD9\u91CC\uFF0C\u7531\u4F60\u51B3\u5B9A\u662F\u5426\u8F6C\u6210\u4EFB\u52A1\u3002"
@@ -3485,6 +3634,7 @@ function MissionView({
   onIngestTrigger,
   onAcceptTrigger,
   onIgnoreTrigger,
+  onSaveTriggerRules,
   onCreateWorkshop,
   onAddWorkshopNote,
   onSynthesizeWorkshop,
@@ -3554,11 +3704,13 @@ function MissionView({
     project !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
       TriggerInbox,
       {
+        project,
         triggers: data.triggers,
         busy,
         onIngest: onIngestTrigger,
         onAccept: onAcceptTrigger,
-        onIgnore: onIgnoreTrigger
+        onIgnore: onIgnoreTrigger,
+        onSaveRules: onSaveTriggerRules
       }
     ) : null,
     project !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
@@ -7126,6 +7278,24 @@ var studioCss = `
 }
 
 .studio-trigger-panel { margin-bottom: 12px; }
+.studio-webhook-rules {
+  margin: 8px 0;
+  border: 1px solid var(--st-border);
+  border-radius: 7px;
+  background: var(--st-panel-2);
+  font-size: 11px;
+}
+.studio-webhook-rules summary {
+  padding: 8px 10px;
+  cursor: pointer;
+  color: var(--st-muted);
+}
+.studio-webhook-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 10px 10px;
+}
 .studio-trigger-form {
   display: grid;
   grid-template-columns: 110px 1fr 180px auto;

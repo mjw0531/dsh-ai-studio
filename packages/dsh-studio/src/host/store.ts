@@ -75,8 +75,11 @@ import type {
   TaskStatus,
   Thread,
   Trigger,
+  TriggerRules,
   TriggerSource,
   TriggerStatus,
+  UpdateTriggerRulesInput,
+  WebhookIngestResult,
   Workshop,
   WorkshopNote,
   WorkshopStatus,
@@ -186,6 +189,97 @@ function textList(value: unknown, field: string, maxItems = 20): string[] {
   return value
     .slice(0, maxItems)
     .map((item, index) => requiredText(item, `${field}[${String(index)}]`, 400));
+}
+
+function defaultTriggerRules(): TriggerRules {
+  return {
+    enabled: false,
+    sources: ["github", "ci", "im"],
+    repos: [],
+    labels: [],
+    authors: [],
+    mention: "",
+  };
+}
+
+function webhookText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeWebhookPayload(
+  source: TriggerSource,
+  payload: Record<string, unknown>,
+): {
+  title: string;
+  body: string;
+  url: string;
+  externalId: string;
+  threadKey: string;
+  repo: string;
+  labels: string[];
+  author: string;
+} {
+  const repository = isRecord(payload.repository) ? payload.repository : {};
+  const issue = isRecord(payload.issue)
+    ? payload.issue
+    : isRecord(payload.pull_request)
+      ? payload.pull_request
+      : {};
+  const comment = isRecord(payload.comment) ? payload.comment : {};
+  const sender = isRecord(payload.sender) ? payload.sender : {};
+  const owner = isRecord(issue.user) ? issue.user : {};
+  const repo =
+    webhookText(payload.repo) ||
+    webhookText(repository.full_name) ||
+    webhookText(repository.name);
+  const labels = Array.isArray(issue.labels)
+    ? issue.labels
+        .map((label) =>
+          typeof label === "string"
+            ? label
+            : isRecord(label)
+              ? webhookText(label.name)
+              : "",
+        )
+        .filter(Boolean)
+    : [];
+  const number =
+    typeof issue.number === "number" ? String(issue.number) : "";
+  const title =
+    webhookText(issue.title) ||
+    webhookText(payload.title) ||
+    webhookText(payload.summary) ||
+    `${source} 事件`;
+  const body =
+    webhookText(issue.body) ||
+    webhookText(comment.body) ||
+    webhookText(payload.body) ||
+    webhookText(payload.message);
+  const externalId =
+    webhookText(payload.id) ||
+    webhookText(payload.event_id) ||
+    (number !== ""
+      ? `${source}:${repo}#${number}`
+      : `${source}:${String(payload.action ?? "event")}:${title}`);
+  return {
+    title: title.slice(0, 240),
+    body: body.slice(0, 8000),
+    url:
+      webhookText(issue.html_url) ||
+      webhookText(payload.url) ||
+      webhookText(payload.html_url),
+    externalId,
+    threadKey:
+      webhookText(payload.threadKey) ||
+      webhookText(payload.thread_key) ||
+      (number !== "" ? `${source}:${repo}#${number}` : externalId),
+    repo,
+    labels,
+    author:
+      webhookText(sender.login) ||
+      webhookText(owner.login) ||
+      webhookText(payload.author),
+  };
 }
 
 function defaultStageChecklist(stage: ProjectStage): StageCheckItem[] {
@@ -858,6 +952,22 @@ function buildCompany(state: StudioState, now: Date): CompanySummary {
   };
 }
 
+function isTriggerRules(value: unknown): value is TriggerRules {
+  return (
+    isRecord(value) &&
+    typeof value.enabled === "boolean" &&
+    Array.isArray(value.sources) &&
+    value.sources.every(isTriggerSource) &&
+    Array.isArray(value.repos) &&
+    value.repos.every((item) => typeof item === "string") &&
+    Array.isArray(value.labels) &&
+    value.labels.every((item) => typeof item === "string") &&
+    Array.isArray(value.authors) &&
+    value.authors.every((item) => typeof item === "string") &&
+    typeof value.mention === "string"
+  );
+}
+
 function isProject(value: unknown): value is Project {
   return (
     isRecord(value) &&
@@ -875,6 +985,7 @@ function isProject(value: unknown): value is Project {
     (value.modulesPath === null ||
       value.modulesPath === undefined ||
       typeof value.modulesPath === "string") &&
+    isTriggerRules(value.triggerRules) &&
     isProjectStage(value.stage) &&
     typeof value.createdAt === "string" &&
     typeof value.updatedAt === "string"
@@ -1601,12 +1712,22 @@ function migrateState(value: unknown): StudioState {
   if (state.schemaVersion === 22) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 23,
       runs: state.runs.map((run) => ({
         ...run,
         providerProfileId: null,
         executor: "dsh",
         provider: null,
+      })),
+    };
+  }
+  if (state.schemaVersion === 23) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      projects: state.projects.map((project) => ({
+        ...project,
+        triggerRules: defaultTriggerRules(),
       })),
     };
   }
@@ -1934,6 +2055,7 @@ export class StudioStore {
           gitMerge: false,
           stageGate: true,
           triggerInbox: true,
+          triggerWebhook: true,
           workshop: true,
           providerProfiles: true,
           providerHealth: true,
@@ -1955,6 +2077,7 @@ export class StudioStore {
         prdPath: null,
         invariantsPath: null,
         modulesPath: null,
+        triggerRules: defaultTriggerRules(),
         stage: "discovery",
         createdAt: at,
         updatedAt: at,
@@ -2302,6 +2425,139 @@ export class StudioStore {
       });
       await this.save();
       return structuredClone(trigger);
+    });
+  }
+
+  async getTriggerRules(projectId: string): Promise<TriggerRules> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      return structuredClone(this.findProject(state, projectId).triggerRules);
+    });
+  }
+
+  async updateTriggerRules(
+    projectId: string,
+    input: UpdateTriggerRulesInput,
+  ): Promise<TriggerRules> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const project = this.findProject(state, projectId);
+      if (input.enabled !== undefined) {
+        project.triggerRules.enabled = input.enabled;
+      }
+      if (input.sources !== undefined) {
+        project.triggerRules.sources = input.sources.filter(isTriggerSource);
+      }
+      if (input.repos !== undefined) {
+        project.triggerRules.repos = textList(input.repos, "repos", 20);
+      }
+      if (input.labels !== undefined) {
+        project.triggerRules.labels = textList(input.labels, "labels", 20);
+      }
+      if (input.authors !== undefined) {
+        project.triggerRules.authors = textList(
+          input.authors,
+          "authors",
+          20,
+        );
+      }
+      if (input.mention !== undefined) {
+        project.triggerRules.mention = optionalText(
+          input.mention,
+          "mention",
+          120,
+        );
+      }
+      project.updatedAt = nowIso(this.now);
+      state.updatedAt = project.updatedAt;
+      this.recordEvent(state, {
+        type: "trigger.rules_updated",
+        at: project.updatedAt,
+        projectId: project.id,
+        payload: { enabled: project.triggerRules.enabled },
+      });
+      await this.save();
+      return structuredClone(project.triggerRules);
+    });
+  }
+
+  async ingestWebhook(
+    projectId: string,
+    source: TriggerSource,
+    payload: Record<string, unknown>,
+  ): Promise<WebhookIngestResult> {
+    const rules = await this.getTriggerRules(projectId);
+    if (!rules.enabled) {
+      return this.rejectWebhook(projectId, source, "Webhook 未启用");
+    }
+    if (!rules.sources.includes(source)) {
+      return this.rejectWebhook(projectId, source, "source 不在允许列表");
+    }
+    const normalized = normalizeWebhookPayload(source, payload);
+    if (
+      rules.repos.length > 0 &&
+      !rules.repos.some(
+        (repo) => repo.toLowerCase() === normalized.repo.toLowerCase(),
+      )
+    ) {
+      return this.rejectWebhook(projectId, source, "repo 不匹配");
+    }
+    if (
+      rules.labels.length > 0 &&
+      !rules.labels.some((label) =>
+        normalized.labels.some(
+          (current) => current.toLowerCase() === label.toLowerCase(),
+        ),
+      )
+    ) {
+      return this.rejectWebhook(projectId, source, "label 不匹配");
+    }
+    if (
+      rules.authors.length > 0 &&
+      !rules.authors.some(
+        (author) =>
+          author.toLowerCase() === normalized.author.toLowerCase(),
+      )
+    ) {
+      return this.rejectWebhook(projectId, source, "author 不匹配");
+    }
+    if (
+      rules.mention !== "" &&
+      !`${normalized.title}\n${normalized.body}`.includes(rules.mention)
+    ) {
+      return this.rejectWebhook(projectId, source, "mention 不匹配");
+    }
+    const trigger = await this.ingestTrigger({
+      source,
+      externalId: normalized.externalId,
+      threadKey: normalized.threadKey,
+      title: normalized.title,
+      body: normalized.body,
+      url: normalized.url,
+    });
+    return {
+      accepted: true,
+      reason: "accepted",
+      trigger,
+    };
+  }
+
+  private async rejectWebhook(
+    projectId: string,
+    source: TriggerSource,
+    reason: string,
+  ): Promise<WebhookIngestResult> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const at = nowIso(this.now);
+      this.recordEvent(state, {
+        type: "trigger.webhook_filtered",
+        at,
+        projectId,
+        payload: { source, reason },
+      });
+      await this.save();
+      return { accepted: false, reason, trigger: null };
     });
   }
 
@@ -5319,6 +5575,7 @@ export class StudioStore {
       prdPath: null,
       invariantsPath: null,
       modulesPath: null,
+      triggerRules: defaultTriggerRules(),
       stage: "development",
       createdAt: at,
       updatedAt: at,

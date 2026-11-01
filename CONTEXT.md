@@ -48,6 +48,14 @@ _Avoid_: 消息、通知（Trigger 有来源、去重键与处理状态）
 同一 IM 话题或同一个 PR 下的一组 Trigger；用于保持连续上下文，并把后续事件关联到已有 Task。
 _Avoid_: 聊天、会话（Thread 是事件关联，不是 Agent 会话）
 
+**Trigger Rules（触发规则）**:
+项目级的 Webhook 准入规则：启用开关、允许 source、repo/label/author/mention 过滤；只决定事件是否进入收件箱，不决定是否转 Task。
+_Avoid_: 自动派单规则（规则命中仍需人工确认）
+
+**Webhook**:
+外部系统通过 HMAC-SHA256 签名投递事件的入口；密钥来自环境变量 `DSH_STUDIO_WEBHOOK_SECRET`，不写入状态或导出。
+_Avoid_: 公共回调地址、免鉴权 API
+
 **Workshop（研讨会）**:
 围绕一个议题的多角色独立意见集合，包含反对、风险、推荐、汇总和 Owner 决策；AI 独立评审只是意见，不是群聊，也不能替代 Owner。
 _Avoid_: 群聊、会议记录（Workshop 是结构化产物）

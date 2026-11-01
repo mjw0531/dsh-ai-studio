@@ -49,6 +49,7 @@ import type {
   StageGate,
   Trigger,
   TriggerSource,
+  UpdateTriggerRulesInput,
   CreateTriggerInput,
   AddWorkshopNoteInput,
   CreateWorkshopInput,
@@ -766,6 +767,19 @@ export function StudioPage() {
     );
   };
 
+  const updateTriggerRules = async (
+    projectId: string,
+    input: UpdateTriggerRulesInput,
+  ): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.updateTriggerRules(projectId, input);
+      },
+      "Webhook 规则已更新",
+    );
+  };
+
   const createWorkshop = async (
     input: CreateWorkshopInput,
   ): Promise<boolean> => {
@@ -1378,6 +1392,7 @@ export function StudioPage() {
                 onIngestTrigger={ingestTrigger}
                 onAcceptTrigger={(trigger) => void acceptTrigger(trigger)}
                 onIgnoreTrigger={(trigger) => void ignoreTrigger(trigger)}
+                onSaveTriggerRules={updateTriggerRules}
                 onCreateWorkshop={createWorkshop}
                 onAddWorkshopNote={addWorkshopNote}
                 onSynthesizeWorkshop={synthesizeWorkshop}
@@ -2956,22 +2971,47 @@ function WorkshopPanel({
 }
 
 function TriggerInbox({
+  project,
   triggers,
   busy,
   onIngest,
   onAccept,
   onIgnore,
+  onSaveRules,
 }: {
+  project: Project;
   triggers: Trigger[];
   busy: boolean;
   onIngest: (input: CreateTriggerInput) => Promise<boolean>;
   onAccept: (trigger: Trigger) => void;
   onIgnore: (trigger: Trigger) => void;
+  onSaveRules: (
+    projectId: string,
+    input: UpdateTriggerRulesInput,
+  ) => Promise<boolean>;
 }) {
   const [source, setSource] = useState<TriggerSource>("manual");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [threadKey, setThreadKey] = useState("");
+  const [rulesEnabled, setRulesEnabled] = useState(
+    project.triggerRules.enabled,
+  );
+  const [ruleSources, setRuleSources] = useState<TriggerSource[]>(
+    project.triggerRules.sources,
+  );
+  const [ruleRepos, setRuleRepos] = useState(
+    project.triggerRules.repos.join("\n"),
+  );
+  const [ruleLabels, setRuleLabels] = useState(
+    project.triggerRules.labels.join("\n"),
+  );
+  const [ruleAuthors, setRuleAuthors] = useState(
+    project.triggerRules.authors.join("\n"),
+  );
+  const [ruleMention, setRuleMention] = useState(
+    project.triggerRules.mention,
+  );
   const pending = triggers.filter((trigger) => trigger.status === "pending");
 
   const submit = async (event: FormEvent): Promise<void> => {
@@ -3047,6 +3087,104 @@ function TriggerInbox({
         <div className="studio-hint">
           同一 threadKey 会归入同一条 Thread；后续事件直接关联到已有任务。捕获不会自动派单或合并。
         </div>
+
+        <details className="studio-webhook-rules">
+          <summary>Webhook 接入与规则</summary>
+          <div className="studio-webhook-body">
+            <div className="studio-hint">
+              端点：<code>/studio-api/webhooks/{project.id}/github</code>
+              （ci / im 同理）。
+              服务端必须设置 <code>DSH_STUDIO_WEBHOOK_SECRET</code>，
+              请求头使用 <code>X-Hub-Signature-256: sha256=...</code>。
+            </div>
+            <label className="studio-stage-check">
+              <input
+                type="checkbox"
+                checked={rulesEnabled}
+                disabled={busy}
+                onChange={(event) => setRulesEnabled(event.target.checked)}
+              />
+              <span>启用 Webhook</span>
+            </label>
+            <div className="studio-actions">
+              {(["github", "ci", "im"] as TriggerSource[]).map((item) => (
+                <label key={item} className="studio-stage-check">
+                  <input
+                    type="checkbox"
+                    checked={ruleSources.includes(item)}
+                    disabled={busy}
+                    onChange={() =>
+                      setRuleSources((current) =>
+                        current.includes(item)
+                          ? current.filter((value) => value !== item)
+                          : [...current, item],
+                      )
+                    }
+                  />
+                  <span>{TRIGGER_SOURCE_LABELS[item]}</span>
+                </label>
+              ))}
+            </div>
+            <div className="studio-field-row">
+              <div className="studio-field">
+                <label>仓库白名单（每行一个，空 = 不限）</label>
+                <textarea
+                  value={ruleRepos}
+                  disabled={busy}
+                  onChange={(event) => setRuleRepos(event.target.value)}
+                />
+              </div>
+              <div className="studio-field">
+                <label>标签白名单（每行一个）</label>
+                <textarea
+                  value={ruleLabels}
+                  disabled={busy}
+                  onChange={(event) => setRuleLabels(event.target.value)}
+                />
+              </div>
+            </div>
+            <div className="studio-field-row">
+              <div className="studio-field">
+                <label>作者白名单（每行一个）</label>
+                <textarea
+                  value={ruleAuthors}
+                  disabled={busy}
+                  onChange={(event) => setRuleAuthors(event.target.value)}
+                />
+              </div>
+              <div className="studio-field">
+                <label>必须包含的 mention（空 = 不限）</label>
+                <input
+                  value={ruleMention}
+                  disabled={busy}
+                  onChange={(event) => setRuleMention(event.target.value)}
+                />
+              </div>
+            </div>
+            <button
+              className="studio-btn"
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                const lines = (value: string): string[] =>
+                  value
+                    .split("\n")
+                    .map((line) => line.trim())
+                    .filter(Boolean);
+                void onSaveRules(project.id, {
+                  enabled: rulesEnabled,
+                  sources: ruleSources,
+                  repos: lines(ruleRepos),
+                  labels: lines(ruleLabels),
+                  authors: lines(ruleAuthors),
+                  mention: ruleMention.trim(),
+                });
+              }}
+            >
+              保存 Webhook 规则
+            </button>
+          </div>
+        </details>
 
         {pending.length === 0 ? (
           <div className="studio-empty">
@@ -3438,6 +3576,7 @@ function MissionView({
   onIngestTrigger,
   onAcceptTrigger,
   onIgnoreTrigger,
+  onSaveTriggerRules,
   onCreateWorkshop,
   onAddWorkshopNote,
   onSynthesizeWorkshop,
@@ -3465,6 +3604,10 @@ function MissionView({
   onIngestTrigger: (input: CreateTriggerInput) => Promise<boolean>;
   onAcceptTrigger: (trigger: Trigger) => void;
   onIgnoreTrigger: (trigger: Trigger) => void;
+  onSaveTriggerRules: (
+    projectId: string,
+    input: UpdateTriggerRulesInput,
+  ) => Promise<boolean>;
   onCreateWorkshop: (input: CreateWorkshopInput) => Promise<boolean>;
   onAddWorkshopNote: (
     workshopId: string,
@@ -3555,11 +3698,13 @@ function MissionView({
 
       {project !== null ? (
         <TriggerInbox
+          project={project}
           triggers={data.triggers}
           busy={busy}
           onIngest={onIngestTrigger}
           onAccept={onAcceptTrigger}
           onIgnore={onIgnoreTrigger}
+          onSaveRules={onSaveTriggerRules}
         />
       ) : null}
 

@@ -541,6 +541,24 @@ export const studioCss = `
 }
 
 .studio-trigger-panel { margin-bottom: 12px; }
+.studio-webhook-rules {
+  margin: 8px 0;
+  border: 1px solid var(--st-border);
+  border-radius: 7px;
+  background: var(--st-panel-2);
+  font-size: 11px;
+}
+.studio-webhook-rules summary {
+  padding: 8px 10px;
+  cursor: pointer;
+  color: var(--st-muted);
+}
+.studio-webhook-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 10px 10px;
+}
 .studio-trigger-form {
   display: grid;
   grid-template-columns: 110px 1fr 180px auto;

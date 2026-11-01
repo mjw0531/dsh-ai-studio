@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 23;
-export const STUDIO_PLUGIN_VERSION = "2.15.0";
+export const STUDIO_SCHEMA_VERSION = 24;
+export const STUDIO_PLUGIN_VERSION = "2.16.0";
 
 export type TaskStatus =
   | "backlog"
@@ -193,6 +193,12 @@ export interface AddWorkshopNoteInput {
   recommendation?: string;
 }
 
+export interface WebhookIngestResult {
+  accepted: boolean;
+  reason: string;
+  trigger: Trigger | null;
+}
+
 export interface CreateTriggerInput {
   source: TriggerSource;
   externalId?: string;
@@ -209,6 +215,24 @@ export interface AcceptTriggerInput {
   priority?: TaskPriority;
 }
 
+export interface TriggerRules {
+  enabled: boolean;
+  sources: TriggerSource[];
+  repos: string[];
+  labels: string[];
+  authors: string[];
+  mention: string;
+}
+
+export interface UpdateTriggerRulesInput {
+  enabled?: boolean;
+  sources?: TriggerSource[];
+  repos?: string[];
+  labels?: string[];
+  authors?: string[];
+  mention?: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -218,6 +242,7 @@ export interface Project {
   prdPath: string | null;
   invariantsPath: string | null;
   modulesPath: string | null;
+  triggerRules: TriggerRules;
   stage: ProjectStage;
   createdAt: string;
   updatedAt: string;
@@ -733,6 +758,7 @@ export interface BootstrapResponse {
     gitMerge: boolean;
     stageGate: boolean;
     triggerInbox: boolean;
+    triggerWebhook: boolean;
     workshop: boolean;
     providerProfiles: boolean;
     providerHealth: boolean;

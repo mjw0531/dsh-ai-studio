@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 import {
@@ -40,6 +41,7 @@ import type {
   UpdateProjectInput,
   UpdateStageGateInput,
   UpdateTaskInput,
+  UpdateTriggerRulesInput,
   Verification,
 } from "../shared/types.js";
 import { StudioStore, StudioStoreError } from "./store.js";
@@ -147,6 +149,32 @@ function assertJsonRequest(req: IncomingMessage): void {
   }
 }
 
+async function readRawBody(req: IncomingMessage): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for await (const chunk of req) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total += buffer.byteLength;
+    if (total > MAX_BODY_BYTES) {
+      throw new HttpError(413, "payload_too_large", "请求体超过 1 MB 限制");
+    }
+    chunks.push(buffer);
+  }
+  return Buffer.concat(chunks);
+}
+
+function verifyWebhookSignature(
+  secret: string,
+  raw: Buffer,
+  signature: string,
+): boolean {
+  const provided = signature.replace(/^sha256=/u, "").trim();
+  if (provided === "") return false;
+  const expected = createHmac("sha256", secret).update(raw).digest("hex");
+  if (provided.length !== expected.length) return false;
+  return timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
+}
+
 async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = [];
   let total = 0;
@@ -227,6 +255,29 @@ function asOptionalBudget(
     );
   }
   return value === 0 ? null : value;
+}
+
+function asUpdateTriggerRules(
+  body: Record<string, unknown>,
+): UpdateTriggerRulesInput {
+  const result: UpdateTriggerRulesInput = {};
+  if (body.enabled !== undefined) result.enabled = body.enabled === true;
+  if (body.sources !== undefined) {
+    result.sources = asStringArray(body.sources, "sources") as UpdateTriggerRulesInput["sources"];
+  }
+  if (body.repos !== undefined) {
+    result.repos = asStringArray(body.repos, "repos");
+  }
+  if (body.labels !== undefined) {
+    result.labels = asStringArray(body.labels, "labels");
+  }
+  if (body.authors !== undefined) {
+    result.authors = asStringArray(body.authors, "authors");
+  }
+  if (body.mention !== undefined) {
+    result.mention = asOptionalString(body.mention, "mention");
+  }
+  return result;
 }
 
 function asCreateProject(body: Record<string, unknown>): CreateProjectInput {
@@ -739,6 +790,53 @@ export class StudioRouter {
       return;
     }
 
+    const webhookMatch =
+      /^\/studio-api\/webhooks\/([^/]+)\/([^/]+)$/.exec(parsed.pathname);
+    if (webhookMatch !== null) {
+      this.requireMethod(parsed, ["POST"]);
+      const projectId = decodeSegment(webhookMatch[1] ?? "");
+      const source = webhookMatch[2] ?? "";
+      if (source !== "github" && source !== "ci" && source !== "im") {
+        throw new HttpError(404, "not_found", "不支持的 Webhook 来源");
+      }
+      const secret = process.env["DSH_STUDIO_WEBHOOK_SECRET"] ?? "";
+      if (secret === "") {
+        throw new HttpError(
+          503,
+          "webhook_not_configured",
+          "未设置 DSH_STUDIO_WEBHOOK_SECRET，Webhook 已拒绝",
+        );
+      }
+      const raw = await readRawBody(req);
+      const signature =
+        (typeof req.headers["x-hub-signature-256"] === "string"
+          ? req.headers["x-hub-signature-256"]
+          : "") ||
+        (typeof req.headers["x-studio-signature"] === "string"
+          ? req.headers["x-studio-signature"]
+          : "");
+      if (!verifyWebhookSignature(secret, raw, signature)) {
+        throw new HttpError(401, "invalid_signature", "Webhook 签名无效");
+      }
+      let payload: Record<string, unknown>;
+      try {
+        const parsedBody: unknown = JSON.parse(raw.toString("utf8") || "{}");
+        if (
+          typeof parsedBody !== "object" ||
+          parsedBody === null ||
+          Array.isArray(parsedBody)
+        ) {
+          throw new Error("not an object");
+        }
+        payload = parsedBody as Record<string, unknown>;
+      } catch {
+        throw new HttpError(400, "invalid_json", "Webhook 请求体不是 JSON");
+      }
+      const result = await this.store.ingestWebhook(projectId, source, payload);
+      sendJson(res, 202, { ok: true, ...result });
+      return;
+    }
+
     this.assertAuthorized(req);
 
     if (parsed.pathname === `${API_PREFIX}/bootstrap`) {
@@ -829,6 +927,21 @@ export class StudioRouter {
         asCreateProject(await readJson(req)),
       );
       sendJson(res, 201, { ok: true, project });
+      return;
+    }
+
+    const triggerRulesMatch =
+      /^\/studio-api\/projects\/([^/]+)\/trigger-rules$/.exec(
+        parsed.pathname,
+      );
+    if (triggerRulesMatch !== null) {
+      this.requireMethod(parsed, ["PATCH"]);
+      assertJsonRequest(req);
+      const rules = await this.store.updateTriggerRules(
+        decodeSegment(triggerRulesMatch[1] ?? ""),
+        asUpdateTriggerRules(await readJson(req)),
+      );
+      sendJson(res, 200, { ok: true, rules });
       return;
     }
 

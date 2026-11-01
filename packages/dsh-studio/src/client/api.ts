@@ -27,6 +27,8 @@ import type {
   ProviderProbeResult,
   StageGate,
   Trigger,
+  TriggerRules,
+  UpdateTriggerRulesInput,
   Workshop,
   UpdateStageGateInput,
   UpdateModuleInput,
@@ -310,6 +312,17 @@ export class StudioClient {
       { method: "POST", body: { note } },
     );
     return data.gate;
+  }
+
+  async updateTriggerRules(
+    projectId: string,
+    input: UpdateTriggerRulesInput,
+  ): Promise<TriggerRules> {
+    const data = await this.request<{ rules: TriggerRules }>(
+      `/projects/${encodeURIComponent(projectId)}/trigger-rules`,
+      { method: "PATCH", body: input },
+    );
+    return data.rules;
   }
 
   async ingestTrigger(input: CreateTriggerInput): Promise<Trigger> {

@@ -585,7 +585,7 @@ test("exports a portable copy of the state", async () => {
   await withStore(async (store) => {
     await store.bootstrap();
     const exported = await store.exportState();
-    assert.equal(exported.schemaVersion, 23);
+    assert.equal(exported.schemaVersion, 24);
     assert.ok(exported.projects.length >= 1);
     assert.ok(exported.tasks.length >= 1);
     assert.ok(Array.isArray(exported.runs));
@@ -964,7 +964,7 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
     assert.deepEqual(data.runs, []);
     assert.deepEqual(data.decisions, []);
     const migrated = JSON.parse(await readFile(file, "utf8"));
-    assert.equal(migrated.schemaVersion, 23);
+    assert.equal(migrated.schemaVersion, 24);
     assert.equal(migrated.companyName, "AI工作室");
     assert.ok(migrated.roles.every((role) => role.executor === "dsh"));
     assert.ok(migrated.runs.every((run) => run.status !== undefined));
@@ -1003,6 +1003,13 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
     assert.ok(Array.isArray(migrated.workshops));
     assert.ok(Array.isArray(migrated.providerProfiles));
     assert.ok(migrated.roles.every((role) => role.providerProfileId === null));
+    assert.ok(
+      migrated.projects.every(
+        (project) =>
+          project.triggerRules.enabled === false &&
+          Array.isArray(project.triggerRules.sources),
+      ),
+    );
     assert.ok(
       migrated.runs.every(
         (run) =>
@@ -1583,5 +1590,63 @@ test("keeps the provider snapshot on a run after role reassignment", async () =>
     assert.equal(primaryHealth?.runCount, 1);
     assert.equal(fallbackHealth?.runCount, 0);
     assert.equal(data.runs[0].providerProfileId, primary.id);
+  });
+});
+
+test("filters webhook triggers by deterministic rules", async () => {
+  await withStore(async (store) => {
+    const project = await store.createProject({ name: "Webhook project" });
+    await store.updateTriggerRules(project.id, {
+      enabled: true,
+      sources: ["github"],
+      repos: ["org/repo"],
+      labels: ["bug"],
+      authors: ["alice"],
+      mention: "dsh",
+    });
+    const accepted = await store.ingestWebhook(project.id, "github", {
+      repository: { full_name: "org/repo" },
+      issue: {
+        number: 7,
+        title: "dsh crash on login",
+        body: "Repro steps",
+        labels: [{ name: "bug" }],
+        user: { login: "alice" },
+      },
+      sender: { login: "alice" },
+    });
+    assert.equal(accepted.accepted, true);
+    assert.equal(accepted.trigger?.status, "pending");
+
+    const wrongRepo = await store.ingestWebhook(project.id, "github", {
+      repository: { full_name: "other/repo" },
+      issue: {
+        number: 8,
+        title: "dsh crash",
+        labels: [{ name: "bug" }],
+        user: { login: "alice" },
+      },
+      sender: { login: "alice" },
+    });
+    assert.equal(wrongRepo.accepted, false);
+    assert.match(wrongRepo.reason, /repo/);
+
+    const missingMention = await store.ingestWebhook(project.id, "github", {
+      repository: { full_name: "org/repo" },
+      issue: {
+        number: 9,
+        title: "crash on login",
+        labels: [{ name: "bug" }],
+        user: { login: "alice" },
+      },
+      sender: { login: "alice" },
+    });
+    assert.equal(missingMention.accepted, false);
+    assert.match(missingMention.reason, /mention/);
+    const data = await store.bootstrap();
+    assert.equal(data.triggers.length, 1);
+    assert.ok(
+      data.events.some((event) => event.type === "trigger.webhook_filtered"),
+    );
   });
 });
