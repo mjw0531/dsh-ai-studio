@@ -21,6 +21,9 @@ import type {
   ApproveStageGateInput,
   CreateTriggerInput,
   CreateWorkshopInput,
+  CreateProviderProfileInput,
+  UpdateProviderProfileInput,
+  ProviderProfile,
   StageGate,
   Trigger,
   Workshop,
@@ -332,6 +335,34 @@ export class StudioClient {
       { method: "POST", body: { note } },
     );
     return data.trigger;
+  }
+
+  async createProviderProfile(
+    input: CreateProviderProfileInput,
+  ): Promise<ProviderProfile> {
+    const data = await this.request<{ profile: ProviderProfile }>(
+      "/provider-profiles",
+      { method: "POST", body: input },
+    );
+    return data.profile;
+  }
+
+  async updateProviderProfile(
+    profileId: string,
+    input: UpdateProviderProfileInput,
+  ): Promise<ProviderProfile> {
+    const data = await this.request<{ profile: ProviderProfile }>(
+      `/provider-profiles/${encodeURIComponent(profileId)}`,
+      { method: "PATCH", body: input },
+    );
+    return data.profile;
+  }
+
+  async deleteProviderProfile(profileId: string): Promise<void> {
+    await this.request<{ ok: boolean }>(
+      `/provider-profiles/${encodeURIComponent(profileId)}`,
+      { method: "DELETE" },
+    );
   }
 
   async createWorkshop(input: CreateWorkshopInput): Promise<Workshop> {

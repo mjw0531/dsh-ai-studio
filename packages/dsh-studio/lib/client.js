@@ -341,6 +341,26 @@ var StudioClient = class {
     );
     return data.trigger;
   }
+  async createProviderProfile(input) {
+    const data = await this.request(
+      "/provider-profiles",
+      { method: "POST", body: input }
+    );
+    return data.profile;
+  }
+  async updateProviderProfile(profileId, input) {
+    const data = await this.request(
+      `/provider-profiles/${encodeURIComponent(profileId)}`,
+      { method: "PATCH", body: input }
+    );
+    return data.profile;
+  }
+  async deleteProviderProfile(profileId) {
+    await this.request(
+      `/provider-profiles/${encodeURIComponent(profileId)}`,
+      { method: "DELETE" }
+    );
+  }
   async createWorkshop(input) {
     const data = await this.request("/workshops", {
       method: "POST",
@@ -1024,6 +1044,42 @@ function StudioPage() {
       "\u6267\u884C\u5668\u5DF2\u66F4\u65B0"
     );
   };
+  const updateRoleProvider = async (roleId, providerProfileId) => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.updateRole(roleId, { providerProfileId });
+      },
+      "Provider Profile \u5DF2\u66F4\u65B0"
+    );
+  };
+  const createProviderProfile = async (input) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.createProviderProfile(input);
+      },
+      "Provider Profile \u5DF2\u521B\u5EFA"
+    );
+  };
+  const updateProviderProfile = async (profileId, input) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.updateProviderProfile(profileId, input);
+      },
+      "Provider Profile \u5DF2\u66F4\u65B0"
+    );
+  };
+  const deleteProviderProfile = async (profileId) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.deleteProviderProfile(profileId);
+      },
+      "Provider Profile \u5DF2\u5220\u9664"
+    );
+  };
   const createProject = async (input) => {
     const ok = await run(
       async () => {
@@ -1642,8 +1698,13 @@ function StudioPage() {
           TeamView,
           {
             data,
+            busy,
             onNewRole: () => setModal({ kind: "role" }),
-            onExecutor: updateRoleExecutor
+            onExecutor: updateRoleExecutor,
+            onProvider: updateRoleProvider,
+            onCreateProvider: createProviderProfile,
+            onUpdateProvider: updateProviderProfile,
+            onDeleteProvider: deleteProviderProfile
           }
         ) : null,
         tab === "settings" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
@@ -1724,6 +1785,7 @@ function StudioPage() {
       RoleForm,
       {
         busy,
+        profiles: data.providerProfiles,
         onCancel: () => setModal(null),
         onSubmit: (input) => void createRole(input)
       }
@@ -3921,10 +3983,151 @@ function MergeProposalCard({
     ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-action-note", children: proposal.status === "merged" ? `\u5DF2\u5408\u5E76${proposal.mergedAt !== null ? ` \xB7 ${formatDate(proposal.mergedAt)}` : ""}` : "\u5DF2\u6253\u56DE\uFF1B\u4EFB\u52A1\u56DE\u5230\u6267\u884C\u4E2D\uFF0C\u4FEE\u6539\u540E\u53EF\u91CD\u65B0\u63D0\u4EA4\u3002" })
   ] });
 }
+function ProviderProfilesPanel({
+  profiles,
+  busy,
+  onCreate,
+  onUpdate,
+  onDelete
+}) {
+  const [name2, setName] = (0, import_react.useState)("");
+  const [executor, setExecutor] = (0, import_react.useState)("dsh");
+  const [provider, setProvider] = (0, import_react.useState)("");
+  const [model, setModel] = (0, import_react.useState)("");
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "studio-panel studio-provider-panel", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-panel-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconSettings, { width: 14, height: 14 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h3", { children: "Provider Profiles" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-muted", children: profiles.length === 0 ? "\u672A\u914D\u7F6E" : `${String(profiles.length)} \u4E2A` })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-panel-body", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-hint", children: "\u89D2\u8272\u53EF\u4EE5\u7ED1\u5B9A\u4E00\u4E2A Profile\uFF0C\u7EDF\u4E00\u6307\u5B9A\u6267\u884C\u5668\u3001provider \u548C\u6A21\u578B\uFF1B\u4E0D\u7ED1\u5B9A\u5219\u4F7F\u7528\u89D2\u8272\u81EA\u5DF1\u7684\u914D\u7F6E\u3002" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+        "form",
+        {
+          className: "studio-provider-form",
+          onSubmit: (event) => {
+            event.preventDefault();
+            if (name2.trim() === "") return;
+            void onCreate({
+              name: name2.trim(),
+              executor,
+              provider: provider.trim(),
+              model: model.trim()
+            }).then((ok) => {
+              if (ok) {
+                setName("");
+                setProvider("");
+                setModel("");
+              }
+            });
+          },
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "input",
+              {
+                value: name2,
+                placeholder: "Profile \u540D\u79F0\uFF0C\u4F8B\u5982 Claude Sonnet",
+                disabled: busy,
+                onChange: (event) => setName(event.target.value)
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+              "select",
+              {
+                value: executor,
+                disabled: busy,
+                onChange: (event) => setExecutor(event.target.value),
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "dsh", children: AGENT_EXECUTOR_LABELS.dsh }),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "claude-code", children: AGENT_EXECUTOR_LABELS["claude-code"] }),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "codex", children: AGENT_EXECUTOR_LABELS.codex })
+                ]
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "input",
+              {
+                value: provider,
+                placeholder: "DSH provider\uFF08\u53EF\u7A7A\uFF09",
+                disabled: busy,
+                onChange: (event) => setProvider(event.target.value)
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "input",
+              {
+                value: model,
+                placeholder: "\u6A21\u578B ID\uFF08\u53EF\u7A7A\uFF09",
+                disabled: busy,
+                onChange: (event) => setModel(event.target.value)
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "button",
+              {
+                className: "studio-btn",
+                "data-variant": "primary",
+                type: "submit",
+                disabled: busy || name2.trim() === "",
+                children: "\u65B0\u589E"
+              }
+            )
+          ]
+        }
+      ),
+      profiles.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-provider-list", children: profiles.map((profile) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-provider-row", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: profile.name }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-pill", children: AGENT_EXECUTOR_LABELS[profile.executor] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "studio-mono", children: [
+          profile.provider || "auto",
+          " / ",
+          profile.model || "default"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          "button",
+          {
+            className: "studio-btn",
+            "data-size": "sm",
+            type: "button",
+            disabled: busy,
+            onClick: () => {
+              const next = window.prompt("\u65B0\u7684 Profile \u540D\u79F0\uFF1A", profile.name);
+              if (next !== null && next.trim() !== "") {
+                void onUpdate(profile.id, { name: next.trim() });
+              }
+            },
+            children: "\u6539\u540D"
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          "button",
+          {
+            className: "studio-btn",
+            "data-size": "sm",
+            type: "button",
+            disabled: busy,
+            onClick: () => {
+              if (window.confirm(`\u5220\u9664 Provider Profile\u300C${profile.name}\u300D\uFF1F`)) {
+                void onDelete(profile.id);
+              }
+            },
+            children: "\u5220\u9664"
+          }
+        )
+      ] }, profile.id)) }) : null
+    ] })
+  ] });
+}
 function TeamView({
   data,
+  busy,
   onNewRole,
-  onExecutor
+  onExecutor,
+  onProvider,
+  onCreateProvider,
+  onUpdateProvider,
+  onDeleteProvider
 }) {
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-page-head", children: [
@@ -3949,6 +4152,16 @@ function TeamView({
         }
       ) })
     ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+      ProviderProfilesPanel,
+      {
+        profiles: data.providerProfiles,
+        busy,
+        onCreate: onCreateProvider,
+        onUpdate: onUpdateProvider,
+        onDelete: onDeleteProvider
+      }
+    ),
     data.roles.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-empty", children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: "\u8FD8\u6CA1\u6709\u89D2\u8272" }),
       "\u5EFA\u4E00\u4E2A Lead\u3001\u4E00\u4E2A Builder \u548C\u4E00\u4E2A Verifier\uFF0C\u5C31\u53EF\u4EE5\u5F00\u59CB\u8DD1\u4EFB\u52A1\u4E86\u3002"
@@ -3988,6 +4201,21 @@ function TeamView({
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-role-section", children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-role-section-label", children: "\u5C97\u4F4D\u914D\u7F6E" }),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-role-salary", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+              "select",
+              {
+                value: role.providerProfileId ?? "",
+                onChange: (event) => void onProvider(
+                  role.id,
+                  event.target.value === "" ? null : event.target.value
+                ),
+                title: "Provider Profile",
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "", children: "\u81EA\u5B9A\u4E49 / \u90E8\u7F72\u9ED8\u8BA4" }),
+                  data.providerProfiles.map((profile) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: profile.id, children: profile.name }, profile.id))
+                ]
+              }
+            ),
             /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
               "select",
               {
@@ -5639,6 +5867,7 @@ function TaskForm({
 }
 function RoleForm({
   busy,
+  profiles,
   onCancel,
   onSubmit
 }) {
@@ -5646,6 +5875,7 @@ function RoleForm({
   const [title, setTitle] = (0, import_react.useState)("");
   const [mission, setMission] = (0, import_react.useState)("");
   const [responsibilities, setResponsibilities] = (0, import_react.useState)("");
+  const [providerProfileId, setProviderProfileId] = (0, import_react.useState)("");
   const [model, setModel] = (0, import_react.useState)("");
   const [executor, setExecutor] = (0, import_react.useState)("dsh");
   const [tokenBudget, setTokenBudget] = (0, import_react.useState)("");
@@ -5681,6 +5911,7 @@ function RoleForm({
       title: title.trim(),
       mission: mission.trim(),
       responsibilities: responsibilities.split("\n").map((line) => line.trim()).filter(Boolean),
+      providerProfileId: providerProfileId || null,
       model: model.trim() || null,
       executor,
       tokenBudget: budgets.tokenBudget,
@@ -5757,6 +5988,21 @@ function RoleForm({
               value: responsibilities,
               onChange: (event) => setResponsibilities(event.target.value),
               placeholder: "\u5B9E\u73B0\u6280\u80FD/\u79FB\u52A8/\u51B7\u5374\n\u8865\u5355\u6D4B\n\u7EF4\u62A4\u6784\u5EFA"
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "role-provider", children: "Provider Profile" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+            "select",
+            {
+              id: "role-provider",
+              value: providerProfileId,
+              onChange: (event) => setProviderProfileId(event.target.value),
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "", children: "\u81EA\u5B9A\u4E49 / \u90E8\u7F72\u9ED8\u8BA4" }),
+                profiles.map((profile) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: profile.id, children: profile.name }, profile.id))
+              ]
             }
           )
         ] }),
@@ -6859,6 +7105,43 @@ var studioCss = `
   border-radius: 7px;
   color: var(--st-ok);
   background: var(--st-ok-soft);
+  font-size: 11px;
+}
+
+.studio-provider-panel { margin-bottom: 12px; }
+.studio-provider-form {
+  display: grid;
+  grid-template-columns: 1.2fr 130px 1fr 1fr auto;
+  gap: 6px;
+  margin: 8px 0;
+}
+.studio-provider-form input,
+.studio-provider-form select {
+  min-width: 0;
+  height: 30px;
+  width: 100%;
+  padding: 0 8px;
+  border: 1px solid var(--st-border);
+  border-radius: 6px;
+  color: var(--st-text);
+  background: var(--st-panel);
+  font: inherit;
+  font-size: 11px;
+}
+.studio-provider-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.studio-provider-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 7px 9px;
+  border: 1px solid var(--st-border);
+  border-radius: 7px;
+  background: var(--st-panel-2);
   font-size: 11px;
 }
 

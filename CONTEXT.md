@@ -52,6 +52,10 @@ _Avoid_: 聊天、会话（Thread 是事件关联，不是 Agent 会话）
 围绕一个议题的多角色独立意见集合，包含反对、风险、推荐、汇总和 Owner 决策；AI 独立评审只是意见，不是群聊，也不能替代 Owner。
 _Avoid_: 群聊、会议记录（Workshop 是结构化产物）
 
+**Provider Profile（执行配置）**:
+项目级的命名执行配置：executor + provider + model；角色可以绑定它，派单/评审/Workshop 共用同一解析。
+_Avoid_: 模型别名、密钥（Profile 不保存密钥）
+
 **Project Book（项目书）**:
 项目知识的检索索引，按触发词、范围、优先级向 Agent 注入条目；不是项目的本体。
 _Avoid_: 世界书、知识库（过于宽泛）

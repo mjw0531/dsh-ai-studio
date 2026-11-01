@@ -585,7 +585,7 @@ test("exports a portable copy of the state", async () => {
   await withStore(async (store) => {
     await store.bootstrap();
     const exported = await store.exportState();
-    assert.equal(exported.schemaVersion, 21);
+    assert.equal(exported.schemaVersion, 22);
     assert.ok(exported.projects.length >= 1);
     assert.ok(exported.tasks.length >= 1);
     assert.ok(Array.isArray(exported.runs));
@@ -964,7 +964,7 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
     assert.deepEqual(data.runs, []);
     assert.deepEqual(data.decisions, []);
     const migrated = JSON.parse(await readFile(file, "utf8"));
-    assert.equal(migrated.schemaVersion, 21);
+    assert.equal(migrated.schemaVersion, 22);
     assert.equal(migrated.companyName, "AI工作室");
     assert.ok(migrated.roles.every((role) => role.executor === "dsh"));
     assert.ok(migrated.runs.every((run) => run.status !== undefined));
@@ -1001,6 +1001,8 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
     assert.ok(Array.isArray(migrated.triggers));
     assert.ok(Array.isArray(migrated.threads));
     assert.ok(Array.isArray(migrated.workshops));
+    assert.ok(Array.isArray(migrated.providerProfiles));
+    assert.ok(migrated.roles.every((role) => role.providerProfileId === null));
     assert.ok(migrated.projects.every((project) => project.stage === "development"));
   });
 });
@@ -1372,5 +1374,44 @@ test("requires a demo artifact before entering development from prototype", asyn
     });
     const approved = await store.approveStageGate(project.id, "development");
     assert.equal(approved.status, "approved");
+  });
+});
+
+test("binds provider profiles to roles and blocks deleting a profile in use", async () => {
+  await withStore(async (store) => {
+    const profile = await store.createProviderProfile({
+      name: "Claude Sonnet",
+      executor: "claude-code",
+      model: "claude-sonnet-4-5",
+      provider: "anthropic",
+    });
+    assert.equal(profile.executor, "claude-code");
+
+    const role = await store.createRole({
+      name: "Claude Builder",
+      providerProfileId: profile.id,
+    });
+    assert.equal(role.providerProfileId, profile.id);
+    const provider = await store.getRoleProvider(role.id);
+    assert.equal(provider?.model, "claude-sonnet-4-5");
+    assert.equal(provider?.executor, "claude-code");
+
+    await store.updateProviderProfile(profile.id, {
+      model: "claude-opus-4-5",
+    });
+    const updatedProvider = await store.getRoleProvider(role.id);
+    assert.equal(updatedProvider?.model, "claude-opus-4-5");
+
+    await assert.rejects(
+      () => store.deleteProviderProfile(profile.id),
+      (error) =>
+        error instanceof StudioStoreError &&
+        error.code === "provider_profile_in_use",
+    );
+
+    await store.updateRole(role.id, { providerProfileId: null });
+    await store.deleteProviderProfile(profile.id);
+    const data = await store.bootstrap();
+    assert.equal(data.providerProfiles.length, 0);
   });
 });

@@ -52,6 +52,9 @@ import type {
   CreateTriggerInput,
   AddWorkshopNoteInput,
   CreateWorkshopInput,
+  CreateProviderProfileInput,
+  UpdateProviderProfileInput,
+  ProviderProfile,
   Workshop,
   UpdateStageGateInput,
   CreateMergeProposalInput,
@@ -561,6 +564,56 @@ export function StudioPage() {
         await client.updateRole(roleId, { executor });
       },
       "执行器已更新",
+    );
+  };
+
+  const updateRoleProvider = async (
+    roleId: string,
+    providerProfileId: string | null,
+  ): Promise<void> => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.updateRole(roleId, { providerProfileId });
+      },
+      "Provider Profile 已更新",
+    );
+  };
+
+  const createProviderProfile = async (
+    input: CreateProviderProfileInput,
+  ): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.createProviderProfile(input);
+      },
+      "Provider Profile 已创建",
+    );
+  };
+
+  const updateProviderProfile = async (
+    profileId: string,
+    input: UpdateProviderProfileInput,
+  ): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.updateProviderProfile(profileId, input);
+      },
+      "Provider Profile 已更新",
+    );
+  };
+
+  const deleteProviderProfile = async (
+    profileId: string,
+  ): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.deleteProviderProfile(profileId);
+      },
+      "Provider Profile 已删除",
     );
   };
 
@@ -1334,8 +1387,13 @@ export function StudioPage() {
             {tab === "team" ? (
               <TeamView
                 data={data}
+                busy={busy}
                 onNewRole={() => setModal({ kind: "role" })}
                 onExecutor={updateRoleExecutor}
+                onProvider={updateRoleProvider}
+                onCreateProvider={createProviderProfile}
+                onUpdateProvider={updateProviderProfile}
+                onDeleteProvider={deleteProviderProfile}
               />
             ) : null}
 
@@ -1419,6 +1477,7 @@ export function StudioPage() {
       {modal?.kind === "role" ? (
         <RoleForm
           busy={busy}
+          profiles={data.providerProfiles}
           onCancel={() => setModal(null)}
           onSubmit={(input) => void createRole(input)}
         />
@@ -3964,14 +4023,173 @@ function MergeProposalCard({
   );
 }
 
+function ProviderProfilesPanel({
+  profiles,
+  busy,
+  onCreate,
+  onUpdate,
+  onDelete,
+}: {
+  profiles: ProviderProfile[];
+  busy: boolean;
+  onCreate: (input: CreateProviderProfileInput) => Promise<boolean>;
+  onUpdate: (
+    profileId: string,
+    input: UpdateProviderProfileInput,
+  ) => Promise<boolean>;
+  onDelete: (profileId: string) => Promise<boolean>;
+}) {
+  const [name, setName] = useState("");
+  const [executor, setExecutor] = useState<AgentExecutor>("dsh");
+  const [provider, setProvider] = useState("");
+  const [model, setModel] = useState("");
+
+  return (
+    <section className="studio-panel studio-provider-panel">
+      <div className="studio-panel-head">
+        <IconSettings width={14} height={14} />
+        <h3>Provider Profiles</h3>
+        <span className="studio-muted">
+          {profiles.length === 0 ? "未配置" : `${String(profiles.length)} 个`}
+        </span>
+      </div>
+      <div className="studio-panel-body">
+        <div className="studio-hint">
+          角色可以绑定一个 Profile，统一指定执行器、provider 和模型；不绑定则使用角色自己的配置。
+        </div>
+        <form
+          className="studio-provider-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (name.trim() === "") return;
+            void onCreate({
+              name: name.trim(),
+              executor,
+              provider: provider.trim(),
+              model: model.trim(),
+            }).then((ok) => {
+              if (ok) {
+                setName("");
+                setProvider("");
+                setModel("");
+              }
+            });
+          }}
+        >
+          <input
+            value={name}
+            placeholder="Profile 名称，例如 Claude Sonnet"
+            disabled={busy}
+            onChange={(event) => setName(event.target.value)}
+          />
+          <select
+            value={executor}
+            disabled={busy}
+            onChange={(event) =>
+              setExecutor(event.target.value as AgentExecutor)
+            }
+          >
+            <option value="dsh">{AGENT_EXECUTOR_LABELS.dsh}</option>
+            <option value="claude-code">
+              {AGENT_EXECUTOR_LABELS["claude-code"]}
+            </option>
+            <option value="codex">{AGENT_EXECUTOR_LABELS.codex}</option>
+          </select>
+          <input
+            value={provider}
+            placeholder="DSH provider（可空）"
+            disabled={busy}
+            onChange={(event) => setProvider(event.target.value)}
+          />
+          <input
+            value={model}
+            placeholder="模型 ID（可空）"
+            disabled={busy}
+            onChange={(event) => setModel(event.target.value)}
+          />
+          <button
+            className="studio-btn"
+            data-variant="primary"
+            type="submit"
+            disabled={busy || name.trim() === ""}
+          >
+            新增
+          </button>
+        </form>
+
+        {profiles.length > 0 ? (
+          <div className="studio-provider-list">
+            {profiles.map((profile) => (
+              <div key={profile.id} className="studio-provider-row">
+                <strong>{profile.name}</strong>
+                <span className="studio-pill">
+                  {AGENT_EXECUTOR_LABELS[profile.executor]}
+                </span>
+                <span className="studio-mono">
+                  {profile.provider || "auto"} / {profile.model || "default"}
+                </span>
+                <button
+                  className="studio-btn"
+                  data-size="sm"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    const next = window.prompt("新的 Profile 名称：", profile.name);
+                    if (next !== null && next.trim() !== "") {
+                      void onUpdate(profile.id, { name: next.trim() });
+                    }
+                  }}
+                >
+                  改名
+                </button>
+                <button
+                  className="studio-btn"
+                  data-size="sm"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    if (window.confirm(`删除 Provider Profile「${profile.name}」？`)) {
+                      void onDelete(profile.id);
+                    }
+                  }}
+                >
+                  删除
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 function TeamView({
   data,
+  busy,
   onNewRole,
   onExecutor,
+  onProvider,
+  onCreateProvider,
+  onUpdateProvider,
+  onDeleteProvider,
 }: {
   data: BootstrapResponse;
+  busy: boolean;
   onNewRole: () => void;
   onExecutor: (roleId: string, executor: AgentExecutor) => Promise<void>;
+  onProvider: (
+    roleId: string,
+    providerProfileId: string | null,
+  ) => Promise<void>;
+  onCreateProvider: (
+    input: CreateProviderProfileInput,
+  ) => Promise<boolean>;
+  onUpdateProvider: (
+    profileId: string,
+    input: UpdateProviderProfileInput,
+  ) => Promise<boolean>;
+  onDeleteProvider: (profileId: string) => Promise<boolean>;
 }) {
   return (
     <>
@@ -3997,6 +4215,14 @@ function TeamView({
           </button>
         </div>
       </div>
+
+      <ProviderProfilesPanel
+        profiles={data.providerProfiles}
+        busy={busy}
+        onCreate={onCreateProvider}
+        onUpdate={onUpdateProvider}
+        onDelete={onDeleteProvider}
+      />
 
       {data.roles.length === 0 ? (
         <div className="studio-empty">
@@ -4057,6 +4283,25 @@ function TeamView({
                 <div className="studio-role-section">
                   <div className="studio-role-section-label">岗位配置</div>
                   <div className="studio-role-salary">
+                    <select
+                      value={role.providerProfileId ?? ""}
+                      onChange={(event) =>
+                        void onProvider(
+                          role.id,
+                          event.target.value === ""
+                            ? null
+                            : event.target.value,
+                        )
+                      }
+                      title="Provider Profile"
+                    >
+                      <option value="">自定义 / 部署默认</option>
+                      {data.providerProfiles.map((profile) => (
+                        <option key={profile.id} value={profile.id}>
+                          {profile.name}
+                        </option>
+                      ))}
+                    </select>
                     <select
                       value={role.executor}
                       onChange={(event) =>
@@ -6061,10 +6306,12 @@ function TaskForm({
 
 function RoleForm({
   busy,
+  profiles,
   onCancel,
   onSubmit,
 }: {
   busy: boolean;
+  profiles: ProviderProfile[];
   onCancel: () => void;
   onSubmit: (input: CreateRoleInput) => void;
 }) {
@@ -6072,6 +6319,7 @@ function RoleForm({
   const [title, setTitle] = useState("");
   const [mission, setMission] = useState("");
   const [responsibilities, setResponsibilities] = useState("");
+  const [providerProfileId, setProviderProfileId] = useState("");
   const [model, setModel] = useState("");
   const [executor, setExecutor] = useState<AgentExecutor>("dsh");
   const [tokenBudget, setTokenBudget] = useState("");
@@ -6111,6 +6359,7 @@ function RoleForm({
         .split("\n")
         .map((line) => line.trim())
         .filter(Boolean),
+      providerProfileId: providerProfileId || null,
       model: model.trim() || null,
       executor,
       tokenBudget: budgets.tokenBudget,
@@ -6182,6 +6431,21 @@ function RoleForm({
             onChange={(event) => setResponsibilities(event.target.value)}
             placeholder={"实现能力/移动/冷却\n补单测\n维护构建"}
           />
+        </div>
+        <div className="studio-field">
+          <label htmlFor="role-provider">Provider Profile</label>
+          <select
+            id="role-provider"
+            value={providerProfileId}
+            onChange={(event) => setProviderProfileId(event.target.value)}
+          >
+            <option value="">自定义 / 部署默认</option>
+            {profiles.map((profile) => (
+              <option key={profile.id} value={profile.id}>
+                {profile.name}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="studio-field">
           <label htmlFor="role-executor">执行器</label>

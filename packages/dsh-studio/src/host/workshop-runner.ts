@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { Role, Workshop } from "../shared/types.js";
+import type { ProviderProfile, Role, Workshop } from "../shared/types.js";
 import type { AgentHandleLike, DispatcherContext } from "./dispatcher.js";
 import type { StudioStore } from "./store.js";
 
@@ -103,7 +103,14 @@ export class WorkshopRunner {
     }
     const settled = await Promise.allSettled(
       context.roles.map((role) =>
-        this.ask(context.workshop, context.project.repoPath, role),
+        this.ask(
+          context.workshop,
+          context.project.repoPath,
+          role,
+          context.providerProfiles.find(
+            (profile) => profile.id === role.providerProfileId,
+          ) ?? null,
+        ),
       ),
     );
     for (const [index, result] of settled.entries()) {
@@ -138,8 +145,9 @@ export class WorkshopRunner {
     workshop: Workshop,
     repoPath: string | null,
     role: Role,
+    profile: ProviderProfile | null,
   ): Promise<WorkshopOutput> {
-    const selection = await this.resolveModel(role);
+    const selection = await this.resolveModel(role, profile);
     let handle: AgentHandleLike | null = null;
     try {
       handle = await this.ctx.agents.create({
@@ -193,10 +201,19 @@ export class WorkshopRunner {
 
   private async resolveModel(
     role: Role,
+    profile: ProviderProfile | null,
   ): Promise<{ provider: string; model: string }> {
     const fallback = this.ctx.agentDefaultModel.currentSelection();
-    const wanted = role.model ?? fallback.model;
+    const wanted =
+      (profile !== null && profile.model !== "" ? profile.model : undefined) ??
+      role.model ??
+      fallback.model;
+    const preferred = profile?.provider ?? "";
     const providers = [...this.ctx.llm.listProviders()].sort((left, right) => {
+      if (preferred !== "") {
+        if (left.id === preferred) return -1;
+        if (right.id === preferred) return 1;
+      }
       const score = (id: string): number =>
         id === "deepseek-account" ? 0 : id === "deepseek-official" ? 2 : 1;
       return score(left.id) - score(right.id);

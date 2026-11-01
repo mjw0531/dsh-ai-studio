@@ -12,6 +12,9 @@ import type {
   ApproveStageGateInput,
   CreateTriggerInput,
   CreateWorkshopInput,
+  CreateProviderProfileInput,
+  UpdateProviderProfileInput,
+  ProviderProfile,
   Workshop,
   CompatibilityInfo,
   CreateDecisionInput,
@@ -325,12 +328,41 @@ function asAgentExecutor(value: unknown): AgentExecutor | undefined {
   );
 }
 
+function asCreateProviderProfile(
+  body: Record<string, unknown>,
+): CreateProviderProfileInput {
+  return {
+    name: asString(body.name, "name"),
+    executor: asAgentExecutor(body.executor),
+    provider: asOptionalString(body.provider, "provider"),
+    model: asOptionalString(body.model, "model"),
+    note: asOptionalString(body.note, "note"),
+  };
+}
+
+function asUpdateProviderProfile(
+  body: Record<string, unknown>,
+): UpdateProviderProfileInput {
+  return {
+    name:
+      body.name === undefined ? undefined : asString(body.name, "name"),
+    executor: asAgentExecutor(body.executor),
+    provider: asOptionalString(body.provider, "provider"),
+    model: asOptionalString(body.model, "model"),
+    note: asOptionalString(body.note, "note"),
+  };
+}
+
 function asCreateRole(body: Record<string, unknown>): CreateRoleInput {
   return {
     name: asString(body.name, "name"),
     title: asOptionalString(body.title, "title"),
     mission: asOptionalString(body.mission, "mission"),
     responsibilities: asStringArray(body.responsibilities, "responsibilities"),
+    providerProfileId:
+      body.providerProfileId === null
+        ? null
+        : asOptionalString(body.providerProfileId, "providerProfileId"),
     model: asOptionalString(body.model, "model") ?? null,
     executor: asAgentExecutor(body.executor),
     tokenBudget: asOptionalBudget(body.tokenBudget, "tokenBudget"),
@@ -911,6 +943,38 @@ export class StudioRouter {
       return;
     }
 
+    if (parsed.pathname === `${API_PREFIX}/provider-profiles`) {
+      this.requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const profile: ProviderProfile =
+        await this.store.createProviderProfile(
+          asCreateProviderProfile(await readJson(req)),
+        );
+      sendJson(res, 201, { ok: true, profile });
+      return;
+    }
+
+    const providerProfileMatch =
+      /^\/studio-api\/provider-profiles\/([^/]+)$/.exec(parsed.pathname);
+    if (providerProfileMatch !== null) {
+      const profileId = decodeSegment(providerProfileMatch[1] ?? "");
+      if (req.method === "PATCH") {
+        assertJsonRequest(req);
+        const profile = await this.store.updateProviderProfile(
+          profileId,
+          asUpdateProviderProfile(await readJson(req)),
+        );
+        sendJson(res, 200, { ok: true, profile });
+        return;
+      }
+      if (req.method === "DELETE") {
+        await this.store.deleteProviderProfile(profileId);
+        sendJson(res, 200, { ok: true });
+        return;
+      }
+      throw new HttpError(405, "method_not_allowed", "Method not allowed");
+    }
+
     if (parsed.pathname === `${API_PREFIX}/workshops`) {
       this.requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
@@ -998,6 +1062,10 @@ export class StudioRouter {
             body.responsibilities,
             "responsibilities",
           ),
+          providerProfileId:
+            body.providerProfileId === null
+              ? null
+              : asOptionalString(body.providerProfileId, "providerProfileId"),
           model: asOptionalString(body.model, "model"),
           executor: asAgentExecutor(body.executor),
           tokenBudget: asOptionalBudget(body.tokenBudget, "tokenBudget"),

@@ -11,6 +11,7 @@ import type {
   IndependentReview,
   Module,
   Project,
+  ProviderProfile,
   Role,
   Task,
 } from "../shared/types.js";
@@ -86,6 +87,7 @@ interface RunContext {
   role: Role;
   project: Project;
   module: Module | null;
+  providerProfile: ProviderProfile | null;
 }
 
 function changedFilesFromDiff(diffStat: string | null): string[] {
@@ -418,14 +420,21 @@ export class AgentDispatcher {
 
   async dispatch(taskId: string): Promise<AgentRun> {
     const context = await this.store.getDispatchContext(taskId);
-    const executor = context.role.executor ?? "dsh";
+    const executor =
+      context.providerProfile?.executor ?? context.role.executor ?? "dsh";
     if (executor !== "dsh" && context.project.repoPath === null) {
       throw new Error("外部执行器只支持已绑定代码仓库的任务");
     }
     const selection =
       executor === "dsh"
-        ? await this.resolveModel(context.role)
-        : { provider: "external", model: context.role.model ?? executor };
+        ? await this.resolveModel(context.role, context.providerProfile)
+        : {
+            provider: "external",
+            model:
+              context.providerProfile?.model ??
+              context.role.model ??
+              executor,
+          };
     const workspace =
       context.project.repoPath === null
         ? undefined
@@ -445,7 +454,10 @@ export class AgentDispatcher {
     if (context.run === null || context.run.workspacePath === null) {
       throw new Error("这个任务还没有可评审的 worktree");
     }
-    const selection = await this.resolveModel(context.role);
+    const selection = await this.resolveModel(
+      context.role,
+      context.providerProfile,
+    );
     const prompt = buildReviewPrompt(context);
     let handle: AgentHandleLike | null = null;
     let output = "";
@@ -519,17 +531,31 @@ export class AgentDispatcher {
     }
   }
 
-  private async resolveModel(role: Role): Promise<{
+  private async resolveModel(
+    role: Role,
+    profile: ProviderProfile | null = null,
+  ): Promise<{
     provider: string;
     model: string;
   }> {
     const fallback = this.ctx.agentDefaultModel.currentSelection();
-    const wanted = role.model ?? fallback.model;
-    const providers = [...this.ctx.llm.listProviders()].sort((left, right) => {
-      const score = (id: string): number =>
-        id === "deepseek-account" ? 0 : id === "deepseek-official" ? 2 : 1;
-      return score(left.id) - score(right.id);
-    });
+    const wanted =
+      (profile?.model !== undefined && profile.model !== ""
+        ? profile.model
+        : undefined) ??
+      role.model ??
+      fallback.model;
+    const preferred = profile?.provider ?? "";
+    const providers = [...this.ctx.llm.listProviders()]
+      .sort((left, right) => {
+        if (preferred !== "") {
+          if (left.id === preferred) return -1;
+          if (right.id === preferred) return 1;
+        }
+        const score = (id: string): number =>
+          id === "deepseek-account" ? 0 : id === "deepseek-official" ? 2 : 1;
+        return score(left.id) - score(right.id);
+      });
     let first: { provider: string; model: string } | null = null;
     for (const provider of providers) {
       const models = await this.ctx.llm.listModels(provider.id);

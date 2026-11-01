@@ -13,8 +13,8 @@ import os from "node:os";
 import path from "node:path";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 21;
-var STUDIO_PLUGIN_VERSION = "2.9.0";
+var STUDIO_SCHEMA_VERSION = 22;
+var STUDIO_PLUGIN_VERSION = "2.10.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -615,8 +615,11 @@ function buildCompany(state, now) {
 function isProject(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.name === "string" && typeof value.description === "string" && (value.tokenBudget === null || typeof value.tokenBudget === "number") && (value.repoPath === null || typeof value.repoPath === "string") && (value.prdPath === null || value.prdPath === void 0 || typeof value.prdPath === "string") && (value.invariantsPath === null || value.invariantsPath === void 0 || typeof value.invariantsPath === "string") && (value.modulesPath === null || value.modulesPath === void 0 || typeof value.modulesPath === "string") && isProjectStage(value.stage) && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
 }
+function isProviderProfile(value) {
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.name === "string" && (value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && typeof value.provider === "string" && typeof value.model === "string" && typeof value.note === "string" && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
+}
 function isRole(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.name === "string" && typeof value.title === "string" && typeof value.mission === "string" && Array.isArray(value.responsibilities) && Array.isArray(value.nonGoals) && Array.isArray(value.decisionRights) && (value.model === null || typeof value.model === "string") && (value.executor === void 0 || value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && (value.tokenBudget === null || typeof value.tokenBudget === "number") && (value.dailyTokenBudget === null || typeof value.dailyTokenBudget === "number");
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.name === "string" && typeof value.title === "string" && typeof value.mission === "string" && Array.isArray(value.responsibilities) && Array.isArray(value.nonGoals) && Array.isArray(value.decisionRights) && (value.providerProfileId === null || typeof value.providerProfileId === "string") && (value.model === null || typeof value.model === "string") && (value.executor === void 0 || value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && (value.tokenBudget === null || typeof value.tokenBudget === "number") && (value.dailyTokenBudget === null || typeof value.dailyTokenBudget === "number");
 }
 function isAgentRunStatus(value) {
   return value === "queued" || value === "running" || value === "succeeded" || value === "failed";
@@ -939,8 +942,19 @@ function migrateState(value) {
   if (state.schemaVersion === 20) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 21,
       workshops: []
+    };
+  }
+  if (state.schemaVersion === 21) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      providerProfiles: [],
+      roles: state.roles.map((role) => ({
+        ...role,
+        providerProfileId: null
+      }))
     };
   }
   return state;
@@ -957,7 +971,7 @@ function assertState(value) {
   if (typeof value.companyName !== "string" || value.companyName.trim() === "") {
     throw new Error("Studio state must contain a companyName");
   }
-  if (!Array.isArray(value.projects) || !Array.isArray(value.stageGates) || !Array.isArray(value.triggers) || !Array.isArray(value.threads) || !Array.isArray(value.workshops) || !Array.isArray(value.roles) || !Array.isArray(value.modules) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.runs) || !Array.isArray(value.branches) || !Array.isArray(value.contractChanges) || !Array.isArray(value.decisions) || !Array.isArray(value.verifications) || !Array.isArray(value.reviews) || !Array.isArray(value.events)) {
+  if (!Array.isArray(value.projects) || !Array.isArray(value.stageGates) || !Array.isArray(value.triggers) || !Array.isArray(value.threads) || !Array.isArray(value.workshops) || !Array.isArray(value.providerProfiles) || !Array.isArray(value.roles) || !Array.isArray(value.modules) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.runs) || !Array.isArray(value.branches) || !Array.isArray(value.contractChanges) || !Array.isArray(value.decisions) || !Array.isArray(value.verifications) || !Array.isArray(value.reviews) || !Array.isArray(value.events)) {
     throw new Error("Studio state collections are missing");
   }
   if (!value.projects.every(isProject)) {
@@ -974,6 +988,9 @@ function assertState(value) {
   }
   if (!value.workshops.every(isWorkshop)) {
     throw new Error("Studio state contains an invalid workshop");
+  }
+  if (!value.providerProfiles.every(isProviderProfile)) {
+    throw new Error("Studio state contains an invalid provider profile");
   }
   if (!value.roles.every(isRole)) {
     throw new Error("Studio state contains an invalid role");
@@ -1098,6 +1115,9 @@ var StudioStore = class {
       const workshops = project === null ? [] : state.workshops.filter((workshop) => workshop.projectId === project.id).sort(
         (left, right) => right.updatedAt.localeCompare(left.updatedAt)
       );
+      const providerProfiles = project === null ? [] : state.providerProfiles.filter(
+        (profile) => profile.projectId === project.id
+      );
       const roles = project === null ? [] : state.roles.filter((role) => role.projectId === project.id);
       const modules = project === null ? [] : state.modules.filter((module) => module.projectId === project.id);
       const tasks = project === null ? [] : state.tasks.filter((task) => task.projectId === project.id);
@@ -1148,6 +1168,7 @@ var StudioStore = class {
         triggers,
         threads,
         workshops,
+        providerProfiles,
         roles,
         modules,
         tasks,
@@ -1178,7 +1199,8 @@ var StudioStore = class {
           gitMerge: false,
           stageGate: true,
           triggerInbox: true,
-          workshop: true
+          workshop: true,
+          providerProfiles: true
         }
       };
     });
@@ -1635,10 +1657,14 @@ var StudioStore = class {
       const roles = state.roles.filter(
         (role) => role.projectId === workshop.projectId && workshop.participantRoleIds.includes(role.id)
       );
+      const providerProfiles = state.providerProfiles.filter(
+        (profile) => profile.projectId === workshop.projectId && roles.some((role) => role.providerProfileId === profile.id)
+      );
       return {
         workshop: structuredClone(workshop),
         project: structuredClone(project),
-        roles: structuredClone(roles)
+        roles: structuredClone(roles),
+        providerProfiles: structuredClone(providerProfiles)
       };
     });
   }
@@ -1853,11 +1879,15 @@ var StudioStore = class {
       const module = task.module === null ? void 0 : state.modules.find(
         (item) => item.projectId === task.projectId && item.name === task.module
       );
+      const providerProfile = role.providerProfileId === null ? null : state.providerProfiles.find(
+        (profile) => profile.id === role.providerProfileId && profile.projectId === project.id
+      ) ?? null;
       return {
         task: structuredClone(task),
         role: structuredClone(role),
         project: structuredClone(project),
-        module: module === void 0 ? null : structuredClone(module)
+        module: module === void 0 ? null : structuredClone(module),
+        providerProfile: providerProfile === null ? null : structuredClone(providerProfile)
       };
     });
   }
@@ -1893,12 +1923,16 @@ var StudioStore = class {
       const verification = [...state.verifications].filter((item) => item.taskId === taskId).sort(
         (left, right) => right.createdAt.localeCompare(left.createdAt)
       )[0];
+      const providerProfile = role.providerProfileId === null ? null : state.providerProfiles.find(
+        (profile) => profile.id === role.providerProfileId && profile.projectId === project.id
+      ) ?? null;
       return {
         task: structuredClone(task),
         role: structuredClone(role),
         project: structuredClone(project),
         run: run === void 0 ? null : structuredClone(run),
-        verification: verification === void 0 ? null : structuredClone(verification)
+        verification: verification === void 0 ? null : structuredClone(verification),
+        providerProfile: providerProfile === null ? null : structuredClone(providerProfile)
       };
     });
   }
@@ -2850,6 +2884,91 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       return structuredClone(module);
     });
   }
+  async createProviderProfile(input) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const project = this.pickProject(state, void 0);
+      if (project === null) {
+        throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
+      }
+      const at = nowIso(this.now);
+      const profile = {
+        id: newId("provider"),
+        projectId: project.id,
+        name: requiredText(input.name, "name", 80),
+        executor: input.executor === "claude-code" || input.executor === "codex" ? input.executor : "dsh",
+        provider: optionalText(input.provider, "provider", 120),
+        model: optionalText(input.model, "model", 160),
+        note: optionalText(input.note, "note", 500),
+        createdAt: at,
+        updatedAt: at
+      };
+      state.providerProfiles.push(profile);
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "provider.created",
+        at,
+        projectId: project.id,
+        payload: { profileId: profile.id, name: profile.name }
+      });
+      await this.save();
+      return structuredClone(profile);
+    });
+  }
+  async updateProviderProfile(profileId, input) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const profile = this.findProviderProfile(state, profileId);
+      if (input.name !== void 0) {
+        profile.name = requiredText(input.name, "name", 80);
+      }
+      if (input.executor !== void 0) {
+        profile.executor = input.executor === "claude-code" || input.executor === "codex" ? input.executor : "dsh";
+      }
+      if (input.provider !== void 0) {
+        profile.provider = optionalText(input.provider, "provider", 120);
+      }
+      if (input.model !== void 0) {
+        profile.model = optionalText(input.model, "model", 160);
+      }
+      if (input.note !== void 0) {
+        profile.note = optionalText(input.note, "note", 500);
+      }
+      profile.updatedAt = nowIso(this.now);
+      state.updatedAt = profile.updatedAt;
+      await this.save();
+      return structuredClone(profile);
+    });
+  }
+  async deleteProviderProfile(profileId) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const profile = this.findProviderProfile(state, profileId);
+      if (state.roles.some((role) => role.providerProfileId === profileId)) {
+        throw new StudioStoreError(
+          "provider_profile_in_use",
+          "\u8FD8\u6709\u89D2\u8272\u5728\u4F7F\u7528\u8FD9\u4E2A Provider Profile\uFF0C\u4E0D\u80FD\u5220\u9664",
+          409
+        );
+      }
+      state.providerProfiles = state.providerProfiles.filter(
+        (item) => item.id !== profile.id
+      );
+      state.updatedAt = nowIso(this.now);
+      await this.save();
+    });
+  }
+  async getRoleProvider(roleId) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const role = state.roles.find((item) => item.id === roleId);
+      if (role === void 0 || role.providerProfileId === null) return null;
+      const profile = state.providerProfiles.find(
+        (item) => item.id === role.providerProfileId && item.projectId === role.projectId
+      );
+      return profile === void 0 ? null : structuredClone(profile);
+    });
+  }
   async createRole(input) {
     return this.runExclusive(async () => {
       const state = this.requireState();
@@ -2858,6 +2977,17 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
       }
       const at = nowIso(this.now);
+      const providerProfileId = optionalText(input.providerProfileId, "providerProfileId", 120) || null;
+      if (providerProfileId !== null) {
+        const profile = this.findProviderProfile(state, providerProfileId);
+        if (profile.projectId !== project.id) {
+          throw new StudioStoreError(
+            "provider_profile_not_found",
+            "Provider Profile \u4E0D\u5C5E\u4E8E\u5F53\u524D\u9879\u76EE",
+            404
+          );
+        }
+      }
       const role = {
         id: newId("role"),
         projectId: project.id,
@@ -2867,6 +2997,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         responsibilities: textList(input.responsibilities, "responsibilities"),
         nonGoals: textList(input.nonGoals, "nonGoals"),
         decisionRights: textList(input.decisionRights, "decisionRights"),
+        providerProfileId,
         model: optionalText(input.model, "model", 120) || null,
         executor: input.executor === "claude-code" || input.executor === "codex" ? input.executor : "dsh",
         tokenBudget: optionalTokenBudget(input.tokenBudget, "tokenBudget"),
@@ -2916,6 +3047,20 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       }
       if (input.decisionRights !== void 0) {
         role.decisionRights = textList(input.decisionRights, "decisionRights");
+      }
+      if (input.providerProfileId !== void 0) {
+        const nextProfileId = optionalText(input.providerProfileId, "providerProfileId", 120) || null;
+        if (nextProfileId !== null) {
+          const profile = this.findProviderProfile(state, nextProfileId);
+          if (profile.projectId !== role.projectId) {
+            throw new StudioStoreError(
+              "provider_profile_not_found",
+              "Provider Profile \u4E0D\u5C5E\u4E8E\u5F53\u524D\u9879\u76EE",
+              404
+            );
+          }
+        }
+        role.providerProfileId = nextProfileId;
       }
       if (input.model !== void 0) {
         role.model = optionalText(input.model, "model", 120) || null;
@@ -3766,6 +3911,19 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       404
     );
   }
+  findProviderProfile(state, profileId) {
+    const profile = state.providerProfiles.find(
+      (item) => item.id === profileId
+    );
+    if (profile === void 0) {
+      throw new StudioStoreError(
+        "provider_profile_not_found",
+        "Provider Profile \u4E0D\u5B58\u5728",
+        404
+      );
+    }
+    return profile;
+  }
   findWorkshop(state, workshopId) {
     const workshop = state.workshops.find((item) => item.id === workshopId);
     if (workshop === void 0) {
@@ -3858,6 +4016,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       responsibilities,
       nonGoals: [],
       decisionRights,
+      providerProfileId: null,
       model: null,
       executor: "dsh",
       tokenBudget: null,
@@ -3999,6 +4158,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       triggers: [],
       threads: [],
       workshops: [],
+      providerProfiles: [],
       roles,
       modules: [],
       tasks,

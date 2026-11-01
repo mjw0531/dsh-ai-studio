@@ -49,6 +49,8 @@ import type {
   CreateTriggerInput,
   CreateWorkshopInput,
   AddWorkshopNoteInput,
+  CreateProviderProfileInput,
+  UpdateProviderProfileInput,
   AcceptTriggerInput,
   ApproveStageGateInput,
   EvidenceItem,
@@ -57,6 +59,7 @@ import type {
   OwnerNeed,
   Project,
   ProjectStage,
+  ProviderProfile,
   Role,
   RoleLoadSummary,
   StageArtifact,
@@ -766,6 +769,23 @@ function isProject(value: unknown): value is Project {
   );
 }
 
+function isProviderProfile(value: unknown): value is ProviderProfile {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.projectId === "string" &&
+    typeof value.name === "string" &&
+    (value.executor === "dsh" ||
+      value.executor === "claude-code" ||
+      value.executor === "codex") &&
+    typeof value.provider === "string" &&
+    typeof value.model === "string" &&
+    typeof value.note === "string" &&
+    typeof value.createdAt === "string" &&
+    typeof value.updatedAt === "string"
+  );
+}
+
 function isRole(value: unknown): value is Role {
   return (
     isRecord(value) &&
@@ -777,6 +797,8 @@ function isRole(value: unknown): value is Role {
     Array.isArray(value.responsibilities) &&
     Array.isArray(value.nonGoals) &&
     Array.isArray(value.decisionRights) &&
+    (value.providerProfileId === null ||
+      typeof value.providerProfileId === "string") &&
     (value.model === null || typeof value.model === "string") &&
     (value.executor === undefined ||
       value.executor === "dsh" ||
@@ -1443,8 +1465,19 @@ function migrateState(value: unknown): StudioState {
   if (state.schemaVersion === 20) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 21,
       workshops: [],
+    };
+  }
+  if (state.schemaVersion === 21) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      providerProfiles: [],
+      roles: state.roles.map((role) => ({
+        ...role,
+        providerProfileId: null,
+      })),
     };
   }
   return state;
@@ -1468,6 +1501,7 @@ function assertState(value: unknown): asserts value is StudioState {
     !Array.isArray(value.triggers) ||
     !Array.isArray(value.threads) ||
     !Array.isArray(value.workshops) ||
+    !Array.isArray(value.providerProfiles) ||
     !Array.isArray(value.roles) ||
     !Array.isArray(value.modules) ||
     !Array.isArray(value.tasks) ||
@@ -1496,6 +1530,9 @@ function assertState(value: unknown): asserts value is StudioState {
   }
   if (!value.workshops.every(isWorkshop)) {
     throw new Error("Studio state contains an invalid workshop");
+  }
+  if (!value.providerProfiles.every(isProviderProfile)) {
+    throw new Error("Studio state contains an invalid provider profile");
   }
   if (!value.roles.every(isRole)) {
     throw new Error("Studio state contains an invalid role");
@@ -1645,6 +1682,11 @@ export class StudioStore {
             .sort((left, right) =>
               right.updatedAt.localeCompare(left.updatedAt),
             );
+      const providerProfiles = project === null
+        ? []
+        : state.providerProfiles.filter(
+            (profile) => profile.projectId === project.id,
+          );
       const roles = project === null
         ? []
         : state.roles.filter((role) => role.projectId === project.id);
@@ -1728,6 +1770,7 @@ export class StudioStore {
         triggers,
         threads,
         workshops,
+        providerProfiles,
         roles,
         modules,
         tasks,
@@ -1759,6 +1802,7 @@ export class StudioStore {
           stageGate: true,
           triggerInbox: true,
           workshop: true,
+          providerProfiles: true,
         },
       };
     });
@@ -2275,6 +2319,7 @@ export class StudioStore {
     workshop: Workshop;
     project: Project;
     roles: Role[];
+    providerProfiles: ProviderProfile[];
   }> {
     return this.runExclusive(async () => {
       const state = this.requireState();
@@ -2285,10 +2330,16 @@ export class StudioStore {
           role.projectId === workshop.projectId &&
           workshop.participantRoleIds.includes(role.id),
       );
+      const providerProfiles = state.providerProfiles.filter(
+        (profile) =>
+          profile.projectId === workshop.projectId &&
+          roles.some((role) => role.providerProfileId === profile.id),
+      );
       return {
         workshop: structuredClone(workshop),
         project: structuredClone(project),
         roles: structuredClone(roles),
+        providerProfiles: structuredClone(providerProfiles),
       };
     });
   }
@@ -2492,6 +2543,7 @@ export class StudioStore {
     role: Role;
     project: Project;
     module: Module | null;
+    providerProfile: ProviderProfile | null;
   }> {
     return this.runExclusive(async () => {
       const state = this.requireState();
@@ -2540,11 +2592,21 @@ export class StudioStore {
                 item.projectId === task.projectId &&
                 item.name === task.module,
             );
+      const providerProfile =
+        role.providerProfileId === null
+          ? null
+          : (state.providerProfiles.find(
+              (profile) =>
+                profile.id === role.providerProfileId &&
+                profile.projectId === project.id,
+            ) ?? null);
       return {
         task: structuredClone(task),
         role: structuredClone(role),
         project: structuredClone(project),
         module: module === undefined ? null : structuredClone(module),
+        providerProfile:
+          providerProfile === null ? null : structuredClone(providerProfile),
       };
     });
   }
@@ -2555,6 +2617,7 @@ export class StudioStore {
     project: Project;
     run: AgentRun | null;
     verification: Verification | null;
+    providerProfile: ProviderProfile | null;
   }> {
     return this.runExclusive(async () => {
       const state = this.requireState();
@@ -2592,6 +2655,14 @@ export class StudioStore {
         .sort((left, right) =>
           right.createdAt.localeCompare(left.createdAt),
         )[0];
+      const providerProfile =
+        role.providerProfileId === null
+          ? null
+          : (state.providerProfiles.find(
+              (profile) =>
+                profile.id === role.providerProfileId &&
+                profile.projectId === project.id,
+            ) ?? null);
       return {
         task: structuredClone(task),
         role: structuredClone(role),
@@ -2601,6 +2672,8 @@ export class StudioStore {
           verification === undefined
             ? null
             : structuredClone(verification),
+        providerProfile:
+          providerProfile === null ? null : structuredClone(providerProfile),
       };
     });
   }
@@ -3729,6 +3802,110 @@ export class StudioStore {
     });
   }
 
+  async createProviderProfile(
+    input: CreateProviderProfileInput,
+  ): Promise<ProviderProfile> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const project = this.pickProject(state, undefined);
+      if (project === null) {
+        throw new StudioStoreError("project_required", "请先创建一个项目");
+      }
+      const at = nowIso(this.now);
+      const profile: ProviderProfile = {
+        id: newId("provider"),
+        projectId: project.id,
+        name: requiredText(input.name, "name", 80),
+        executor:
+          input.executor === "claude-code" || input.executor === "codex"
+            ? input.executor
+            : "dsh",
+        provider: optionalText(input.provider, "provider", 120),
+        model: optionalText(input.model, "model", 160),
+        note: optionalText(input.note, "note", 500),
+        createdAt: at,
+        updatedAt: at,
+      };
+      state.providerProfiles.push(profile);
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "provider.created",
+        at,
+        projectId: project.id,
+        payload: { profileId: profile.id, name: profile.name },
+      });
+      await this.save();
+      return structuredClone(profile);
+    });
+  }
+
+  async updateProviderProfile(
+    profileId: string,
+    input: UpdateProviderProfileInput,
+  ): Promise<ProviderProfile> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const profile = this.findProviderProfile(state, profileId);
+      if (input.name !== undefined) {
+        profile.name = requiredText(input.name, "name", 80);
+      }
+      if (input.executor !== undefined) {
+        profile.executor =
+          input.executor === "claude-code" || input.executor === "codex"
+            ? input.executor
+            : "dsh";
+      }
+      if (input.provider !== undefined) {
+        profile.provider = optionalText(input.provider, "provider", 120);
+      }
+      if (input.model !== undefined) {
+        profile.model = optionalText(input.model, "model", 160);
+      }
+      if (input.note !== undefined) {
+        profile.note = optionalText(input.note, "note", 500);
+      }
+      profile.updatedAt = nowIso(this.now);
+      state.updatedAt = profile.updatedAt;
+      await this.save();
+      return structuredClone(profile);
+    });
+  }
+
+  async deleteProviderProfile(profileId: string): Promise<void> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const profile = this.findProviderProfile(state, profileId);
+      if (
+        state.roles.some((role) => role.providerProfileId === profileId)
+      ) {
+        throw new StudioStoreError(
+          "provider_profile_in_use",
+          "还有角色在使用这个 Provider Profile，不能删除",
+          409,
+        );
+      }
+      state.providerProfiles = state.providerProfiles.filter(
+        (item) => item.id !== profile.id,
+      );
+      state.updatedAt = nowIso(this.now);
+      await this.save();
+    });
+  }
+
+  async getRoleProvider(roleId: string): Promise<ProviderProfile | null> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const role = state.roles.find((item) => item.id === roleId);
+      if (role === undefined || role.providerProfileId === null) return null;
+      const profile = state.providerProfiles.find(
+        (item) =>
+          item.id === role.providerProfileId &&
+          item.projectId === role.projectId,
+      );
+      return profile === undefined ? null : structuredClone(profile);
+    });
+  }
+
   async createRole(input: CreateRoleInput): Promise<Role> {
     return this.runExclusive(async () => {
       const state = this.requireState();
@@ -3737,6 +3914,19 @@ export class StudioStore {
         throw new StudioStoreError("project_required", "请先创建一个项目");
       }
       const at = nowIso(this.now);
+      const providerProfileId =
+        optionalText(input.providerProfileId, "providerProfileId", 120) ||
+        null;
+      if (providerProfileId !== null) {
+        const profile = this.findProviderProfile(state, providerProfileId);
+        if (profile.projectId !== project.id) {
+          throw new StudioStoreError(
+            "provider_profile_not_found",
+            "Provider Profile 不属于当前项目",
+            404,
+          );
+        }
+      }
       const role: Role = {
         id: newId("role"),
         projectId: project.id,
@@ -3746,6 +3936,7 @@ export class StudioStore {
         responsibilities: textList(input.responsibilities, "responsibilities"),
         nonGoals: textList(input.nonGoals, "nonGoals"),
         decisionRights: textList(input.decisionRights, "decisionRights"),
+        providerProfileId,
         model: optionalText(input.model, "model", 120) || null,
         executor:
           input.executor === "claude-code" || input.executor === "codex"
@@ -3802,6 +3993,22 @@ export class StudioStore {
       }
       if (input.decisionRights !== undefined) {
         role.decisionRights = textList(input.decisionRights, "decisionRights");
+      }
+      if (input.providerProfileId !== undefined) {
+        const nextProfileId =
+          optionalText(input.providerProfileId, "providerProfileId", 120) ||
+          null;
+        if (nextProfileId !== null) {
+          const profile = this.findProviderProfile(state, nextProfileId);
+          if (profile.projectId !== role.projectId) {
+            throw new StudioStoreError(
+              "provider_profile_not_found",
+              "Provider Profile 不属于当前项目",
+              404,
+            );
+          }
+        }
+        role.providerProfileId = nextProfileId;
       }
       if (input.model !== undefined) {
         role.model = optionalText(input.model, "model", 120) || null;
@@ -4783,6 +4990,23 @@ export class StudioStore {
     );
   }
 
+  private findProviderProfile(
+    state: StudioState,
+    profileId: string,
+  ): ProviderProfile {
+    const profile = state.providerProfiles.find(
+      (item) => item.id === profileId,
+    );
+    if (profile === undefined) {
+      throw new StudioStoreError(
+        "provider_profile_not_found",
+        "Provider Profile 不存在",
+        404,
+      );
+    }
+    return profile;
+  }
+
   private findWorkshop(state: StudioState, workshopId: string): Workshop {
     const workshop = state.workshops.find((item) => item.id === workshopId);
     if (workshop === undefined) {
@@ -4907,6 +5131,7 @@ export class StudioStore {
       responsibilities,
       nonGoals: [],
       decisionRights,
+      providerProfileId: null,
       model: null,
       executor: "dsh",
       tokenBudget: null,
@@ -5061,6 +5286,7 @@ export class StudioStore {
       triggers: [],
       threads: [],
       workshops: [],
+      providerProfiles: [],
       roles,
       modules: [],
       tasks,

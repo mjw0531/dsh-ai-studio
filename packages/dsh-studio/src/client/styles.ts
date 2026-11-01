@@ -652,6 +652,43 @@ export const studioCss = `
   font-size: 11px;
 }
 
+.studio-provider-panel { margin-bottom: 12px; }
+.studio-provider-form {
+  display: grid;
+  grid-template-columns: 1.2fr 130px 1fr 1fr auto;
+  gap: 6px;
+  margin: 8px 0;
+}
+.studio-provider-form input,
+.studio-provider-form select {
+  min-width: 0;
+  height: 30px;
+  width: 100%;
+  padding: 0 8px;
+  border: 1px solid var(--st-border);
+  border-radius: 6px;
+  color: var(--st-text);
+  background: var(--st-panel);
+  font: inherit;
+  font-size: 11px;
+}
+.studio-provider-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.studio-provider-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 7px 9px;
+  border: 1px solid var(--st-border);
+  border-radius: 7px;
+  background: var(--st-panel-2);
+  font-size: 11px;
+}
+
 .studio-needs {
   display: flex;
   flex-direction: column;

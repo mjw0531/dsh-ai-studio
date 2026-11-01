@@ -8,6 +8,7 @@ Studio 是 DSH 的即装即用工作台插件。改领域词、工作流或接�
 - **阶段门禁**：绑定代码仓库的项目只有 `Project.stage === "development"` 才能派单；阶段只能由 Owner 通过 StageGate 推进。不允许静默跳过；豁免必须写理由并留下审计记录。旧项目迁移默认 `development`。从 `prototype` 进入 `development` 前必须登记 `demo` 产物，除非有 Owner 豁免理由。
 - **触发器门禁**：Trigger 只进入收件箱，必须由人确认才能转成 Task；同一 `source + externalId` 去重，同 `threadKey` 归入同一 Thread。不要自动派单、自动 merge 或把外部事件直接当验收结论。
 - **研讨会门禁**：Workshop 只记录参与者独立意见、汇总和 Owner 决策；AI 独立评审只是意见，不能自动 merge，也不能把 AI 共识当成 Owner 决策。评审失败必须记录为缺失意见，不能视为同意。
+- **Provider Profile 门禁**：Profile 只保存执行配置，不保存密钥；被角色绑定的 Profile 不能删除；外部执行器仍只能用于已绑定仓库的任务，并继续走 Host 验证和独立评审。
 - **合并门禁**：只有 `done` 任务能提交合并提案；提案必须经过 `review → approved → merged`。`merged` 是治理记录，不是 Git 事实；不要在未经明确设计的情况下自动执行 `git merge`。打回提案会把任务退回 `running`。
 - **v2.5.0 边界**：Host 只依赖 `ctx.webServer` 的路由/结构化 index injection、`ctx.connection.admit()`、公开的 `ctx.agents` / `ctx.agentPresets` / `ctx.llm` / `ctx.tokenMeter`；Client 只依赖 `ctx.slots`、`ctx.layout` 和平台 React。不要引入 DSH 私有 Remote 代码生成器，也不要把 `features.agentExecution` / `features.gitMerge` 改成 true 来假装功能已接入。外部执行器只允许在 worktree 内、以 headless 模式运行，仍必须走 Host 验证和独立评审。
 - **Agent 回执门禁**：Agent 只能把任务推进到 `review`；回执必须包含非空 `summary` 和至少一条 `evidence`，否则 Run 记为 failed、任务退回 `ready`。

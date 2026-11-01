@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 21;
-export const STUDIO_PLUGIN_VERSION = "2.9.0";
+export const STUDIO_SCHEMA_VERSION = 22;
+export const STUDIO_PLUGIN_VERSION = "2.10.0";
 
 export type TaskStatus =
   | "backlog"
@@ -231,6 +231,30 @@ export const AGENT_EXECUTOR_LABELS: Record<AgentExecutor, string> = {
   codex: "Codex CLI",
 };
 
+export interface ProviderProfile {
+  id: string;
+  projectId: string;
+  name: string;
+  executor: AgentExecutor;
+  /** DSH provider id; empty means auto-select. */
+  provider: string;
+  /** Exact model id; empty means the provider default. */
+  model: string;
+  note: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateProviderProfileInput {
+  name: string;
+  executor?: AgentExecutor;
+  provider?: string;
+  model?: string;
+  note?: string;
+}
+
+export type UpdateProviderProfileInput = Partial<CreateProviderProfileInput>;
+
 export interface Role {
   id: string;
   projectId: string;
@@ -240,6 +264,8 @@ export interface Role {
   responsibilities: string[];
   nonGoals: string[];
   decisionRights: string[];
+  /** Named provider profile; null keeps the inline model/executor fields. */
+  providerProfileId: string | null;
   /** Exact model id, or null to inherit the deployment default. */
   model: string | null;
   /** Which runtime executes this role. */
@@ -490,6 +516,7 @@ export interface StudioState {
   triggers: Trigger[];
   threads: Thread[];
   workshops: Workshop[];
+  providerProfiles: ProviderProfile[];
   roles: Role[];
   modules: Module[];
   tasks: Task[];
@@ -622,6 +649,7 @@ export interface BootstrapResponse {
   triggers: Trigger[];
   threads: Thread[];
   workshops: Workshop[];
+  providerProfiles: ProviderProfile[];
   roles: Role[];
   modules: Module[];
   tasks: Task[];
@@ -653,6 +681,7 @@ export interface BootstrapResponse {
     stageGate: boolean;
     triggerInbox: boolean;
     workshop: boolean;
+    providerProfiles: boolean;
   };
 }
 
@@ -828,6 +857,7 @@ export interface CreateRoleInput {
   responsibilities?: string[];
   nonGoals?: string[];
   decisionRights?: string[];
+  providerProfileId?: string | null;
   model?: string | null;
   executor?: AgentExecutor;
   tokenBudget?: number | null;

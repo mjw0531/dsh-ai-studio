@@ -2,7 +2,7 @@
 
 一套构建在 **DeepSeek Harness（DSH）** 之上的多角色 AI Studio：把「一个聊天窗口」变成一间**有工作室仪表盘、Agent 派单、token 预算、决策台、支线/契约冲突、worktree 代码执行、项目、角色、任务、验收、合并治理**的工作室。
 
-> 当前状态：**v2.9.0 可运行**。已完成工作室级 Owner Dashboard、Agent 派单与结构化回执、角色模型/token 预算、DSH token 计量、决策台、支线/契约冲突自动升级、git worktree 代码执行与自动提交、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、ADR 草稿与落盘、人工触发 Git merge 与合并后回归、合并失败升级与回滚、改修票诊断/计划门禁、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、Claude Code / Codex CLI 执行器、项目包导出、数据导出/导入恢复、项目/角色/任务/验收/证据持久化、合并治理，并在 DSH `0.2.1-rc.2` 和真实外部仓库上完成派单→验证→评审→merge→回归的 dogfood。
+> 当前状态：**v2.10.0 可运行**。已完成工作室级 Owner Dashboard、Agent 派单与结构化回执、角色模型/token 预算、DSH token 计量、决策台、支线/契约冲突自动升级、git worktree 代码执行与自动提交、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、ADR 草稿与落盘、人工触发 Git merge 与合并后回归、合并失败升级与回滚、改修票诊断/计划门禁、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、Claude Code / Codex CLI 执行器、项目包导出、数据导出/导入恢复、项目/角色/任务/验收/证据持久化、合并治理，并在 DSH `0.2.1-rc.2` 和真实外部仓库上完成派单→验证→评审→merge→回归的 dogfood。
 
 ## 现在能做什么
 
@@ -39,6 +39,7 @@
 - **2.7 触发收件箱**：外部事件先进入 Trigger Inbox；同一 `threadKey` 归入 Thread，后续事件可关联到已有任务；由人确认转任务，不自动派单或合并。
 - **2.8 研讨会**：记录各角色的独立意见、反对、风险和推荐；2.8.1 增加 AI 独立评审，形成汇总与 Owner 决策；不自动合并。
 - **2.9 原型 Demo 门禁**：从原型验证进入持续开发前，必须登记 `demo` 产物（路径、URL 或 playtest 记录），或写 Owner 豁免理由。
+- **2.10 Provider Profiles**：角色可以绑定命名执行配置（DSH / Claude Code / Codex + provider + model），派单、独立评审和 Workshop 共用同一解析。
 - **Agent 分析派单**：Task Room 把任务派给负责人角色，Agent 返回结构化回执；回执缺 `summary`/`evidence` 时任务退回可开始，不能进入验收。
 - **薪资与预算**：角色配置模型、单任务/每日 token 预算；项目配置总 token 预算。
 - **独立工作台页面**：DSH 侧栏点击「工作台」，进入公司仪表盘，不占用聊天会话。
@@ -201,8 +202,9 @@ dsh --profile web --no-open --port 0
 - **v2.7.0**：Trigger Inbox / Thread，外部事件先进入收件箱，由人决定转为任务；同 Thread 事件关联到已有任务，不自动派单/合并。
 - **v2.8.0**：Workshop Room，记录各角色独立意见、汇总和 Owner 决策。
 - **v2.8.1**：Workshop AI 独立评审，每个参与角色独立调用 DSH Agent；汇总和 Owner 决策仍由人确认，不自动合并。
-- **v2.9.0（当前）**：原型 Demo 门禁；从原型验证进入持续开发前，必须登记 `demo` 产物，或写 Owner 豁免理由。
-- **下一步 v2.10（规划）**：Provider Profiles，把 Claude Code / Codex / 外部模型做成可配置执行器。
+- **v2.9.0**：原型 Demo 门禁；从原型验证进入持续开发前，必须登记 `demo` 产物，或写 Owner 豁免理由。
+- **v2.10.0（当前）**：Provider Profiles；角色可以绑定命名执行配置（executor/provider/model），派单与 Workshop 共用同一解析。
+- **下一步 v2.11（规划）**：Provider 健康检查 / 可观测性，或 Prototype 自动 Demo 运行。
 - **v1.0**：用工作台完成一个完整垂直切片，再抽象为可复用插件。
 
 升级、备份与兼容性见 [兼容性与安装](docs/04-兼容性与安装.md)。
