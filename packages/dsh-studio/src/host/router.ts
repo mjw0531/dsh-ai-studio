@@ -6,10 +6,12 @@ import {
 } from "../shared/types.js";
 import type {
   AcceptTriggerInput,
+  AddWorkshopNoteInput,
   AgentRun,
   ApiErrorBody,
   ApproveStageGateInput,
   CreateTriggerInput,
+  CreateWorkshopInput,
   CompatibilityInfo,
   CreateDecisionInput,
   CreateMergeProposalInput,
@@ -535,6 +537,35 @@ function asAcceptTrigger(body: Record<string, unknown>): AcceptTriggerInput {
   };
 }
 
+function asCreateWorkshop(
+  body: Record<string, unknown>,
+): CreateWorkshopInput {
+  return {
+    title: asString(body.title, "title"),
+    topic: asOptionalString(body.topic, "topic"),
+    stage:
+      body.stage === undefined
+        ? undefined
+        : asProjectStage(body.stage),
+    participantRoleIds: asStringArray(
+      body.participantRoleIds,
+      "participantRoleIds",
+    ),
+  };
+}
+
+function asWorkshopNote(
+  body: Record<string, unknown>,
+): AddWorkshopNoteInput {
+  return {
+    roleId: asString(body.roleId, "roleId"),
+    summary: asString(body.summary, "summary"),
+    objections: asStringArray(body.objections, "objections"),
+    risks: asStringArray(body.risks, "risks"),
+    recommendation: asOptionalString(body.recommendation, "recommendation"),
+  };
+}
+
 function asProjectStage(value: unknown): ProjectStage {
   if (isProjectStage(value)) return value;
   throw new HttpError(
@@ -873,6 +904,57 @@ export class StudioRouter {
         asNote(body) ?? "",
       );
       sendJson(res, 200, { ok: true, trigger });
+      return;
+    }
+
+    if (parsed.pathname === `${API_PREFIX}/workshops`) {
+      this.requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const workshop = await this.store.createWorkshop(
+        asCreateWorkshop(await readJson(req)),
+      );
+      sendJson(res, 201, { ok: true, workshop });
+      return;
+    }
+
+    const workshopNote =
+      /^\/studio-api\/workshops\/([^/]+)\/notes$/.exec(parsed.pathname);
+    if (workshopNote !== null) {
+      this.requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const workshop = await this.store.addWorkshopNote(
+        decodeSegment(workshopNote[1] ?? ""),
+        asWorkshopNote(await readJson(req)),
+      );
+      sendJson(res, 200, { ok: true, workshop });
+      return;
+    }
+
+    const workshopSynthesize =
+      /^\/studio-api\/workshops\/([^/]+)\/synthesize$/.exec(parsed.pathname);
+    if (workshopSynthesize !== null) {
+      this.requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const body = await readJson(req);
+      const workshop = await this.store.synthesizeWorkshop(
+        decodeSegment(workshopSynthesize[1] ?? ""),
+        asString(body.synthesis, "synthesis"),
+      );
+      sendJson(res, 200, { ok: true, workshop });
+      return;
+    }
+
+    const workshopDecide =
+      /^\/studio-api\/workshops\/([^/]+)\/decide$/.exec(parsed.pathname);
+    if (workshopDecide !== null) {
+      this.requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const body = await readJson(req);
+      const workshop = await this.store.decideWorkshop(
+        decodeSegment(workshopDecide[1] ?? ""),
+        asString(body.decision, "decision"),
+      );
+      sendJson(res, 200, { ok: true, workshop });
       return;
     }
 

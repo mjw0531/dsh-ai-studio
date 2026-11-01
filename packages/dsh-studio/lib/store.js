@@ -13,8 +13,8 @@ import os from "node:os";
 import path from "node:path";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 20;
-var STUDIO_PLUGIN_VERSION = "2.7.0";
+var STUDIO_SCHEMA_VERSION = 21;
+var STUDIO_PLUGIN_VERSION = "2.8.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -666,6 +666,15 @@ function isTrigger(value) {
 function isThread(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.key === "string" && isTriggerSource(value.source) && typeof value.title === "string" && (value.taskId === null || typeof value.taskId === "string") && Array.isArray(value.triggerIds) && value.triggerIds.every((item) => typeof item === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
 }
+function isWorkshopStatus(value) {
+  return value === "collecting" || value === "synthesized" || value === "decided" || value === "cancelled";
+}
+function isWorkshopNote(value) {
+  return isRecord(value) && typeof value.id === "string" && typeof value.roleId === "string" && typeof value.roleName === "string" && typeof value.summary === "string" && Array.isArray(value.objections) && value.objections.every((item) => typeof item === "string") && Array.isArray(value.risks) && value.risks.every((item) => typeof item === "string") && typeof value.recommendation === "string" && typeof value.createdAt === "string";
+}
+function isWorkshop(value) {
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.topic === "string" && isProjectStage(value.stage) && isWorkshopStatus(value.status) && Array.isArray(value.participantRoleIds) && value.participantRoleIds.every((item) => typeof item === "string") && Array.isArray(value.notes) && value.notes.every(isWorkshopNote) && typeof value.synthesis === "string" && typeof value.decision === "string" && typeof value.decidedBy === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
+}
 function isBranchStatus(value) {
   return value === "open" || value === "review" || value === "merged" || value === "abandoned";
 }
@@ -922,9 +931,16 @@ function migrateState(value) {
   if (state.schemaVersion === 19) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 20,
       triggers: [],
       threads: []
+    };
+  }
+  if (state.schemaVersion === 20) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      workshops: []
     };
   }
   return state;
@@ -941,7 +957,7 @@ function assertState(value) {
   if (typeof value.companyName !== "string" || value.companyName.trim() === "") {
     throw new Error("Studio state must contain a companyName");
   }
-  if (!Array.isArray(value.projects) || !Array.isArray(value.stageGates) || !Array.isArray(value.triggers) || !Array.isArray(value.threads) || !Array.isArray(value.roles) || !Array.isArray(value.modules) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.runs) || !Array.isArray(value.branches) || !Array.isArray(value.contractChanges) || !Array.isArray(value.decisions) || !Array.isArray(value.verifications) || !Array.isArray(value.reviews) || !Array.isArray(value.events)) {
+  if (!Array.isArray(value.projects) || !Array.isArray(value.stageGates) || !Array.isArray(value.triggers) || !Array.isArray(value.threads) || !Array.isArray(value.workshops) || !Array.isArray(value.roles) || !Array.isArray(value.modules) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.runs) || !Array.isArray(value.branches) || !Array.isArray(value.contractChanges) || !Array.isArray(value.decisions) || !Array.isArray(value.verifications) || !Array.isArray(value.reviews) || !Array.isArray(value.events)) {
     throw new Error("Studio state collections are missing");
   }
   if (!value.projects.every(isProject)) {
@@ -955,6 +971,9 @@ function assertState(value) {
   }
   if (!value.threads.every(isThread)) {
     throw new Error("Studio state contains an invalid thread");
+  }
+  if (!value.workshops.every(isWorkshop)) {
+    throw new Error("Studio state contains an invalid workshop");
   }
   if (!value.roles.every(isRole)) {
     throw new Error("Studio state contains an invalid role");
@@ -1076,6 +1095,9 @@ var StudioStore = class {
         (left, right) => right.createdAt.localeCompare(left.createdAt)
       );
       const threads = project === null ? [] : state.threads.filter((thread) => thread.projectId === project.id);
+      const workshops = project === null ? [] : state.workshops.filter((workshop) => workshop.projectId === project.id).sort(
+        (left, right) => right.updatedAt.localeCompare(left.updatedAt)
+      );
       const roles = project === null ? [] : state.roles.filter((role) => role.projectId === project.id);
       const modules = project === null ? [] : state.modules.filter((module) => module.projectId === project.id);
       const tasks = project === null ? [] : state.tasks.filter((task) => task.projectId === project.id);
@@ -1125,6 +1147,7 @@ var StudioStore = class {
         stageGates,
         triggers,
         threads,
+        workshops,
         roles,
         modules,
         tasks,
@@ -1154,7 +1177,8 @@ var StudioStore = class {
           mergeExecution: true,
           gitMerge: false,
           stageGate: true,
-          triggerInbox: true
+          triggerInbox: true,
+          workshop: true
         }
       };
     });
@@ -1593,6 +1617,165 @@ var StudioStore = class {
       });
       await this.save();
       return structuredClone(trigger);
+    });
+  }
+  async createWorkshop(input) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const project = this.pickProject(state, void 0);
+      if (project === null) {
+        throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
+      }
+      const roles = state.roles.filter((role) => role.projectId === project.id);
+      const requested = Array.isArray(input.participantRoleIds) ? input.participantRoleIds : [];
+      const participants = (requested.length === 0 ? roles.map((role) => role.id) : requested).filter(
+        (roleId) => roles.some((role) => role.id === roleId)
+      );
+      if (participants.length === 0) {
+        throw new StudioStoreError(
+          "participant_required",
+          "\u7814\u8BA8\u4F1A\u81F3\u5C11\u9700\u8981\u4E00\u4E2A\u53C2\u4E0E\u89D2\u8272"
+        );
+      }
+      const at = nowIso(this.now);
+      const workshop = {
+        id: newId("workshop"),
+        projectId: project.id,
+        title: requiredText(input.title, "title", 200),
+        topic: optionalText(input.topic, "topic", 4e3),
+        stage: isProjectStage(input.stage) ? input.stage : project.stage,
+        status: "collecting",
+        participantRoleIds: participants,
+        notes: [],
+        synthesis: "",
+        decision: "",
+        decidedBy: "",
+        decidedAt: null,
+        createdAt: at,
+        updatedAt: at
+      };
+      state.workshops.push(workshop);
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "workshop.created",
+        at,
+        projectId: project.id,
+        payload: { workshopId: workshop.id, participants }
+      });
+      await this.save();
+      return structuredClone(workshop);
+    });
+  }
+  async addWorkshopNote(workshopId, input) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const workshop = this.findWorkshop(state, workshopId);
+      if (workshop.status === "decided" || workshop.status === "cancelled") {
+        throw new StudioStoreError(
+          "workshop_closed",
+          "\u5DF2\u7ED3\u675F\u7684\u7814\u8BA8\u4F1A\u4E0D\u80FD\u518D\u6DFB\u52A0\u610F\u89C1",
+          409
+        );
+      }
+      const roleId = requiredText(input.roleId, "roleId", 120);
+      const role = state.roles.find(
+        (item) => item.id === roleId && item.projectId === workshop.projectId
+      );
+      if (role === void 0 || !workshop.participantRoleIds.includes(roleId)) {
+        throw new StudioStoreError(
+          "participant_required",
+          "\u8BE5\u89D2\u8272\u4E0D\u662F\u672C\u6B21\u7814\u8BA8\u4F1A\u7684\u53C2\u4E0E\u8005",
+          409
+        );
+      }
+      const at = nowIso(this.now);
+      const note = {
+        id: newId("note"),
+        roleId,
+        roleName: role.name,
+        summary: requiredText(input.summary, "summary", 8e3),
+        objections: textList(input.objections, "objections", 20),
+        risks: textList(input.risks, "risks", 20),
+        recommendation: optionalText(
+          input.recommendation,
+          "recommendation",
+          4e3
+        ),
+        createdAt: at
+      };
+      const existing = workshop.notes.find((item) => item.roleId === roleId);
+      if (existing === void 0) {
+        workshop.notes.push(note);
+      } else {
+        workshop.notes = workshop.notes.map(
+          (item) => item.roleId === roleId ? { ...note, id: item.id } : item
+        );
+      }
+      workshop.status = "collecting";
+      workshop.updatedAt = at;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "workshop.note",
+        at,
+        projectId: workshop.projectId,
+        payload: { workshopId, roleId }
+      });
+      await this.save();
+      return structuredClone(workshop);
+    });
+  }
+  async synthesizeWorkshop(workshopId, synthesis) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const workshop = this.findWorkshop(state, workshopId);
+      if (workshop.notes.length === 0) {
+        throw new StudioStoreError(
+          "workshop_empty",
+          "\u81F3\u5C11\u9700\u8981\u4E00\u6761\u53C2\u4E0E\u8005\u610F\u89C1\u624D\u80FD\u6C47\u603B",
+          409
+        );
+      }
+      const at = nowIso(this.now);
+      workshop.synthesis = requiredText(synthesis, "synthesis", 12e3);
+      workshop.status = "synthesized";
+      workshop.updatedAt = at;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "workshop.synthesized",
+        at,
+        projectId: workshop.projectId,
+        payload: { workshopId }
+      });
+      await this.save();
+      return structuredClone(workshop);
+    });
+  }
+  async decideWorkshop(workshopId, decision) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const workshop = this.findWorkshop(state, workshopId);
+      if (workshop.synthesis.trim() === "") {
+        throw new StudioStoreError(
+          "workshop_synthesis_required",
+          "\u5148\u6C47\u603B\u53C2\u4E0E\u8005\u610F\u89C1\uFF0C\u518D\u8BB0\u5F55 Owner \u51B3\u7B56",
+          409
+        );
+      }
+      const at = nowIso(this.now);
+      workshop.decision = requiredText(decision, "decision", 12e3);
+      workshop.status = "decided";
+      workshop.decidedBy = "Owner";
+      workshop.decidedAt = at;
+      workshop.updatedAt = at;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "workshop.decided",
+        at,
+        projectId: workshop.projectId,
+        payload: { workshopId }
+      });
+      await this.save();
+      return structuredClone(workshop);
     });
   }
   async selectProject(projectId) {
@@ -3560,6 +3743,13 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       404
     );
   }
+  findWorkshop(state, workshopId) {
+    const workshop = state.workshops.find((item) => item.id === workshopId);
+    if (workshop === void 0) {
+      throw new StudioStoreError("workshop_not_found", "\u7814\u8BA8\u4F1A\u4E0D\u5B58\u5728", 404);
+    }
+    return workshop;
+  }
   findTrigger(state, triggerId) {
     const trigger = state.triggers.find((item) => item.id === triggerId);
     if (trigger === void 0) {
@@ -3785,6 +3975,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       stageGates: [],
       triggers: [],
       threads: [],
+      workshops: [],
       roles,
       modules: [],
       tasks,

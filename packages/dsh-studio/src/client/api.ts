@@ -17,10 +17,13 @@ import type {
   ProjectDoc,
   ProjectStage,
   AcceptTriggerInput,
+  AddWorkshopNoteInput,
   ApproveStageGateInput,
   CreateTriggerInput,
+  CreateWorkshopInput,
   StageGate,
   Trigger,
+  Workshop,
   UpdateStageGateInput,
   UpdateModuleInput,
   Role,
@@ -329,6 +332,47 @@ export class StudioClient {
       { method: "POST", body: { note } },
     );
     return data.trigger;
+  }
+
+  async createWorkshop(input: CreateWorkshopInput): Promise<Workshop> {
+    const data = await this.request<{ workshop: Workshop }>("/workshops", {
+      method: "POST",
+      body: input,
+    });
+    return data.workshop;
+  }
+
+  async addWorkshopNote(
+    workshopId: string,
+    input: AddWorkshopNoteInput,
+  ): Promise<Workshop> {
+    const data = await this.request<{ workshop: Workshop }>(
+      `/workshops/${encodeURIComponent(workshopId)}/notes`,
+      { method: "POST", body: input },
+    );
+    return data.workshop;
+  }
+
+  async synthesizeWorkshop(
+    workshopId: string,
+    synthesis: string,
+  ): Promise<Workshop> {
+    const data = await this.request<{ workshop: Workshop }>(
+      `/workshops/${encodeURIComponent(workshopId)}/synthesize`,
+      { method: "POST", body: { synthesis } },
+    );
+    return data.workshop;
+  }
+
+  async decideWorkshop(
+    workshopId: string,
+    decision: string,
+  ): Promise<Workshop> {
+    const data = await this.request<{ workshop: Workshop }>(
+      `/workshops/${encodeURIComponent(workshopId)}/decide`,
+      { method: "POST", body: { decision } },
+    );
+    return data.workshop;
   }
 
   async createModule(input: CreateModuleInput): Promise<Module> {

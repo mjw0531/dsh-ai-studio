@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 20;
-export const STUDIO_PLUGIN_VERSION = "2.7.0";
+export const STUDIO_SCHEMA_VERSION = 21;
+export const STUDIO_PLUGIN_VERSION = "2.8.0";
 
 export type TaskStatus =
   | "backlog"
@@ -142,6 +142,55 @@ export interface Thread {
   triggerIds: string[];
   createdAt: string;
   updatedAt: string;
+}
+
+export type WorkshopStatus =
+  | "collecting"
+  | "synthesized"
+  | "decided"
+  | "cancelled";
+
+export interface WorkshopNote {
+  id: string;
+  roleId: string;
+  roleName: string;
+  summary: string;
+  objections: string[];
+  risks: string[];
+  recommendation: string;
+  createdAt: string;
+}
+
+export interface Workshop {
+  id: string;
+  projectId: string;
+  title: string;
+  topic: string;
+  stage: ProjectStage;
+  status: WorkshopStatus;
+  participantRoleIds: string[];
+  notes: WorkshopNote[];
+  synthesis: string;
+  decision: string;
+  decidedBy: string;
+  decidedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateWorkshopInput {
+  title: string;
+  topic?: string;
+  stage?: ProjectStage;
+  participantRoleIds?: string[];
+}
+
+export interface AddWorkshopNoteInput {
+  roleId: string;
+  summary: string;
+  objections?: string[];
+  risks?: string[];
+  recommendation?: string;
 }
 
 export interface CreateTriggerInput {
@@ -440,6 +489,7 @@ export interface StudioState {
   stageGates: StageGate[];
   triggers: Trigger[];
   threads: Thread[];
+  workshops: Workshop[];
   roles: Role[];
   modules: Module[];
   tasks: Task[];
@@ -571,6 +621,7 @@ export interface BootstrapResponse {
   stageGates: StageGate[];
   triggers: Trigger[];
   threads: Thread[];
+  workshops: Workshop[];
   roles: Role[];
   modules: Module[];
   tasks: Task[];
@@ -601,6 +652,7 @@ export interface BootstrapResponse {
     gitMerge: boolean;
     stageGate: boolean;
     triggerInbox: boolean;
+    workshop: boolean;
   };
 }
 

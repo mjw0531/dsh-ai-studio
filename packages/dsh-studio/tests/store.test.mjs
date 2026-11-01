@@ -585,7 +585,7 @@ test("exports a portable copy of the state", async () => {
   await withStore(async (store) => {
     await store.bootstrap();
     const exported = await store.exportState();
-    assert.equal(exported.schemaVersion, 20);
+    assert.equal(exported.schemaVersion, 21);
     assert.ok(exported.projects.length >= 1);
     assert.ok(exported.tasks.length >= 1);
     assert.ok(Array.isArray(exported.runs));
@@ -964,7 +964,7 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
     assert.deepEqual(data.runs, []);
     assert.deepEqual(data.decisions, []);
     const migrated = JSON.parse(await readFile(file, "utf8"));
-    assert.equal(migrated.schemaVersion, 20);
+    assert.equal(migrated.schemaVersion, 21);
     assert.equal(migrated.companyName, "AI工作室");
     assert.ok(migrated.roles.every((role) => role.executor === "dsh"));
     assert.ok(migrated.runs.every((run) => run.status !== undefined));
@@ -1000,6 +1000,7 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
     assert.ok(Array.isArray(migrated.stageGates));
     assert.ok(Array.isArray(migrated.triggers));
     assert.ok(Array.isArray(migrated.threads));
+    assert.ok(Array.isArray(migrated.workshops));
     assert.ok(migrated.projects.every((project) => project.stage === "development"));
   });
 });
@@ -1251,6 +1252,70 @@ test("ignores a trigger with a note and rejects unknown sources", async () => {
         }),
       (error) =>
         error instanceof StudioStoreError && error.code === "invalid_input",
+    );
+  });
+});
+
+test("runs a manual workshop from independent notes to an owner decision", async () => {
+  await withStore(async (store) => {
+    const data = await store.bootstrap();
+    assert.ok(data.project && data.roles.length >= 2);
+    const workshop = await store.createWorkshop({
+      title: "Login design review",
+      topic: "Should login use sessions or JWT?",
+      stage: "architecture",
+      participantRoleIds: [data.roles[0].id, data.roles[1].id],
+    });
+    assert.equal(workshop.status, "collecting");
+
+    let updated = await store.addWorkshopNote(workshop.id, {
+      roleId: data.roles[0].id,
+      summary: "Use a server session.",
+      objections: ["JWT revocation is complex."],
+      risks: ["Session store becomes a dependency."],
+      recommendation: "Session plus rotation.",
+    });
+    updated = await store.addWorkshopNote(workshop.id, {
+      roleId: data.roles[1].id,
+      summary: "Use short-lived JWT.",
+      risks: ["Refresh-token reuse."],
+      recommendation: "JWT plus rotation.",
+    });
+    assert.equal(updated.notes.length, 2);
+
+    updated = await store.synthesizeWorkshop(
+      workshop.id,
+      "Both options need rotation; sessions are simpler for this scope.",
+    );
+    assert.equal(updated.status, "synthesized");
+
+    updated = await store.decideWorkshop(
+      workshop.id,
+      "Use server sessions; revisit JWT when horizontal scale requires it.",
+    );
+    assert.equal(updated.status, "decided");
+    assert.equal(updated.decidedBy, "Owner");
+    assert.ok(updated.decidedAt);
+  });
+});
+
+test("rejects workshop notes from non-participants", async () => {
+  await withStore(async (store) => {
+    const data = await store.bootstrap();
+    const outsider = await store.createRole({ name: "Outsider" });
+    const workshop = await store.createWorkshop({
+      title: "Small workshop",
+      participantRoleIds: [data.roles[0].id],
+    });
+    await assert.rejects(
+      () =>
+        store.addWorkshopNote(workshop.id, {
+          roleId: outsider.id,
+          summary: "I was not invited.",
+        }),
+      (error) =>
+        error instanceof StudioStoreError &&
+        error.code === "participant_required",
     );
   });
 });

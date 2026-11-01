@@ -610,6 +610,48 @@ export const studioCss = `
   flex: none;
 }
 
+.studio-workshop-panel { margin-bottom: 12px; }
+.studio-workshop-create,
+.studio-workshop-room {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.studio-workshop-participants {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+.studio-workshop-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.studio-workshop-note {
+  padding: 8px 10px;
+  border: 1px solid var(--st-border);
+  border-radius: 8px;
+  background: var(--st-panel-2);
+  font-size: 11px;
+}
+.studio-workshop-note p { margin: 4px 0; color: var(--st-muted); line-height: 1.45; }
+.studio-workshop-list { margin-top: 3px; color: var(--st-faint); font-size: 10px; }
+.studio-workshop-note-form {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding-top: 9px;
+  border-top: 1px solid var(--st-border);
+}
+.studio-workshop-decision {
+  padding: 9px 11px;
+  border: 1px solid rgba(91, 214, 162, 0.22);
+  border-radius: 7px;
+  color: var(--st-ok);
+  background: var(--st-ok-soft);
+  font-size: 11px;
+}
+
 .studio-needs {
   display: flex;
   flex-direction: column;

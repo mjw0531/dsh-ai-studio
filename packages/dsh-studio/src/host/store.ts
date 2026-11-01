@@ -47,6 +47,8 @@ import type {
   CreateRoleInput,
   CreateTaskInput,
   CreateTriggerInput,
+  CreateWorkshopInput,
+  AddWorkshopNoteInput,
   AcceptTriggerInput,
   ApproveStageGateInput,
   EvidenceItem,
@@ -71,6 +73,9 @@ import type {
   Trigger,
   TriggerSource,
   TriggerStatus,
+  Workshop,
+  WorkshopNote,
+  WorkshopStatus,
   UpdateProjectInput,
   UpdateStageGateInput,
   UpdateTaskInput,
@@ -1041,6 +1046,53 @@ function isThread(value: unknown): value is Thread {
   );
 }
 
+function isWorkshopStatus(value: unknown): value is WorkshopStatus {
+  return (
+    value === "collecting" ||
+    value === "synthesized" ||
+    value === "decided" ||
+    value === "cancelled"
+  );
+}
+
+function isWorkshopNote(value: unknown): value is WorkshopNote {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.roleId === "string" &&
+    typeof value.roleName === "string" &&
+    typeof value.summary === "string" &&
+    Array.isArray(value.objections) &&
+    value.objections.every((item) => typeof item === "string") &&
+    Array.isArray(value.risks) &&
+    value.risks.every((item) => typeof item === "string") &&
+    typeof value.recommendation === "string" &&
+    typeof value.createdAt === "string"
+  );
+}
+
+function isWorkshop(value: unknown): value is Workshop {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.projectId === "string" &&
+    typeof value.title === "string" &&
+    typeof value.topic === "string" &&
+    isProjectStage(value.stage) &&
+    isWorkshopStatus(value.status) &&
+    Array.isArray(value.participantRoleIds) &&
+    value.participantRoleIds.every((item) => typeof item === "string") &&
+    Array.isArray(value.notes) &&
+    value.notes.every(isWorkshopNote) &&
+    typeof value.synthesis === "string" &&
+    typeof value.decision === "string" &&
+    typeof value.decidedBy === "string" &&
+    (value.decidedAt === null || typeof value.decidedAt === "string") &&
+    typeof value.createdAt === "string" &&
+    typeof value.updatedAt === "string"
+  );
+}
+
 function isBranchStatus(value: unknown): value is Branch["status"] {
   return (
     value === "open" ||
@@ -1383,9 +1435,16 @@ function migrateState(value: unknown): StudioState {
   if (state.schemaVersion === 19) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 20,
       triggers: [],
       threads: [],
+    };
+  }
+  if (state.schemaVersion === 20) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      workshops: [],
     };
   }
   return state;
@@ -1408,6 +1467,7 @@ function assertState(value: unknown): asserts value is StudioState {
     !Array.isArray(value.stageGates) ||
     !Array.isArray(value.triggers) ||
     !Array.isArray(value.threads) ||
+    !Array.isArray(value.workshops) ||
     !Array.isArray(value.roles) ||
     !Array.isArray(value.modules) ||
     !Array.isArray(value.tasks) ||
@@ -1433,6 +1493,9 @@ function assertState(value: unknown): asserts value is StudioState {
   }
   if (!value.threads.every(isThread)) {
     throw new Error("Studio state contains an invalid thread");
+  }
+  if (!value.workshops.every(isWorkshop)) {
+    throw new Error("Studio state contains an invalid workshop");
   }
   if (!value.roles.every(isRole)) {
     throw new Error("Studio state contains an invalid role");
@@ -1575,6 +1638,13 @@ export class StudioStore {
       const threads = project === null
         ? []
         : state.threads.filter((thread) => thread.projectId === project.id);
+      const workshops = project === null
+        ? []
+        : state.workshops
+            .filter((workshop) => workshop.projectId === project.id)
+            .sort((left, right) =>
+              right.updatedAt.localeCompare(left.updatedAt),
+            );
       const roles = project === null
         ? []
         : state.roles.filter((role) => role.projectId === project.id);
@@ -1657,6 +1727,7 @@ export class StudioStore {
         stageGates,
         triggers,
         threads,
+        workshops,
         roles,
         modules,
         tasks,
@@ -1687,6 +1758,7 @@ export class StudioStore {
           gitMerge: false,
           stageGate: true,
           triggerInbox: true,
+          workshop: true,
         },
       };
     });
@@ -2184,6 +2256,186 @@ export class StudioStore {
       });
       await this.save();
       return structuredClone(trigger);
+    });
+  }
+
+  async createWorkshop(input: CreateWorkshopInput): Promise<Workshop> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const project = this.pickProject(state, undefined);
+      if (project === null) {
+        throw new StudioStoreError("project_required", "请先创建一个项目");
+      }
+      const roles = state.roles.filter((role) => role.projectId === project.id);
+      const requested = Array.isArray(input.participantRoleIds)
+        ? input.participantRoleIds
+        : [];
+      const participants = (
+        requested.length === 0 ? roles.map((role) => role.id) : requested
+      ).filter((roleId) =>
+        roles.some((role) => role.id === roleId),
+      );
+      if (participants.length === 0) {
+        throw new StudioStoreError(
+          "participant_required",
+          "研讨会至少需要一个参与角色",
+        );
+      }
+      const at = nowIso(this.now);
+      const workshop: Workshop = {
+        id: newId("workshop"),
+        projectId: project.id,
+        title: requiredText(input.title, "title", 200),
+        topic: optionalText(input.topic, "topic", 4000),
+        stage: isProjectStage(input.stage) ? input.stage : project.stage,
+        status: "collecting",
+        participantRoleIds: participants,
+        notes: [],
+        synthesis: "",
+        decision: "",
+        decidedBy: "",
+        decidedAt: null,
+        createdAt: at,
+        updatedAt: at,
+      };
+      state.workshops.push(workshop);
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "workshop.created",
+        at,
+        projectId: project.id,
+        payload: { workshopId: workshop.id, participants },
+      });
+      await this.save();
+      return structuredClone(workshop);
+    });
+  }
+
+  async addWorkshopNote(
+    workshopId: string,
+    input: AddWorkshopNoteInput,
+  ): Promise<Workshop> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const workshop = this.findWorkshop(state, workshopId);
+      if (workshop.status === "decided" || workshop.status === "cancelled") {
+        throw new StudioStoreError(
+          "workshop_closed",
+          "已结束的研讨会不能再添加意见",
+          409,
+        );
+      }
+      const roleId = requiredText(input.roleId, "roleId", 120);
+      const role = state.roles.find(
+        (item) =>
+          item.id === roleId && item.projectId === workshop.projectId,
+      );
+      if (
+        role === undefined ||
+        !workshop.participantRoleIds.includes(roleId)
+      ) {
+        throw new StudioStoreError(
+          "participant_required",
+          "该角色不是本次研讨会的参与者",
+          409,
+        );
+      }
+      const at = nowIso(this.now);
+      const note: WorkshopNote = {
+        id: newId("note"),
+        roleId,
+        roleName: role.name,
+        summary: requiredText(input.summary, "summary", 8000),
+        objections: textList(input.objections, "objections", 20),
+        risks: textList(input.risks, "risks", 20),
+        recommendation: optionalText(
+          input.recommendation,
+          "recommendation",
+          4000,
+        ),
+        createdAt: at,
+      };
+      const existing = workshop.notes.find((item) => item.roleId === roleId);
+      if (existing === undefined) {
+        workshop.notes.push(note);
+      } else {
+        workshop.notes = workshop.notes.map((item) =>
+          item.roleId === roleId ? { ...note, id: item.id } : item,
+        );
+      }
+      workshop.status = "collecting";
+      workshop.updatedAt = at;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "workshop.note",
+        at,
+        projectId: workshop.projectId,
+        payload: { workshopId, roleId },
+      });
+      await this.save();
+      return structuredClone(workshop);
+    });
+  }
+
+  async synthesizeWorkshop(
+    workshopId: string,
+    synthesis: string,
+  ): Promise<Workshop> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const workshop = this.findWorkshop(state, workshopId);
+      if (workshop.notes.length === 0) {
+        throw new StudioStoreError(
+          "workshop_empty",
+          "至少需要一条参与者意见才能汇总",
+          409,
+        );
+      }
+      const at = nowIso(this.now);
+      workshop.synthesis = requiredText(synthesis, "synthesis", 12000);
+      workshop.status = "synthesized";
+      workshop.updatedAt = at;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "workshop.synthesized",
+        at,
+        projectId: workshop.projectId,
+        payload: { workshopId },
+      });
+      await this.save();
+      return structuredClone(workshop);
+    });
+  }
+
+  async decideWorkshop(
+    workshopId: string,
+    decision: string,
+  ): Promise<Workshop> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const workshop = this.findWorkshop(state, workshopId);
+      if (workshop.synthesis.trim() === "") {
+        throw new StudioStoreError(
+          "workshop_synthesis_required",
+          "先汇总参与者意见，再记录 Owner 决策",
+          409,
+        );
+      }
+      const at = nowIso(this.now);
+      workshop.decision = requiredText(decision, "decision", 12000);
+      workshop.status = "decided";
+      workshop.decidedBy = "Owner";
+      workshop.decidedAt = at;
+      workshop.updatedAt = at;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "workshop.decided",
+        at,
+        projectId: workshop.projectId,
+        payload: { workshopId },
+      });
+      await this.save();
+      return structuredClone(workshop);
     });
   }
 
@@ -4497,6 +4749,14 @@ export class StudioStore {
     );
   }
 
+  private findWorkshop(state: StudioState, workshopId: string): Workshop {
+    const workshop = state.workshops.find((item) => item.id === workshopId);
+    if (workshop === undefined) {
+      throw new StudioStoreError("workshop_not_found", "研讨会不存在", 404);
+    }
+    return workshop;
+  }
+
   private findTrigger(state: StudioState, triggerId: string): Trigger {
     const trigger = state.triggers.find((item) => item.id === triggerId);
     if (trigger === undefined) {
@@ -4766,6 +5026,7 @@ export class StudioStore {
       stageGates: [],
       triggers: [],
       threads: [],
+      workshops: [],
       roles,
       modules: [],
       tasks,

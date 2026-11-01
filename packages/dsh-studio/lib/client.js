@@ -341,6 +341,34 @@ var StudioClient = class {
     );
     return data.trigger;
   }
+  async createWorkshop(input) {
+    const data = await this.request("/workshops", {
+      method: "POST",
+      body: input
+    });
+    return data.workshop;
+  }
+  async addWorkshopNote(workshopId, input) {
+    const data = await this.request(
+      `/workshops/${encodeURIComponent(workshopId)}/notes`,
+      { method: "POST", body: input }
+    );
+    return data.workshop;
+  }
+  async synthesizeWorkshop(workshopId, synthesis) {
+    const data = await this.request(
+      `/workshops/${encodeURIComponent(workshopId)}/synthesize`,
+      { method: "POST", body: { synthesis } }
+    );
+    return data.workshop;
+  }
+  async decideWorkshop(workshopId, decision) {
+    const data = await this.request(
+      `/workshops/${encodeURIComponent(workshopId)}/decide`,
+      { method: "POST", body: { decision } }
+    );
+    return data.workshop;
+  }
   async createModule(input) {
     const data = await this.request("/modules", {
       method: "POST",
@@ -1089,6 +1117,42 @@ function StudioPage() {
       "\u89E6\u53D1\u4E8B\u4EF6\u5DF2\u5FFD\u7565"
     );
   };
+  const createWorkshop = async (input) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.createWorkshop(input);
+      },
+      "\u7814\u8BA8\u4F1A\u5DF2\u521B\u5EFA"
+    );
+  };
+  const addWorkshopNote = async (workshopId, input) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.addWorkshopNote(workshopId, input);
+      },
+      "\u7814\u8BA8\u4F1A\u610F\u89C1\u5DF2\u8BB0\u5F55"
+    );
+  };
+  const synthesizeWorkshop = async (workshopId, synthesis) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.synthesizeWorkshop(workshopId, synthesis);
+      },
+      "\u7814\u8BA8\u4F1A\u5DF2\u6C47\u603B"
+    );
+  };
+  const decideWorkshop = async (workshopId, decision) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.decideWorkshop(workshopId, decision);
+      },
+      "Owner \u51B3\u7B56\u5DF2\u8BB0\u5F55"
+    );
+  };
   const readProjectDoc = async (docPath) => {
     if (client === null) return null;
     try {
@@ -1532,7 +1596,11 @@ function StudioPage() {
             onRejectStageGate: rejectStageGate,
             onIngestTrigger: ingestTrigger,
             onAcceptTrigger: (trigger) => void acceptTrigger(trigger),
-            onIgnoreTrigger: (trigger) => void ignoreTrigger(trigger)
+            onIgnoreTrigger: (trigger) => void ignoreTrigger(trigger),
+            onCreateWorkshop: createWorkshop,
+            onAddWorkshopNote: addWorkshopNote,
+            onSynthesizeWorkshop: synthesizeWorkshop,
+            onDecideWorkshop: decideWorkshop
           }
         ) : null,
         tab === "tasks" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
@@ -2561,6 +2629,315 @@ function ModuleForm({
     }
   );
 }
+function WorkshopPanel({
+  project,
+  roles,
+  workshops,
+  busy,
+  onCreate,
+  onAddNote,
+  onSynthesize,
+  onDecide
+}) {
+  const active = workshops.find(
+    (workshop) => workshop.status === "collecting" || workshop.status === "synthesized"
+  ) ?? null;
+  const latest = workshops[0] ?? null;
+  const [title, setTitle] = (0, import_react.useState)("");
+  const [topic, setTopic] = (0, import_react.useState)("");
+  const [stage, setStage] = (0, import_react.useState)(project.stage);
+  const [participants, setParticipants] = (0, import_react.useState)(
+    roles.map((role) => role.id)
+  );
+  const [roleId, setRoleId] = (0, import_react.useState)(active?.participantRoleIds[0] ?? "");
+  const [summary, setSummary] = (0, import_react.useState)("");
+  const [objections, setObjections] = (0, import_react.useState)("");
+  const [risks, setRisks] = (0, import_react.useState)("");
+  const [recommendation, setRecommendation] = (0, import_react.useState)("");
+  const [synthesis, setSynthesis] = (0, import_react.useState)(active?.synthesis ?? "");
+  const [decision, setDecision] = (0, import_react.useState)(active?.decision ?? "");
+  (0, import_react.useEffect)(() => {
+    setRoleId(active?.participantRoleIds[0] ?? "");
+    setSynthesis(active?.synthesis ?? "");
+    setDecision(active?.decision ?? "");
+  }, [active?.id, active?.updatedAt]);
+  const toggleParticipant = (id) => {
+    setParticipants(
+      (current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
+    );
+  };
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "studio-panel studio-workshop-panel", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-panel-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconUsers, { width: 14, height: 14 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h3", { children: "\u7814\u8BA8\u4F1A / Workshop" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-muted", children: active === null ? "\u6CA1\u6709\u8FDB\u884C\u4E2D\u7684\u7814\u8BA8\u4F1A" : `${String(active.notes.length)} \u6761\u610F\u89C1` })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-panel-body", children: active === null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+      latest !== null && latest.status === "decided" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-workshop-decision", children: [
+        "\u4E0A\u4E00\u573A\u300C",
+        latest.title,
+        "\u300D\u7684\u7ED3\u8BBA\uFF1A",
+        latest.decision
+      ] }) : null,
+      roles.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-empty", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: "\u5148\u5EFA\u89D2\u8272" }),
+        "\u7814\u8BA8\u4F1A\u9700\u8981\u53C2\u4E0E\u89D2\u8272\uFF1B\u53BB\u56E2\u961F\u9875\u521B\u5EFA Lead / Architect / Verifier\u3002"
+      ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+        "form",
+        {
+          className: "studio-workshop-create",
+          onSubmit: (event) => {
+            event.preventDefault();
+            if (title.trim() === "" || participants.length === 0) return;
+            void onCreate({
+              title: title.trim(),
+              topic: topic.trim(),
+              stage,
+              participantRoleIds: participants
+            }).then((ok) => {
+              if (ok) {
+                setTitle("");
+                setTopic("");
+              }
+            });
+          },
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field-row", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "workshop-title", children: "\u6807\u9898" }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                  "input",
+                  {
+                    id: "workshop-title",
+                    value: title,
+                    disabled: busy,
+                    placeholder: "\u4F8B\u5982\uFF1A\u767B\u5F55\u65B9\u6848\u8BC4\u5BA1",
+                    onChange: (event) => setTitle(event.target.value)
+                  }
+                )
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "workshop-stage", children: "\u9636\u6BB5" }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                  "select",
+                  {
+                    id: "workshop-stage",
+                    value: stage,
+                    disabled: busy,
+                    onChange: (event) => setStage(event.target.value),
+                    children: PROJECT_STAGE_ORDER.map((item) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: item, children: PROJECT_STAGE_LABELS[item] }, item))
+                  }
+                )
+              ] })
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "workshop-topic", children: "\u8BAE\u9898" }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                "textarea",
+                {
+                  id: "workshop-topic",
+                  value: topic,
+                  disabled: busy,
+                  placeholder: "\u8981\u8BA8\u8BBA\u7684\u51B3\u5B9A\u3001\u7EA6\u675F\u548C\u5DF2\u77E5\u98CE\u9669\u3002",
+                  onChange: (event) => setTopic(event.target.value)
+                }
+              )
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-workshop-participants", children: roles.map((role) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("label", { className: "studio-stage-check", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                "input",
+                {
+                  type: "checkbox",
+                  checked: participants.includes(role.id),
+                  disabled: busy,
+                  onChange: () => toggleParticipant(role.id)
+                }
+              ),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: role.name })
+            ] }, role.id)) }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "button",
+              {
+                className: "studio-btn",
+                "data-variant": "primary",
+                type: "submit",
+                disabled: busy || title.trim() === "" || participants.length === 0,
+                children: "\u521B\u5EFA\u7814\u8BA8\u4F1A"
+              }
+            )
+          ]
+        }
+      )
+    ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-workshop-room", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-stage-gate-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: active.title }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-muted", children: [
+            PROJECT_STAGE_LABELS[active.stage],
+            " \xB7 ",
+            active.topic || "\u672A\u586B\u5199\u8BAE\u9898"
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-pill", "data-tone": "accent", children: active.status === "collecting" ? "\u6536\u96C6\u610F\u89C1" : "\u5DF2\u6C47\u603B" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-workshop-notes", children: active.notes.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-hint", children: "\u6BCF\u4F4D\u53C2\u4E0E\u8005\u72EC\u7ACB\u63D0\u4EA4\u610F\u89C1\uFF1B\u53EF\u4EE5\u7C98\u8D34\u5404 AI \u7684\u8F93\u51FA\u3002\u4E0D\u8981\u5728\u540C\u4E00\u4E2A\u4E0A\u4E0B\u6587\u91CC\u8F6E\u8F6C\u3002" }) : active.notes.map((note) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-workshop-note", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: note.roleName }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { children: note.summary }),
+        note.objections.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-workshop-list", children: [
+          "\u53CD\u5BF9\uFF1A",
+          note.objections.join("\uFF1B")
+        ] }) : null,
+        note.risks.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-workshop-list", children: [
+          "\u98CE\u9669\uFF1A",
+          note.risks.join("\uFF1B")
+        ] }) : null,
+        note.recommendation ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-workshop-list", children: [
+          "\u5EFA\u8BAE\uFF1A",
+          note.recommendation
+        ] }) : null
+      ] }, note.id)) }),
+      active.status === "collecting" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+        "form",
+        {
+          className: "studio-workshop-note-form",
+          onSubmit: (event) => {
+            event.preventDefault();
+            if (summary.trim() === "" || roleId === "") return;
+            void onAddNote(active.id, {
+              roleId,
+              summary: summary.trim(),
+              objections: objections.split("\n").map((line) => line.trim()).filter(Boolean),
+              risks: risks.split("\n").map((line) => line.trim()).filter(Boolean),
+              recommendation: recommendation.trim()
+            }).then((ok) => {
+              if (ok) {
+                setSummary("");
+                setObjections("");
+                setRisks("");
+                setRecommendation("");
+              }
+            });
+          },
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "workshop-note-role", children: "\u53C2\u4E0E\u8005" }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                "select",
+                {
+                  id: "workshop-note-role",
+                  value: roleId,
+                  disabled: busy,
+                  onChange: (event) => setRoleId(event.target.value),
+                  children: active.participantRoleIds.map((id) => {
+                    const role = roles.find((item) => item.id === id);
+                    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: id, children: role?.name ?? id }, id);
+                  })
+                }
+              )
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "workshop-note-summary", children: "\u72EC\u7ACB\u610F\u89C1" }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                "textarea",
+                {
+                  id: "workshop-note-summary",
+                  value: summary,
+                  disabled: busy,
+                  placeholder: "\u7ED3\u8BBA\u3001\u7406\u7531\u3001\u5047\u8BBE\u3002",
+                  onChange: (event) => setSummary(event.target.value)
+                }
+              )
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field-row", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "workshop-note-objections", children: "\u53CD\u5BF9\u610F\u89C1\uFF08\u6BCF\u884C\u4E00\u6761\uFF09" }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                  "textarea",
+                  {
+                    id: "workshop-note-objections",
+                    value: objections,
+                    disabled: busy,
+                    onChange: (event) => setObjections(event.target.value)
+                  }
+                )
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "workshop-note-risks", children: "\u98CE\u9669\uFF08\u6BCF\u884C\u4E00\u6761\uFF09" }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                  "textarea",
+                  {
+                    id: "workshop-note-risks",
+                    value: risks,
+                    disabled: busy,
+                    onChange: (event) => setRisks(event.target.value)
+                  }
+                )
+              ] })
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "workshop-note-recommendation", children: "\u5EFA\u8BAE" }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                "input",
+                {
+                  id: "workshop-note-recommendation",
+                  value: recommendation,
+                  disabled: busy,
+                  onChange: (event) => setRecommendation(event.target.value)
+                }
+              )
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { className: "studio-btn", type: "submit", disabled: busy || summary.trim() === "", children: "\u8BB0\u5F55\u610F\u89C1" })
+          ]
+        }
+      ) : null,
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "workshop-synthesis", children: "\u6C47\u603B / Synthesis" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          "textarea",
+          {
+            id: "workshop-synthesis",
+            value: synthesis,
+            disabled: busy || active.status === "decided",
+            onChange: (event) => setSynthesis(event.target.value)
+          }
+        )
+      ] }),
+      active.status === "collecting" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        "button",
+        {
+          className: "studio-btn",
+          type: "button",
+          disabled: busy || synthesis.trim() === "",
+          onClick: () => void onSynthesize(active.id, synthesis),
+          children: "\u4FDD\u5B58\u6C47\u603B"
+        }
+      ) : null,
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "workshop-decision", children: "Owner \u51B3\u7B56" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          "textarea",
+          {
+            id: "workshop-decision",
+            value: decision,
+            disabled: busy || active.status === "decided",
+            onChange: (event) => setDecision(event.target.value)
+          }
+        )
+      ] }),
+      active.status === "synthesized" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        "button",
+        {
+          className: "studio-btn",
+          "data-variant": "primary",
+          type: "button",
+          disabled: busy || decision.trim() === "",
+          onClick: () => void onDecide(active.id, decision),
+          children: "\u8BB0\u5F55\u51B3\u7B56"
+        }
+      ) : null
+    ] }) })
+  ] });
+}
 function TriggerInbox({
   triggers,
   busy,
@@ -2983,7 +3360,11 @@ function MissionView({
   onRejectStageGate,
   onIngestTrigger,
   onAcceptTrigger,
-  onIgnoreTrigger
+  onIgnoreTrigger,
+  onCreateWorkshop,
+  onAddWorkshopNote,
+  onSynthesizeWorkshop,
+  onDecideWorkshop
 }) {
   const project = data.project;
   const nextStage = project === null ? null : nextProjectStage(project.stage);
@@ -3053,6 +3434,19 @@ function MissionView({
         onIngest: onIngestTrigger,
         onAccept: onAcceptTrigger,
         onIgnore: onIgnoreTrigger
+      }
+    ) : null,
+    project !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+      WorkshopPanel,
+      {
+        project,
+        roles: data.roles,
+        workshops: data.workshops,
+        busy,
+        onCreate: onCreateWorkshop,
+        onAddNote: onAddWorkshopNote,
+        onSynthesize: onSynthesizeWorkshop,
+        onDecide: onDecideWorkshop
       }
     ) : null,
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-grid-stats", children: [
@@ -6388,6 +6782,48 @@ var studioCss = `
   flex-direction: column;
   gap: 5px;
   flex: none;
+}
+
+.studio-workshop-panel { margin-bottom: 12px; }
+.studio-workshop-create,
+.studio-workshop-room {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.studio-workshop-participants {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+.studio-workshop-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.studio-workshop-note {
+  padding: 8px 10px;
+  border: 1px solid var(--st-border);
+  border-radius: 8px;
+  background: var(--st-panel-2);
+  font-size: 11px;
+}
+.studio-workshop-note p { margin: 4px 0; color: var(--st-muted); line-height: 1.45; }
+.studio-workshop-list { margin-top: 3px; color: var(--st-faint); font-size: 10px; }
+.studio-workshop-note-form {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding-top: 9px;
+  border-top: 1px solid var(--st-border);
+}
+.studio-workshop-decision {
+  padding: 9px 11px;
+  border: 1px solid rgba(91, 214, 162, 0.22);
+  border-radius: 7px;
+  color: var(--st-ok);
+  background: var(--st-ok-soft);
+  font-size: 11px;
 }
 
 .studio-needs {
