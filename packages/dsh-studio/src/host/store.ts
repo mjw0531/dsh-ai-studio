@@ -114,6 +114,18 @@ import {
 import { StudioStoreError } from "./store/errors.js";
 export { StudioStoreError } from "./store/errors.js";
 import { createSeedState } from "./store/seed.js";
+import { projectTemplates } from "./store/templates.js";
+import {
+  findMergeProposal,
+  findProject,
+  findProviderProfile,
+  findStageGate,
+  findTask,
+  findTrigger,
+  findWorkshop,
+  pickProject,
+  resolveRoleId,
+} from "./store/lookups.js";
 import {
   defaultStageChecklist,
   defaultTriggerRules,
@@ -250,7 +262,7 @@ export class StudioStore {
   async bootstrap(projectId?: string): Promise<BootstrapResponse> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const project = this.pickProject(state, projectId);
+      const project = pickProject(state, projectId);
       const stageGates = project === null
         ? []
         : state.stageGates.filter((gate) => gate.projectId === project.id);
@@ -449,164 +461,7 @@ export class StudioStore {
   async createProjectFromTemplate(
     input: CreateProjectFromTemplateInput,
   ): Promise<Project> {
-    const templates: Record<
-      CreateProjectFromTemplateInput["template"],
-      {
-        roles: Array<{
-          name: string;
-          title: string;
-          mission: string;
-          responsibilities: string[];
-          decisionRights: string[];
-        }>;
-        tasks: Array<{
-          title: string;
-          goal: string;
-          owner: string;
-          reviewer: string;
-          acceptance: string[];
-          priority: TaskPriority;
-        }>;
-      }
-    > = {
-      web: {
-        roles: [
-          {
-            name: "Lead",
-            title: "产品 / 调度",
-            mission: "定义范围并保持交付节奏。",
-            responsibilities: ["写 PRD", "拆任务", "派单"],
-            decisionRights: ["优先级"],
-          },
-          {
-            name: "Builder",
-            title: "全栈工程师",
-            mission: "交付可运行的 Web 垂直切片。",
-            responsibilities: ["实现功能", "补测试"],
-            decisionRights: ["实现方案"],
-          },
-          {
-            name: "Verifier",
-            title: "QA / 验收",
-            mission: "独立验证可运行性和验收标准。",
-            responsibilities: ["跑测试", "记录证据"],
-            decisionRights: ["验收结论"],
-          },
-        ],
-        tasks: [
-          {
-            title: "写 PRD 和范围",
-            goal: "明确这一版做什么、不做什么。",
-            owner: "Lead",
-            reviewer: "Verifier",
-            acceptance: ["目标与非目标已写明", "验收标准可观察"],
-            priority: "P1",
-          },
-          {
-            title: "搭可运行骨架",
-            goal: "建立最小可运行结构和测试命令。",
-            owner: "Builder",
-            reviewer: "Verifier",
-            acceptance: ["项目可启动", "测试命令可运行"],
-            priority: "P0",
-          },
-        ],
-      },
-      game: {
-        roles: [
-          {
-            name: "Lead",
-            title: "制作人",
-            mission: "守住核心循环和交付节奏。",
-            responsibilities: ["定义核心循环", "排优先级"],
-            decisionRights: ["范围", "优先级"],
-          },
-          {
-            name: "Architect",
-            title: "技术架构",
-            mission: "守住模块边界和可玩性技术风险。",
-            responsibilities: ["定架构", "评审高风险变更"],
-            decisionRights: ["技术方案"],
-          },
-          {
-            name: "Builder",
-            title: "游戏开发",
-            mission: "交付可玩的垂直切片。",
-            responsibilities: ["实现玩法", "补测试"],
-            decisionRights: ["实现方案"],
-          },
-          {
-            name: "Verifier",
-            title: "QA / 验收",
-            mission: "独立验证可玩性和稳定性。",
-            responsibilities: ["跑 playtest", "记录证据"],
-            decisionRights: ["验收结论"],
-          },
-        ],
-        tasks: [
-          {
-            title: "定义核心循环",
-            goal: "写清楚玩家重复做什么、为什么有趣。",
-            owner: "Lead",
-            reviewer: "Architect",
-            acceptance: ["核心循环一句话说清", "有可验证的 playtest 场景"],
-            priority: "P0",
-          },
-          {
-            title: "搭可玩骨架",
-            goal: "建立最小可运行场景和输入。",
-            owner: "Builder",
-            reviewer: "Verifier",
-            acceptance: ["场景可启动", "基本输入可用", "测试命令可运行"],
-            priority: "P0",
-          },
-        ],
-      },
-      tool: {
-        roles: [
-          {
-            name: "Lead",
-            title: "工具负责人",
-            mission: "定义工具边界和使用者。",
-            responsibilities: ["写需求", "定验收"],
-            decisionRights: ["范围"],
-          },
-          {
-            name: "Builder",
-            title: "工具开发",
-            mission: "交付可执行的工具。",
-            responsibilities: ["实现 CLI", "补测试"],
-            decisionRights: ["实现方案"],
-          },
-          {
-            name: "Verifier",
-            title: "QA / 验收",
-            mission: "独立验证输入输出和错误路径。",
-            responsibilities: ["跑测试", "记录证据"],
-            decisionRights: ["验收结论"],
-          },
-        ],
-        tasks: [
-          {
-            title: "定义 CLI 契约",
-            goal: "写清楚输入、输出和错误行为。",
-            owner: "Lead",
-            reviewer: "Verifier",
-            acceptance: ["输入输出已写明", "错误路径有验收"],
-            priority: "P1",
-          },
-          {
-            title: "搭可执行骨架",
-            goal: "建立最小命令和测试。",
-            owner: "Builder",
-            reviewer: "Verifier",
-            acceptance: ["命令可运行", "测试命令可运行"],
-            priority: "P0",
-          },
-        ],
-      },
-    };
-    const template = templates[input.template];
+    const template = projectTemplates[input.template];
     if (template === undefined) {
       throw new StudioStoreError(
         "invalid_input",
@@ -690,7 +545,7 @@ export class StudioStore {
   ): Promise<StageGate> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const project = this.findProject(state, projectId);
+      const project = findProject(state, projectId);
       const next = nextProjectStage(project.stage);
       if (next === null) {
         throw new StudioStoreError(
@@ -741,8 +596,8 @@ export class StudioStore {
   ): Promise<StageGate> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const project = this.findProject(state, projectId);
-      const gate = this.findStageGate(state, project, stage);
+      const project = findProject(state, projectId);
+      const gate = findStageGate(state, project, stage);
       if (gate.status === "approved") {
         throw new StudioStoreError(
           "stage_gate_locked",
@@ -777,8 +632,8 @@ export class StudioStore {
   ): Promise<StageGate> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const project = this.findProject(state, projectId);
-      const gate = this.findStageGate(state, project, stage);
+      const project = findProject(state, projectId);
+      const gate = findStageGate(state, project, stage);
       if (gate.status === "approved") {
         throw new StudioStoreError(
           "stage_gate_locked",
@@ -866,8 +721,8 @@ export class StudioStore {
       }
       const reason = requiredText(note, "note", 4000);
       const state = this.requireState();
-      const project = this.findProject(state, projectId);
-      const gate = this.findStageGate(state, project, stage);
+      const project = findProject(state, projectId);
+      const gate = findStageGate(state, project, stage);
       if (gate.status === "approved") {
         throw new StudioStoreError(
           "stage_gate_locked",
@@ -907,7 +762,7 @@ export class StudioStore {
         );
       }
       const state = this.requireState();
-      const project = this.pickProject(state, undefined);
+      const project = pickProject(state, undefined);
       if (project === null) {
         throw new StudioStoreError("project_required", "请先创建一个项目");
       }
@@ -983,7 +838,7 @@ export class StudioStore {
   async getTriggerRules(projectId: string): Promise<TriggerRules> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      return structuredClone(this.findProject(state, projectId).triggerRules);
+      return structuredClone(findProject(state, projectId).triggerRules);
     });
   }
 
@@ -993,7 +848,7 @@ export class StudioStore {
   ): Promise<TriggerRules> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const project = this.findProject(state, projectId);
+      const project = findProject(state, projectId);
       if (input.enabled !== undefined) {
         project.triggerRules.enabled = input.enabled;
       }
@@ -1119,7 +974,7 @@ export class StudioStore {
   ): Promise<{ trigger: Trigger; task: Task }> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const trigger = this.findTrigger(state, triggerId);
+      const trigger = findTrigger(state, triggerId);
       if (trigger.status === "ignored") {
         throw new StudioStoreError(
           "trigger_ignored",
@@ -1127,11 +982,11 @@ export class StudioStore {
           409,
         );
       }
-      const project = this.findProject(state, trigger.projectId);
+      const project = findProject(state, trigger.projectId);
       if (trigger.status === "accepted" && trigger.taskId !== null) {
         return {
           trigger: structuredClone(trigger),
-          task: structuredClone(this.findTask(state, trigger.taskId)),
+          task: structuredClone(findTask(state, trigger.taskId)),
         };
       }
 
@@ -1141,7 +996,7 @@ export class StudioStore {
           : state.threads.find((item) => item.id === trigger.threadId);
       if (thread?.taskId !== null && thread?.taskId !== undefined) {
         const at = nowIso(this.now);
-        const task = this.findTask(state, thread.taskId);
+        const task = findTask(state, thread.taskId);
         trigger.status = "accepted";
         trigger.taskId = task.id;
         trigger.updatedAt = at;
@@ -1232,7 +1087,7 @@ export class StudioStore {
   async ignoreTrigger(triggerId: string, note = ""): Promise<Trigger> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const trigger = this.findTrigger(state, triggerId);
+      const trigger = findTrigger(state, triggerId);
       if (trigger.status === "accepted") {
         throw new StudioStoreError(
           "trigger_accepted",
@@ -1265,8 +1120,8 @@ export class StudioStore {
   }> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const workshop = this.findWorkshop(state, workshopId);
-      const project = this.findProject(state, workshop.projectId);
+      const workshop = findWorkshop(state, workshopId);
+      const project = findProject(state, workshop.projectId);
       const roles = state.roles.filter(
         (role) =>
           role.projectId === workshop.projectId &&
@@ -1292,7 +1147,7 @@ export class StudioStore {
   ): Promise<PrototypeDemo> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const project = this.pickProject(state, projectId);
+      const project = pickProject(state, projectId);
       if (project === null) {
         throw new StudioStoreError("project_required", "请先创建一个项目");
       }
@@ -1395,7 +1250,7 @@ export class StudioStore {
   async createWorkshop(input: CreateWorkshopInput): Promise<Workshop> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const project = this.pickProject(state, undefined);
+      const project = pickProject(state, undefined);
       if (project === null) {
         throw new StudioStoreError("project_required", "请先创建一个项目");
       }
@@ -1451,7 +1306,7 @@ export class StudioStore {
   ): Promise<Workshop> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const workshop = this.findWorkshop(state, workshopId);
+      const workshop = findWorkshop(state, workshopId);
       if (workshop.status === "decided" || workshop.status === "cancelled") {
         throw new StudioStoreError(
           "workshop_closed",
@@ -1517,7 +1372,7 @@ export class StudioStore {
   ): Promise<Workshop> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const workshop = this.findWorkshop(state, workshopId);
+      const workshop = findWorkshop(state, workshopId);
       if (workshop.notes.length === 0) {
         throw new StudioStoreError(
           "workshop_empty",
@@ -1561,7 +1416,7 @@ export class StudioStore {
   ): Promise<Workshop> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const workshop = this.findWorkshop(state, workshopId);
+      const workshop = findWorkshop(state, workshopId);
       if (workshop.notes.length === 0) {
         throw new StudioStoreError(
           "workshop_empty",
@@ -1591,7 +1446,7 @@ export class StudioStore {
   ): Promise<Workshop> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const workshop = this.findWorkshop(state, workshopId);
+      const workshop = findWorkshop(state, workshopId);
       if (workshop.synthesis.trim() === "") {
         throw new StudioStoreError(
           "workshop_synthesis_required",
@@ -1640,7 +1495,7 @@ export class StudioStore {
   }> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const task = this.findTask(state, taskId);
+      const task = findTask(state, taskId);
       if (
         task.kind === "fix" &&
         !task.integration &&
@@ -1714,7 +1569,7 @@ export class StudioStore {
   }> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const task = this.findTask(state, taskId);
+      const task = findTask(state, taskId);
       if (task.reviewerRoleId === null) {
         throw new StudioStoreError(
           "reviewer_required",
@@ -1785,7 +1640,7 @@ export class StudioStore {
   ): Promise<IndependentReview> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const task = this.findTask(state, taskId);
+      const task = findTask(state, taskId);
       const at = nowIso(this.now);
       const review: IndependentReview = {
         id: newId("review"),
@@ -1829,7 +1684,7 @@ export class StudioStore {
   }> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const task = this.findTask(state, taskId);
+      const task = findTask(state, taskId);
       const run = [...state.runs]
         .filter(
           (item) =>
@@ -1858,7 +1713,7 @@ export class StudioStore {
   ): Promise<AgentRun> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const task = this.findTask(state, taskId);
+      const task = findTask(state, taskId);
       if (task.status !== "backlog" && task.status !== "ready") {
         throw new StudioStoreError(
           "task_not_dispatchable",
@@ -2344,7 +2199,7 @@ export class StudioStore {
   ): Promise<string[]> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const task = this.findTask(state, taskId);
+      const task = findTask(state, taskId);
       const module =
         task.module === null
           ? undefined
@@ -2450,7 +2305,7 @@ export class StudioStore {
   ): Promise<Verification> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const task = this.findTask(state, taskId);
+      const task = findTask(state, taskId);
       const at = nowIso(this.now);
       const run = input.runId
         ? state.runs.find((item) => item.id === input.runId)
@@ -2577,7 +2432,7 @@ export class StudioStore {
   }): Promise<Decision | null> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const task = this.findTask(state, input.taskId);
+      const task = findTask(state, input.taskId);
       const title = `合并后回归失败：${task.title.slice(0, 140)}`;
       if (
         state.decisions.some(
@@ -2643,13 +2498,13 @@ export class StudioStore {
   async createDecision(input: CreateDecisionInput): Promise<Decision> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const project = this.pickProject(state, undefined);
+      const project = pickProject(state, undefined);
       if (project === null) {
         throw new StudioStoreError("project_required", "请先创建一个项目");
       }
       let taskId: string | null = null;
       if (input.taskId !== undefined && input.taskId !== null) {
-        const task = this.findTask(state, input.taskId);
+        const task = findTask(state, input.taskId);
         if (task.projectId !== project.id) {
           throw new StudioStoreError(
             "task_not_found",
@@ -2789,7 +2644,7 @@ export class StudioStore {
   async createModule(input: CreateModuleInput): Promise<Module> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const project = this.pickProject(state, undefined);
+      const project = pickProject(state, undefined);
       if (project === null) {
         throw new StudioStoreError("project_required", "请先创建一个项目");
       }
@@ -2910,7 +2765,7 @@ export class StudioStore {
   ): Promise<ProviderProfile> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const project = this.pickProject(state, undefined);
+      const project = pickProject(state, undefined);
       if (project === null) {
         throw new StudioStoreError("project_required", "请先创建一个项目");
       }
@@ -2948,7 +2803,7 @@ export class StudioStore {
   ): Promise<ProviderProfile> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const profile = this.findProviderProfile(state, profileId);
+      const profile = findProviderProfile(state, profileId);
       if (input.name !== undefined) {
         profile.name = requiredText(input.name, "name", 80);
       }
@@ -2977,7 +2832,7 @@ export class StudioStore {
   async deleteProviderProfile(profileId: string): Promise<void> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const profile = this.findProviderProfile(state, profileId);
+      const profile = findProviderProfile(state, profileId);
       if (
         state.roles.some((role) => role.providerProfileId === profileId)
       ) {
@@ -3012,8 +2867,8 @@ export class StudioStore {
           400,
         );
       }
-      const from = this.findProviderProfile(state, fromProfileId);
-      const to = this.findProviderProfile(state, toProfileId);
+      const from = findProviderProfile(state, fromProfileId);
+      const to = findProviderProfile(state, toProfileId);
       if (from.projectId !== to.projectId) {
         throw new StudioStoreError(
           "invalid_input",
@@ -3055,7 +2910,7 @@ export class StudioStore {
   async getProviderProfile(profileId: string): Promise<ProviderProfile> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      return structuredClone(this.findProviderProfile(state, profileId));
+      return structuredClone(findProviderProfile(state, profileId));
     });
   }
 
@@ -3076,7 +2931,7 @@ export class StudioStore {
   async createRole(input: CreateRoleInput): Promise<Role> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const project = this.pickProject(state, undefined);
+      const project = pickProject(state, undefined);
       if (project === null) {
         throw new StudioStoreError("project_required", "请先创建一个项目");
       }
@@ -3085,7 +2940,7 @@ export class StudioStore {
         optionalText(input.providerProfileId, "providerProfileId", 120) ||
         null;
       if (providerProfileId !== null) {
-        const profile = this.findProviderProfile(state, providerProfileId);
+        const profile = findProviderProfile(state, providerProfileId);
         if (profile.projectId !== project.id) {
           throw new StudioStoreError(
             "provider_profile_not_found",
@@ -3166,7 +3021,7 @@ export class StudioStore {
           optionalText(input.providerProfileId, "providerProfileId", 120) ||
           null;
         if (nextProfileId !== null) {
-          const profile = this.findProviderProfile(state, nextProfileId);
+          const profile = findProviderProfile(state, nextProfileId);
           if (profile.projectId !== role.projectId) {
             throw new StudioStoreError(
               "provider_profile_not_found",
@@ -3211,18 +3066,18 @@ export class StudioStore {
   async createTask(input: CreateTaskInput): Promise<Task> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const project = this.pickProject(state, undefined);
+      const project = pickProject(state, undefined);
       if (project === null) {
         throw new StudioStoreError("project_required", "请先创建一个项目");
       }
       const at = nowIso(this.now);
-      const ownerRoleId = this.resolveRoleId(
+      const ownerRoleId = resolveRoleId(
         state,
         project.id,
         input.ownerRoleId,
         "ownerRoleId",
       );
-      const reviewerRoleId = this.resolveRoleId(
+      const reviewerRoleId = resolveRoleId(
         state,
         project.id,
         input.reviewerRoleId,
@@ -3273,7 +3128,7 @@ export class StudioStore {
   async updateTask(taskId: string, input: UpdateTaskInput): Promise<Task> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const task = this.findTask(state, taskId);
+      const task = findTask(state, taskId);
       if (task.status === "done") {
         throw new StudioStoreError(
           "task_locked",
@@ -3294,7 +3149,7 @@ export class StudioStore {
         task.priority = input.priority;
       }
       if (input.ownerRoleId !== undefined) {
-        task.ownerRoleId = this.resolveRoleId(
+        task.ownerRoleId = resolveRoleId(
           state,
           task.projectId,
           input.ownerRoleId,
@@ -3302,7 +3157,7 @@ export class StudioStore {
         );
       }
       if (input.reviewerRoleId !== undefined) {
-        task.reviewerRoleId = this.resolveRoleId(
+        task.reviewerRoleId = resolveRoleId(
           state,
           task.projectId,
           input.reviewerRoleId,
@@ -3368,7 +3223,7 @@ export class StudioStore {
   async transitionTask(taskId: string, next: TaskStatus): Promise<Task> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const task = this.findTask(state, taskId);
+      const task = findTask(state, taskId);
       if (task.status === next) {
         return structuredClone(task);
       }
@@ -3533,7 +3388,7 @@ export class StudioStore {
 
   async listTransitions(taskId: string): Promise<TaskStatus[]> {
     return this.runExclusive(async () => {
-      const task = this.findTask(this.requireState(), taskId);
+      const task = findTask(this.requireState(), taskId);
       return [...ALLOWED_TRANSITIONS[task.status]];
     });
   }
@@ -3544,7 +3399,7 @@ export class StudioStore {
   ): Promise<MergeProposal> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const task = this.findTask(state, taskId);
+      const task = findTask(state, taskId);
       if (task.status !== "done") {
         throw new StudioStoreError(
           "task_not_accepted",
@@ -3675,7 +3530,7 @@ export class StudioStore {
   ): Promise<MergeProposal> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const proposal = this.findMergeProposal(state, proposalId);
+      const proposal = findMergeProposal(state, proposalId);
       if (proposal.status !== "review") {
         throw new StudioStoreError(
           "invalid_merge_status",
@@ -3707,7 +3562,7 @@ export class StudioStore {
   ): Promise<MergeProposal> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const proposal = this.findMergeProposal(state, proposalId);
+      const proposal = findMergeProposal(state, proposalId);
       if (proposal.status !== "review") {
         throw new StudioStoreError(
           "invalid_merge_status",
@@ -3756,7 +3611,7 @@ export class StudioStore {
   }> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const proposal = this.findMergeProposal(state, proposalId);
+      const proposal = findMergeProposal(state, proposalId);
       const project = state.projects.find(
         (item) => item.id === proposal.projectId,
       );
@@ -3794,7 +3649,7 @@ export class StudioStore {
   ): Promise<MergeProposal> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const proposal = this.findMergeProposal(state, proposalId);
+      const proposal = findMergeProposal(state, proposalId);
       if (proposal.status !== "approved") {
         throw new StudioStoreError(
           "invalid_merge_status",
@@ -3830,7 +3685,7 @@ export class StudioStore {
   ): Promise<MergeProposal> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const proposal = this.findMergeProposal(state, proposalId);
+      const proposal = findMergeProposal(state, proposalId);
       proposal.postMergeVerificationId = verificationId;
       proposal.updatedAt = nowIso(this.now);
       state.updatedAt = proposal.updatedAt;
@@ -3845,7 +3700,7 @@ export class StudioStore {
   ): Promise<MergeProposal> {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const proposal = this.findMergeProposal(state, proposalId);
+      const proposal = findMergeProposal(state, proposalId);
       if (proposal.status !== "merged") {
         throw new StudioStoreError(
           "rollback_not_merged",
@@ -3932,26 +3787,6 @@ export class StudioStore {
       );
     }
     return this.state;
-  }
-
-  private pickProject(
-    state: StudioState,
-    projectId: string | undefined,
-  ): Project | null {
-    if (projectId !== undefined) {
-      const project = state.projects.find((item) => item.id === projectId);
-      if (project === undefined) {
-        throw new StudioStoreError("project_not_found", "项目不存在", 404);
-      }
-      return project;
-    }
-    if (state.activeProjectId !== null) {
-      const active = state.projects.find(
-        (item) => item.id === state.activeProjectId,
-      );
-      if (active !== undefined) return active;
-    }
-    return state.projects[0] ?? null;
   }
 
   private escalateRepeatedFailure(
@@ -4116,120 +3951,6 @@ export class StudioStore {
       branch.updatedAt = at;
     }
     return branch;
-  }
-
-  private findProject(state: StudioState, projectId: string): Project {
-    const project = state.projects.find((item) => item.id === projectId);
-    if (project === undefined) {
-      throw new StudioStoreError("project_not_found", "项目不存在", 404);
-    }
-    return project;
-  }
-
-  private findStageGate(
-    state: StudioState,
-    project: Project,
-    stage: ProjectStage,
-  ): StageGate {
-    const gate = state.stageGates.find(
-      (item) => item.projectId === project.id && item.stage === stage,
-    );
-    if (gate !== undefined) return gate;
-    const next = nextProjectStage(project.stage);
-    if (next === null) {
-      throw new StudioStoreError(
-        "stage_complete",
-        "项目已经进入持续开发，没有下一阶段门禁",
-        409,
-      );
-    }
-    if (stage !== next) {
-      throw new StudioStoreError(
-        "stage_gate_out_of_order",
-        `下一阶段是 ${next}，不能操作 ${stage} 门禁`,
-        409,
-      );
-    }
-    throw new StudioStoreError(
-      "stage_gate_not_found",
-      "阶段门禁尚未创建，请先打开阶段门禁",
-      404,
-    );
-  }
-
-  private findProviderProfile(
-    state: StudioState,
-    profileId: string,
-  ): ProviderProfile {
-    const profile = state.providerProfiles.find(
-      (item) => item.id === profileId,
-    );
-    if (profile === undefined) {
-      throw new StudioStoreError(
-        "provider_profile_not_found",
-        "Provider Profile 不存在",
-        404,
-      );
-    }
-    return profile;
-  }
-
-  private findWorkshop(state: StudioState, workshopId: string): Workshop {
-    const workshop = state.workshops.find((item) => item.id === workshopId);
-    if (workshop === undefined) {
-      throw new StudioStoreError("workshop_not_found", "研讨会不存在", 404);
-    }
-    return workshop;
-  }
-
-  private findTrigger(state: StudioState, triggerId: string): Trigger {
-    const trigger = state.triggers.find((item) => item.id === triggerId);
-    if (trigger === undefined) {
-      throw new StudioStoreError("trigger_not_found", "触发事件不存在", 404);
-    }
-    return trigger;
-  }
-
-  private findTask(state: StudioState, taskId: string): Task {
-    const task = state.tasks.find((item) => item.id === taskId);
-    if (task === undefined) {
-      throw new StudioStoreError("task_not_found", "任务不存在", 404);
-    }
-    return task;
-  }
-
-  private findMergeProposal(
-    state: StudioState,
-    proposalId: string,
-  ): MergeProposal {
-    const proposal = state.mergeProposals.find((item) => item.id === proposalId);
-    if (proposal === undefined) {
-      throw new StudioStoreError("merge_not_found", "合并提案不存在", 404);
-    }
-    return proposal;
-  }
-
-  private resolveRoleId(
-    state: StudioState,
-    projectId: string,
-    value: string | null | undefined,
-    field: string,
-  ): string | null {
-    if (value === undefined || value === null || value === "") return null;
-    if (typeof value !== "string") {
-      throw new StudioStoreError("invalid_input", `${field} 必须是字符串`);
-    }
-    const role = state.roles.find(
-      (item) => item.id === value && item.projectId === projectId,
-    );
-    if (role === undefined) {
-      throw new StudioStoreError(
-        "role_not_found",
-        `${field} 指向的角色不存在`,
-        404,
-      );
-    }
-    return role.id;
   }
 
   private recordEvent(

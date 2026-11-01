@@ -14,7 +14,7 @@ import path from "node:path";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 26;
-var STUDIO_PLUGIN_VERSION = "3.0.4";
+var STUDIO_PLUGIN_VERSION = "3.0.5";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -1467,6 +1467,255 @@ function createSeedState(now) {
   };
 }
 
+// src/host/store/templates.ts
+var projectTemplates = {
+  web: {
+    roles: [
+      {
+        name: "Lead",
+        title: "\u4EA7\u54C1 / \u8C03\u5EA6",
+        mission: "\u5B9A\u4E49\u8303\u56F4\u5E76\u4FDD\u6301\u4EA4\u4ED8\u8282\u594F\u3002",
+        responsibilities: ["\u5199 PRD", "\u62C6\u4EFB\u52A1", "\u6D3E\u5355"],
+        decisionRights: ["\u4F18\u5148\u7EA7"]
+      },
+      {
+        name: "Builder",
+        title: "\u5168\u6808\u5DE5\u7A0B\u5E08",
+        mission: "\u4EA4\u4ED8\u53EF\u8FD0\u884C\u7684 Web \u5782\u76F4\u5207\u7247\u3002",
+        responsibilities: ["\u5B9E\u73B0\u529F\u80FD", "\u8865\u6D4B\u8BD5"],
+        decisionRights: ["\u5B9E\u73B0\u65B9\u6848"]
+      },
+      {
+        name: "Verifier",
+        title: "QA / \u9A8C\u6536",
+        mission: "\u72EC\u7ACB\u9A8C\u8BC1\u53EF\u8FD0\u884C\u6027\u548C\u9A8C\u6536\u6807\u51C6\u3002",
+        responsibilities: ["\u8DD1\u6D4B\u8BD5", "\u8BB0\u5F55\u8BC1\u636E"],
+        decisionRights: ["\u9A8C\u6536\u7ED3\u8BBA"]
+      }
+    ],
+    tasks: [
+      {
+        title: "\u5199 PRD \u548C\u8303\u56F4",
+        goal: "\u660E\u786E\u8FD9\u4E00\u7248\u505A\u4EC0\u4E48\u3001\u4E0D\u505A\u4EC0\u4E48\u3002",
+        owner: "Lead",
+        reviewer: "Verifier",
+        acceptance: ["\u76EE\u6807\u4E0E\u975E\u76EE\u6807\u5DF2\u5199\u660E", "\u9A8C\u6536\u6807\u51C6\u53EF\u89C2\u5BDF"],
+        priority: "P1"
+      },
+      {
+        title: "\u642D\u53EF\u8FD0\u884C\u9AA8\u67B6",
+        goal: "\u5EFA\u7ACB\u6700\u5C0F\u53EF\u8FD0\u884C\u7ED3\u6784\u548C\u6D4B\u8BD5\u547D\u4EE4\u3002",
+        owner: "Builder",
+        reviewer: "Verifier",
+        acceptance: ["\u9879\u76EE\u53EF\u542F\u52A8", "\u6D4B\u8BD5\u547D\u4EE4\u53EF\u8FD0\u884C"],
+        priority: "P0"
+      }
+    ]
+  },
+  game: {
+    roles: [
+      {
+        name: "Lead",
+        title: "\u5236\u4F5C\u4EBA",
+        mission: "\u5B88\u4F4F\u6838\u5FC3\u5FAA\u73AF\u548C\u4EA4\u4ED8\u8282\u594F\u3002",
+        responsibilities: ["\u5B9A\u4E49\u6838\u5FC3\u5FAA\u73AF", "\u6392\u4F18\u5148\u7EA7"],
+        decisionRights: ["\u8303\u56F4", "\u4F18\u5148\u7EA7"]
+      },
+      {
+        name: "Architect",
+        title: "\u6280\u672F\u67B6\u6784",
+        mission: "\u5B88\u4F4F\u6A21\u5757\u8FB9\u754C\u548C\u53EF\u73A9\u6027\u6280\u672F\u98CE\u9669\u3002",
+        responsibilities: ["\u5B9A\u67B6\u6784", "\u8BC4\u5BA1\u9AD8\u98CE\u9669\u53D8\u66F4"],
+        decisionRights: ["\u6280\u672F\u65B9\u6848"]
+      },
+      {
+        name: "Builder",
+        title: "\u6E38\u620F\u5F00\u53D1",
+        mission: "\u4EA4\u4ED8\u53EF\u73A9\u7684\u5782\u76F4\u5207\u7247\u3002",
+        responsibilities: ["\u5B9E\u73B0\u73A9\u6CD5", "\u8865\u6D4B\u8BD5"],
+        decisionRights: ["\u5B9E\u73B0\u65B9\u6848"]
+      },
+      {
+        name: "Verifier",
+        title: "QA / \u9A8C\u6536",
+        mission: "\u72EC\u7ACB\u9A8C\u8BC1\u53EF\u73A9\u6027\u548C\u7A33\u5B9A\u6027\u3002",
+        responsibilities: ["\u8DD1 playtest", "\u8BB0\u5F55\u8BC1\u636E"],
+        decisionRights: ["\u9A8C\u6536\u7ED3\u8BBA"]
+      }
+    ],
+    tasks: [
+      {
+        title: "\u5B9A\u4E49\u6838\u5FC3\u5FAA\u73AF",
+        goal: "\u5199\u6E05\u695A\u73A9\u5BB6\u91CD\u590D\u505A\u4EC0\u4E48\u3001\u4E3A\u4EC0\u4E48\u6709\u8DA3\u3002",
+        owner: "Lead",
+        reviewer: "Architect",
+        acceptance: ["\u6838\u5FC3\u5FAA\u73AF\u4E00\u53E5\u8BDD\u8BF4\u6E05", "\u6709\u53EF\u9A8C\u8BC1\u7684 playtest \u573A\u666F"],
+        priority: "P0"
+      },
+      {
+        title: "\u642D\u53EF\u73A9\u9AA8\u67B6",
+        goal: "\u5EFA\u7ACB\u6700\u5C0F\u53EF\u8FD0\u884C\u573A\u666F\u548C\u8F93\u5165\u3002",
+        owner: "Builder",
+        reviewer: "Verifier",
+        acceptance: ["\u573A\u666F\u53EF\u542F\u52A8", "\u57FA\u672C\u8F93\u5165\u53EF\u7528", "\u6D4B\u8BD5\u547D\u4EE4\u53EF\u8FD0\u884C"],
+        priority: "P0"
+      }
+    ]
+  },
+  tool: {
+    roles: [
+      {
+        name: "Lead",
+        title: "\u5DE5\u5177\u8D1F\u8D23\u4EBA",
+        mission: "\u5B9A\u4E49\u5DE5\u5177\u8FB9\u754C\u548C\u4F7F\u7528\u8005\u3002",
+        responsibilities: ["\u5199\u9700\u6C42", "\u5B9A\u9A8C\u6536"],
+        decisionRights: ["\u8303\u56F4"]
+      },
+      {
+        name: "Builder",
+        title: "\u5DE5\u5177\u5F00\u53D1",
+        mission: "\u4EA4\u4ED8\u53EF\u6267\u884C\u7684\u5DE5\u5177\u3002",
+        responsibilities: ["\u5B9E\u73B0 CLI", "\u8865\u6D4B\u8BD5"],
+        decisionRights: ["\u5B9E\u73B0\u65B9\u6848"]
+      },
+      {
+        name: "Verifier",
+        title: "QA / \u9A8C\u6536",
+        mission: "\u72EC\u7ACB\u9A8C\u8BC1\u8F93\u5165\u8F93\u51FA\u548C\u9519\u8BEF\u8DEF\u5F84\u3002",
+        responsibilities: ["\u8DD1\u6D4B\u8BD5", "\u8BB0\u5F55\u8BC1\u636E"],
+        decisionRights: ["\u9A8C\u6536\u7ED3\u8BBA"]
+      }
+    ],
+    tasks: [
+      {
+        title: "\u5B9A\u4E49 CLI \u5951\u7EA6",
+        goal: "\u5199\u6E05\u695A\u8F93\u5165\u3001\u8F93\u51FA\u548C\u9519\u8BEF\u884C\u4E3A\u3002",
+        owner: "Lead",
+        reviewer: "Verifier",
+        acceptance: ["\u8F93\u5165\u8F93\u51FA\u5DF2\u5199\u660E", "\u9519\u8BEF\u8DEF\u5F84\u6709\u9A8C\u6536"],
+        priority: "P1"
+      },
+      {
+        title: "\u642D\u53EF\u6267\u884C\u9AA8\u67B6",
+        goal: "\u5EFA\u7ACB\u6700\u5C0F\u547D\u4EE4\u548C\u6D4B\u8BD5\u3002",
+        owner: "Builder",
+        reviewer: "Verifier",
+        acceptance: ["\u547D\u4EE4\u53EF\u8FD0\u884C", "\u6D4B\u8BD5\u547D\u4EE4\u53EF\u8FD0\u884C"],
+        priority: "P0"
+      }
+    ]
+  }
+};
+
+// src/host/store/lookups.ts
+function findProject(state, projectId) {
+  const project = state.projects.find((item) => item.id === projectId);
+  if (project === void 0) {
+    throw new StudioStoreError("project_not_found", "\u9879\u76EE\u4E0D\u5B58\u5728", 404);
+  }
+  return project;
+}
+function findStageGate(state, project, stage) {
+  const gate = state.stageGates.find(
+    (item) => item.projectId === project.id && item.stage === stage
+  );
+  if (gate !== void 0) return gate;
+  const next = nextProjectStage(project.stage);
+  if (next === null) {
+    throw new StudioStoreError(
+      "stage_complete",
+      "\u9879\u76EE\u5DF2\u7ECF\u8FDB\u5165\u6301\u7EED\u5F00\u53D1\uFF0C\u6CA1\u6709\u4E0B\u4E00\u9636\u6BB5\u95E8\u7981",
+      409
+    );
+  }
+  if (stage !== next) {
+    throw new StudioStoreError(
+      "stage_gate_out_of_order",
+      `\u4E0B\u4E00\u9636\u6BB5\u662F ${next}\uFF0C\u4E0D\u80FD\u64CD\u4F5C ${stage} \u95E8\u7981`,
+      409
+    );
+  }
+  throw new StudioStoreError(
+    "stage_gate_not_found",
+    "\u9636\u6BB5\u95E8\u7981\u5C1A\u672A\u521B\u5EFA\uFF0C\u8BF7\u5148\u6253\u5F00\u9636\u6BB5\u95E8\u7981",
+    404
+  );
+}
+function findProviderProfile(state, profileId) {
+  const profile = state.providerProfiles.find(
+    (item) => item.id === profileId
+  );
+  if (profile === void 0) {
+    throw new StudioStoreError(
+      "provider_profile_not_found",
+      "Provider Profile \u4E0D\u5B58\u5728",
+      404
+    );
+  }
+  return profile;
+}
+function findWorkshop(state, workshopId) {
+  const workshop = state.workshops.find((item) => item.id === workshopId);
+  if (workshop === void 0) {
+    throw new StudioStoreError("workshop_not_found", "\u7814\u8BA8\u4F1A\u4E0D\u5B58\u5728", 404);
+  }
+  return workshop;
+}
+function findTrigger(state, triggerId) {
+  const trigger = state.triggers.find((item) => item.id === triggerId);
+  if (trigger === void 0) {
+    throw new StudioStoreError("trigger_not_found", "\u89E6\u53D1\u4E8B\u4EF6\u4E0D\u5B58\u5728", 404);
+  }
+  return trigger;
+}
+function findTask(state, taskId) {
+  const task = state.tasks.find((item) => item.id === taskId);
+  if (task === void 0) {
+    throw new StudioStoreError("task_not_found", "\u4EFB\u52A1\u4E0D\u5B58\u5728", 404);
+  }
+  return task;
+}
+function findMergeProposal(state, proposalId) {
+  const proposal = state.mergeProposals.find((item) => item.id === proposalId);
+  if (proposal === void 0) {
+    throw new StudioStoreError("merge_not_found", "\u5408\u5E76\u63D0\u6848\u4E0D\u5B58\u5728", 404);
+  }
+  return proposal;
+}
+function resolveRoleId(state, projectId, value, field) {
+  if (value === void 0 || value === null || value === "") return null;
+  if (typeof value !== "string") {
+    throw new StudioStoreError("invalid_input", `${field} \u5FC5\u987B\u662F\u5B57\u7B26\u4E32`);
+  }
+  const role = state.roles.find(
+    (item) => item.id === value && item.projectId === projectId
+  );
+  if (role === void 0) {
+    throw new StudioStoreError(
+      "role_not_found",
+      `${field} \u6307\u5411\u7684\u89D2\u8272\u4E0D\u5B58\u5728`,
+      404
+    );
+  }
+  return role.id;
+}
+function pickProject(state, projectId) {
+  if (projectId !== void 0) {
+    const project = state.projects.find((item) => item.id === projectId);
+    if (project === void 0) {
+      throw new StudioStoreError("project_not_found", "\u9879\u76EE\u4E0D\u5B58\u5728", 404);
+    }
+    return project;
+  }
+  if (state.activeProjectId !== null) {
+    const active = state.projects.find(
+      (item) => item.id === state.activeProjectId
+    );
+    if (active !== void 0) return active;
+  }
+  return state.projects[0] ?? null;
+}
+
 // src/host/store.ts
 function defaultStudioDataDir() {
   const home = process.env.DSH_HOME?.trim();
@@ -1564,7 +1813,7 @@ var StudioStore = class {
   async bootstrap(projectId) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const project = this.pickProject(state, projectId);
+      const project = pickProject(state, projectId);
       const stageGates = project === null ? [] : state.stageGates.filter((gate) => gate.projectId === project.id);
       const triggers = project === null ? [] : state.triggers.filter((trigger) => trigger.projectId === project.id).sort(
         (left, right) => right.createdAt.localeCompare(left.createdAt)
@@ -1706,145 +1955,7 @@ var StudioStore = class {
     });
   }
   async createProjectFromTemplate(input) {
-    const templates = {
-      web: {
-        roles: [
-          {
-            name: "Lead",
-            title: "\u4EA7\u54C1 / \u8C03\u5EA6",
-            mission: "\u5B9A\u4E49\u8303\u56F4\u5E76\u4FDD\u6301\u4EA4\u4ED8\u8282\u594F\u3002",
-            responsibilities: ["\u5199 PRD", "\u62C6\u4EFB\u52A1", "\u6D3E\u5355"],
-            decisionRights: ["\u4F18\u5148\u7EA7"]
-          },
-          {
-            name: "Builder",
-            title: "\u5168\u6808\u5DE5\u7A0B\u5E08",
-            mission: "\u4EA4\u4ED8\u53EF\u8FD0\u884C\u7684 Web \u5782\u76F4\u5207\u7247\u3002",
-            responsibilities: ["\u5B9E\u73B0\u529F\u80FD", "\u8865\u6D4B\u8BD5"],
-            decisionRights: ["\u5B9E\u73B0\u65B9\u6848"]
-          },
-          {
-            name: "Verifier",
-            title: "QA / \u9A8C\u6536",
-            mission: "\u72EC\u7ACB\u9A8C\u8BC1\u53EF\u8FD0\u884C\u6027\u548C\u9A8C\u6536\u6807\u51C6\u3002",
-            responsibilities: ["\u8DD1\u6D4B\u8BD5", "\u8BB0\u5F55\u8BC1\u636E"],
-            decisionRights: ["\u9A8C\u6536\u7ED3\u8BBA"]
-          }
-        ],
-        tasks: [
-          {
-            title: "\u5199 PRD \u548C\u8303\u56F4",
-            goal: "\u660E\u786E\u8FD9\u4E00\u7248\u505A\u4EC0\u4E48\u3001\u4E0D\u505A\u4EC0\u4E48\u3002",
-            owner: "Lead",
-            reviewer: "Verifier",
-            acceptance: ["\u76EE\u6807\u4E0E\u975E\u76EE\u6807\u5DF2\u5199\u660E", "\u9A8C\u6536\u6807\u51C6\u53EF\u89C2\u5BDF"],
-            priority: "P1"
-          },
-          {
-            title: "\u642D\u53EF\u8FD0\u884C\u9AA8\u67B6",
-            goal: "\u5EFA\u7ACB\u6700\u5C0F\u53EF\u8FD0\u884C\u7ED3\u6784\u548C\u6D4B\u8BD5\u547D\u4EE4\u3002",
-            owner: "Builder",
-            reviewer: "Verifier",
-            acceptance: ["\u9879\u76EE\u53EF\u542F\u52A8", "\u6D4B\u8BD5\u547D\u4EE4\u53EF\u8FD0\u884C"],
-            priority: "P0"
-          }
-        ]
-      },
-      game: {
-        roles: [
-          {
-            name: "Lead",
-            title: "\u5236\u4F5C\u4EBA",
-            mission: "\u5B88\u4F4F\u6838\u5FC3\u5FAA\u73AF\u548C\u4EA4\u4ED8\u8282\u594F\u3002",
-            responsibilities: ["\u5B9A\u4E49\u6838\u5FC3\u5FAA\u73AF", "\u6392\u4F18\u5148\u7EA7"],
-            decisionRights: ["\u8303\u56F4", "\u4F18\u5148\u7EA7"]
-          },
-          {
-            name: "Architect",
-            title: "\u6280\u672F\u67B6\u6784",
-            mission: "\u5B88\u4F4F\u6A21\u5757\u8FB9\u754C\u548C\u53EF\u73A9\u6027\u6280\u672F\u98CE\u9669\u3002",
-            responsibilities: ["\u5B9A\u67B6\u6784", "\u8BC4\u5BA1\u9AD8\u98CE\u9669\u53D8\u66F4"],
-            decisionRights: ["\u6280\u672F\u65B9\u6848"]
-          },
-          {
-            name: "Builder",
-            title: "\u6E38\u620F\u5F00\u53D1",
-            mission: "\u4EA4\u4ED8\u53EF\u73A9\u7684\u5782\u76F4\u5207\u7247\u3002",
-            responsibilities: ["\u5B9E\u73B0\u73A9\u6CD5", "\u8865\u6D4B\u8BD5"],
-            decisionRights: ["\u5B9E\u73B0\u65B9\u6848"]
-          },
-          {
-            name: "Verifier",
-            title: "QA / \u9A8C\u6536",
-            mission: "\u72EC\u7ACB\u9A8C\u8BC1\u53EF\u73A9\u6027\u548C\u7A33\u5B9A\u6027\u3002",
-            responsibilities: ["\u8DD1 playtest", "\u8BB0\u5F55\u8BC1\u636E"],
-            decisionRights: ["\u9A8C\u6536\u7ED3\u8BBA"]
-          }
-        ],
-        tasks: [
-          {
-            title: "\u5B9A\u4E49\u6838\u5FC3\u5FAA\u73AF",
-            goal: "\u5199\u6E05\u695A\u73A9\u5BB6\u91CD\u590D\u505A\u4EC0\u4E48\u3001\u4E3A\u4EC0\u4E48\u6709\u8DA3\u3002",
-            owner: "Lead",
-            reviewer: "Architect",
-            acceptance: ["\u6838\u5FC3\u5FAA\u73AF\u4E00\u53E5\u8BDD\u8BF4\u6E05", "\u6709\u53EF\u9A8C\u8BC1\u7684 playtest \u573A\u666F"],
-            priority: "P0"
-          },
-          {
-            title: "\u642D\u53EF\u73A9\u9AA8\u67B6",
-            goal: "\u5EFA\u7ACB\u6700\u5C0F\u53EF\u8FD0\u884C\u573A\u666F\u548C\u8F93\u5165\u3002",
-            owner: "Builder",
-            reviewer: "Verifier",
-            acceptance: ["\u573A\u666F\u53EF\u542F\u52A8", "\u57FA\u672C\u8F93\u5165\u53EF\u7528", "\u6D4B\u8BD5\u547D\u4EE4\u53EF\u8FD0\u884C"],
-            priority: "P0"
-          }
-        ]
-      },
-      tool: {
-        roles: [
-          {
-            name: "Lead",
-            title: "\u5DE5\u5177\u8D1F\u8D23\u4EBA",
-            mission: "\u5B9A\u4E49\u5DE5\u5177\u8FB9\u754C\u548C\u4F7F\u7528\u8005\u3002",
-            responsibilities: ["\u5199\u9700\u6C42", "\u5B9A\u9A8C\u6536"],
-            decisionRights: ["\u8303\u56F4"]
-          },
-          {
-            name: "Builder",
-            title: "\u5DE5\u5177\u5F00\u53D1",
-            mission: "\u4EA4\u4ED8\u53EF\u6267\u884C\u7684\u5DE5\u5177\u3002",
-            responsibilities: ["\u5B9E\u73B0 CLI", "\u8865\u6D4B\u8BD5"],
-            decisionRights: ["\u5B9E\u73B0\u65B9\u6848"]
-          },
-          {
-            name: "Verifier",
-            title: "QA / \u9A8C\u6536",
-            mission: "\u72EC\u7ACB\u9A8C\u8BC1\u8F93\u5165\u8F93\u51FA\u548C\u9519\u8BEF\u8DEF\u5F84\u3002",
-            responsibilities: ["\u8DD1\u6D4B\u8BD5", "\u8BB0\u5F55\u8BC1\u636E"],
-            decisionRights: ["\u9A8C\u6536\u7ED3\u8BBA"]
-          }
-        ],
-        tasks: [
-          {
-            title: "\u5B9A\u4E49 CLI \u5951\u7EA6",
-            goal: "\u5199\u6E05\u695A\u8F93\u5165\u3001\u8F93\u51FA\u548C\u9519\u8BEF\u884C\u4E3A\u3002",
-            owner: "Lead",
-            reviewer: "Verifier",
-            acceptance: ["\u8F93\u5165\u8F93\u51FA\u5DF2\u5199\u660E", "\u9519\u8BEF\u8DEF\u5F84\u6709\u9A8C\u6536"],
-            priority: "P1"
-          },
-          {
-            title: "\u642D\u53EF\u6267\u884C\u9AA8\u67B6",
-            goal: "\u5EFA\u7ACB\u6700\u5C0F\u547D\u4EE4\u548C\u6D4B\u8BD5\u3002",
-            owner: "Builder",
-            reviewer: "Verifier",
-            acceptance: ["\u547D\u4EE4\u53EF\u8FD0\u884C", "\u6D4B\u8BD5\u547D\u4EE4\u53EF\u8FD0\u884C"],
-            priority: "P0"
-          }
-        ]
-      }
-    };
-    const template = templates[input.template];
+    const template = projectTemplates[input.template];
     if (template === void 0) {
       throw new StudioStoreError(
         "invalid_input",
@@ -1916,7 +2027,7 @@ var StudioStore = class {
   async getStageGate(projectId, stage) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const project = this.findProject(state, projectId);
+      const project = findProject(state, projectId);
       const next = nextProjectStage(project.stage);
       if (next === null) {
         throw new StudioStoreError(
@@ -1962,8 +2073,8 @@ var StudioStore = class {
   async updateStageGate(projectId, stage, input) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const project = this.findProject(state, projectId);
-      const gate = this.findStageGate(state, project, stage);
+      const project = findProject(state, projectId);
+      const gate = findStageGate(state, project, stage);
       if (gate.status === "approved") {
         throw new StudioStoreError(
           "stage_gate_locked",
@@ -1993,8 +2104,8 @@ var StudioStore = class {
   async approveStageGate(projectId, stage, input = {}) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const project = this.findProject(state, projectId);
-      const gate = this.findStageGate(state, project, stage);
+      const project = findProject(state, projectId);
+      const gate = findStageGate(state, project, stage);
       if (gate.status === "approved") {
         throw new StudioStoreError(
           "stage_gate_locked",
@@ -2067,8 +2178,8 @@ var StudioStore = class {
       }
       const reason = requiredText(note, "note", 4e3);
       const state = this.requireState();
-      const project = this.findProject(state, projectId);
-      const gate = this.findStageGate(state, project, stage);
+      const project = findProject(state, projectId);
+      const gate = findStageGate(state, project, stage);
       if (gate.status === "approved") {
         throw new StudioStoreError(
           "stage_gate_locked",
@@ -2103,7 +2214,7 @@ var StudioStore = class {
         );
       }
       const state = this.requireState();
-      const project = this.pickProject(state, void 0);
+      const project = pickProject(state, void 0);
       if (project === null) {
         throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
       }
@@ -2172,13 +2283,13 @@ var StudioStore = class {
   async getTriggerRules(projectId) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      return structuredClone(this.findProject(state, projectId).triggerRules);
+      return structuredClone(findProject(state, projectId).triggerRules);
     });
   }
   async updateTriggerRules(projectId, input) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const project = this.findProject(state, projectId);
+      const project = findProject(state, projectId);
       if (input.enabled !== void 0) {
         project.triggerRules.enabled = input.enabled;
       }
@@ -2278,7 +2389,7 @@ ${normalized.body}`.includes(rules.mention)) {
   async acceptTrigger(triggerId, input = {}) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const trigger = this.findTrigger(state, triggerId);
+      const trigger = findTrigger(state, triggerId);
       if (trigger.status === "ignored") {
         throw new StudioStoreError(
           "trigger_ignored",
@@ -2286,17 +2397,17 @@ ${normalized.body}`.includes(rules.mention)) {
           409
         );
       }
-      const project = this.findProject(state, trigger.projectId);
+      const project = findProject(state, trigger.projectId);
       if (trigger.status === "accepted" && trigger.taskId !== null) {
         return {
           trigger: structuredClone(trigger),
-          task: structuredClone(this.findTask(state, trigger.taskId))
+          task: structuredClone(findTask(state, trigger.taskId))
         };
       }
       const thread = trigger.threadId === null ? void 0 : state.threads.find((item) => item.id === trigger.threadId);
       if (thread?.taskId !== null && thread?.taskId !== void 0) {
         const at2 = nowIso2(this.now);
-        const task2 = this.findTask(state, thread.taskId);
+        const task2 = findTask(state, thread.taskId);
         trigger.status = "accepted";
         trigger.taskId = task2.id;
         trigger.updatedAt = at2;
@@ -2379,7 +2490,7 @@ ${normalized.body}`.includes(rules.mention)) {
   async ignoreTrigger(triggerId, note = "") {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const trigger = this.findTrigger(state, triggerId);
+      const trigger = findTrigger(state, triggerId);
       if (trigger.status === "accepted") {
         throw new StudioStoreError(
           "trigger_accepted",
@@ -2406,8 +2517,8 @@ ${normalized.body}`.includes(rules.mention)) {
   async getWorkshopContext(workshopId) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const workshop = this.findWorkshop(state, workshopId);
-      const project = this.findProject(state, workshop.projectId);
+      const workshop = findWorkshop(state, workshopId);
+      const project = findProject(state, workshop.projectId);
       const roles = state.roles.filter(
         (role) => role.projectId === workshop.projectId && workshop.participantRoleIds.includes(role.id)
       );
@@ -2425,7 +2536,7 @@ ${normalized.body}`.includes(rules.mention)) {
   async createPrototypeDemo(input, projectId) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const project = this.pickProject(state, projectId);
+      const project = pickProject(state, projectId);
       if (project === null) {
         throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
       }
@@ -2523,7 +2634,7 @@ ${normalized.body}`.includes(rules.mention)) {
   async createWorkshop(input) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const project = this.pickProject(state, void 0);
+      const project = pickProject(state, void 0);
       if (project === null) {
         throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
       }
@@ -2571,7 +2682,7 @@ ${normalized.body}`.includes(rules.mention)) {
   async addWorkshopNote(workshopId, input) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const workshop = this.findWorkshop(state, workshopId);
+      const workshop = findWorkshop(state, workshopId);
       if (workshop.status === "decided" || workshop.status === "cancelled") {
         throw new StudioStoreError(
           "workshop_closed",
@@ -2629,7 +2740,7 @@ ${normalized.body}`.includes(rules.mention)) {
   async setWorkshopAiSummary(workshopId, summary) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const workshop = this.findWorkshop(state, workshopId);
+      const workshop = findWorkshop(state, workshopId);
       if (workshop.notes.length === 0) {
         throw new StudioStoreError(
           "workshop_empty",
@@ -2669,7 +2780,7 @@ ${normalized.body}`.includes(rules.mention)) {
   async synthesizeWorkshop(workshopId, synthesis) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const workshop = this.findWorkshop(state, workshopId);
+      const workshop = findWorkshop(state, workshopId);
       if (workshop.notes.length === 0) {
         throw new StudioStoreError(
           "workshop_empty",
@@ -2695,7 +2806,7 @@ ${normalized.body}`.includes(rules.mention)) {
   async decideWorkshop(workshopId, decision) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const workshop = this.findWorkshop(state, workshopId);
+      const workshop = findWorkshop(state, workshopId);
       if (workshop.synthesis.trim() === "") {
         throw new StudioStoreError(
           "workshop_synthesis_required",
@@ -2736,7 +2847,7 @@ ${normalized.body}`.includes(rules.mention)) {
   async getDispatchContext(taskId) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const task = this.findTask(state, taskId);
+      const task = findTask(state, taskId);
       if (task.kind === "fix" && !task.integration && (task.diagnosis.trim() === "" || task.plan.trim() === "")) {
         throw new StudioStoreError(
           "plan_required",
@@ -2787,7 +2898,7 @@ ${normalized.body}`.includes(rules.mention)) {
   async getReviewContext(taskId) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const task = this.findTask(state, taskId);
+      const task = findTask(state, taskId);
       if (task.reviewerRoleId === null) {
         throw new StudioStoreError(
           "reviewer_required",
@@ -2832,7 +2943,7 @@ ${normalized.body}`.includes(rules.mention)) {
   async recordReview(taskId, input) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const task = this.findTask(state, taskId);
+      const task = findTask(state, taskId);
       const at = nowIso2(this.now);
       const review = {
         id: newId2("review"),
@@ -2869,7 +2980,7 @@ ${normalized.body}`.includes(rules.mention)) {
   async getTaskVerificationContext(taskId) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const task = this.findTask(state, taskId);
+      const task = findTask(state, taskId);
       const run = [...state.runs].filter(
         (item) => item.taskId === taskId && item.workspacePath !== null
       ).sort(
@@ -2884,7 +2995,7 @@ ${normalized.body}`.includes(rules.mention)) {
   async beginRun(taskId, prompt, workspace, execution) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const task = this.findTask(state, taskId);
+      const task = findTask(state, taskId);
       if (task.status !== "backlog" && task.status !== "ready") {
         throw new StudioStoreError(
           "task_not_dispatchable",
@@ -3294,7 +3405,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
   async enforceContractScope(taskId, runId, changedFiles) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const task = this.findTask(state, taskId);
+      const task = findTask(state, taskId);
       const module = task.module === null ? void 0 : state.modules.find(
         (item) => item.projectId === task.projectId && item.name === task.module
       );
@@ -3372,7 +3483,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
   async recordVerification(taskId, input) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const task = this.findTask(state, taskId);
+      const task = findTask(state, taskId);
       const at = nowIso2(this.now);
       const run = input.runId ? state.runs.find((item) => item.id === input.runId) : [...state.runs].filter(
         (item) => item.taskId === taskId && item.workspacePath !== null
@@ -3478,7 +3589,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
   async createPostMergeDecision(input) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const task = this.findTask(state, input.taskId);
+      const task = findTask(state, input.taskId);
       const title = `\u5408\u5E76\u540E\u56DE\u5F52\u5931\u8D25\uFF1A${task.title.slice(0, 140)}`;
       if (state.decisions.some(
         (item) => item.taskId === task.id && item.title === title
@@ -3540,13 +3651,13 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
   async createDecision(input) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const project = this.pickProject(state, void 0);
+      const project = pickProject(state, void 0);
       if (project === null) {
         throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
       }
       let taskId = null;
       if (input.taskId !== void 0 && input.taskId !== null) {
-        const task = this.findTask(state, input.taskId);
+        const task = findTask(state, input.taskId);
         if (task.projectId !== project.id) {
           throw new StudioStoreError(
             "task_not_found",
@@ -3674,7 +3785,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
   async createModule(input) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const project = this.pickProject(state, void 0);
+      const project = pickProject(state, void 0);
       if (project === null) {
         throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
       }
@@ -3783,7 +3894,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
   async createProviderProfile(input) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const project = this.pickProject(state, void 0);
+      const project = pickProject(state, void 0);
       if (project === null) {
         throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
       }
@@ -3814,7 +3925,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
   async updateProviderProfile(profileId, input) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const profile = this.findProviderProfile(state, profileId);
+      const profile = findProviderProfile(state, profileId);
       if (input.name !== void 0) {
         profile.name = requiredText(input.name, "name", 80);
       }
@@ -3839,7 +3950,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
   async deleteProviderProfile(profileId) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const profile = this.findProviderProfile(state, profileId);
+      const profile = findProviderProfile(state, profileId);
       if (state.roles.some((role) => role.providerProfileId === profileId)) {
         throw new StudioStoreError(
           "provider_profile_in_use",
@@ -3864,8 +3975,8 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           400
         );
       }
-      const from = this.findProviderProfile(state, fromProfileId);
-      const to = this.findProviderProfile(state, toProfileId);
+      const from = findProviderProfile(state, fromProfileId);
+      const to = findProviderProfile(state, toProfileId);
       if (from.projectId !== to.projectId) {
         throw new StudioStoreError(
           "invalid_input",
@@ -3903,7 +4014,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
   async getProviderProfile(profileId) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      return structuredClone(this.findProviderProfile(state, profileId));
+      return structuredClone(findProviderProfile(state, profileId));
     });
   }
   async getRoleProvider(roleId) {
@@ -3920,14 +4031,14 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
   async createRole(input) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const project = this.pickProject(state, void 0);
+      const project = pickProject(state, void 0);
       if (project === null) {
         throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
       }
       const at = nowIso2(this.now);
       const providerProfileId = optionalText(input.providerProfileId, "providerProfileId", 120) || null;
       if (providerProfileId !== null) {
-        const profile = this.findProviderProfile(state, providerProfileId);
+        const profile = findProviderProfile(state, providerProfileId);
         if (profile.projectId !== project.id) {
           throw new StudioStoreError(
             "provider_profile_not_found",
@@ -3999,7 +4110,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       if (input.providerProfileId !== void 0) {
         const nextProfileId = optionalText(input.providerProfileId, "providerProfileId", 120) || null;
         if (nextProfileId !== null) {
-          const profile = this.findProviderProfile(state, nextProfileId);
+          const profile = findProviderProfile(state, nextProfileId);
           if (profile.projectId !== role.projectId) {
             throw new StudioStoreError(
               "provider_profile_not_found",
@@ -4040,18 +4151,18 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
   async createTask(input) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const project = this.pickProject(state, void 0);
+      const project = pickProject(state, void 0);
       if (project === null) {
         throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
       }
       const at = nowIso2(this.now);
-      const ownerRoleId = this.resolveRoleId(
+      const ownerRoleId = resolveRoleId(
         state,
         project.id,
         input.ownerRoleId,
         "ownerRoleId"
       );
-      const reviewerRoleId = this.resolveRoleId(
+      const reviewerRoleId = resolveRoleId(
         state,
         project.id,
         input.reviewerRoleId,
@@ -4098,7 +4209,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
   async updateTask(taskId, input) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const task = this.findTask(state, taskId);
+      const task = findTask(state, taskId);
       if (task.status === "done") {
         throw new StudioStoreError(
           "task_locked",
@@ -4119,7 +4230,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         task.priority = input.priority;
       }
       if (input.ownerRoleId !== void 0) {
-        task.ownerRoleId = this.resolveRoleId(
+        task.ownerRoleId = resolveRoleId(
           state,
           task.projectId,
           input.ownerRoleId,
@@ -4127,7 +4238,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         );
       }
       if (input.reviewerRoleId !== void 0) {
-        task.reviewerRoleId = this.resolveRoleId(
+        task.reviewerRoleId = resolveRoleId(
           state,
           task.projectId,
           input.reviewerRoleId,
@@ -4190,7 +4301,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
   async transitionTask(taskId, next) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const task = this.findTask(state, taskId);
+      const task = findTask(state, taskId);
       if (task.status === next) {
         return structuredClone(task);
       }
@@ -4330,14 +4441,14 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
   }
   async listTransitions(taskId) {
     return this.runExclusive(async () => {
-      const task = this.findTask(this.requireState(), taskId);
+      const task = findTask(this.requireState(), taskId);
       return [...ALLOWED_TRANSITIONS[task.status]];
     });
   }
   async createMergeProposal(taskId, input) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const task = this.findTask(state, taskId);
+      const task = findTask(state, taskId);
       if (task.status !== "done") {
         throw new StudioStoreError(
           "task_not_accepted",
@@ -4449,7 +4560,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
   async approveMergeProposal(proposalId, note) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const proposal = this.findMergeProposal(state, proposalId);
+      const proposal = findMergeProposal(state, proposalId);
       if (proposal.status !== "review") {
         throw new StudioStoreError(
           "invalid_merge_status",
@@ -4477,7 +4588,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
   async rejectMergeProposal(proposalId, note) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const proposal = this.findMergeProposal(state, proposalId);
+      const proposal = findMergeProposal(state, proposalId);
       if (proposal.status !== "review") {
         throw new StudioStoreError(
           "invalid_merge_status",
@@ -4517,7 +4628,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
   async getMergeContext(proposalId) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const proposal = this.findMergeProposal(state, proposalId);
+      const proposal = findMergeProposal(state, proposalId);
       const project = state.projects.find(
         (item) => item.id === proposal.projectId
       );
@@ -4545,7 +4656,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
   async completeMergeProposal(proposalId, mergeCommit) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const proposal = this.findMergeProposal(state, proposalId);
+      const proposal = findMergeProposal(state, proposalId);
       if (proposal.status !== "approved") {
         throw new StudioStoreError(
           "invalid_merge_status",
@@ -4576,7 +4687,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
   async setMergePostVerification(proposalId, verificationId) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const proposal = this.findMergeProposal(state, proposalId);
+      const proposal = findMergeProposal(state, proposalId);
       proposal.postMergeVerificationId = verificationId;
       proposal.updatedAt = nowIso2(this.now);
       state.updatedAt = proposal.updatedAt;
@@ -4587,7 +4698,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
   async recordRollback(proposalId, rollbackCommit) {
     return this.runExclusive(async () => {
       const state = this.requireState();
-      const proposal = this.findMergeProposal(state, proposalId);
+      const proposal = findMergeProposal(state, proposalId);
       if (proposal.status !== "merged") {
         throw new StudioStoreError(
           "rollback_not_merged",
@@ -4666,22 +4777,6 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       );
     }
     return this.state;
-  }
-  pickProject(state, projectId) {
-    if (projectId !== void 0) {
-      const project = state.projects.find((item) => item.id === projectId);
-      if (project === void 0) {
-        throw new StudioStoreError("project_not_found", "\u9879\u76EE\u4E0D\u5B58\u5728", 404);
-      }
-      return project;
-    }
-    if (state.activeProjectId !== null) {
-      const active = state.projects.find(
-        (item) => item.id === state.activeProjectId
-      );
-      if (active !== void 0) return active;
-    }
-    return state.projects[0] ?? null;
   }
   escalateRepeatedFailure(state, task, at, reason, run) {
     const failures = state.runs.filter(
@@ -4825,97 +4920,6 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       branch.updatedAt = at;
     }
     return branch;
-  }
-  findProject(state, projectId) {
-    const project = state.projects.find((item) => item.id === projectId);
-    if (project === void 0) {
-      throw new StudioStoreError("project_not_found", "\u9879\u76EE\u4E0D\u5B58\u5728", 404);
-    }
-    return project;
-  }
-  findStageGate(state, project, stage) {
-    const gate = state.stageGates.find(
-      (item) => item.projectId === project.id && item.stage === stage
-    );
-    if (gate !== void 0) return gate;
-    const next = nextProjectStage(project.stage);
-    if (next === null) {
-      throw new StudioStoreError(
-        "stage_complete",
-        "\u9879\u76EE\u5DF2\u7ECF\u8FDB\u5165\u6301\u7EED\u5F00\u53D1\uFF0C\u6CA1\u6709\u4E0B\u4E00\u9636\u6BB5\u95E8\u7981",
-        409
-      );
-    }
-    if (stage !== next) {
-      throw new StudioStoreError(
-        "stage_gate_out_of_order",
-        `\u4E0B\u4E00\u9636\u6BB5\u662F ${next}\uFF0C\u4E0D\u80FD\u64CD\u4F5C ${stage} \u95E8\u7981`,
-        409
-      );
-    }
-    throw new StudioStoreError(
-      "stage_gate_not_found",
-      "\u9636\u6BB5\u95E8\u7981\u5C1A\u672A\u521B\u5EFA\uFF0C\u8BF7\u5148\u6253\u5F00\u9636\u6BB5\u95E8\u7981",
-      404
-    );
-  }
-  findProviderProfile(state, profileId) {
-    const profile = state.providerProfiles.find(
-      (item) => item.id === profileId
-    );
-    if (profile === void 0) {
-      throw new StudioStoreError(
-        "provider_profile_not_found",
-        "Provider Profile \u4E0D\u5B58\u5728",
-        404
-      );
-    }
-    return profile;
-  }
-  findWorkshop(state, workshopId) {
-    const workshop = state.workshops.find((item) => item.id === workshopId);
-    if (workshop === void 0) {
-      throw new StudioStoreError("workshop_not_found", "\u7814\u8BA8\u4F1A\u4E0D\u5B58\u5728", 404);
-    }
-    return workshop;
-  }
-  findTrigger(state, triggerId) {
-    const trigger = state.triggers.find((item) => item.id === triggerId);
-    if (trigger === void 0) {
-      throw new StudioStoreError("trigger_not_found", "\u89E6\u53D1\u4E8B\u4EF6\u4E0D\u5B58\u5728", 404);
-    }
-    return trigger;
-  }
-  findTask(state, taskId) {
-    const task = state.tasks.find((item) => item.id === taskId);
-    if (task === void 0) {
-      throw new StudioStoreError("task_not_found", "\u4EFB\u52A1\u4E0D\u5B58\u5728", 404);
-    }
-    return task;
-  }
-  findMergeProposal(state, proposalId) {
-    const proposal = state.mergeProposals.find((item) => item.id === proposalId);
-    if (proposal === void 0) {
-      throw new StudioStoreError("merge_not_found", "\u5408\u5E76\u63D0\u6848\u4E0D\u5B58\u5728", 404);
-    }
-    return proposal;
-  }
-  resolveRoleId(state, projectId, value, field) {
-    if (value === void 0 || value === null || value === "") return null;
-    if (typeof value !== "string") {
-      throw new StudioStoreError("invalid_input", `${field} \u5FC5\u987B\u662F\u5B57\u7B26\u4E32`);
-    }
-    const role = state.roles.find(
-      (item) => item.id === value && item.projectId === projectId
-    );
-    if (role === void 0) {
-      throw new StudioStoreError(
-        "role_not_found",
-        `${field} \u6307\u5411\u7684\u89D2\u8272\u4E0D\u5B58\u5728`,
-        404
-      );
-    }
-    return role.id;
   }
   recordEvent(state, input) {
     const event = {
