@@ -423,6 +423,13 @@ var StudioClient = class {
     );
     return data.workshop;
   }
+  async summarizeWorkshop(workshopId) {
+    const data = await this.request(
+      `/workshops/${encodeURIComponent(workshopId)}/summarize`,
+      { method: "POST", body: {} }
+    );
+    return data.workshop;
+  }
   async decideWorkshop(workshopId, decision) {
     const data = await this.request(
       `/workshops/${encodeURIComponent(workshopId)}/decide`,
@@ -1299,6 +1306,15 @@ function StudioPage() {
       "AI \u72EC\u7ACB\u8BC4\u5BA1\u5DF2\u5B8C\u6210"
     );
   };
+  const summarizeWorkshopAi = async (workshopId) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.summarizeWorkshop(workshopId);
+      },
+      "AI \u6C47\u603B\u8349\u7A3F\u5DF2\u751F\u6210"
+    );
+  };
   const readProjectDoc = async (docPath) => {
     if (client === null) return null;
     try {
@@ -1750,7 +1766,8 @@ function StudioPage() {
             onAddWorkshopNote: addWorkshopNote,
             onSynthesizeWorkshop: synthesizeWorkshop,
             onDecideWorkshop: decideWorkshop,
-            onRunWorkshop: runWorkshop
+            onRunWorkshop: runWorkshop,
+            onSummarizeWorkshop: summarizeWorkshopAi
           }
         ) : null,
         tab === "tasks" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
@@ -2796,7 +2813,8 @@ function WorkshopPanel({
   onAddNote,
   onSynthesize,
   onDecide,
-  onRun
+  onRun,
+  onSummarize
 }) {
   const active = workshops.find(
     (workshop) => workshop.status === "collecting" || workshop.status === "synthesized"
@@ -2939,17 +2957,49 @@ function WorkshopPanel({
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-pill", "data-tone": "accent", children: active.status === "collecting" ? "\u6536\u96C6\u610F\u89C1" : "\u5DF2\u6C47\u603B" })
       ] }),
-      active.status === "collecting" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-        "button",
-        {
-          className: "studio-btn",
-          type: "button",
-          disabled: busy || active.participantRoleIds.length === 0,
-          onClick: () => void onRun(active.id),
-          title: "\u6BCF\u4E2A\u53C2\u4E0E\u89D2\u8272\u72EC\u7ACB\u8C03\u7528 DSH Agent\uFF1B\u4E0D\u4F1A\u4FEE\u6539\u6587\u4EF6\u6216\u81EA\u52A8\u5408\u5E76",
-          children: "AI \u72EC\u7ACB\u8BC4\u5BA1"
-        }
-      ) : null,
+      active.status === "collecting" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-actions", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          "button",
+          {
+            className: "studio-btn",
+            type: "button",
+            disabled: busy || active.participantRoleIds.length === 0,
+            onClick: () => void onRun(active.id),
+            title: "\u6BCF\u4E2A\u53C2\u4E0E\u89D2\u8272\u72EC\u7ACB\u8C03\u7528 DSH Agent\uFF1B\u4E0D\u4F1A\u4FEE\u6539\u6587\u4EF6\u6216\u81EA\u52A8\u5408\u5E76",
+            children: "AI \u72EC\u7ACB\u8BC4\u5BA1"
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          "button",
+          {
+            className: "studio-btn",
+            type: "button",
+            disabled: busy || active.notes.length === 0,
+            onClick: () => void onSummarize(active.id),
+            title: "\u751F\u6210\u6C47\u603B\u8349\u7A3F\uFF1B\u4E0D\u4F1A\u8986\u76D6\u539F\u59CB\u610F\u89C1\uFF0C\u4E5F\u4E0D\u4F1A\u5199 Owner \u51B3\u7B56",
+            children: "AI \u6C47\u603B\u8349\u7A3F"
+          }
+        )
+      ] }) : null,
+      active.aiSummary ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-workshop-summary", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-role-section-label", children: "AI \u6C47\u603B\u8349\u7A3F\uFF08\u672A\u91C7\u7EB3\uFF09" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { children: [
+          "\u5171\u8BC6\uFF1A",
+          active.aiSummary.consensus.join("\uFF1B") || "\u65E0"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { children: [
+          "\u5206\u6B67\uFF1A",
+          active.aiSummary.disagreements.join("\uFF1B") || "\u65E0"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { children: [
+          "\u672A\u51B3\uFF1A",
+          active.aiSummary.openQuestions.join("\uFF1B") || "\u65E0"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { children: [
+          "\u5019\u9009\uFF1A",
+          active.aiSummary.candidates.join("\uFF1B") || "\u65E0"
+        ] })
+      ] }) : null,
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-workshop-notes", children: active.notes.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-hint", children: "\u6BCF\u4F4D\u53C2\u4E0E\u8005\u72EC\u7ACB\u63D0\u4EA4\u610F\u89C1\uFF1B\u53EF\u4EE5\u7C98\u8D34\u5404 AI \u7684\u8F93\u51FA\u3002\u4E0D\u8981\u5728\u540C\u4E00\u4E2A\u4E0A\u4E0B\u6587\u91CC\u8F6E\u8F6C\u3002" }) : active.notes.map((note) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-workshop-note", children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: note.roleName }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { children: note.summary }),
@@ -3871,7 +3921,8 @@ function MissionView({
   onAddWorkshopNote,
   onSynthesizeWorkshop,
   onDecideWorkshop,
-  onRunWorkshop
+  onRunWorkshop,
+  onSummarizeWorkshop
 }) {
   const project = data.project;
   const nextStage = project === null ? null : nextProjectStage(project.stage);
@@ -3966,7 +4017,8 @@ function MissionView({
         onAddNote: onAddWorkshopNote,
         onSynthesize: onSynthesizeWorkshop,
         onDecide: onDecideWorkshop,
-        onRun: onRunWorkshop
+        onRun: onRunWorkshop,
+        onSummarize: onSummarizeWorkshop
       }
     ) : null,
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-grid-stats", children: [
@@ -7647,6 +7699,18 @@ var studioCss = `
   color: var(--st-ok);
   background: var(--st-ok-soft);
   font-size: 11px;
+}
+.studio-workshop-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 1px dashed var(--st-border);
+  border-radius: 7px;
+  color: var(--st-muted);
+  background: var(--st-panel-2);
+  font-size: 11px;
+  line-height: 1.45;
 }
 
 .studio-provider-panel { margin-bottom: 12px; }

@@ -61,7 +61,7 @@ _Avoid_: 公共回调地址、免鉴权 API
 _Avoid_: 自动 Demo、测试报告（Prototype Demo 是人工证据）
 
 **Workshop（研讨会）**:
-围绕一个议题的多角色独立意见集合，包含反对、风险、推荐、汇总和 Owner 决策；AI 独立评审只是意见，不是群聊，也不能替代 Owner。
+围绕一个议题的多角色独立意见集合，包含反对、风险、推荐、汇总和 Owner 决策；AI 独立评审只是意见，AI 汇总只是 `aiSummary` 草稿，不是群聊，也不能替代 Owner。
 _Avoid_: 群聊、会议记录（Workshop 是结构化产物）
 
 **Provider Profile（执行配置）**:

@@ -2,8 +2,8 @@
 import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 25;
-var STUDIO_PLUGIN_VERSION = "2.17.0";
+var STUDIO_SCHEMA_VERSION = 26;
+var STUDIO_PLUGIN_VERSION = "2.18.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -901,8 +901,11 @@ function isWorkshopStatus(value) {
 function isWorkshopNote(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.roleId === "string" && typeof value.roleName === "string" && typeof value.summary === "string" && Array.isArray(value.objections) && value.objections.every((item) => typeof item === "string") && Array.isArray(value.risks) && value.risks.every((item) => typeof item === "string") && typeof value.recommendation === "string" && typeof value.createdAt === "string";
 }
+function isWorkshopAiSummary(value) {
+  return isRecord(value) && Array.isArray(value.consensus) && value.consensus.every((item) => typeof item === "string") && Array.isArray(value.disagreements) && value.disagreements.every((item) => typeof item === "string") && Array.isArray(value.openQuestions) && value.openQuestions.every((item) => typeof item === "string") && Array.isArray(value.candidates) && value.candidates.every((item) => typeof item === "string") && typeof value.generatedAt === "string" && (value.model === null || typeof value.model === "string");
+}
 function isWorkshop(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.topic === "string" && isProjectStage(value.stage) && isWorkshopStatus(value.status) && Array.isArray(value.participantRoleIds) && value.participantRoleIds.every((item) => typeof item === "string") && Array.isArray(value.notes) && value.notes.every(isWorkshopNote) && typeof value.synthesis === "string" && typeof value.decision === "string" && typeof value.decidedBy === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.topic === "string" && isProjectStage(value.stage) && isWorkshopStatus(value.status) && Array.isArray(value.participantRoleIds) && value.participantRoleIds.every((item) => typeof item === "string") && Array.isArray(value.notes) && value.notes.every(isWorkshopNote) && (value.aiSummary === null || isWorkshopAiSummary(value.aiSummary)) && typeof value.synthesis === "string" && typeof value.decision === "string" && typeof value.decidedBy === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
 }
 function isBranchStatus(value) {
   return value === "open" || value === "review" || value === "merged" || value === "abandoned";
@@ -1208,8 +1211,18 @@ function migrateState(value) {
   if (state.schemaVersion === 24) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 25,
       prototypeDemos: []
+    };
+  }
+  if (state.schemaVersion === 25) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      workshops: state.workshops.map((workshop) => ({
+        ...workshop,
+        aiSummary: null
+      }))
     };
   }
   return state;
@@ -2170,6 +2183,7 @@ ${normalized.body}`.includes(rules.mention)) {
         status: "collecting",
         participantRoleIds: participants,
         notes: [],
+        aiSummary: null,
         synthesis: "",
         decision: "",
         decidedBy: "",
@@ -2242,6 +2256,46 @@ ${normalized.body}`.includes(rules.mention)) {
         at,
         projectId: workshop.projectId,
         payload: { workshopId, roleId }
+      });
+      await this.save();
+      return structuredClone(workshop);
+    });
+  }
+  async setWorkshopAiSummary(workshopId, summary) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const workshop = this.findWorkshop(state, workshopId);
+      if (workshop.notes.length === 0) {
+        throw new StudioStoreError(
+          "workshop_empty",
+          "\u81F3\u5C11\u9700\u8981\u4E00\u6761\u53C2\u4E0E\u8005\u610F\u89C1\u624D\u80FD\u751F\u6210\u6C47\u603B",
+          409
+        );
+      }
+      const at = nowIso(this.now);
+      workshop.aiSummary = {
+        consensus: textList(summary.consensus, "consensus", 20),
+        disagreements: textList(
+          summary.disagreements,
+          "disagreements",
+          20
+        ),
+        openQuestions: textList(
+          summary.openQuestions,
+          "openQuestions",
+          20
+        ),
+        candidates: textList(summary.candidates, "candidates", 20),
+        generatedAt: summary.generatedAt || at,
+        model: summary.model
+      };
+      workshop.updatedAt = at;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "workshop.ai_summary",
+        at,
+        projectId: workshop.projectId,
+        payload: { workshopId }
       });
       await this.save();
       return structuredClone(workshop);
@@ -6371,6 +6425,7 @@ var StudioRouter = class {
   importProjectBundle;
   readProjectDoc;
   runWorkshop;
+  summarizeWorkshop;
   probeProviderProfile;
   constructor(options) {
     this.store = options.store;
@@ -6389,6 +6444,7 @@ var StudioRouter = class {
     this.importProjectBundle = options.importProjectBundle;
     this.readProjectDoc = options.readProjectDoc;
     this.runWorkshop = options.runWorkshop;
+    this.summarizeWorkshop = options.summarizeWorkshop;
     this.probeProviderProfile = options.probeProviderProfile;
   }
   async handle(req, res) {
@@ -6797,6 +6853,17 @@ var StudioRouter = class {
       sendJson(res, 200, { ok: true, workshop });
       return;
     }
+    const workshopSummarize = /^\/studio-api\/workshops\/([^/]+)\/summarize$/.exec(
+      parsed.pathname
+    );
+    if (workshopSummarize !== null) {
+      this.requireMethod(parsed, ["POST"]);
+      const workshop = await this.summarizeWorkshop(
+        decodeSegment(workshopSummarize[1] ?? "")
+      );
+      sendJson(res, 200, { ok: true, workshop });
+      return;
+    }
     if (parsed.pathname === `${API_PREFIX}/roles`) {
       this.requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
@@ -7128,6 +7195,71 @@ var WorkshopRunner = class {
     }
     return (await this.store.getWorkshopContext(workshopId)).workshop;
   }
+  async summarize(workshopId) {
+    const context = await this.store.getWorkshopContext(workshopId);
+    if (context.workshop.notes.length === 0) {
+      throw new Error("\u81F3\u5C11\u9700\u8981\u4E00\u6761\u53C2\u4E0E\u8005\u610F\u89C1\u624D\u80FD\u751F\u6210\u6C47\u603B");
+    }
+    const role = context.roles[0];
+    const profile = role === void 0 ? null : context.providerProfiles.find(
+      (item) => item.id === role.providerProfileId
+    ) ?? null;
+    const selection = role === void 0 ? this.ctx.agentDefaultModel.currentSelection() : await this.resolveModel(role, profile);
+    const noteText = context.workshop.notes.map(
+      (note) => `## ${note.roleName}
+${note.summary}
+\u53CD\u5BF9\uFF1A${note.objections.join("\uFF1B")}
+\u98CE\u9669\uFF1A${note.risks.join("\uFF1B")}
+\u5EFA\u8BAE\uFF1A${note.recommendation}`
+    ).join("\n\n");
+    const prompt = [
+      "\u4F60\u662F\u7814\u8BA8\u4F1A\u4E3B\u6301\u4EBA\u3002\u8BF7\u6C47\u603B\u4EE5\u4E0B\u72EC\u7ACB\u610F\u89C1\uFF0C\u4E0D\u8981\u66FF Owner \u505A\u6700\u7EC8\u51B3\u7B56\u3002",
+      `\u4E3B\u9898\uFF1A${context.workshop.title}`,
+      context.workshop.topic ? `\u8BAE\u9898\uFF1A${context.workshop.topic}` : "",
+      "",
+      noteText,
+      "",
+      "\u53EA\u8FD4\u56DE JSON\uFF0C\u4E0D\u8981 Markdown\uFF1A",
+      '{"consensus":["\u5171\u8BC6"],"disagreements":["\u5206\u6B67"],"openQuestions":["\u672A\u51B3\u95EE\u9898"],"candidates":["\u5019\u9009\u65B9\u6848"]}',
+      "\u4FDD\u7559\u5206\u6B67\uFF0C\u4E0D\u8981\u5F3A\u884C\u7EDF\u4E00\uFF1B\u4E0D\u8981\u7F16\u9020\u672A\u51FA\u73B0\u7684\u4FE1\u606F\u3002"
+    ].filter((line) => line !== "").join("\n");
+    let handle = null;
+    try {
+      handle = await this.ctx.agents.create({
+        sessionId: `workshop-summary-${randomUUID3()}`,
+        meta: { cwd: context.project.repoPath ?? process.cwd() },
+        agentOptions: selection,
+        setup: async (agentCtx, agent) => {
+          await this.ctx.agentPresets.mount(agentCtx);
+          agent.session.append("approval/policy", { policy: "never" });
+        }
+      });
+      handle.agent.followup({
+        role: "user",
+        content: [{ type: "text", text: prompt }],
+        source: { kind: "user" }
+      });
+      const deadline = Date.now() + 12e4;
+      let output = "";
+      while (Date.now() < deadline) {
+        output = assistantText2(handle.agent.session.deriveMessages());
+        if (handle.agent.status === "idle" && output !== "") break;
+        await new Promise((resolve) => setTimeout(resolve, 400));
+      }
+      if (output === "") throw new Error("Agent \u5728 120 \u79D2\u5185\u6CA1\u6709\u4EA7\u51FA\u6C47\u603B");
+      const record = extractJson(output);
+      return this.store.setWorkshopAiSummary(workshopId, {
+        consensus: strings(record.consensus),
+        disagreements: strings(record.disagreements),
+        openQuestions: strings(record.openQuestions),
+        candidates: strings(record.candidates),
+        generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        model: selection.model
+      });
+    } finally {
+      await handle?.dispose().catch(() => void 0);
+    }
+  }
   async ask(workshop, repoPath, role, profile) {
     const selection = await this.resolveModel(role, profile);
     let handle = null;
@@ -7382,6 +7514,7 @@ async function apply(ctx) {
     importProjectBundle: (archivePath, targetPath) => bundles.importProject(archivePath, targetPath),
     readProjectDoc: (path8) => docs.read(path8),
     runWorkshop: (workshopId) => workshopRunner.run(workshopId),
+    summarizeWorkshop: (workshopId) => workshopRunner.summarize(workshopId),
     probeProviderProfile: (profileId) => providerProbe.check(profileId)
   });
   const install = () => {

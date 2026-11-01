@@ -585,7 +585,7 @@ test("exports a portable copy of the state", async () => {
   await withStore(async (store) => {
     await store.bootstrap();
     const exported = await store.exportState();
-    assert.equal(exported.schemaVersion, 25);
+    assert.equal(exported.schemaVersion, 26);
     assert.ok(exported.projects.length >= 1);
     assert.ok(exported.tasks.length >= 1);
     assert.ok(Array.isArray(exported.runs));
@@ -964,7 +964,7 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
     assert.deepEqual(data.runs, []);
     assert.deepEqual(data.decisions, []);
     const migrated = JSON.parse(await readFile(file, "utf8"));
-    assert.equal(migrated.schemaVersion, 25);
+    assert.equal(migrated.schemaVersion, 26);
     assert.equal(migrated.companyName, "AI工作室");
     assert.ok(migrated.roles.every((role) => role.executor === "dsh"));
     assert.ok(migrated.runs.every((run) => run.status !== undefined));
@@ -1003,6 +1003,7 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
     assert.ok(Array.isArray(migrated.workshops));
     assert.ok(Array.isArray(migrated.providerProfiles));
     assert.ok(Array.isArray(migrated.prototypeDemos));
+    assert.ok(migrated.workshops.every((workshop) => workshop.aiSummary === null));
     assert.ok(migrated.roles.every((role) => role.providerProfileId === null));
     assert.ok(
       migrated.projects.every(
@@ -1724,5 +1725,32 @@ test("allows a passed prototype demo record as the demo gate evidence", async ()
       "development",
     );
     assert.equal(approved.status, "approved");
+  });
+});
+
+test("stores an AI workshop summary draft without touching original notes", async () => {
+  await withStore(async (store) => {
+    const data = await store.bootstrap();
+    const workshop = await store.createWorkshop({
+      title: "Summary workshop",
+      participantRoleIds: [data.roles[0].id],
+    });
+    await store.addWorkshopNote(workshop.id, {
+      roleId: data.roles[0].id,
+      summary: "Use a session.",
+      objections: ["JWT revocation."],
+    });
+    const updated = await store.setWorkshopAiSummary(workshop.id, {
+      consensus: ["Both need rotation"],
+      disagreements: ["Session vs JWT"],
+      openQuestions: ["Scale target"],
+      candidates: ["Session", "Short JWT"],
+      generatedAt: new Date().toISOString(),
+      model: "deepseek-flash",
+    });
+    assert.equal(updated.notes.length, 1);
+    assert.deepEqual(updated.aiSummary?.candidates, ["Session", "Short JWT"]);
+    assert.equal(updated.synthesis, "");
+    assert.equal(updated.decision, "");
   });
 });

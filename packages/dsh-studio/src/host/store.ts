@@ -85,6 +85,7 @@ import type {
   UpdateTriggerRulesInput,
   WebhookIngestResult,
   Workshop,
+  WorkshopAiSummary,
   WorkshopNote,
   WorkshopStatus,
   UpdateProjectInput,
@@ -1350,6 +1351,22 @@ function isWorkshopNote(value: unknown): value is WorkshopNote {
   );
 }
 
+function isWorkshopAiSummary(value: unknown): value is WorkshopAiSummary {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.consensus) &&
+    value.consensus.every((item) => typeof item === "string") &&
+    Array.isArray(value.disagreements) &&
+    value.disagreements.every((item) => typeof item === "string") &&
+    Array.isArray(value.openQuestions) &&
+    value.openQuestions.every((item) => typeof item === "string") &&
+    Array.isArray(value.candidates) &&
+    value.candidates.every((item) => typeof item === "string") &&
+    typeof value.generatedAt === "string" &&
+    (value.model === null || typeof value.model === "string")
+  );
+}
+
 function isWorkshop(value: unknown): value is Workshop {
   return (
     isRecord(value) &&
@@ -1363,6 +1380,7 @@ function isWorkshop(value: unknown): value is Workshop {
     value.participantRoleIds.every((item) => typeof item === "string") &&
     Array.isArray(value.notes) &&
     value.notes.every(isWorkshopNote) &&
+    (value.aiSummary === null || isWorkshopAiSummary(value.aiSummary)) &&
     typeof value.synthesis === "string" &&
     typeof value.decision === "string" &&
     typeof value.decidedBy === "string" &&
@@ -1762,8 +1780,18 @@ function migrateState(value: unknown): StudioState {
   if (state.schemaVersion === 24) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 25,
       prototypeDemos: [],
+    };
+  }
+  if (state.schemaVersion === 25) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      workshops: state.workshops.map((workshop) => ({
+        ...workshop,
+        aiSummary: null,
+      })),
     };
   }
   return state;
@@ -2925,6 +2953,7 @@ export class StudioStore {
         status: "collecting",
         participantRoleIds: participants,
         notes: [],
+        aiSummary: null,
         synthesis: "",
         decision: "",
         decidedBy: "",
@@ -3005,6 +3034,50 @@ export class StudioStore {
         at,
         projectId: workshop.projectId,
         payload: { workshopId, roleId },
+      });
+      await this.save();
+      return structuredClone(workshop);
+    });
+  }
+
+  async setWorkshopAiSummary(
+    workshopId: string,
+    summary: WorkshopAiSummary,
+  ): Promise<Workshop> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const workshop = this.findWorkshop(state, workshopId);
+      if (workshop.notes.length === 0) {
+        throw new StudioStoreError(
+          "workshop_empty",
+          "至少需要一条参与者意见才能生成汇总",
+          409,
+        );
+      }
+      const at = nowIso(this.now);
+      workshop.aiSummary = {
+        consensus: textList(summary.consensus, "consensus", 20),
+        disagreements: textList(
+          summary.disagreements,
+          "disagreements",
+          20,
+        ),
+        openQuestions: textList(
+          summary.openQuestions,
+          "openQuestions",
+          20,
+        ),
+        candidates: textList(summary.candidates, "candidates", 20),
+        generatedAt: summary.generatedAt || at,
+        model: summary.model,
+      };
+      workshop.updatedAt = at;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "workshop.ai_summary",
+        at,
+        projectId: workshop.projectId,
+        payload: { workshopId },
       });
       await this.save();
       return structuredClone(workshop);

@@ -13,8 +13,8 @@ import os from "node:os";
 import path from "node:path";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 25;
-var STUDIO_PLUGIN_VERSION = "2.17.0";
+var STUDIO_SCHEMA_VERSION = 26;
+var STUDIO_PLUGIN_VERSION = "2.18.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -792,8 +792,11 @@ function isWorkshopStatus(value) {
 function isWorkshopNote(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.roleId === "string" && typeof value.roleName === "string" && typeof value.summary === "string" && Array.isArray(value.objections) && value.objections.every((item) => typeof item === "string") && Array.isArray(value.risks) && value.risks.every((item) => typeof item === "string") && typeof value.recommendation === "string" && typeof value.createdAt === "string";
 }
+function isWorkshopAiSummary(value) {
+  return isRecord(value) && Array.isArray(value.consensus) && value.consensus.every((item) => typeof item === "string") && Array.isArray(value.disagreements) && value.disagreements.every((item) => typeof item === "string") && Array.isArray(value.openQuestions) && value.openQuestions.every((item) => typeof item === "string") && Array.isArray(value.candidates) && value.candidates.every((item) => typeof item === "string") && typeof value.generatedAt === "string" && (value.model === null || typeof value.model === "string");
+}
 function isWorkshop(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.topic === "string" && isProjectStage(value.stage) && isWorkshopStatus(value.status) && Array.isArray(value.participantRoleIds) && value.participantRoleIds.every((item) => typeof item === "string") && Array.isArray(value.notes) && value.notes.every(isWorkshopNote) && typeof value.synthesis === "string" && typeof value.decision === "string" && typeof value.decidedBy === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.topic === "string" && isProjectStage(value.stage) && isWorkshopStatus(value.status) && Array.isArray(value.participantRoleIds) && value.participantRoleIds.every((item) => typeof item === "string") && Array.isArray(value.notes) && value.notes.every(isWorkshopNote) && (value.aiSummary === null || isWorkshopAiSummary(value.aiSummary)) && typeof value.synthesis === "string" && typeof value.decision === "string" && typeof value.decidedBy === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
 }
 function isBranchStatus(value) {
   return value === "open" || value === "review" || value === "merged" || value === "abandoned";
@@ -1099,8 +1102,18 @@ function migrateState(value) {
   if (state.schemaVersion === 24) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 25,
       prototypeDemos: []
+    };
+  }
+  if (state.schemaVersion === 25) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      workshops: state.workshops.map((workshop) => ({
+        ...workshop,
+        aiSummary: null
+      }))
     };
   }
   return state;
@@ -2061,6 +2074,7 @@ ${normalized.body}`.includes(rules.mention)) {
         status: "collecting",
         participantRoleIds: participants,
         notes: [],
+        aiSummary: null,
         synthesis: "",
         decision: "",
         decidedBy: "",
@@ -2133,6 +2147,46 @@ ${normalized.body}`.includes(rules.mention)) {
         at,
         projectId: workshop.projectId,
         payload: { workshopId, roleId }
+      });
+      await this.save();
+      return structuredClone(workshop);
+    });
+  }
+  async setWorkshopAiSummary(workshopId, summary) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const workshop = this.findWorkshop(state, workshopId);
+      if (workshop.notes.length === 0) {
+        throw new StudioStoreError(
+          "workshop_empty",
+          "\u81F3\u5C11\u9700\u8981\u4E00\u6761\u53C2\u4E0E\u8005\u610F\u89C1\u624D\u80FD\u751F\u6210\u6C47\u603B",
+          409
+        );
+      }
+      const at = nowIso(this.now);
+      workshop.aiSummary = {
+        consensus: textList(summary.consensus, "consensus", 20),
+        disagreements: textList(
+          summary.disagreements,
+          "disagreements",
+          20
+        ),
+        openQuestions: textList(
+          summary.openQuestions,
+          "openQuestions",
+          20
+        ),
+        candidates: textList(summary.candidates, "candidates", 20),
+        generatedAt: summary.generatedAt || at,
+        model: summary.model
+      };
+      workshop.updatedAt = at;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "workshop.ai_summary",
+        at,
+        projectId: workshop.projectId,
+        payload: { workshopId }
       });
       await this.save();
       return structuredClone(workshop);

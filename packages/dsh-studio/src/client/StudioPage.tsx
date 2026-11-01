@@ -869,6 +869,18 @@ export function StudioPage() {
     );
   };
 
+  const summarizeWorkshopAi = async (
+    workshopId: string,
+  ): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.summarizeWorkshop(workshopId);
+      },
+      "AI 汇总草稿已生成",
+    );
+  };
+
   const readProjectDoc = async (
     docPath: string,
   ): Promise<ProjectDoc | null> => {
@@ -1428,6 +1440,7 @@ export function StudioPage() {
                 onSynthesizeWorkshop={synthesizeWorkshop}
                 onDecideWorkshop={decideWorkshop}
                 onRunWorkshop={runWorkshop}
+                onSummarizeWorkshop={summarizeWorkshopAi}
               />
             ) : null}
 
@@ -2653,6 +2666,7 @@ function WorkshopPanel({
   onSynthesize,
   onDecide,
   onRun,
+  onSummarize,
 }: {
   project: Project;
   roles: Role[];
@@ -2666,6 +2680,7 @@ function WorkshopPanel({
   onSynthesize: (workshopId: string, synthesis: string) => Promise<boolean>;
   onDecide: (workshopId: string, decision: string) => Promise<boolean>;
   onRun: (workshopId: string) => Promise<boolean>;
+  onSummarize: (workshopId: string) => Promise<boolean>;
 }) {
   const active =
     workshops.find(
@@ -2821,15 +2836,44 @@ function WorkshopPanel({
             </div>
 
             {active.status === "collecting" ? (
-              <button
-                className="studio-btn"
-                type="button"
-                disabled={busy || active.participantRoleIds.length === 0}
-                onClick={() => void onRun(active.id)}
-                title="每个参与角色独立调用 DSH Agent；不会修改文件或自动合并"
-              >
-                AI 独立评审
-              </button>
+              <div className="studio-actions">
+                <button
+                  className="studio-btn"
+                  type="button"
+                  disabled={busy || active.participantRoleIds.length === 0}
+                  onClick={() => void onRun(active.id)}
+                  title="每个参与角色独立调用 DSH Agent；不会修改文件或自动合并"
+                >
+                  AI 独立评审
+                </button>
+                <button
+                  className="studio-btn"
+                  type="button"
+                  disabled={busy || active.notes.length === 0}
+                  onClick={() => void onSummarize(active.id)}
+                  title="生成汇总草稿；不会覆盖原始意见，也不会写 Owner 决策"
+                >
+                  AI 汇总草稿
+                </button>
+              </div>
+            ) : null}
+
+            {active.aiSummary ? (
+              <div className="studio-workshop-summary">
+                <div className="studio-role-section-label">
+                  AI 汇总草稿（未采纳）
+                </div>
+                <div>共识：{active.aiSummary.consensus.join("；") || "无"}</div>
+                <div>
+                  分歧：{active.aiSummary.disagreements.join("；") || "无"}
+                </div>
+                <div>
+                  未决：{active.aiSummary.openQuestions.join("；") || "无"}
+                </div>
+                <div>
+                  候选：{active.aiSummary.candidates.join("；") || "无"}
+                </div>
+              </div>
             ) : null}
 
             <div className="studio-workshop-notes">
@@ -3809,6 +3853,7 @@ function MissionView({
   onSynthesizeWorkshop,
   onDecideWorkshop,
   onRunWorkshop,
+  onSummarizeWorkshop,
 }: {
   data: BootstrapResponse;
   busy: boolean;
@@ -3856,6 +3901,7 @@ function MissionView({
     decision: string,
   ) => Promise<boolean>;
   onRunWorkshop: (workshopId: string) => Promise<boolean>;
+  onSummarizeWorkshop: (workshopId: string) => Promise<boolean>;
 }) {
   const project = data.project;
   const nextStage = project === null ? null : nextProjectStage(project.stage);
@@ -3963,6 +4009,7 @@ function MissionView({
           onSynthesize={onSynthesizeWorkshop}
           onDecide={onDecideWorkshop}
           onRun={onRunWorkshop}
+          onSummarize={onSummarizeWorkshop}
         />
       ) : null}
 

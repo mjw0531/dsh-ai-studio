@@ -141,6 +141,79 @@ export class WorkshopRunner {
     return (await this.store.getWorkshopContext(workshopId)).workshop;
   }
 
+  async summarize(workshopId: string): Promise<Workshop> {
+    const context = await this.store.getWorkshopContext(workshopId);
+    if (context.workshop.notes.length === 0) {
+      throw new Error("至少需要一条参与者意见才能生成汇总");
+    }
+    const role = context.roles[0];
+    const profile =
+      role === undefined
+        ? null
+        : (context.providerProfiles.find(
+            (item) => item.id === role.providerProfileId,
+          ) ?? null);
+    const selection =
+      role === undefined
+        ? this.ctx.agentDefaultModel.currentSelection()
+        : await this.resolveModel(role, profile);
+    const noteText = context.workshop.notes
+      .map(
+        (note) =>
+          `## ${note.roleName}\n${note.summary}\n反对：${note.objections.join("；")}\n风险：${note.risks.join("；")}\n建议：${note.recommendation}`,
+      )
+      .join("\n\n");
+    const prompt = [
+      "你是研讨会主持人。请汇总以下独立意见，不要替 Owner 做最终决策。",
+      `主题：${context.workshop.title}`,
+      context.workshop.topic ? `议题：${context.workshop.topic}` : "",
+      "",
+      noteText,
+      "",
+      "只返回 JSON，不要 Markdown：",
+      '{"consensus":["共识"],"disagreements":["分歧"],"openQuestions":["未决问题"],"candidates":["候选方案"]}',
+      "保留分歧，不要强行统一；不要编造未出现的信息。",
+    ]
+      .filter((line) => line !== "")
+      .join("\n");
+    let handle: AgentHandleLike | null = null;
+    try {
+      handle = await this.ctx.agents.create({
+        sessionId: `workshop-summary-${randomUUID()}`,
+        meta: { cwd: context.project.repoPath ?? process.cwd() },
+        agentOptions: selection,
+        setup: async (agentCtx, agent) => {
+          await this.ctx.agentPresets.mount(agentCtx);
+          agent.session.append("approval/policy", { policy: "never" });
+        },
+      });
+      handle.agent.followup({
+        role: "user",
+        content: [{ type: "text", text: prompt }],
+        source: { kind: "user" },
+      });
+      const deadline = Date.now() + 120_000;
+      let output = "";
+      while (Date.now() < deadline) {
+        output = assistantText(handle.agent.session.deriveMessages());
+        if (handle.agent.status === "idle" && output !== "") break;
+        await new Promise((resolve) => setTimeout(resolve, 400));
+      }
+      if (output === "") throw new Error("Agent 在 120 秒内没有产出汇总");
+      const record = extractJson(output);
+      return this.store.setWorkshopAiSummary(workshopId, {
+        consensus: strings(record.consensus),
+        disagreements: strings(record.disagreements),
+        openQuestions: strings(record.openQuestions),
+        candidates: strings(record.candidates),
+        generatedAt: new Date().toISOString(),
+        model: selection.model,
+      });
+    } finally {
+      await handle?.dispose().catch(() => undefined);
+    }
+  }
+
   private async ask(
     workshop: Workshop,
     repoPath: string | null,

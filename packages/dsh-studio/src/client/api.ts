@@ -461,6 +461,14 @@ export class StudioClient {
     return data.workshop;
   }
 
+  async summarizeWorkshop(workshopId: string): Promise<Workshop> {
+    const data = await this.request<{ workshop: Workshop }>(
+      `/workshops/${encodeURIComponent(workshopId)}/summarize`,
+      { method: "POST", body: {} },
+    );
+    return data.workshop;
+  }
+
   async decideWorkshop(
     workshopId: string,
     decision: string,

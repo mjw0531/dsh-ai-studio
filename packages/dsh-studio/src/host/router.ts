@@ -77,6 +77,7 @@ interface StudioRouterOptions {
   ) => Promise<{ projectId: string; repoPath: string }>;
   readProjectDoc: (path: string) => Promise<ProjectDoc>;
   runWorkshop: (workshopId: string) => Promise<Workshop>;
+  summarizeWorkshop: (workshopId: string) => Promise<Workshop>;
   probeProviderProfile: (profileId: string) => Promise<ProviderProbeResult>;
 }
 
@@ -763,6 +764,9 @@ export class StudioRouter {
   ) => Promise<{ projectId: string; repoPath: string }>;
   private readonly readProjectDoc: (path: string) => Promise<ProjectDoc>;
   private readonly runWorkshop: (workshopId: string) => Promise<Workshop>;
+  private readonly summarizeWorkshop: (
+    workshopId: string,
+  ) => Promise<Workshop>;
   private readonly probeProviderProfile: (
     profileId: string,
   ) => Promise<ProviderProbeResult>;
@@ -784,6 +788,7 @@ export class StudioRouter {
     this.importProjectBundle = options.importProjectBundle;
     this.readProjectDoc = options.readProjectDoc;
     this.runWorkshop = options.runWorkshop;
+    this.summarizeWorkshop = options.summarizeWorkshop;
     this.probeProviderProfile = options.probeProviderProfile;
   }
 
@@ -1255,6 +1260,19 @@ export class StudioRouter {
       this.requireMethod(parsed, ["POST"]);
       const workshop = await this.runWorkshop(
         decodeSegment(workshopRun[1] ?? ""),
+      );
+      sendJson(res, 200, { ok: true, workshop });
+      return;
+    }
+
+    const workshopSummarize =
+      /^\/studio-api\/workshops\/([^/]+)\/summarize$/.exec(
+        parsed.pathname,
+      );
+    if (workshopSummarize !== null) {
+      this.requireMethod(parsed, ["POST"]);
+      const workshop = await this.summarizeWorkshop(
+        decodeSegment(workshopSummarize[1] ?? ""),
       );
       sendJson(res, 200, { ok: true, workshop });
       return;

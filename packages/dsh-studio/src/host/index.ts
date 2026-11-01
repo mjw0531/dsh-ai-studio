@@ -154,6 +154,7 @@ export async function apply(ctx: StudioHostContext): Promise<void> {
       bundles.importProject(archivePath, targetPath),
     readProjectDoc: (path) => docs.read(path),
     runWorkshop: (workshopId) => workshopRunner.run(workshopId),
+    summarizeWorkshop: (workshopId) => workshopRunner.summarize(workshopId),
     probeProviderProfile: (profileId) => providerProbe.check(profileId),
   });
 

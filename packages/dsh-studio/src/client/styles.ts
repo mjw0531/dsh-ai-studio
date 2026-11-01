@@ -669,6 +669,18 @@ export const studioCss = `
   background: var(--st-ok-soft);
   font-size: 11px;
 }
+.studio-workshop-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 1px dashed var(--st-border);
+  border-radius: 7px;
+  color: var(--st-muted);
+  background: var(--st-panel-2);
+  font-size: 11px;
+  line-height: 1.45;
+}
 
 .studio-provider-panel { margin-bottom: 12px; }
 .studio-provider-form {
