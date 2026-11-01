@@ -14,7 +14,7 @@ import path from "node:path";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 26;
-var STUDIO_PLUGIN_VERSION = "3.0.2";
+var STUDIO_PLUGIN_VERSION = "3.0.3";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -60,79 +60,9 @@ function isTaskPriority(value) {
   return value === "P0" || value === "P1" || value === "P2";
 }
 
-// src/host/store.ts
-var StudioStoreError = class extends Error {
-  code;
-  status;
-  constructor(code, message, status = 400) {
-    super(message);
-    this.name = "StudioStoreError";
-    this.code = code;
-    this.status = status;
-  }
-};
-function defaultStudioDataDir() {
-  const home = process.env.DSH_HOME?.trim();
-  return path.join(
-    home !== void 0 && home !== "" ? home : path.join(os.homedir(), ".dsh"),
-    "studio"
-  );
-}
-function nowIso(now) {
-  return now().toISOString();
-}
-function newId(prefix) {
-  return `${prefix}-${randomUUID().slice(0, 8)}`;
-}
+// src/host/store/migration.ts
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function requiredText(value, field, max = 200) {
-  if (typeof value !== "string") {
-    throw new StudioStoreError("invalid_input", `${field} \u5FC5\u987B\u662F\u5B57\u7B26\u4E32`);
-  }
-  const text = value.trim();
-  if (text === "") {
-    throw new StudioStoreError("invalid_input", `${field} \u4E0D\u80FD\u4E3A\u7A7A`);
-  }
-  if (text.length > max) {
-    throw new StudioStoreError(
-      "invalid_input",
-      `${field} \u4E0D\u80FD\u8D85\u8FC7 ${String(max)} \u4E2A\u5B57\u7B26`
-    );
-  }
-  return text;
-}
-function optionalText(value, field, max = 4e3) {
-  if (value === void 0 || value === null) return "";
-  if (typeof value !== "string") {
-    throw new StudioStoreError("invalid_input", `${field} \u5FC5\u987B\u662F\u5B57\u7B26\u4E32`);
-  }
-  const text = value.trim();
-  if (text.length > max) {
-    throw new StudioStoreError(
-      "invalid_input",
-      `${field} \u4E0D\u80FD\u8D85\u8FC7 ${String(max)} \u4E2A\u5B57\u7B26`
-    );
-  }
-  return text;
-}
-function optionalTokenBudget(value, field) {
-  if (value === void 0 || value === null) return null;
-  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
-    throw new StudioStoreError(
-      "invalid_input",
-      `${field} \u5FC5\u987B\u662F\u975E\u8D1F\u6574\u6570 token \u6570`
-    );
-  }
-  return value === 0 ? null : value;
-}
-function textList(value, field, maxItems = 20) {
-  if (value === void 0 || value === null) return [];
-  if (!Array.isArray(value)) {
-    throw new StudioStoreError("invalid_input", `${field} \u5FC5\u987B\u662F\u6570\u7EC4`);
-  }
-  return value.slice(0, maxItems).map((item, index) => requiredText(item, `${field}[${String(index)}]`, 400));
 }
 function defaultTriggerRules() {
   return {
@@ -144,163 +74,478 @@ function defaultTriggerRules() {
     mention: ""
   };
 }
-function webhookText(value) {
-  return typeof value === "string" ? value.trim() : "";
-}
-function normalizeWebhookPayload(source, payload) {
-  const repository = isRecord(payload.repository) ? payload.repository : {};
-  const issue = isRecord(payload.issue) ? payload.issue : isRecord(payload.pull_request) ? payload.pull_request : {};
-  const comment = isRecord(payload.comment) ? payload.comment : {};
-  const sender = isRecord(payload.sender) ? payload.sender : {};
-  const owner = isRecord(issue.user) ? issue.user : {};
-  const repo = webhookText(payload.repo) || webhookText(repository.full_name) || webhookText(repository.name);
-  const labels = Array.isArray(issue.labels) ? issue.labels.map(
-    (label) => typeof label === "string" ? label : isRecord(label) ? webhookText(label.name) : ""
-  ).filter(Boolean) : [];
-  const number = typeof issue.number === "number" ? String(issue.number) : "";
-  const title = webhookText(issue.title) || webhookText(payload.title) || webhookText(payload.summary) || `${source} \u4E8B\u4EF6`;
-  const body = webhookText(issue.body) || webhookText(comment.body) || webhookText(payload.body) || webhookText(payload.message);
-  const externalId = webhookText(payload.id) || webhookText(payload.event_id) || (number !== "" ? `${source}:${repo}#${number}` : `${source}:${String(payload.action ?? "event")}:${title}`);
-  return {
-    title: title.slice(0, 240),
-    body: body.slice(0, 8e3),
-    url: webhookText(issue.html_url) || webhookText(payload.url) || webhookText(payload.html_url),
-    externalId,
-    threadKey: webhookText(payload.threadKey) || webhookText(payload.thread_key) || (number !== "" ? `${source}:${repo}#${number}` : externalId),
-    repo,
-    labels,
-    author: webhookText(sender.login) || webhookText(owner.login) || webhookText(payload.author)
-  };
-}
-function defaultStageChecklist(stage) {
-  const texts = {
-    architecture: [
-      "PRD \u5DF2\u8BC4\u5BA1\uFF0C\u8303\u56F4\u4E0E\u5F53\u524D\u7248\u672C\u4E00\u81F4",
-      "\u76EE\u6807\u4E0E\u975E\u76EE\u6807\u5DF2\u5199\u660E",
-      "\u9A8C\u6536\u6807\u51C6\u53EF\u89C2\u5BDF\u3001\u53EF\u9A8C\u8BC1",
-      "\u98CE\u9669\u4E0E\u672A\u51B3\u95EE\u9898\u5DF2\u8BB0\u5F55"
-    ],
-    prototype: [
-      "\u67B6\u6784\u6587\u6863\u5DF2\u5B8C\u6210\u5E76\u7ECF Owner \u786E\u8BA4",
-      "\u6A21\u5757\u8FB9\u754C\u4E0E\u5951\u7EA6\u5DF2\u5EFA\u7ACB",
-      "\u6D4B\u8BD5\u7B56\u7565\u4E0E\u9A8C\u8BC1\u547D\u4EE4\u5DF2\u786E\u5B9A",
-      "\u9AD8\u98CE\u9669\u51B3\u7B56\u5DF2\u6709 ADR \u6216 Decision"
-    ],
-    development: [
-      "Demo \u811A\u672C\u5DF2\u901A\u8FC7",
-      "Demo \u8BC1\u636E\u5DF2\u8BB0\u5F55",
-      "\u5DF2\u77E5\u9650\u5236\u548C\u6539\u8FDB\u9879\u5DF2\u5217\u51FA",
-      "\u5DF2\u51B3\u5B9A evolve \u6216 rewrite"
-    ]
-  };
-  return (texts[stage] ?? []).map(
-    (text) => ({ id: newId("check"), text, done: false })
-  );
-}
-function normalizeStageChecklist(value) {
-  if (!Array.isArray(value)) {
-    throw new StudioStoreError("invalid_input", "checklist \u5FC5\u987B\u662F\u6570\u7EC4");
+function migrateState(value) {
+  if (!isRecord(value)) {
+    throw new Error("Studio state must be an object");
   }
-  return value.slice(0, 30).map((raw, index) => {
-    if (!isRecord(raw)) {
-      throw new StudioStoreError(
-        "invalid_input",
-        `checklist[${String(index)}] \u5FC5\u987B\u662F\u5BF9\u8C61`
-      );
-    }
-    return {
-      id: typeof raw.id === "string" && raw.id !== "" ? raw.id : newId("check"),
-      text: requiredText(raw.text, `checklist[${String(index)}].text`, 500),
-      done: raw.done === true
+  let state = value;
+  if (state.schemaVersion === 1) {
+    state = {
+      ...state,
+      schemaVersion: 2,
+      mergeProposals: []
     };
-  });
-}
-function normalizeStageArtifacts(value) {
-  if (!Array.isArray(value)) {
-    throw new StudioStoreError("invalid_input", "artifacts \u5FC5\u987B\u662F\u6570\u7EC4");
   }
-  return value.slice(0, 20).map((raw, index) => {
-    if (!isRecord(raw)) {
-      throw new StudioStoreError(
-        "invalid_input",
-        `artifacts[${String(index)}] \u5FC5\u987B\u662F\u5BF9\u8C61`
-      );
-    }
-    const kind = isStageArtifactKind(raw.kind) ? raw.kind : "other";
-    return {
-      id: typeof raw.id === "string" && raw.id !== "" ? raw.id : newId("artifact"),
-      kind,
-      label: requiredText(
-        raw.label,
-        `artifacts[${String(index)}].label`,
-        160
-      ),
-      path: requiredText(
-        raw.path,
-        `artifacts[${String(index)}].path`,
-        500
-      )
+  if (state.schemaVersion === 2) {
+    state = {
+      ...state,
+      schemaVersion: 3,
+      projects: state.projects.map((project) => ({
+        ...project,
+        tokenBudget: project.tokenBudget ?? null
+      })),
+      roles: state.roles.map((role) => ({
+        ...role,
+        model: role.model ?? null,
+        tokenBudget: role.tokenBudget ?? null,
+        dailyTokenBudget: role.dailyTokenBudget ?? null
+      })),
+      runs: Array.isArray(
+        state.runs
+      ) ? state.runs : []
     };
-  });
-}
-function normalizeAcceptance(value, existing = []) {
-  if (!Array.isArray(value)) {
-    throw new StudioStoreError("invalid_input", "acceptance \u5FC5\u987B\u662F\u6570\u7EC4");
   }
-  if (value.length === 0) {
-    throw new StudioStoreError(
-      "acceptance_required",
-      "\u81F3\u5C11\u9700\u8981\u4E00\u6761\u53EF\u9A8C\u8BC1\u7684\u9A8C\u6536\u6807\u51C6"
+  if (state.schemaVersion === 3) {
+    state = {
+      ...state,
+      schemaVersion: 4,
+      decisions: []
+    };
+  }
+  if (state.schemaVersion === 4) {
+    state = {
+      ...state,
+      schemaVersion: 5,
+      runs: state.runs.map((run) => ({
+        ...run,
+        branchId: run.branchId ?? null
+      })),
+      branches: state.tasks.filter((task) => task.branch !== null).map((task) => ({
+        id: `branch-${task.id}`,
+        projectId: task.projectId,
+        taskId: task.id,
+        name: task.branch,
+        goal: task.goal,
+        roleId: task.ownerRoleId,
+        contractKeys: [],
+        status: task.status === "review" ? "review" : "open",
+        createdAt: task.createdAt,
+        updatedAt: task.updatedAt
+      })),
+      contractChanges: []
+    };
+  }
+  if (state.schemaVersion === 5) {
+    state = {
+      ...state,
+      schemaVersion: 6,
+      projects: state.projects.map((project) => ({
+        ...project,
+        repoPath: project.repoPath ?? null
+      })),
+      runs: state.runs.map((run) => ({
+        ...run,
+        branchName: run.branchName ?? null,
+        workspacePath: run.workspacePath ?? null,
+        diffStat: run.diffStat ?? null
+      }))
+    };
+  }
+  if (state.schemaVersion === 6) {
+    state = {
+      ...state,
+      schemaVersion: 7,
+      tasks: state.tasks.map((task) => ({
+        ...task,
+        verifyCommand: task.verifyCommand ?? null
+      })),
+      mergeProposals: state.mergeProposals.map((proposal) => ({
+        ...proposal,
+        diffStat: proposal.diffStat ?? null,
+        changedFiles: Array.isArray(proposal.changedFiles) ? proposal.changedFiles : [],
+        verificationId: proposal.verificationId ?? null
+      })),
+      verifications: Array.isArray(
+        state.verifications
+      ) ? state.verifications : []
+    };
+  }
+  if (state.schemaVersion === 7) {
+    state = {
+      ...state,
+      schemaVersion: 8,
+      tasks: state.tasks.map((task) => ({
+        ...task,
+        module: task.module ?? null,
+        contractRef: task.contractRef ?? null,
+        kind: task.kind ?? "new"
+      }))
+    };
+  }
+  if (state.schemaVersion === 8) {
+    state = {
+      ...state,
+      schemaVersion: 9,
+      projects: state.projects.map((project) => ({
+        ...project,
+        prdPath: project.prdPath ?? null,
+        invariantsPath: project.invariantsPath ?? null,
+        modulesPath: project.modulesPath ?? null
+      })),
+      modules: Array.isArray(
+        state.modules
+      ) ? state.modules : []
+    };
+  }
+  if (state.schemaVersion === 9) {
+    state = {
+      ...state,
+      schemaVersion: 10,
+      tasks: state.tasks.map((task) => ({
+        ...task,
+        integration: task.integration ?? false,
+        originTaskId: task.originTaskId ?? null
+      }))
+    };
+  }
+  if (state.schemaVersion === 10) {
+    state = {
+      ...state,
+      schemaVersion: 11,
+      reviews: Array.isArray(
+        state.reviews
+      ) ? state.reviews : []
+    };
+  }
+  if (state.schemaVersion === 11) {
+    state = {
+      ...state,
+      schemaVersion: 12,
+      tasks: state.tasks.map((task) => ({
+        ...task,
+        docsSynced: task.docsSynced ?? false
+      })),
+      decisions: state.decisions.map((decision) => ({
+        ...decision,
+        reversible: decision.reversible ?? true
+      }))
+    };
+  }
+  if (state.schemaVersion === 12) {
+    state = {
+      ...state,
+      schemaVersion: 13,
+      decisions: state.decisions.map((decision) => ({
+        ...decision,
+        adrDraft: decision.adrDraft ?? null
+      }))
+    };
+  }
+  if (state.schemaVersion === 13) {
+    state = {
+      ...state,
+      schemaVersion: 14,
+      mergeProposals: state.mergeProposals.map((proposal) => ({
+        ...proposal,
+        postMergeVerificationId: proposal.postMergeVerificationId ?? null
+      }))
+    };
+  }
+  if (state.schemaVersion === 14) {
+    state = {
+      ...state,
+      schemaVersion: 15,
+      decisions: state.decisions.map((decision) => ({
+        ...decision,
+        adrPath: decision.adrPath ?? null
+      })),
+      mergeProposals: state.mergeProposals.map((proposal) => ({
+        ...proposal,
+        rollbackCommit: proposal.rollbackCommit ?? null,
+        rolledBackAt: proposal.rolledBackAt ?? null
+      }))
+    };
+  }
+  if (state.schemaVersion === 15) {
+    state = {
+      ...state,
+      schemaVersion: 16,
+      tasks: state.tasks.map((task) => ({
+        ...task,
+        diagnosis: task.diagnosis ?? "",
+        plan: task.plan ?? ""
+      }))
+    };
+  }
+  if (state.schemaVersion === 16) {
+    state = {
+      ...state,
+      schemaVersion: 17,
+      companyName: "AI\u5DE5\u4F5C\u5BA4"
+    };
+  }
+  if (state.schemaVersion === 17) {
+    state = {
+      ...state,
+      schemaVersion: 18,
+      roles: state.roles.map((role) => ({
+        ...role,
+        executor: role.executor ?? "dsh"
+      }))
+    };
+  }
+  if (state.schemaVersion === 18) {
+    state = {
+      ...state,
+      schemaVersion: 19,
+      projects: state.projects.map((project) => ({
+        ...project,
+        stage: "development"
+      })),
+      stageGates: [],
+      tasks: state.tasks.map((task) => ({
+        ...task,
+        requirementRefs: []
+      }))
+    };
+  }
+  if (state.schemaVersion === 19) {
+    state = {
+      ...state,
+      schemaVersion: 20,
+      triggers: [],
+      threads: []
+    };
+  }
+  if (state.schemaVersion === 20) {
+    state = {
+      ...state,
+      schemaVersion: 21,
+      workshops: []
+    };
+  }
+  if (state.schemaVersion === 21) {
+    state = {
+      ...state,
+      schemaVersion: 22,
+      providerProfiles: [],
+      roles: state.roles.map((role) => ({
+        ...role,
+        providerProfileId: null
+      }))
+    };
+  }
+  if (state.schemaVersion === 22) {
+    state = {
+      ...state,
+      schemaVersion: 23,
+      runs: state.runs.map((run) => ({
+        ...run,
+        providerProfileId: null,
+        executor: "dsh",
+        provider: null
+      }))
+    };
+  }
+  if (state.schemaVersion === 23) {
+    state = {
+      ...state,
+      schemaVersion: 24,
+      projects: state.projects.map((project) => ({
+        ...project,
+        triggerRules: defaultTriggerRules()
+      }))
+    };
+  }
+  if (state.schemaVersion === 24) {
+    state = {
+      ...state,
+      schemaVersion: 25,
+      prototypeDemos: []
+    };
+  }
+  if (state.schemaVersion === 25) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      workshops: state.workshops.map((workshop) => ({
+        ...workshop,
+        aiSummary: null
+      }))
+    };
+  }
+  return state;
+}
+
+// src/host/store/validation.ts
+function isRecord2(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function isTriggerRules(value) {
+  return isRecord2(value) && typeof value.enabled === "boolean" && Array.isArray(value.sources) && value.sources.every(isTriggerSource) && Array.isArray(value.repos) && value.repos.every((item) => typeof item === "string") && Array.isArray(value.labels) && value.labels.every((item) => typeof item === "string") && Array.isArray(value.authors) && value.authors.every((item) => typeof item === "string") && typeof value.mention === "string";
+}
+function isPrototypeDemoResult(value) {
+  return value === "passed" || value === "failed";
+}
+function isPrototypeDemo(value) {
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.entry === "string" && typeof value.startCommand === "string" && typeof value.steps === "string" && isPrototypeDemoResult(value.result) && typeof value.screenshotPath === "string" && typeof value.notes === "string" && typeof value.recordedBy === "string" && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
+}
+function isProject(value) {
+  return isRecord2(value) && typeof value.id === "string" && typeof value.name === "string" && typeof value.description === "string" && (value.tokenBudget === null || typeof value.tokenBudget === "number") && (value.repoPath === null || typeof value.repoPath === "string") && (value.prdPath === null || value.prdPath === void 0 || typeof value.prdPath === "string") && (value.invariantsPath === null || value.invariantsPath === void 0 || typeof value.invariantsPath === "string") && (value.modulesPath === null || value.modulesPath === void 0 || typeof value.modulesPath === "string") && isTriggerRules(value.triggerRules) && isProjectStage(value.stage) && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
+}
+function isProviderProfile(value) {
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.name === "string" && (value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && typeof value.provider === "string" && typeof value.model === "string" && typeof value.note === "string" && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
+}
+function isRole(value) {
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.name === "string" && typeof value.title === "string" && typeof value.mission === "string" && Array.isArray(value.responsibilities) && Array.isArray(value.nonGoals) && Array.isArray(value.decisionRights) && (value.providerProfileId === null || typeof value.providerProfileId === "string") && (value.model === null || typeof value.model === "string") && (value.executor === void 0 || value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && (value.tokenBudget === null || typeof value.tokenBudget === "number") && (value.dailyTokenBudget === null || typeof value.dailyTokenBudget === "number");
+}
+function isAgentRunStatus(value) {
+  return value === "queued" || value === "running" || value === "succeeded" || value === "failed";
+}
+function isAgentRun(value) {
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.providerProfileId === null || typeof value.providerProfileId === "string") && (value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && (value.provider === null || typeof value.provider === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.branchName === null || typeof value.branchName === "string") && (value.workspacePath === null || typeof value.workspacePath === "string") && (value.diffStat === null || typeof value.diffStat === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord2(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
+}
+function isTask(value) {
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence) && (value.verifyCommand === null || value.verifyCommand === void 0 || typeof value.verifyCommand === "string") && (value.module === null || value.module === void 0 || typeof value.module === "string") && (value.contractRef === null || value.contractRef === void 0 || typeof value.contractRef === "string") && Array.isArray(value.requirementRefs) && value.requirementRefs.every((item) => typeof item === "string") && (value.kind === void 0 || value.kind === "new" || value.kind === "fix") && (value.integration === void 0 || typeof value.integration === "boolean") && (value.originTaskId === null || value.originTaskId === void 0 || typeof value.originTaskId === "string") && (value.docsSynced === void 0 || typeof value.docsSynced === "boolean") && (value.diagnosis === void 0 || typeof value.diagnosis === "string") && (value.plan === void 0 || typeof value.plan === "string");
+}
+function isMergeRisk(value) {
+  return value === "low" || value === "medium" || value === "high";
+}
+function isMergeProposal(value) {
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && typeof value.branch === "string" && typeof value.base === "string" && typeof value.summary === "string" && isMergeRisk(value.risk) && typeof value.rollback === "string" && (value.status === "review" || value.status === "approved" || value.status === "rejected" || value.status === "merged") && typeof value.reviewNote === "string" && (value.mergeCommit === null || typeof value.mergeCommit === "string") && (value.diffStat === null || value.diffStat === void 0 || typeof value.diffStat === "string") && (Array.isArray(value.changedFiles) || value.changedFiles === void 0) && (value.verificationId === null || value.verificationId === void 0 || typeof value.verificationId === "string") && (value.postMergeVerificationId === null || value.postMergeVerificationId === void 0 || typeof value.postMergeVerificationId === "string") && (value.rollbackCommit === null || value.rollbackCommit === void 0 || typeof value.rollbackCommit === "string") && (value.rolledBackAt === null || value.rolledBackAt === void 0 || typeof value.rolledBackAt === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && (value.mergedAt === null || typeof value.mergedAt === "string");
+}
+function isDecisionStatus(value) {
+  return value === "pending" || value === "approved" || value === "rejected";
+}
+function isDecision(value) {
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && (value.taskId === null || typeof value.taskId === "string") && (value.runId === null || typeof value.runId === "string") && typeof value.title === "string" && typeof value.context === "string" && Array.isArray(value.options) && typeof value.recommendation === "string" && (value.reversible === void 0 || typeof value.reversible === "boolean") && (value.adrDraft === null || value.adrDraft === void 0 || typeof value.adrDraft === "string") && (value.adrPath === null || value.adrPath === void 0 || typeof value.adrPath === "string") && isDecisionStatus(value.status) && typeof value.decision === "string" && typeof value.note === "string" && typeof value.decidedBy === "string" && (value.tokenCost === null || typeof value.tokenCost === "number") && typeof value.createdAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string");
+}
+function isStageGateStatus(value) {
+  return value === "pending" || value === "approved" || value === "rejected";
+}
+function isStageArtifactKind(value) {
+  return value === "prd" || value === "architecture" || value === "demo" || value === "adr" || value === "other";
+}
+function isStageCheckItem(value) {
+  return isRecord2(value) && typeof value.id === "string" && typeof value.text === "string" && typeof value.done === "boolean";
+}
+function isStageArtifact(value) {
+  return isRecord2(value) && typeof value.id === "string" && isStageArtifactKind(value.kind) && typeof value.label === "string" && typeof value.path === "string";
+}
+function isStageGate(value) {
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && isProjectStage(value.stage) && isStageGateStatus(value.status) && Array.isArray(value.checklist) && value.checklist.every(isStageCheckItem) && Array.isArray(value.artifacts) && value.artifacts.every(isStageArtifact) && typeof value.note === "string" && (value.decisionId === null || typeof value.decisionId === "string") && typeof value.approvedBy === "string" && (value.approvedAt === null || typeof value.approvedAt === "string") && (value.waiverReason === null || typeof value.waiverReason === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
+}
+function isTriggerSource(value) {
+  return value === "manual" || value === "github" || value === "ci" || value === "im" || value === "email";
+}
+function isTriggerStatus(value) {
+  return value === "pending" || value === "accepted" || value === "ignored";
+}
+function isTrigger(value) {
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && isTriggerSource(value.source) && typeof value.externalId === "string" && typeof value.threadKey === "string" && typeof value.title === "string" && typeof value.body === "string" && typeof value.url === "string" && isTriggerStatus(value.status) && (value.taskId === null || typeof value.taskId === "string") && (value.threadId === null || typeof value.threadId === "string") && typeof value.note === "string" && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
+}
+function isThread(value) {
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.key === "string" && isTriggerSource(value.source) && typeof value.title === "string" && (value.taskId === null || typeof value.taskId === "string") && Array.isArray(value.triggerIds) && value.triggerIds.every((item) => typeof item === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
+}
+function isWorkshopStatus(value) {
+  return value === "collecting" || value === "synthesized" || value === "decided" || value === "cancelled";
+}
+function isWorkshopNote(value) {
+  return isRecord2(value) && typeof value.id === "string" && typeof value.roleId === "string" && typeof value.roleName === "string" && typeof value.summary === "string" && Array.isArray(value.objections) && value.objections.every((item) => typeof item === "string") && Array.isArray(value.risks) && value.risks.every((item) => typeof item === "string") && typeof value.recommendation === "string" && typeof value.createdAt === "string";
+}
+function isWorkshopAiSummary(value) {
+  return isRecord2(value) && Array.isArray(value.consensus) && value.consensus.every((item) => typeof item === "string") && Array.isArray(value.disagreements) && value.disagreements.every((item) => typeof item === "string") && Array.isArray(value.openQuestions) && value.openQuestions.every((item) => typeof item === "string") && Array.isArray(value.candidates) && value.candidates.every((item) => typeof item === "string") && typeof value.generatedAt === "string" && (value.model === null || typeof value.model === "string");
+}
+function isWorkshop(value) {
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.topic === "string" && isProjectStage(value.stage) && isWorkshopStatus(value.status) && Array.isArray(value.participantRoleIds) && value.participantRoleIds.every((item) => typeof item === "string") && Array.isArray(value.notes) && value.notes.every(isWorkshopNote) && (value.aiSummary === null || isWorkshopAiSummary(value.aiSummary)) && typeof value.synthesis === "string" && typeof value.decision === "string" && typeof value.decidedBy === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
+}
+function isBranchStatus(value) {
+  return value === "open" || value === "review" || value === "merged" || value === "abandoned";
+}
+function isBranch(value) {
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && (value.taskId === null || typeof value.taskId === "string") && typeof value.name === "string" && typeof value.goal === "string" && (value.roleId === null || typeof value.roleId === "string") && Array.isArray(value.contractKeys) && isBranchStatus(value.status) && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
+}
+function isContractChange(value) {
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.branchId === "string" && (value.taskId === null || typeof value.taskId === "string") && (value.runId === null || typeof value.runId === "string") && typeof value.contract === "string" && typeof value.change === "string" && typeof value.createdAt === "string";
+}
+function isVerification(value) {
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.runId === null || typeof value.runId === "string") && typeof value.command === "string" && typeof value.workdir === "string" && typeof value.exitCode === "number" && typeof value.output === "string" && typeof value.passed === "boolean" && typeof value.createdAt === "string";
+}
+function isReview(value) {
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.runId === null || typeof value.runId === "string") && (value.reviewerRoleId === null || typeof value.reviewerRoleId === "string") && (value.model === null || typeof value.model === "string") && (value.verdict === "pass" || value.verdict === "fail") && typeof value.summary === "string" && Array.isArray(value.findings) && (value.tokens === null || typeof value.tokens === "number") && typeof value.createdAt === "string";
+}
+function isModule(value) {
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.name === "string" && typeof value.responsibility === "string" && (value.contractPath === null || typeof value.contractPath === "string") && typeof value.contractText === "string" && Array.isArray(value.allowedPaths) && Array.isArray(value.forbiddenPaths) && Array.isArray(value.dependsOn) && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
+}
+function assertState(value) {
+  if (!isRecord2(value)) {
+    throw new Error("Studio state must be an object");
+  }
+  if (value.schemaVersion !== STUDIO_SCHEMA_VERSION) {
+    throw new Error(
+      `Unsupported Studio schema version: ${String(value.schemaVersion)}`
     );
   }
-  const byId = new Map(existing.map((item) => [item.id, item]));
-  return value.slice(0, 20).map((raw, index) => {
-    if (typeof raw === "string") {
-      const text2 = requiredText(raw, `acceptance[${String(index)}]`, 400);
-      return { id: newId("acc"), text: text2, done: false };
-    }
-    if (!isRecord(raw)) {
-      throw new StudioStoreError(
-        "invalid_input",
-        `acceptance[${String(index)}] \u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u6216\u5BF9\u8C61`
-      );
-    }
-    const text = requiredText(
-      raw.text,
-      `acceptance[${String(index)}].text`,
-      400
-    );
-    const id = typeof raw.id === "string" && raw.id !== "" ? raw.id : newId("acc");
-    const previous = byId.get(id);
-    return {
-      id,
-      text,
-      done: typeof raw.done === "boolean" ? raw.done : previous?.done ?? false
-    };
-  });
-}
-function normalizeEvidence(value, existing, at) {
-  if (!Array.isArray(value)) {
-    throw new StudioStoreError("invalid_input", "evidence \u5FC5\u987B\u662F\u6570\u7EC4");
+  if (typeof value.companyName !== "string" || value.companyName.trim() === "") {
+    throw new Error("Studio state must contain a companyName");
   }
-  const byId = new Map(existing.map((item) => [item.id, item]));
-  return value.slice(0, 50).map((raw, index) => {
-    if (!isRecord(raw)) {
-      throw new StudioStoreError(
-        "invalid_input",
-        `evidence[${String(index)}] \u5FC5\u987B\u662F\u5BF9\u8C61`
-      );
-    }
-    const text = requiredText(raw.text, `evidence[${String(index)}].text`, 800);
-    const id = typeof raw.id === "string" && raw.id !== "" ? raw.id : newId("ev");
-    const previous = byId.get(id);
-    return {
-      id,
-      text,
-      createdAt: previous?.createdAt ?? (typeof raw.createdAt === "string" ? raw.createdAt : at)
-    };
-  });
+  if (!Array.isArray(value.projects) || !Array.isArray(value.stageGates) || !Array.isArray(value.triggers) || !Array.isArray(value.threads) || !Array.isArray(value.workshops) || !Array.isArray(value.providerProfiles) || !Array.isArray(value.prototypeDemos) || !Array.isArray(value.roles) || !Array.isArray(value.modules) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.runs) || !Array.isArray(value.branches) || !Array.isArray(value.contractChanges) || !Array.isArray(value.decisions) || !Array.isArray(value.verifications) || !Array.isArray(value.reviews) || !Array.isArray(value.events)) {
+    throw new Error("Studio state collections are missing");
+  }
+  if (!value.projects.every(isProject)) {
+    throw new Error("Studio state contains an invalid project");
+  }
+  if (!value.stageGates.every(isStageGate)) {
+    throw new Error("Studio state contains an invalid stage gate");
+  }
+  if (!value.triggers.every(isTrigger)) {
+    throw new Error("Studio state contains an invalid trigger");
+  }
+  if (!value.threads.every(isThread)) {
+    throw new Error("Studio state contains an invalid thread");
+  }
+  if (!value.workshops.every(isWorkshop)) {
+    throw new Error("Studio state contains an invalid workshop");
+  }
+  if (!value.providerProfiles.every(isProviderProfile)) {
+    throw new Error("Studio state contains an invalid provider profile");
+  }
+  if (!value.prototypeDemos.every(isPrototypeDemo)) {
+    throw new Error("Studio state contains an invalid prototype demo");
+  }
+  if (!value.roles.every(isRole)) {
+    throw new Error("Studio state contains an invalid role");
+  }
+  if (!value.modules.every(isModule)) {
+    throw new Error("Studio state contains an invalid module");
+  }
+  if (!value.tasks.every(isTask)) {
+    throw new Error("Studio state contains an invalid task");
+  }
+  if (!value.mergeProposals.every(isMergeProposal)) {
+    throw new Error("Studio state contains an invalid merge proposal");
+  }
+  if (!value.runs.every(isAgentRun)) {
+    throw new Error("Studio state contains an invalid agent run");
+  }
+  if (!value.branches.every(isBranch)) {
+    throw new Error("Studio state contains an invalid branch");
+  }
+  if (!value.contractChanges.every(isContractChange)) {
+    throw new Error("Studio state contains an invalid contract change");
+  }
+  if (!value.verifications.every(isVerification)) {
+    throw new Error("Studio state contains an invalid verification");
+  }
+  if (!value.reviews.every(isReview)) {
+    throw new Error("Studio state contains an invalid review");
+  }
+  if (!value.decisions.every(isDecision)) {
+    throw new Error("Studio state contains an invalid decision");
+  }
 }
+
+// src/host/store/read-model.ts
 function statsFor(tasks, proposals = []) {
   const stats = {
     total: tasks.length,
@@ -775,470 +1020,247 @@ function buildCompany(state, now) {
     generatedAt: now.toISOString()
   };
 }
-function isTriggerRules(value) {
-  return isRecord(value) && typeof value.enabled === "boolean" && Array.isArray(value.sources) && value.sources.every(isTriggerSource) && Array.isArray(value.repos) && value.repos.every((item) => typeof item === "string") && Array.isArray(value.labels) && value.labels.every((item) => typeof item === "string") && Array.isArray(value.authors) && value.authors.every((item) => typeof item === "string") && typeof value.mention === "string";
-}
-function isPrototypeDemoResult(value) {
-  return value === "passed" || value === "failed";
-}
-function isPrototypeDemo(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.entry === "string" && typeof value.startCommand === "string" && typeof value.steps === "string" && isPrototypeDemoResult(value.result) && typeof value.screenshotPath === "string" && typeof value.notes === "string" && typeof value.recordedBy === "string" && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
-}
-function isProject(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.name === "string" && typeof value.description === "string" && (value.tokenBudget === null || typeof value.tokenBudget === "number") && (value.repoPath === null || typeof value.repoPath === "string") && (value.prdPath === null || value.prdPath === void 0 || typeof value.prdPath === "string") && (value.invariantsPath === null || value.invariantsPath === void 0 || typeof value.invariantsPath === "string") && (value.modulesPath === null || value.modulesPath === void 0 || typeof value.modulesPath === "string") && isTriggerRules(value.triggerRules) && isProjectStage(value.stage) && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
-}
-function isProviderProfile(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.name === "string" && (value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && typeof value.provider === "string" && typeof value.model === "string" && typeof value.note === "string" && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
-}
-function isRole(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.name === "string" && typeof value.title === "string" && typeof value.mission === "string" && Array.isArray(value.responsibilities) && Array.isArray(value.nonGoals) && Array.isArray(value.decisionRights) && (value.providerProfileId === null || typeof value.providerProfileId === "string") && (value.model === null || typeof value.model === "string") && (value.executor === void 0 || value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && (value.tokenBudget === null || typeof value.tokenBudget === "number") && (value.dailyTokenBudget === null || typeof value.dailyTokenBudget === "number");
-}
-function isAgentRunStatus(value) {
-  return value === "queued" || value === "running" || value === "succeeded" || value === "failed";
-}
-function isAgentRun(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.providerProfileId === null || typeof value.providerProfileId === "string") && (value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && (value.provider === null || typeof value.provider === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.branchName === null || typeof value.branchName === "string") && (value.workspacePath === null || typeof value.workspacePath === "string") && (value.diffStat === null || typeof value.diffStat === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
-}
-function isTask(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence) && (value.verifyCommand === null || value.verifyCommand === void 0 || typeof value.verifyCommand === "string") && (value.module === null || value.module === void 0 || typeof value.module === "string") && (value.contractRef === null || value.contractRef === void 0 || typeof value.contractRef === "string") && Array.isArray(value.requirementRefs) && value.requirementRefs.every((item) => typeof item === "string") && (value.kind === void 0 || value.kind === "new" || value.kind === "fix") && (value.integration === void 0 || typeof value.integration === "boolean") && (value.originTaskId === null || value.originTaskId === void 0 || typeof value.originTaskId === "string") && (value.docsSynced === void 0 || typeof value.docsSynced === "boolean") && (value.diagnosis === void 0 || typeof value.diagnosis === "string") && (value.plan === void 0 || typeof value.plan === "string");
-}
-function isMergeRisk(value) {
-  return value === "low" || value === "medium" || value === "high";
-}
-function isMergeProposal(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && typeof value.branch === "string" && typeof value.base === "string" && typeof value.summary === "string" && isMergeRisk(value.risk) && typeof value.rollback === "string" && (value.status === "review" || value.status === "approved" || value.status === "rejected" || value.status === "merged") && typeof value.reviewNote === "string" && (value.mergeCommit === null || typeof value.mergeCommit === "string") && (value.diffStat === null || value.diffStat === void 0 || typeof value.diffStat === "string") && (Array.isArray(value.changedFiles) || value.changedFiles === void 0) && (value.verificationId === null || value.verificationId === void 0 || typeof value.verificationId === "string") && (value.postMergeVerificationId === null || value.postMergeVerificationId === void 0 || typeof value.postMergeVerificationId === "string") && (value.rollbackCommit === null || value.rollbackCommit === void 0 || typeof value.rollbackCommit === "string") && (value.rolledBackAt === null || value.rolledBackAt === void 0 || typeof value.rolledBackAt === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && (value.mergedAt === null || typeof value.mergedAt === "string");
-}
-function isDecisionStatus(value) {
-  return value === "pending" || value === "approved" || value === "rejected";
-}
-function isDecision(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && (value.taskId === null || typeof value.taskId === "string") && (value.runId === null || typeof value.runId === "string") && typeof value.title === "string" && typeof value.context === "string" && Array.isArray(value.options) && typeof value.recommendation === "string" && (value.reversible === void 0 || typeof value.reversible === "boolean") && (value.adrDraft === null || value.adrDraft === void 0 || typeof value.adrDraft === "string") && (value.adrPath === null || value.adrPath === void 0 || typeof value.adrPath === "string") && isDecisionStatus(value.status) && typeof value.decision === "string" && typeof value.note === "string" && typeof value.decidedBy === "string" && (value.tokenCost === null || typeof value.tokenCost === "number") && typeof value.createdAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string");
-}
-function isStageGateStatus(value) {
-  return value === "pending" || value === "approved" || value === "rejected";
-}
-function isStageArtifactKind(value) {
-  return value === "prd" || value === "architecture" || value === "demo" || value === "adr" || value === "other";
-}
-function isStageCheckItem(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.text === "string" && typeof value.done === "boolean";
-}
-function isStageArtifact(value) {
-  return isRecord(value) && typeof value.id === "string" && isStageArtifactKind(value.kind) && typeof value.label === "string" && typeof value.path === "string";
-}
-function isStageGate(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && isProjectStage(value.stage) && isStageGateStatus(value.status) && Array.isArray(value.checklist) && value.checklist.every(isStageCheckItem) && Array.isArray(value.artifacts) && value.artifacts.every(isStageArtifact) && typeof value.note === "string" && (value.decisionId === null || typeof value.decisionId === "string") && typeof value.approvedBy === "string" && (value.approvedAt === null || typeof value.approvedAt === "string") && (value.waiverReason === null || typeof value.waiverReason === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
-}
-function isTriggerSource(value) {
-  return value === "manual" || value === "github" || value === "ci" || value === "im" || value === "email";
-}
-function isTriggerStatus(value) {
-  return value === "pending" || value === "accepted" || value === "ignored";
-}
-function isTrigger(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && isTriggerSource(value.source) && typeof value.externalId === "string" && typeof value.threadKey === "string" && typeof value.title === "string" && typeof value.body === "string" && typeof value.url === "string" && isTriggerStatus(value.status) && (value.taskId === null || typeof value.taskId === "string") && (value.threadId === null || typeof value.threadId === "string") && typeof value.note === "string" && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
-}
-function isThread(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.key === "string" && isTriggerSource(value.source) && typeof value.title === "string" && (value.taskId === null || typeof value.taskId === "string") && Array.isArray(value.triggerIds) && value.triggerIds.every((item) => typeof item === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
-}
-function isWorkshopStatus(value) {
-  return value === "collecting" || value === "synthesized" || value === "decided" || value === "cancelled";
-}
-function isWorkshopNote(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.roleId === "string" && typeof value.roleName === "string" && typeof value.summary === "string" && Array.isArray(value.objections) && value.objections.every((item) => typeof item === "string") && Array.isArray(value.risks) && value.risks.every((item) => typeof item === "string") && typeof value.recommendation === "string" && typeof value.createdAt === "string";
-}
-function isWorkshopAiSummary(value) {
-  return isRecord(value) && Array.isArray(value.consensus) && value.consensus.every((item) => typeof item === "string") && Array.isArray(value.disagreements) && value.disagreements.every((item) => typeof item === "string") && Array.isArray(value.openQuestions) && value.openQuestions.every((item) => typeof item === "string") && Array.isArray(value.candidates) && value.candidates.every((item) => typeof item === "string") && typeof value.generatedAt === "string" && (value.model === null || typeof value.model === "string");
-}
-function isWorkshop(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.topic === "string" && isProjectStage(value.stage) && isWorkshopStatus(value.status) && Array.isArray(value.participantRoleIds) && value.participantRoleIds.every((item) => typeof item === "string") && Array.isArray(value.notes) && value.notes.every(isWorkshopNote) && (value.aiSummary === null || isWorkshopAiSummary(value.aiSummary)) && typeof value.synthesis === "string" && typeof value.decision === "string" && typeof value.decidedBy === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
-}
-function isBranchStatus(value) {
-  return value === "open" || value === "review" || value === "merged" || value === "abandoned";
-}
-function isBranch(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && (value.taskId === null || typeof value.taskId === "string") && typeof value.name === "string" && typeof value.goal === "string" && (value.roleId === null || typeof value.roleId === "string") && Array.isArray(value.contractKeys) && isBranchStatus(value.status) && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
-}
-function isContractChange(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.branchId === "string" && (value.taskId === null || typeof value.taskId === "string") && (value.runId === null || typeof value.runId === "string") && typeof value.contract === "string" && typeof value.change === "string" && typeof value.createdAt === "string";
-}
-function isVerification(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.runId === null || typeof value.runId === "string") && typeof value.command === "string" && typeof value.workdir === "string" && typeof value.exitCode === "number" && typeof value.output === "string" && typeof value.passed === "boolean" && typeof value.createdAt === "string";
-}
-function isReview(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.runId === null || typeof value.runId === "string") && (value.reviewerRoleId === null || typeof value.reviewerRoleId === "string") && (value.model === null || typeof value.model === "string") && (value.verdict === "pass" || value.verdict === "fail") && typeof value.summary === "string" && Array.isArray(value.findings) && (value.tokens === null || typeof value.tokens === "number") && typeof value.createdAt === "string";
-}
-function isModule(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.name === "string" && typeof value.responsibility === "string" && (value.contractPath === null || typeof value.contractPath === "string") && typeof value.contractText === "string" && Array.isArray(value.allowedPaths) && Array.isArray(value.forbiddenPaths) && Array.isArray(value.dependsOn) && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
-}
-function migrateState(value) {
-  if (!isRecord(value)) {
-    throw new Error("Studio state must be an object");
+
+// src/host/store.ts
+var StudioStoreError = class extends Error {
+  code;
+  status;
+  constructor(code, message, status = 400) {
+    super(message);
+    this.name = "StudioStoreError";
+    this.code = code;
+    this.status = status;
   }
-  let state = value;
-  if (state.schemaVersion === 1) {
-    state = {
-      ...state,
-      schemaVersion: 2,
-      mergeProposals: []
-    };
-  }
-  if (state.schemaVersion === 2) {
-    state = {
-      ...state,
-      schemaVersion: 3,
-      projects: state.projects.map((project) => ({
-        ...project,
-        tokenBudget: project.tokenBudget ?? null
-      })),
-      roles: state.roles.map((role) => ({
-        ...role,
-        model: role.model ?? null,
-        tokenBudget: role.tokenBudget ?? null,
-        dailyTokenBudget: role.dailyTokenBudget ?? null
-      })),
-      runs: Array.isArray(
-        state.runs
-      ) ? state.runs : []
-    };
-  }
-  if (state.schemaVersion === 3) {
-    state = {
-      ...state,
-      schemaVersion: 4,
-      decisions: []
-    };
-  }
-  if (state.schemaVersion === 4) {
-    state = {
-      ...state,
-      schemaVersion: 5,
-      runs: state.runs.map((run) => ({
-        ...run,
-        branchId: run.branchId ?? null
-      })),
-      branches: state.tasks.filter((task) => task.branch !== null).map((task) => ({
-        id: `branch-${task.id}`,
-        projectId: task.projectId,
-        taskId: task.id,
-        name: task.branch,
-        goal: task.goal,
-        roleId: task.ownerRoleId,
-        contractKeys: [],
-        status: task.status === "review" ? "review" : "open",
-        createdAt: task.createdAt,
-        updatedAt: task.updatedAt
-      })),
-      contractChanges: []
-    };
-  }
-  if (state.schemaVersion === 5) {
-    state = {
-      ...state,
-      schemaVersion: 6,
-      projects: state.projects.map((project) => ({
-        ...project,
-        repoPath: project.repoPath ?? null
-      })),
-      runs: state.runs.map((run) => ({
-        ...run,
-        branchName: run.branchName ?? null,
-        workspacePath: run.workspacePath ?? null,
-        diffStat: run.diffStat ?? null
-      }))
-    };
-  }
-  if (state.schemaVersion === 6) {
-    state = {
-      ...state,
-      schemaVersion: 7,
-      tasks: state.tasks.map((task) => ({
-        ...task,
-        verifyCommand: task.verifyCommand ?? null
-      })),
-      mergeProposals: state.mergeProposals.map((proposal) => ({
-        ...proposal,
-        diffStat: proposal.diffStat ?? null,
-        changedFiles: Array.isArray(proposal.changedFiles) ? proposal.changedFiles : [],
-        verificationId: proposal.verificationId ?? null
-      })),
-      verifications: Array.isArray(
-        state.verifications
-      ) ? state.verifications : []
-    };
-  }
-  if (state.schemaVersion === 7) {
-    state = {
-      ...state,
-      schemaVersion: 8,
-      tasks: state.tasks.map((task) => ({
-        ...task,
-        module: task.module ?? null,
-        contractRef: task.contractRef ?? null,
-        kind: task.kind ?? "new"
-      }))
-    };
-  }
-  if (state.schemaVersion === 8) {
-    state = {
-      ...state,
-      schemaVersion: 9,
-      projects: state.projects.map((project) => ({
-        ...project,
-        prdPath: project.prdPath ?? null,
-        invariantsPath: project.invariantsPath ?? null,
-        modulesPath: project.modulesPath ?? null
-      })),
-      modules: Array.isArray(
-        state.modules
-      ) ? state.modules : []
-    };
-  }
-  if (state.schemaVersion === 9) {
-    state = {
-      ...state,
-      schemaVersion: 10,
-      tasks: state.tasks.map((task) => ({
-        ...task,
-        integration: task.integration ?? false,
-        originTaskId: task.originTaskId ?? null
-      }))
-    };
-  }
-  if (state.schemaVersion === 10) {
-    state = {
-      ...state,
-      schemaVersion: 11,
-      reviews: Array.isArray(
-        state.reviews
-      ) ? state.reviews : []
-    };
-  }
-  if (state.schemaVersion === 11) {
-    state = {
-      ...state,
-      schemaVersion: 12,
-      tasks: state.tasks.map((task) => ({
-        ...task,
-        docsSynced: task.docsSynced ?? false
-      })),
-      decisions: state.decisions.map((decision) => ({
-        ...decision,
-        reversible: decision.reversible ?? true
-      }))
-    };
-  }
-  if (state.schemaVersion === 12) {
-    state = {
-      ...state,
-      schemaVersion: 13,
-      decisions: state.decisions.map((decision) => ({
-        ...decision,
-        adrDraft: decision.adrDraft ?? null
-      }))
-    };
-  }
-  if (state.schemaVersion === 13) {
-    state = {
-      ...state,
-      schemaVersion: 14,
-      mergeProposals: state.mergeProposals.map((proposal) => ({
-        ...proposal,
-        postMergeVerificationId: proposal.postMergeVerificationId ?? null
-      }))
-    };
-  }
-  if (state.schemaVersion === 14) {
-    state = {
-      ...state,
-      schemaVersion: 15,
-      decisions: state.decisions.map((decision) => ({
-        ...decision,
-        adrPath: decision.adrPath ?? null
-      })),
-      mergeProposals: state.mergeProposals.map((proposal) => ({
-        ...proposal,
-        rollbackCommit: proposal.rollbackCommit ?? null,
-        rolledBackAt: proposal.rolledBackAt ?? null
-      }))
-    };
-  }
-  if (state.schemaVersion === 15) {
-    state = {
-      ...state,
-      schemaVersion: 16,
-      tasks: state.tasks.map((task) => ({
-        ...task,
-        diagnosis: task.diagnosis ?? "",
-        plan: task.plan ?? ""
-      }))
-    };
-  }
-  if (state.schemaVersion === 16) {
-    state = {
-      ...state,
-      schemaVersion: 17,
-      companyName: "AI\u5DE5\u4F5C\u5BA4"
-    };
-  }
-  if (state.schemaVersion === 17) {
-    state = {
-      ...state,
-      schemaVersion: 18,
-      roles: state.roles.map((role) => ({
-        ...role,
-        executor: role.executor ?? "dsh"
-      }))
-    };
-  }
-  if (state.schemaVersion === 18) {
-    state = {
-      ...state,
-      schemaVersion: 19,
-      projects: state.projects.map((project) => ({
-        ...project,
-        stage: "development"
-      })),
-      stageGates: [],
-      tasks: state.tasks.map((task) => ({
-        ...task,
-        requirementRefs: []
-      }))
-    };
-  }
-  if (state.schemaVersion === 19) {
-    state = {
-      ...state,
-      schemaVersion: 20,
-      triggers: [],
-      threads: []
-    };
-  }
-  if (state.schemaVersion === 20) {
-    state = {
-      ...state,
-      schemaVersion: 21,
-      workshops: []
-    };
-  }
-  if (state.schemaVersion === 21) {
-    state = {
-      ...state,
-      schemaVersion: 22,
-      providerProfiles: [],
-      roles: state.roles.map((role) => ({
-        ...role,
-        providerProfileId: null
-      }))
-    };
-  }
-  if (state.schemaVersion === 22) {
-    state = {
-      ...state,
-      schemaVersion: 23,
-      runs: state.runs.map((run) => ({
-        ...run,
-        providerProfileId: null,
-        executor: "dsh",
-        provider: null
-      }))
-    };
-  }
-  if (state.schemaVersion === 23) {
-    state = {
-      ...state,
-      schemaVersion: 24,
-      projects: state.projects.map((project) => ({
-        ...project,
-        triggerRules: defaultTriggerRules()
-      }))
-    };
-  }
-  if (state.schemaVersion === 24) {
-    state = {
-      ...state,
-      schemaVersion: 25,
-      prototypeDemos: []
-    };
-  }
-  if (state.schemaVersion === 25) {
-    state = {
-      ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
-      workshops: state.workshops.map((workshop) => ({
-        ...workshop,
-        aiSummary: null
-      }))
-    };
-  }
-  return state;
+};
+function defaultStudioDataDir() {
+  const home = process.env.DSH_HOME?.trim();
+  return path.join(
+    home !== void 0 && home !== "" ? home : path.join(os.homedir(), ".dsh"),
+    "studio"
+  );
 }
-function assertState(value) {
-  if (!isRecord(value)) {
-    throw new Error("Studio state must be an object");
+function nowIso(now) {
+  return now().toISOString();
+}
+function newId(prefix) {
+  return `${prefix}-${randomUUID().slice(0, 8)}`;
+}
+function isRecord3(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function requiredText(value, field, max = 200) {
+  if (typeof value !== "string") {
+    throw new StudioStoreError("invalid_input", `${field} \u5FC5\u987B\u662F\u5B57\u7B26\u4E32`);
   }
-  if (value.schemaVersion !== STUDIO_SCHEMA_VERSION) {
-    throw new Error(
-      `Unsupported Studio schema version: ${String(value.schemaVersion)}`
+  const text = value.trim();
+  if (text === "") {
+    throw new StudioStoreError("invalid_input", `${field} \u4E0D\u80FD\u4E3A\u7A7A`);
+  }
+  if (text.length > max) {
+    throw new StudioStoreError(
+      "invalid_input",
+      `${field} \u4E0D\u80FD\u8D85\u8FC7 ${String(max)} \u4E2A\u5B57\u7B26`
     );
   }
-  if (typeof value.companyName !== "string" || value.companyName.trim() === "") {
-    throw new Error("Studio state must contain a companyName");
+  return text;
+}
+function optionalText(value, field, max = 4e3) {
+  if (value === void 0 || value === null) return "";
+  if (typeof value !== "string") {
+    throw new StudioStoreError("invalid_input", `${field} \u5FC5\u987B\u662F\u5B57\u7B26\u4E32`);
   }
-  if (!Array.isArray(value.projects) || !Array.isArray(value.stageGates) || !Array.isArray(value.triggers) || !Array.isArray(value.threads) || !Array.isArray(value.workshops) || !Array.isArray(value.providerProfiles) || !Array.isArray(value.prototypeDemos) || !Array.isArray(value.roles) || !Array.isArray(value.modules) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.runs) || !Array.isArray(value.branches) || !Array.isArray(value.contractChanges) || !Array.isArray(value.decisions) || !Array.isArray(value.verifications) || !Array.isArray(value.reviews) || !Array.isArray(value.events)) {
-    throw new Error("Studio state collections are missing");
+  const text = value.trim();
+  if (text.length > max) {
+    throw new StudioStoreError(
+      "invalid_input",
+      `${field} \u4E0D\u80FD\u8D85\u8FC7 ${String(max)} \u4E2A\u5B57\u7B26`
+    );
   }
-  if (!value.projects.every(isProject)) {
-    throw new Error("Studio state contains an invalid project");
+  return text;
+}
+function optionalTokenBudget(value, field) {
+  if (value === void 0 || value === null) return null;
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
+    throw new StudioStoreError(
+      "invalid_input",
+      `${field} \u5FC5\u987B\u662F\u975E\u8D1F\u6574\u6570 token \u6570`
+    );
   }
-  if (!value.stageGates.every(isStageGate)) {
-    throw new Error("Studio state contains an invalid stage gate");
+  return value === 0 ? null : value;
+}
+function textList(value, field, maxItems = 20) {
+  if (value === void 0 || value === null) return [];
+  if (!Array.isArray(value)) {
+    throw new StudioStoreError("invalid_input", `${field} \u5FC5\u987B\u662F\u6570\u7EC4`);
   }
-  if (!value.triggers.every(isTrigger)) {
-    throw new Error("Studio state contains an invalid trigger");
+  return value.slice(0, maxItems).map((item, index) => requiredText(item, `${field}[${String(index)}]`, 400));
+}
+function defaultTriggerRules2() {
+  return {
+    enabled: false,
+    sources: ["github", "ci", "im"],
+    repos: [],
+    labels: [],
+    authors: [],
+    mention: ""
+  };
+}
+function webhookText(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+function normalizeWebhookPayload(source, payload) {
+  const repository = isRecord3(payload.repository) ? payload.repository : {};
+  const issue = isRecord3(payload.issue) ? payload.issue : isRecord3(payload.pull_request) ? payload.pull_request : {};
+  const comment = isRecord3(payload.comment) ? payload.comment : {};
+  const sender = isRecord3(payload.sender) ? payload.sender : {};
+  const owner = isRecord3(issue.user) ? issue.user : {};
+  const repo = webhookText(payload.repo) || webhookText(repository.full_name) || webhookText(repository.name);
+  const labels = Array.isArray(issue.labels) ? issue.labels.map(
+    (label) => typeof label === "string" ? label : isRecord3(label) ? webhookText(label.name) : ""
+  ).filter(Boolean) : [];
+  const number = typeof issue.number === "number" ? String(issue.number) : "";
+  const title = webhookText(issue.title) || webhookText(payload.title) || webhookText(payload.summary) || `${source} \u4E8B\u4EF6`;
+  const body = webhookText(issue.body) || webhookText(comment.body) || webhookText(payload.body) || webhookText(payload.message);
+  const externalId = webhookText(payload.id) || webhookText(payload.event_id) || (number !== "" ? `${source}:${repo}#${number}` : `${source}:${String(payload.action ?? "event")}:${title}`);
+  return {
+    title: title.slice(0, 240),
+    body: body.slice(0, 8e3),
+    url: webhookText(issue.html_url) || webhookText(payload.url) || webhookText(payload.html_url),
+    externalId,
+    threadKey: webhookText(payload.threadKey) || webhookText(payload.thread_key) || (number !== "" ? `${source}:${repo}#${number}` : externalId),
+    repo,
+    labels,
+    author: webhookText(sender.login) || webhookText(owner.login) || webhookText(payload.author)
+  };
+}
+function defaultStageChecklist(stage) {
+  const texts = {
+    architecture: [
+      "PRD \u5DF2\u8BC4\u5BA1\uFF0C\u8303\u56F4\u4E0E\u5F53\u524D\u7248\u672C\u4E00\u81F4",
+      "\u76EE\u6807\u4E0E\u975E\u76EE\u6807\u5DF2\u5199\u660E",
+      "\u9A8C\u6536\u6807\u51C6\u53EF\u89C2\u5BDF\u3001\u53EF\u9A8C\u8BC1",
+      "\u98CE\u9669\u4E0E\u672A\u51B3\u95EE\u9898\u5DF2\u8BB0\u5F55"
+    ],
+    prototype: [
+      "\u67B6\u6784\u6587\u6863\u5DF2\u5B8C\u6210\u5E76\u7ECF Owner \u786E\u8BA4",
+      "\u6A21\u5757\u8FB9\u754C\u4E0E\u5951\u7EA6\u5DF2\u5EFA\u7ACB",
+      "\u6D4B\u8BD5\u7B56\u7565\u4E0E\u9A8C\u8BC1\u547D\u4EE4\u5DF2\u786E\u5B9A",
+      "\u9AD8\u98CE\u9669\u51B3\u7B56\u5DF2\u6709 ADR \u6216 Decision"
+    ],
+    development: [
+      "Demo \u811A\u672C\u5DF2\u901A\u8FC7",
+      "Demo \u8BC1\u636E\u5DF2\u8BB0\u5F55",
+      "\u5DF2\u77E5\u9650\u5236\u548C\u6539\u8FDB\u9879\u5DF2\u5217\u51FA",
+      "\u5DF2\u51B3\u5B9A evolve \u6216 rewrite"
+    ]
+  };
+  return (texts[stage] ?? []).map(
+    (text) => ({ id: newId("check"), text, done: false })
+  );
+}
+function normalizeStageChecklist(value) {
+  if (!Array.isArray(value)) {
+    throw new StudioStoreError("invalid_input", "checklist \u5FC5\u987B\u662F\u6570\u7EC4");
   }
-  if (!value.threads.every(isThread)) {
-    throw new Error("Studio state contains an invalid thread");
+  return value.slice(0, 30).map((raw, index) => {
+    if (!isRecord3(raw)) {
+      throw new StudioStoreError(
+        "invalid_input",
+        `checklist[${String(index)}] \u5FC5\u987B\u662F\u5BF9\u8C61`
+      );
+    }
+    return {
+      id: typeof raw.id === "string" && raw.id !== "" ? raw.id : newId("check"),
+      text: requiredText(raw.text, `checklist[${String(index)}].text`, 500),
+      done: raw.done === true
+    };
+  });
+}
+function normalizeStageArtifacts(value) {
+  if (!Array.isArray(value)) {
+    throw new StudioStoreError("invalid_input", "artifacts \u5FC5\u987B\u662F\u6570\u7EC4");
   }
-  if (!value.workshops.every(isWorkshop)) {
-    throw new Error("Studio state contains an invalid workshop");
+  return value.slice(0, 20).map((raw, index) => {
+    if (!isRecord3(raw)) {
+      throw new StudioStoreError(
+        "invalid_input",
+        `artifacts[${String(index)}] \u5FC5\u987B\u662F\u5BF9\u8C61`
+      );
+    }
+    const kind = isStageArtifactKind(raw.kind) ? raw.kind : "other";
+    return {
+      id: typeof raw.id === "string" && raw.id !== "" ? raw.id : newId("artifact"),
+      kind,
+      label: requiredText(
+        raw.label,
+        `artifacts[${String(index)}].label`,
+        160
+      ),
+      path: requiredText(
+        raw.path,
+        `artifacts[${String(index)}].path`,
+        500
+      )
+    };
+  });
+}
+function normalizeAcceptance(value, existing = []) {
+  if (!Array.isArray(value)) {
+    throw new StudioStoreError("invalid_input", "acceptance \u5FC5\u987B\u662F\u6570\u7EC4");
   }
-  if (!value.providerProfiles.every(isProviderProfile)) {
-    throw new Error("Studio state contains an invalid provider profile");
+  if (value.length === 0) {
+    throw new StudioStoreError(
+      "acceptance_required",
+      "\u81F3\u5C11\u9700\u8981\u4E00\u6761\u53EF\u9A8C\u8BC1\u7684\u9A8C\u6536\u6807\u51C6"
+    );
   }
-  if (!value.prototypeDemos.every(isPrototypeDemo)) {
-    throw new Error("Studio state contains an invalid prototype demo");
+  const byId = new Map(existing.map((item) => [item.id, item]));
+  return value.slice(0, 20).map((raw, index) => {
+    if (typeof raw === "string") {
+      const text2 = requiredText(raw, `acceptance[${String(index)}]`, 400);
+      return { id: newId("acc"), text: text2, done: false };
+    }
+    if (!isRecord3(raw)) {
+      throw new StudioStoreError(
+        "invalid_input",
+        `acceptance[${String(index)}] \u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u6216\u5BF9\u8C61`
+      );
+    }
+    const text = requiredText(
+      raw.text,
+      `acceptance[${String(index)}].text`,
+      400
+    );
+    const id = typeof raw.id === "string" && raw.id !== "" ? raw.id : newId("acc");
+    const previous = byId.get(id);
+    return {
+      id,
+      text,
+      done: typeof raw.done === "boolean" ? raw.done : previous?.done ?? false
+    };
+  });
+}
+function normalizeEvidence(value, existing, at) {
+  if (!Array.isArray(value)) {
+    throw new StudioStoreError("invalid_input", "evidence \u5FC5\u987B\u662F\u6570\u7EC4");
   }
-  if (!value.roles.every(isRole)) {
-    throw new Error("Studio state contains an invalid role");
-  }
-  if (!value.modules.every(isModule)) {
-    throw new Error("Studio state contains an invalid module");
-  }
-  if (!value.tasks.every(isTask)) {
-    throw new Error("Studio state contains an invalid task");
-  }
-  if (!value.mergeProposals.every(isMergeProposal)) {
-    throw new Error("Studio state contains an invalid merge proposal");
-  }
-  if (!value.runs.every(isAgentRun)) {
-    throw new Error("Studio state contains an invalid agent run");
-  }
-  if (!value.branches.every(isBranch)) {
-    throw new Error("Studio state contains an invalid branch");
-  }
-  if (!value.contractChanges.every(isContractChange)) {
-    throw new Error("Studio state contains an invalid contract change");
-  }
-  if (!value.verifications.every(isVerification)) {
-    throw new Error("Studio state contains an invalid verification");
-  }
-  if (!value.reviews.every(isReview)) {
-    throw new Error("Studio state contains an invalid review");
-  }
-  if (!value.decisions.every(isDecision)) {
-    throw new Error("Studio state contains an invalid decision");
-  }
+  const byId = new Map(existing.map((item) => [item.id, item]));
+  return value.slice(0, 50).map((raw, index) => {
+    if (!isRecord3(raw)) {
+      throw new StudioStoreError(
+        "invalid_input",
+        `evidence[${String(index)}] \u5FC5\u987B\u662F\u5BF9\u8C61`
+      );
+    }
+    const text = requiredText(raw.text, `evidence[${String(index)}].text`, 800);
+    const id = typeof raw.id === "string" && raw.id !== "" ? raw.id : newId("ev");
+    const previous = byId.get(id);
+    return {
+      id,
+      text,
+      createdAt: previous?.createdAt ?? (typeof raw.createdAt === "string" ? raw.createdAt : at)
+    };
+  });
 }
 var StudioStore = class {
   dataDir;
@@ -1285,7 +1307,7 @@ var StudioStore = class {
   }
   async importState(raw) {
     return this.runExclusive(async () => {
-      if (!isRecord(raw)) {
+      if (!isRecord3(raw)) {
         throw new StudioStoreError(
           "invalid_import",
           "\u5BFC\u5165\u6587\u4EF6\u5FC5\u987B\u662F Studio \u5BFC\u51FA\u7684 JSON \u5BF9\u8C61",
@@ -1446,7 +1468,7 @@ var StudioStore = class {
         prdPath: null,
         invariantsPath: null,
         modulesPath: null,
-        triggerRules: defaultTriggerRules(),
+        triggerRules: defaultTriggerRules2(),
         stage: "discovery",
         createdAt: at,
         updatedAt: at
@@ -4391,7 +4413,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       const migrated = migrateState(parsed);
       assertState(migrated);
       this.state = migrated;
-      if (!isRecord(parsed) || parsed.schemaVersion !== STUDIO_SCHEMA_VERSION) {
+      if (!isRecord3(parsed) || parsed.schemaVersion !== STUDIO_SCHEMA_VERSION) {
         await this.save();
       }
     } catch (error) {
@@ -4710,7 +4732,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       prdPath: null,
       invariantsPath: null,
       modulesPath: null,
-      triggerRules: defaultTriggerRules(),
+      triggerRules: defaultTriggerRules2(),
       stage: "development",
       createdAt: at,
       updatedAt: at
