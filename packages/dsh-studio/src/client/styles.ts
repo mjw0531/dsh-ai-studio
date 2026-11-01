@@ -688,6 +688,15 @@ export const studioCss = `
   background: var(--st-panel-2);
   font-size: 11px;
 }
+.studio-provider-probe {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  padding-top: 5px;
+  border-top: 1px solid var(--st-border);
+}
 
 .studio-needs {
   display: flex;

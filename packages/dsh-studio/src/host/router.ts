@@ -15,6 +15,7 @@ import type {
   CreateProviderProfileInput,
   UpdateProviderProfileInput,
   ProviderProfile,
+  ProviderProbeResult,
   Workshop,
   CompatibilityInfo,
   CreateDecisionInput,
@@ -72,6 +73,7 @@ interface StudioRouterOptions {
   ) => Promise<{ projectId: string; repoPath: string }>;
   readProjectDoc: (path: string) => Promise<ProjectDoc>;
   runWorkshop: (workshopId: string) => Promise<Workshop>;
+  probeProviderProfile: (profileId: string) => Promise<ProviderProbeResult>;
 }
 
 interface ParsedRequest {
@@ -665,6 +667,9 @@ export class StudioRouter {
   ) => Promise<{ projectId: string; repoPath: string }>;
   private readonly readProjectDoc: (path: string) => Promise<ProjectDoc>;
   private readonly runWorkshop: (workshopId: string) => Promise<Workshop>;
+  private readonly probeProviderProfile: (
+    profileId: string,
+  ) => Promise<ProviderProbeResult>;
 
   constructor(options: StudioRouterOptions) {
     this.store = options.store;
@@ -683,6 +688,7 @@ export class StudioRouter {
     this.importProjectBundle = options.importProjectBundle;
     this.readProjectDoc = options.readProjectDoc;
     this.runWorkshop = options.runWorkshop;
+    this.probeProviderProfile = options.probeProviderProfile;
   }
 
   async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -951,6 +957,19 @@ export class StudioRouter {
           asCreateProviderProfile(await readJson(req)),
         );
       sendJson(res, 201, { ok: true, profile });
+      return;
+    }
+
+    const providerProbe =
+      /^\/studio-api\/provider-profiles\/([^/]+)\/probe$/.exec(
+        parsed.pathname,
+      );
+    if (providerProbe !== null) {
+      this.requireMethod(parsed, ["POST"]);
+      const result = await this.probeProviderProfile(
+        decodeSegment(providerProbe[1] ?? ""),
+      );
+      sendJson(res, 200, { ok: true, probe: result });
       return;
     }
 

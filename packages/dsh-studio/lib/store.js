@@ -14,7 +14,7 @@ import path from "node:path";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 23;
-var STUDIO_PLUGIN_VERSION = "2.14.0";
+var STUDIO_PLUGIN_VERSION = "2.15.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -3090,6 +3090,12 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       });
       await this.save();
       return { fromProfileId, toProfileId, movedRoleIds };
+    });
+  }
+  async getProviderProfile(profileId) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      return structuredClone(this.findProviderProfile(state, profileId));
     });
   }
   async getRoleProvider(roleId) {

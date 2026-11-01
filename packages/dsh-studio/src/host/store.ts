@@ -4093,6 +4093,13 @@ export class StudioStore {
     });
   }
 
+  async getProviderProfile(profileId: string): Promise<ProviderProfile> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      return structuredClone(this.findProviderProfile(state, profileId));
+    });
+  }
+
   async getRoleProvider(roleId: string): Promise<ProviderProfile | null> {
     return this.runExclusive(async () => {
       const state = this.requireState();

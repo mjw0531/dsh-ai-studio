@@ -355,6 +355,13 @@ var StudioClient = class {
     );
     return data.profile;
   }
+  async probeProviderProfile(profileId) {
+    const data = await this.request(
+      `/provider-profiles/${encodeURIComponent(profileId)}/probe`,
+      { method: "POST", body: {} }
+    );
+    return data.probe;
+  }
   async reassignProviderProfile(fromProfileId, toProfileId) {
     return this.request(
       `/provider-profiles/${encodeURIComponent(fromProfileId)}/reassign`,
@@ -1086,6 +1093,10 @@ function StudioPage() {
       "Provider Profile \u5DF2\u5220\u9664"
     );
   };
+  const probeProviderProfile = async (profileId) => {
+    if (client === null) throw new Error("\u63D2\u4EF6\u5C1A\u672A\u8FDE\u63A5");
+    return client.probeProviderProfile(profileId);
+  };
   const reassignProviderProfile = async (fromProfileId, toProfileId) => {
     return run(
       async () => {
@@ -1720,7 +1731,8 @@ function StudioPage() {
             onCreateProvider: createProviderProfile,
             onUpdateProvider: updateProviderProfile,
             onDeleteProvider: deleteProviderProfile,
-            onReassignProvider: reassignProviderProfile
+            onReassignProvider: reassignProviderProfile,
+            onProbeProvider: probeProviderProfile
           }
         ) : null,
         tab === "settings" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
@@ -4006,12 +4018,17 @@ function ProviderProfilesPanel({
   onCreate,
   onUpdate,
   onDelete,
-  onReassign
+  onReassign,
+  onProbe
 }) {
   const [name2, setName] = (0, import_react.useState)("");
   const [executor, setExecutor] = (0, import_react.useState)("dsh");
   const [provider, setProvider] = (0, import_react.useState)("");
   const [model, setModel] = (0, import_react.useState)("");
+  const [probingId, setProbingId] = (0, import_react.useState)(null);
+  const [probes, setProbes] = (0, import_react.useState)(
+    {}
+  );
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "studio-panel studio-provider-panel", children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-panel-head", children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconSettings, { width: 14, height: 14 }),
@@ -4152,6 +4169,39 @@ function ProviderProfilesPanel({
               className: "studio-btn",
               "data-size": "sm",
               type: "button",
+              disabled: busy || probingId === profile.id,
+              onClick: () => {
+                setProbingId(profile.id);
+                void onProbe(profile.id).then((result) => {
+                  setProbes((currentProbes) => ({
+                    ...currentProbes,
+                    [profile.id]: result
+                  }));
+                }).catch((error) => {
+                  setProbes((currentProbes) => ({
+                    ...currentProbes,
+                    [profile.id]: {
+                      profileId: profile.id,
+                      executor: profile.executor,
+                      provider: profile.provider,
+                      model: profile.model,
+                      ok: false,
+                      checkedAt: (/* @__PURE__ */ new Date()).toISOString(),
+                      message: error instanceof Error ? error.message : String(error),
+                      availableModels: []
+                    }
+                  }));
+                }).finally(() => setProbingId(null));
+              },
+              children: probingId === profile.id ? "\u63A2\u6D4B\u4E2D\u2026" : "\u63A2\u6D4B"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "button",
+            {
+              className: "studio-btn",
+              "data-size": "sm",
+              type: "button",
               disabled: busy,
               onClick: () => {
                 const next = window.prompt("\u65B0\u7684 Profile \u540D\u79F0\uFF1A", profile.name);
@@ -4176,7 +4226,18 @@ function ProviderProfilesPanel({
               },
               children: "\u5220\u9664"
             }
-          )
+          ),
+          probes[profile.id] ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-provider-probe", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "span",
+              {
+                className: "studio-pill",
+                "data-tone": probes[profile.id]?.ok ? "ok" : "warn",
+                children: probes[profile.id]?.ok ? "\u63A2\u6D4B\u901A\u8FC7" : "\u63A2\u6D4B\u5931\u8D25"
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-muted", children: probes[profile.id]?.message })
+          ] }) : null
         ] }, profile.id);
       }) }) : null
     ] })
@@ -4191,7 +4252,8 @@ function TeamView({
   onCreateProvider,
   onUpdateProvider,
   onDeleteProvider,
-  onReassignProvider
+  onReassignProvider,
+  onProbeProvider
 }) {
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-page-head", children: [
@@ -4225,7 +4287,8 @@ function TeamView({
         onCreate: onCreateProvider,
         onUpdate: onUpdateProvider,
         onDelete: onDeleteProvider,
-        onReassign: onReassignProvider
+        onReassign: onReassignProvider,
+        onProbe: onProbeProvider
       }
     ),
     data.roles.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-empty", children: [
@@ -7209,6 +7272,15 @@ var studioCss = `
   border-radius: 7px;
   background: var(--st-panel-2);
   font-size: 11px;
+}
+.studio-provider-probe {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  padding-top: 5px;
+  border-top: 1px solid var(--st-border);
 }
 
 .studio-needs {

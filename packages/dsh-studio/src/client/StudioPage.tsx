@@ -56,6 +56,7 @@ import type {
   UpdateProviderProfileInput,
   ProviderProfile,
   ProviderProfileHealth,
+  ProviderProbeResult,
   Workshop,
   UpdateStageGateInput,
   CreateMergeProposalInput,
@@ -616,6 +617,13 @@ export function StudioPage() {
       },
       "Provider Profile 已删除",
     );
+  };
+
+  const probeProviderProfile = async (
+    profileId: string,
+  ): Promise<ProviderProbeResult> => {
+    if (client === null) throw new Error("插件尚未连接");
+    return client.probeProviderProfile(profileId);
   };
 
   const reassignProviderProfile = async (
@@ -1409,6 +1417,7 @@ export function StudioPage() {
                 onUpdateProvider={updateProviderProfile}
                 onDeleteProvider={deleteProviderProfile}
                 onReassignProvider={reassignProviderProfile}
+                onProbeProvider={probeProviderProfile}
               />
             ) : null}
 
@@ -4046,6 +4055,7 @@ function ProviderProfilesPanel({
   onUpdate,
   onDelete,
   onReassign,
+  onProbe,
 }: {
   profiles: ProviderProfile[];
   health: ProviderProfileHealth[];
@@ -4060,11 +4070,16 @@ function ProviderProfilesPanel({
     fromProfileId: string,
     toProfileId: string,
   ) => Promise<boolean>;
+  onProbe: (profileId: string) => Promise<ProviderProbeResult>;
 }) {
   const [name, setName] = useState("");
   const [executor, setExecutor] = useState<AgentExecutor>("dsh");
   const [provider, setProvider] = useState("");
   const [model, setModel] = useState("");
+  const [probingId, setProbingId] = useState<string | null>(null);
+  const [probes, setProbes] = useState<Record<string, ProviderProbeResult>>(
+    {},
+  );
 
   return (
     <section className="studio-panel studio-provider-panel">
@@ -4193,6 +4208,43 @@ function ProviderProfilesPanel({
                   className="studio-btn"
                   data-size="sm"
                   type="button"
+                  disabled={busy || probingId === profile.id}
+                  onClick={() => {
+                    setProbingId(profile.id);
+                    void onProbe(profile.id)
+                      .then((result) => {
+                        setProbes((currentProbes) => ({
+                          ...currentProbes,
+                          [profile.id]: result,
+                        }));
+                      })
+                      .catch((error: unknown) => {
+                        setProbes((currentProbes) => ({
+                          ...currentProbes,
+                          [profile.id]: {
+                            profileId: profile.id,
+                            executor: profile.executor,
+                            provider: profile.provider,
+                            model: profile.model,
+                            ok: false,
+                            checkedAt: new Date().toISOString(),
+                            message:
+                              error instanceof Error
+                                ? error.message
+                                : String(error),
+                            availableModels: [],
+                          },
+                        }));
+                      })
+                      .finally(() => setProbingId(null));
+                  }}
+                >
+                  {probingId === profile.id ? "探测中…" : "探测"}
+                </button>
+                <button
+                  className="studio-btn"
+                  data-size="sm"
+                  type="button"
                   disabled={busy}
                   onClick={() => {
                     const next = window.prompt("新的 Profile 名称：", profile.name);
@@ -4216,6 +4268,19 @@ function ProviderProfilesPanel({
                 >
                   删除
                 </button>
+                {probes[profile.id] ? (
+                  <div className="studio-provider-probe">
+                    <span
+                      className="studio-pill"
+                      data-tone={probes[profile.id]?.ok ? "ok" : "warn"}
+                    >
+                      {probes[profile.id]?.ok ? "探测通过" : "探测失败"}
+                    </span>
+                    <span className="studio-muted">
+                      {probes[profile.id]?.message}
+                    </span>
+                  </div>
+                ) : null}
               </div>
               );
             })}
@@ -4236,6 +4301,7 @@ function TeamView({
   onUpdateProvider,
   onDeleteProvider,
   onReassignProvider,
+  onProbeProvider,
 }: {
   data: BootstrapResponse;
   busy: boolean;
@@ -4257,6 +4323,7 @@ function TeamView({
     fromProfileId: string,
     toProfileId: string,
   ) => Promise<boolean>;
+  onProbeProvider: (profileId: string) => Promise<ProviderProbeResult>;
 }) {
   return (
     <>
@@ -4291,6 +4358,7 @@ function TeamView({
         onUpdate={onUpdateProvider}
         onDelete={onDeleteProvider}
         onReassign={onReassignProvider}
+        onProbe={onProbeProvider}
       />
 
       {data.roles.length === 0 ? (

@@ -18,6 +18,7 @@ import { handleRouterError, StudioRouter } from "./router.js";
 import { StudioStore } from "./store.js";
 import { VerificationService } from "./verify.js";
 import { WorkshopRunner } from "./workshop-runner.js";
+import { ProviderProbeService } from "./probe.js";
 
 /** Cordis plugin name shown in Loader logs. */
 export const name = "dsh-studio";
@@ -114,6 +115,10 @@ export async function apply(ctx: StudioHostContext): Promise<void> {
     store,
     ctx as unknown as DispatcherContext,
   );
+  const providerProbe = new ProviderProbeService(
+    store,
+    ctx as unknown as DispatcherContext,
+  );
   const verifier = new VerificationService(store);
   const docs = new DocsService(store);
   const merger = new GitMergeService(store);
@@ -149,6 +154,7 @@ export async function apply(ctx: StudioHostContext): Promise<void> {
       bundles.importProject(archivePath, targetPath),
     readProjectDoc: (path) => docs.read(path),
     runWorkshop: (workshopId) => workshopRunner.run(workshopId),
+    probeProviderProfile: (profileId) => providerProbe.check(profileId),
   });
 
   const install = (): (() => void) => {

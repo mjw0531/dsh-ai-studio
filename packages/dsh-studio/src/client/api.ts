@@ -24,6 +24,7 @@ import type {
   CreateProviderProfileInput,
   UpdateProviderProfileInput,
   ProviderProfile,
+  ProviderProbeResult,
   StageGate,
   Trigger,
   Workshop,
@@ -356,6 +357,14 @@ export class StudioClient {
       { method: "PATCH", body: input },
     );
     return data.profile;
+  }
+
+  async probeProviderProfile(profileId: string): Promise<ProviderProbeResult> {
+    const data = await this.request<{ probe: ProviderProbeResult }>(
+      `/provider-profiles/${encodeURIComponent(profileId)}/probe`,
+      { method: "POST", body: {} },
+    );
+    return data.probe;
   }
 
   async reassignProviderProfile(

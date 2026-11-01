@@ -5,7 +5,7 @@
  */
 
 export const STUDIO_SCHEMA_VERSION = 23;
-export const STUDIO_PLUGIN_VERSION = "2.14.0";
+export const STUDIO_PLUGIN_VERSION = "2.15.0";
 
 export type TaskStatus =
   | "backlog"
@@ -276,6 +276,17 @@ export interface ProviderRecentRun {
   startedAt: string;
   endedAt: string | null;
   errorPreview: string | null;
+}
+
+export interface ProviderProbeResult {
+  profileId: string;
+  executor: AgentExecutor;
+  provider: string;
+  model: string;
+  ok: boolean;
+  checkedAt: string;
+  message: string;
+  availableModels: string[];
 }
 
 export interface ProviderProfileHealth {
