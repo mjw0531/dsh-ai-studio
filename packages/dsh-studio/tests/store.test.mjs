@@ -276,6 +276,10 @@ test("builds the company-level owner dashboard", async () => {
     assert.ok(company.roles.some((role) => role.roleName === "Builder"));
     assert.ok(company.recentEvents.length > 0);
     assert.ok(company.totals.acceptanceTotal > 0);
+    assert.equal(company.budget.totalBudget, null);
+    assert.equal(company.budget.unbudgetedProjects, 1);
+    assert.ok(company.priorities.length > 0);
+    assert.ok(company.roleCoverage.some((role) => role.roleName === "Builder"));
   });
 });
 

@@ -2472,6 +2472,60 @@ function CompanyView({
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "studio-panel", style: { marginBottom: 16 }, children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-panel-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconGrid, { width: 14, height: 14 }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h3", { children: "\u516C\u53F8\u7EA7\u7EC4\u5408" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-muted", children: "\u9884\u7B97 \xB7 \u4F18\u5148\u7EA7 \xB7 \u89D2\u8272\u8986\u76D6" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-panel-body studio-company-portfolio", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-company-placeholder", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-section-label", children: "\u9884\u7B97" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: company.budget.totalBudget === null ? "\u672A\u914D\u7F6E" : `${company.budget.totalSpent.toLocaleString()} / ${company.budget.totalBudget.toLocaleString()} tokens` }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("p", { children: [
+            company.budget.overBudgetProjects > 0 ? `${String(company.budget.overBudgetProjects)} \u4E2A\u9879\u76EE\u8D85\u9884\u7B97` : "\u6CA1\u6709\u9879\u76EE\u8D85\u9884\u7B97",
+            " \xB7 ",
+            company.budget.unbudgetedProjects,
+            " \u4E2A\u672A\u914D\u7F6E"
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-company-placeholder", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-section-label", children: "\u8DE8\u9879\u76EE\u4F18\u5148\u7EA7" }),
+          company.priorities.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { children: "\u6CA1\u6709\u672A\u5B8C\u6210\u4EFB\u52A1\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-priority-list", children: company.priorities.slice(0, 6).map((item) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+            "button",
+            {
+              className: "studio-priority-row",
+              type: "button",
+              onClick: () => {
+                onOpenProject(item.projectId);
+              },
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-pill", children: item.priority }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: item.title }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "studio-muted", children: [
+                  item.projectName,
+                  " \xB7 ",
+                  item.ownerName
+                ] })
+              ]
+            },
+            item.taskId
+          )) })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-company-placeholder", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-section-label", children: "\u89D2\u8272\u8986\u76D6" }),
+          company.roleCoverage.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { children: "\u8FD8\u6CA1\u6709\u89D2\u8272\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-actions", children: company.roleCoverage.map((role) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "studio-pill", children: [
+            role.roleName,
+            " \xB7 ",
+            role.projects,
+            " \u9879\u76EE /",
+            " ",
+            role.activeTasks,
+            " \u6D3B\u8DC3"
+          ] }, role.roleName)) })
+        ] })
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "studio-panel", style: { marginBottom: 16 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-panel-head", children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconBuilding, { width: 14, height: 14 }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h3", { children: "\u9879\u76EE\u7EC4\u5408" }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "studio-muted", children: [
@@ -7899,6 +7953,33 @@ var studioCss = `
   padding-top: 5px;
   border-top: 1px solid var(--st-border);
 }
+
+.studio-company-portfolio {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.studio-priority-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.studio-priority-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 6px 7px;
+  border: 1px solid var(--st-border);
+  border-radius: 6px;
+  color: var(--st-text);
+  background: var(--st-panel-2);
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+.studio-priority-row:hover { border-color: var(--st-accent); }
 
 .studio-onboarding { margin-bottom: 12px; }
 .studio-onboarding-steps {

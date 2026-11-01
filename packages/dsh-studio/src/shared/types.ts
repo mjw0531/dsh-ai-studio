@@ -5,7 +5,7 @@
  */
 
 export const STUDIO_SCHEMA_VERSION = 26;
-export const STUDIO_PLUGIN_VERSION = "2.19.0";
+export const STUDIO_PLUGIN_VERSION = "3.0.0";
 
 export type TaskStatus =
   | "backlog"
@@ -738,12 +738,39 @@ export interface CompanyTotals {
   decidedDecisions: number;
 }
 
+export interface CompanyBudget {
+  totalBudget: number | null;
+  totalSpent: number;
+  overBudgetProjects: number;
+  unbudgetedProjects: number;
+}
+
+export interface CompanyPriority {
+  taskId: string;
+  projectId: string;
+  projectName: string;
+  title: string;
+  priority: TaskPriority;
+  status: TaskStatus;
+  ownerName: string;
+  ageHours: number | null;
+}
+
+export interface RoleCoverage {
+  roleName: string;
+  projects: number;
+  activeTasks: number;
+}
+
 export interface CompanySummary {
   name: string;
   totals: CompanyTotals;
   projects: CompanyProjectSummary[];
   needs: OwnerNeed[];
   roles: RoleLoadSummary[];
+  budget: CompanyBudget;
+  priorities: CompanyPriority[];
+  roleCoverage: RoleCoverage[];
   risk: CompanyRisk;
   recentEvents: StudioEvent[];
   generatedAt: string;

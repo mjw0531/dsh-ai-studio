@@ -728,6 +728,33 @@ export const studioCss = `
   border-top: 1px solid var(--st-border);
 }
 
+.studio-company-portfolio {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.studio-priority-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.studio-priority-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 6px 7px;
+  border: 1px solid var(--st-border);
+  border-radius: 6px;
+  color: var(--st-text);
+  background: var(--st-panel-2);
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+.studio-priority-row:hover { border-color: var(--st-accent); }
+
 .studio-onboarding { margin-bottom: 12px; }
 .studio-onboarding-steps {
   display: grid;

@@ -38,7 +38,7 @@ Studio 是 DSH 的即装即用工作台插件。改领域词、工作流或接�
 - **项目包门禁**：项目包只导出状态和 `git bundle`，不含密钥、`.worktrees` 或未提交文件；导入/重绑必须由人确认。
 - **决策门禁**：项目级决策只能由 Owner 在决策台批准/拒绝；Agent 只能提出建议，不能替 Owner 决定。决策必须保留结论和理由，批准后不得静默改写。
 - **支线门禁**：派单时自动登记 Branch；Agent 的 `contractDeltas` 写入 `contractChanges`。两条支线改同一契约且内容不同时，必须自动生成待裁决 Decision，不能静默合并。
-- **公司聚合是派生视图**：Owner Dashboard 的 `company` 必须从 `StudioState` 计算，不能成为第二份事实来源；金额成本没有真实报价时显示“待接入”，token 消耗必须来自 DSH meter。
+- **公司聚合是派生视图**：Owner Dashboard 的 `company`（含 budget / priorities / roleCoverage）必须从 `StudioState` 计算，不能成为第二份事实来源；金额成本没有真实报价时显示“待接入”，token 消耗必须来自 DSH meter。
 - **桌面启动参数**：桌面渲染器是 `dsh-app://` 自定义 scheme，不能依赖 DSH Cookie 或 startup injection 的热更新。保留 `/studio-api/boot` 的桌面 origin 回退；它只发放进程级 token，绝不能把数据接口改成免 token。
 - **鉴权**：`/studio-api` 除 `/health` 外都必须校验进程内随机 Bearer token；token 只注入当前页面，不写日志、不进数据文件。
 - **数据兼容**：`StudioState.schemaVersion` 变更必须提供迁移或明确的破坏性说明；`studio.json` 是本地事实来源，损坏时备份而不是静默覆盖。

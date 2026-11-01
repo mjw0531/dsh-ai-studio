@@ -1,6 +1,6 @@
 {
   "name": "dsh-ai-studio",
-  "version": "2.19.0",
+  "version": "3.0.0",
   "private": true,
   "description": "Install-and-use AI Studio for DeepSeek Harness: workspace dashboard, roles, tasks, verification, decision desk, merge governance, and portable project bundles.",
   "license": "MIT",

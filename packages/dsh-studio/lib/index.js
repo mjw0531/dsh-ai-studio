@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 26;
-var STUDIO_PLUGIN_VERSION = "2.19.0";
+var STUDIO_PLUGIN_VERSION = "3.0.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -537,6 +537,13 @@ function buildCompany(state, now) {
     blocked: 0,
     unowned: 0
   };
+  const budget = {
+    totalBudget: null,
+    totalSpent: 0,
+    overBudgetProjects: 0,
+    unbudgetedProjects: 0
+  };
+  const priorities = [];
   const totals = {
     projects: 0,
     activeProjects: 0,
@@ -730,10 +737,32 @@ function buildCompany(state, now) {
     totals.runningRuns += projectRuns.filter(
       (run3) => run3.status === "running"
     ).length;
-    totals.tokensUsed += projectRuns.reduce(
+    const projectSpent = projectRuns.reduce(
       (sum, run3) => sum + (run3.tokens ?? 0),
       0
     );
+    totals.tokensUsed += projectSpent;
+    if (project.tokenBudget === null) {
+      budget.unbudgetedProjects += 1;
+    } else {
+      budget.totalBudget = (budget.totalBudget ?? 0) + project.tokenBudget;
+      if (projectSpent > project.tokenBudget) {
+        budget.overBudgetProjects += 1;
+      }
+    }
+    for (const task of openTasks) {
+      const role = task.ownerRoleId === null ? null : roleById.get(task.ownerRoleId);
+      priorities.push({
+        taskId: task.id,
+        projectId: project.id,
+        projectName: project.name,
+        title: task.title,
+        priority: task.priority,
+        status: task.status,
+        ownerName: role?.name ?? "\u672A\u5206\u914D",
+        ageHours: hoursSince(task.updatedAt, now)
+      });
+    }
     totals.pendingDecisions += projectDecisions.filter(
       (decision) => decision.status === "pending"
     ).length;
@@ -818,12 +847,38 @@ function buildCompany(state, now) {
     return (right.ageHours ?? 0) - (left.ageHours ?? 0);
   });
   roles.sort((left, right) => right.activeTasks - left.activeTasks);
+  budget.totalSpent = totals.tokensUsed;
+  priorities.sort((left, right) => {
+    const rank = (priority) => priority === "P0" ? 0 : priority === "P1" ? 1 : 2;
+    return rank(left.priority) - rank(right.priority) || (right.ageHours ?? 0) - (left.ageHours ?? 0);
+  });
+  const coverage = /* @__PURE__ */ new Map();
+  for (const role of state.roles) {
+    const key = role.name.toLowerCase();
+    const entry = coverage.get(key) ?? {
+      projects: /* @__PURE__ */ new Set(),
+      activeTasks: 0
+    };
+    entry.projects.add(role.projectId);
+    entry.activeTasks += state.tasks.filter(
+      (task) => task.ownerRoleId === role.id && (task.status === "running" || task.status === "review")
+    ).length;
+    coverage.set(key, entry);
+  }
+  const roleCoverage = [...coverage.entries()].map(([key, value]) => ({
+    roleName: state.roles.find((role) => role.name.toLowerCase() === key)?.name ?? key,
+    projects: value.projects.size,
+    activeTasks: value.activeTasks
+  })).sort((left, right) => right.activeTasks - left.activeTasks).slice(0, 12);
   return {
     name: state.companyName,
     totals,
     projects,
     needs: needs.slice(0, 30),
     roles,
+    budget,
+    priorities: priorities.slice(0, 12),
+    roleCoverage,
     risk,
     recentEvents: [...state.events].slice(-20).reverse(),
     generatedAt: now.toISOString()

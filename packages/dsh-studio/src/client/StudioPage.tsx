@@ -2256,6 +2256,71 @@ function CompanyView({
 
       <section className="studio-panel" style={{ marginBottom: 16 }}>
         <div className="studio-panel-head">
+          <IconGrid width={14} height={14} />
+          <h3>公司级组合</h3>
+          <span className="studio-muted">预算 · 优先级 · 角色覆盖</span>
+        </div>
+        <div className="studio-panel-body studio-company-portfolio">
+          <div className="studio-company-placeholder">
+            <div className="studio-section-label">预算</div>
+            <strong>
+              {company.budget.totalBudget === null
+                ? "未配置"
+                : `${company.budget.totalSpent.toLocaleString()} / ${company.budget.totalBudget.toLocaleString()} tokens`}
+            </strong>
+            <p>
+              {company.budget.overBudgetProjects > 0
+                ? `${String(company.budget.overBudgetProjects)} 个项目超预算`
+                : "没有项目超预算"}
+              {" · "}
+              {company.budget.unbudgetedProjects} 个未配置
+            </p>
+          </div>
+          <div className="studio-company-placeholder">
+            <div className="studio-section-label">跨项目优先级</div>
+            {company.priorities.length === 0 ? (
+              <p>没有未完成任务。</p>
+            ) : (
+              <div className="studio-priority-list">
+                {company.priorities.slice(0, 6).map((item) => (
+                  <button
+                    key={item.taskId}
+                    className="studio-priority-row"
+                    type="button"
+                    onClick={() => {
+                      onOpenProject(item.projectId);
+                    }}
+                  >
+                    <span className="studio-pill">{item.priority}</span>
+                    <span>{item.title}</span>
+                    <span className="studio-muted">
+                      {item.projectName} · {item.ownerName}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="studio-company-placeholder">
+            <div className="studio-section-label">角色覆盖</div>
+            {company.roleCoverage.length === 0 ? (
+              <p>还没有角色。</p>
+            ) : (
+              <div className="studio-actions">
+                {company.roleCoverage.map((role) => (
+                  <span key={role.roleName} className="studio-pill">
+                    {role.roleName} · {role.projects} 项目 /{" "}
+                    {role.activeTasks} 活跃
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section className="studio-panel" style={{ marginBottom: 16 }}>
+        <div className="studio-panel-head">
           <IconBuilding width={14} height={14} />
           <h3>项目组合</h3>
           <span className="studio-muted">
