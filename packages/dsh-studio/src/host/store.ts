@@ -171,6 +171,7 @@ import {
   enforceContractScope as enforceContractScopeImpl,
   failRun as failRunImpl,
 } from "./store/runs.js";
+import { getDispatchContext as getDispatchContextImpl } from "./store/runs.js";
 import {
   addWorkshopNote as addWorkshopNoteImpl,
   createPrototypeDemo as createPrototypeDemoImpl,
@@ -188,6 +189,22 @@ import {
   getDecisionAdrContext as getDecisionAdrContextImpl,
   setDecisionAdrPath as setDecisionAdrPathImpl,
 } from "./store/decisions.js";
+import {
+  approveStageGate as approveStageGateImpl,
+  createProject as createProjectImpl,
+  createProjectFromTemplate as createProjectFromTemplateImpl,
+  getStageGate as getStageGateImpl,
+  rejectStageGate as rejectStageGateImpl,
+  selectProject as selectProjectImpl,
+  updateProject as updateProjectImpl,
+  updateStageGate as updateStageGateImpl,
+} from "./store/projects.js";
+import {
+  createModule as createModuleImpl,
+  createRole as createRoleImpl,
+  updateModule as updateModuleImpl,
+  updateRole as updateRoleImpl,
+} from "./store/catalog.js";
 import {
   defaultStageChecklist,
   defaultTriggerRules,
@@ -248,6 +265,9 @@ export class StudioStore {
       save: () => this.save(),
       recordEvent: (state, input) => this.recordEvent(state, input),
       now: () => nowIso(this.now),
+      createProject: (input) => this.createProject(input),
+      createRole: (input) => this.createRole(input),
+      createTask: (input) => this.createTask(input),
     };
   }
 
@@ -497,166 +517,27 @@ export class StudioStore {
   }
 
   async createProject(input: CreateProjectInput): Promise<Project> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const at = nowIso(this.now);
-      const project: Project = {
-        id: newId("proj"),
-        name: requiredText(input.name, "name", 80),
-        description: optionalText(input.description, "description", 600),
-        tokenBudget: optionalTokenBudget(input.tokenBudget, "tokenBudget"),
-        repoPath: optionalText(input.repoPath, "repoPath", 1000) || null,
-        prdPath: null,
-        invariantsPath: null,
-        modulesPath: null,
-        triggerRules: defaultTriggerRules(),
-        stage: "discovery",
-        createdAt: at,
-        updatedAt: at,
-      };
-      state.projects.push(project);
-      state.activeProjectId = project.id;
-      this.recordEvent(state, {
-        type: "project.created",
-        at,
-        projectId: project.id,
-        payload: { name: project.name },
-      });
-      state.updatedAt = at;
-      await this.save();
-      return structuredClone(project);
-    });
+    return createProjectImpl(this.context, input);
   }
 
   async createProjectFromTemplate(
     input: CreateProjectFromTemplateInput,
   ): Promise<Project> {
-    const template = projectTemplates[input.template];
-    if (template === undefined) {
-      throw new StudioStoreError(
-        "invalid_input",
-        "未知的项目模板",
-      );
-    }
-    const project = await this.createProject({
-      name: input.name,
-      description: input.description,
-      repoPath: input.repoPath,
-    });
-    const roles = new Map<string, Role>();
-    for (const spec of template.roles) {
-      const role = await this.createRole({
-        name: spec.name,
-        title: spec.title,
-        mission: spec.mission,
-        responsibilities: spec.responsibilities,
-        decisionRights: spec.decisionRights,
-      });
-      roles.set(spec.name, role);
-    }
-    for (const spec of template.tasks) {
-      const owner = roles.get(spec.owner);
-      const reviewer = roles.get(spec.reviewer);
-      await this.createTask({
-        title: spec.title,
-        goal: spec.goal,
-        priority: spec.priority,
-        ownerRoleId: owner?.id ?? null,
-        reviewerRoleId: reviewer?.id ?? null,
-        acceptance: spec.acceptance,
-      });
-    }
-    return project;
+    return createProjectFromTemplateImpl(this.context, input);
   }
 
   async updateProject(
     projectId: string,
     input: UpdateProjectInput,
   ): Promise<Project> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const project = state.projects.find((item) => item.id === projectId);
-      if (project === undefined) {
-        throw new StudioStoreError("project_not_found", "项目不存在", 404);
-      }
-      if (input.repoPath !== undefined) {
-        project.repoPath =
-          optionalText(input.repoPath, "repoPath", 1000) || null;
-      }
-      if (input.prdPath !== undefined) {
-        project.prdPath =
-          optionalText(input.prdPath, "prdPath", 500) || null;
-      }
-      if (input.invariantsPath !== undefined) {
-        project.invariantsPath =
-          optionalText(input.invariantsPath, "invariantsPath", 500) || null;
-      }
-      if (input.modulesPath !== undefined) {
-        project.modulesPath =
-          optionalText(input.modulesPath, "modulesPath", 500) || null;
-      }
-      const at = nowIso(this.now);
-      project.updatedAt = at;
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "project.updated",
-        at,
-        projectId: project.id,
-        payload: { repoPath: project.repoPath },
-      });
-      await this.save();
-      return structuredClone(project);
-    });
+    return updateProjectImpl(this.context, projectId, input);
   }
 
   async getStageGate(
     projectId: string,
     stage: ProjectStage,
   ): Promise<StageGate> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const project = findProject(state, projectId);
-      const next = nextProjectStage(project.stage);
-      if (next === null) {
-        throw new StudioStoreError(
-          "stage_complete",
-          "项目已经进入持续开发，没有下一阶段门禁",
-          409,
-        );
-      }
-      if (stage !== next) {
-        throw new StudioStoreError(
-          "stage_gate_out_of_order",
-          `下一阶段是 ${next}，不能创建 ${stage} 门禁`,
-          409,
-        );
-      }
-      let gate = state.stageGates.find(
-        (item) => item.projectId === projectId && item.stage === stage,
-      );
-      if (gate === undefined) {
-        const at = nowIso(this.now);
-        gate = {
-          id: newId("gate"),
-          projectId,
-          stage,
-          status: "pending",
-          checklist: defaultStageChecklist(stage),
-          artifacts: [],
-          note: "",
-          decisionId: null,
-          approvedBy: "",
-          approvedAt: null,
-          waiverReason: null,
-          createdAt: at,
-          updatedAt: at,
-        };
-        state.stageGates.push(gate);
-        state.updatedAt = at;
-        await this.save();
-      }
-      return structuredClone(gate);
-    });
+    return getStageGateImpl(this.context, projectId, stage);
   }
 
   async updateStageGate(
@@ -664,116 +545,15 @@ export class StudioStore {
     stage: ProjectStage,
     input: UpdateStageGateInput,
   ): Promise<StageGate> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const project = findProject(state, projectId);
-      const gate = findStageGate(state, project, stage);
-      if (gate.status === "approved") {
-        throw new StudioStoreError(
-          "stage_gate_locked",
-          "阶段门禁已经批准，不能再修改",
-          409,
-        );
-      }
-      if (input.checklist !== undefined) {
-        gate.checklist = normalizeStageChecklist(input.checklist);
-      }
-      if (input.artifacts !== undefined) {
-        gate.artifacts = normalizeStageArtifacts(input.artifacts);
-      }
-      if (input.note !== undefined) {
-        gate.note = optionalText(input.note, "note", 4000);
-      }
-      gate.status = "pending";
-      gate.approvedBy = "";
-      gate.approvedAt = null;
-      gate.waiverReason = null;
-      gate.updatedAt = nowIso(this.now);
-      state.updatedAt = gate.updatedAt;
-      await this.save();
-      return structuredClone(gate);
-    });
+    return updateStageGateImpl(this.context, projectId, stage, input);
   }
 
   async approveStageGate(
     projectId: string,
     stage: ProjectStage,
-    input: ApproveStageGateInput = {},
+    input: ApproveStageGateInput,
   ): Promise<StageGate> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const project = findProject(state, projectId);
-      const gate = findStageGate(state, project, stage);
-      if (gate.status === "approved") {
-        throw new StudioStoreError(
-          "stage_gate_locked",
-          "阶段门禁已经批准",
-          409,
-        );
-      }
-      if (input.checklist !== undefined) {
-        gate.checklist = normalizeStageChecklist(input.checklist);
-      }
-      if (input.artifacts !== undefined) {
-        gate.artifacts = normalizeStageArtifacts(input.artifacts);
-      }
-      if (input.note !== undefined) {
-        gate.note = optionalText(input.note, "note", 4000);
-      }
-      const waiverReason = optionalText(
-        input.waiverReason,
-        "waiverReason",
-        1000,
-      );
-      const missingDemo =
-        stage === "development" &&
-        !gate.artifacts.some((artifact) => artifact.kind === "demo") &&
-        !state.prototypeDemos.some(
-          (demo) =>
-            demo.projectId === projectId && demo.result === "passed",
-        );
-      const incomplete =
-        gate.checklist.length === 0 ||
-        gate.checklist.some((item) => !item.done) ||
-        gate.artifacts.length === 0;
-      if ((incomplete || missingDemo) && waiverReason === "") {
-        if (missingDemo && !incomplete) {
-          throw new StudioStoreError(
-            "prototype_demo_required",
-            "进入持续开发前必须登记一个 demo 产物（路径或 URL），或填写 Owner 豁免理由",
-            409,
-          );
-        }
-        throw new StudioStoreError(
-          "stage_gate_not_ready",
-          "阶段门禁未完成：请完成所有检查项并至少登记一个产物，或填写 Owner 豁免理由",
-          409,
-        );
-      }
-      const at = nowIso(this.now);
-      gate.status = "approved";
-      gate.approvedBy = "Owner";
-      gate.approvedAt = at;
-      gate.waiverReason =
-        (incomplete || missingDemo) && waiverReason !== ""
-          ? waiverReason
-          : null;
-      gate.updatedAt = at;
-      project.stage = stage;
-      project.updatedAt = at;
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "stage.approved",
-        at,
-        projectId,
-        payload: {
-          stage,
-          waiver: gate.waiverReason !== null,
-        },
-      });
-      await this.save();
-      return structuredClone(gate);
-    });
+    return approveStageGateImpl(this.context, projectId, stage, input);
   }
 
   async rejectStageGate(
@@ -781,42 +561,7 @@ export class StudioStore {
     stage: ProjectStage,
     note: string,
   ): Promise<StageGate> {
-    return this.runExclusive(async () => {
-      if (note.trim() === "") {
-        throw new StudioStoreError(
-          "decision_reason_required",
-          "拒绝阶段门禁必须写明理由",
-          400,
-        );
-      }
-      const reason = requiredText(note, "note", 4000);
-      const state = this.requireState();
-      const project = findProject(state, projectId);
-      const gate = findStageGate(state, project, stage);
-      if (gate.status === "approved") {
-        throw new StudioStoreError(
-          "stage_gate_locked",
-          "阶段门禁已经批准，不能再拒绝",
-          409,
-        );
-      }
-      const at = nowIso(this.now);
-      gate.status = "rejected";
-      gate.note = reason;
-      gate.approvedBy = "";
-      gate.approvedAt = null;
-      gate.waiverReason = null;
-      gate.updatedAt = at;
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "stage.rejected",
-        at,
-        projectId,
-        payload: { stage, note: reason },
-      });
-      await this.save();
-      return structuredClone(gate);
-    });
+    return rejectStageGateImpl(this.context, projectId, stage, note);
   }
 
   async ingestTrigger(input: CreateTriggerInput): Promise<Trigger> {
@@ -909,17 +654,7 @@ export class StudioStore {
   }
 
   async selectProject(projectId: string): Promise<Project> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const project = state.projects.find((item) => item.id === projectId);
-      if (project === undefined) {
-        throw new StudioStoreError("project_not_found", "项目不存在", 404);
-      }
-      state.activeProjectId = project.id;
-      state.updatedAt = nowIso(this.now);
-      await this.save();
-      return structuredClone(project);
-    });
+    return selectProjectImpl(this.context, projectId);
   }
 
   async getDispatchContext(taskId: string): Promise<{
@@ -929,70 +664,7 @@ export class StudioStore {
     module: Module | null;
     providerProfile: ProviderProfile | null;
   }> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const task = findTask(state, taskId);
-      if (
-        task.kind === "fix" &&
-        !task.integration &&
-        (task.diagnosis.trim() === "" || task.plan.trim() === "")
-      ) {
-        throw new StudioStoreError(
-          "plan_required",
-          "改修票必须有诊断和修改计划，才能派单",
-          409,
-        );
-      }
-      if (task.ownerRoleId === null) {
-        throw new StudioStoreError(
-          "owner_required",
-          "任务没有负责人角色，不能派单",
-          409,
-        );
-      }
-      const role = state.roles.find((item) => item.id === task.ownerRoleId);
-      const project = state.projects.find(
-        (item) => item.id === task.projectId,
-      );
-      if (role === undefined || project === undefined) {
-        throw new StudioStoreError(
-          "context_not_found",
-          "任务的负责人角色或项目不存在",
-          404,
-        );
-      }
-      if (project.repoPath !== null && project.stage !== "development") {
-        throw new StudioStoreError(
-          "stage_gate_required",
-          "项目尚未通过阶段门禁；完成架构/Demo 确认并进入持续开发后才能派单",
-          409,
-        );
-      }
-      const module =
-        task.module === null
-          ? undefined
-          : state.modules.find(
-              (item) =>
-                item.projectId === task.projectId &&
-                item.name === task.module,
-            );
-      const providerProfile =
-        role.providerProfileId === null
-          ? null
-          : (state.providerProfiles.find(
-              (profile) =>
-                profile.id === role.providerProfileId &&
-                profile.projectId === project.id,
-            ) ?? null);
-      return {
-        task: structuredClone(task),
-        role: structuredClone(role),
-        project: structuredClone(project),
-        module: module === undefined ? null : structuredClone(module),
-        providerProfile:
-          providerProfile === null ? null : structuredClone(providerProfile),
-      };
-    });
+    return getDispatchContextImpl(this.context, taskId);
   }
 
   async getReviewContext(taskId: string): Promise<{
@@ -1125,122 +797,14 @@ export class StudioStore {
   }
 
   async createModule(input: CreateModuleInput): Promise<Module> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const project = pickProject(state, undefined);
-      if (project === null) {
-        throw new StudioStoreError("project_required", "请先创建一个项目");
-      }
-      const name = requiredText(input.name, "name", 120);
-      if (
-        state.modules.some(
-          (module) =>
-            module.projectId === project.id && module.name === name,
-        )
-      ) {
-        throw new StudioStoreError(
-          "module_exists",
-          "同一项目下模块名不能重复",
-          409,
-        );
-      }
-      const at = nowIso(this.now);
-      const module: Module = {
-        id: newId("module"),
-        projectId: project.id,
-        name,
-        responsibility: optionalText(
-          input.responsibility,
-          "responsibility",
-          2000,
-        ),
-        contractPath:
-          optionalText(input.contractPath, "contractPath", 500) || null,
-        contractText: optionalText(
-          input.contractText,
-          "contractText",
-          8000,
-        ),
-        allowedPaths: textList(input.allowedPaths, "allowedPaths", 30),
-        forbiddenPaths: textList(
-          input.forbiddenPaths,
-          "forbiddenPaths",
-          30,
-        ),
-        dependsOn: textList(input.dependsOn, "dependsOn", 20),
-        createdAt: at,
-        updatedAt: at,
-      };
-      state.modules.push(module);
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "module.created",
-        at,
-        projectId: project.id,
-        payload: { moduleId: module.id, name: module.name },
-      });
-      await this.save();
-      return structuredClone(module);
-    });
+    return createModuleImpl(this.context, input);
   }
 
   async updateModule(
     moduleId: string,
     input: UpdateModuleInput,
   ): Promise<Module> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const module = state.modules.find((item) => item.id === moduleId);
-      if (module === undefined) {
-        throw new StudioStoreError("module_not_found", "模块不存在", 404);
-      }
-      if (input.responsibility !== undefined) {
-        module.responsibility = optionalText(
-          input.responsibility,
-          "responsibility",
-          2000,
-        );
-      }
-      if (input.contractPath !== undefined) {
-        module.contractPath =
-          optionalText(input.contractPath, "contractPath", 500) || null;
-      }
-      if (input.contractText !== undefined) {
-        module.contractText = optionalText(
-          input.contractText,
-          "contractText",
-          8000,
-        );
-      }
-      if (input.allowedPaths !== undefined) {
-        module.allowedPaths = textList(
-          input.allowedPaths,
-          "allowedPaths",
-          30,
-        );
-      }
-      if (input.forbiddenPaths !== undefined) {
-        module.forbiddenPaths = textList(
-          input.forbiddenPaths,
-          "forbiddenPaths",
-          30,
-        );
-      }
-      if (input.dependsOn !== undefined) {
-        module.dependsOn = textList(input.dependsOn, "dependsOn", 20);
-      }
-      const at = nowIso(this.now);
-      module.updatedAt = at;
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "module.updated",
-        at,
-        projectId: module.projectId,
-        payload: { moduleId: module.id },
-      });
-      await this.save();
-      return structuredClone(module);
-    });
+    return updateModuleImpl(this.context, moduleId, input);
   }
 
   async createProviderProfile(
@@ -1280,138 +844,14 @@ export class StudioStore {
   }
 
   async createRole(input: CreateRoleInput): Promise<Role> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const project = pickProject(state, undefined);
-      if (project === null) {
-        throw new StudioStoreError("project_required", "请先创建一个项目");
-      }
-      const at = nowIso(this.now);
-      const providerProfileId =
-        optionalText(input.providerProfileId, "providerProfileId", 120) ||
-        null;
-      if (providerProfileId !== null) {
-        const profile = findProviderProfile(state, providerProfileId);
-        if (profile.projectId !== project.id) {
-          throw new StudioStoreError(
-            "provider_profile_not_found",
-            "Provider Profile 不属于当前项目",
-            404,
-          );
-        }
-      }
-      const role: Role = {
-        id: newId("role"),
-        projectId: project.id,
-        name: requiredText(input.name, "name", 60),
-        title: optionalText(input.title, "title", 80),
-        mission: optionalText(input.mission, "mission", 600),
-        responsibilities: textList(input.responsibilities, "responsibilities"),
-        nonGoals: textList(input.nonGoals, "nonGoals"),
-        decisionRights: textList(input.decisionRights, "decisionRights"),
-        providerProfileId,
-        model: optionalText(input.model, "model", 120) || null,
-        executor:
-          input.executor === "claude-code" || input.executor === "codex"
-            ? input.executor
-            : "dsh",
-        tokenBudget: optionalTokenBudget(input.tokenBudget, "tokenBudget"),
-        dailyTokenBudget: optionalTokenBudget(
-          input.dailyTokenBudget,
-          "dailyTokenBudget",
-        ),
-        createdAt: at,
-        updatedAt: at,
-      };
-      state.roles.push(role);
-      this.recordEvent(state, {
-        type: "role.created",
-        at,
-        projectId: project.id,
-        payload: { roleId: role.id, name: role.name },
-      });
-      state.updatedAt = at;
-      await this.save();
-      return structuredClone(role);
-    });
+    return createRoleImpl(this.context, input);
   }
 
   async updateRole(
     roleId: string,
     input: Partial<CreateRoleInput>,
   ): Promise<Role> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const role = state.roles.find((item) => item.id === roleId);
-      if (role === undefined) {
-        throw new StudioStoreError("role_not_found", "角色不存在", 404);
-      }
-      if (input.name !== undefined) {
-        role.name = requiredText(input.name, "name", 60);
-      }
-      if (input.title !== undefined) {
-        role.title = optionalText(input.title, "title", 80);
-      }
-      if (input.mission !== undefined) {
-        role.mission = optionalText(input.mission, "mission", 600);
-      }
-      if (input.responsibilities !== undefined) {
-        role.responsibilities = textList(
-          input.responsibilities,
-          "responsibilities",
-        );
-      }
-      if (input.nonGoals !== undefined) {
-        role.nonGoals = textList(input.nonGoals, "nonGoals");
-      }
-      if (input.decisionRights !== undefined) {
-        role.decisionRights = textList(input.decisionRights, "decisionRights");
-      }
-      if (input.providerProfileId !== undefined) {
-        const nextProfileId =
-          optionalText(input.providerProfileId, "providerProfileId", 120) ||
-          null;
-        if (nextProfileId !== null) {
-          const profile = findProviderProfile(state, nextProfileId);
-          if (profile.projectId !== role.projectId) {
-            throw new StudioStoreError(
-              "provider_profile_not_found",
-              "Provider Profile 不属于当前项目",
-              404,
-            );
-          }
-        }
-        role.providerProfileId = nextProfileId;
-      }
-      if (input.model !== undefined) {
-        role.model = optionalText(input.model, "model", 120) || null;
-      }
-      if (input.executor !== undefined) {
-        role.executor =
-          input.executor === "claude-code" || input.executor === "codex"
-            ? input.executor
-            : "dsh";
-      }
-      if (input.tokenBudget !== undefined) {
-        role.tokenBudget = optionalTokenBudget(input.tokenBudget, "tokenBudget");
-      }
-      if (input.dailyTokenBudget !== undefined) {
-        role.dailyTokenBudget = optionalTokenBudget(
-          input.dailyTokenBudget,
-          "dailyTokenBudget",
-        );
-      }
-      role.updatedAt = nowIso(this.now);
-      state.updatedAt = role.updatedAt;
-      this.recordEvent(state, {
-        type: "role.updated",
-        at: role.updatedAt,
-        projectId: role.projectId,
-        payload: { roleId: role.id },
-      });
-      await this.save();
-      return structuredClone(role);
-    });
+    return updateRoleImpl(this.context, roleId, input);
   }
 
   async createTask(input: CreateTaskInput): Promise<Task> {

@@ -1,6 +1,14 @@
 import { randomUUID } from "node:crypto";
 
-import type { StudioState } from "../../shared/types.js";
+import type {
+  CreateProjectInput,
+  CreateRoleInput,
+  CreateTaskInput,
+  Project,
+  Role,
+  StudioState,
+  Task,
+} from "../../shared/types.js";
 
 export class StudioStoreError extends Error {
   readonly code: string;
@@ -28,6 +36,9 @@ export interface StoreContext {
   save(): Promise<void>;
   recordEvent(state: StudioState, input: StoreEventInput): void;
   now(): string;
+  createProject(input: CreateProjectInput): Promise<Project>;
+  createRole(input: CreateRoleInput): Promise<Role>;
+  createTask(input: CreateTaskInput): Promise<Task>;
 }
 
 export function newId(prefix: string): string {

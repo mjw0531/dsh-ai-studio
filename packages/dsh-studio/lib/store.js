@@ -14,7 +14,7 @@ import path from "node:path";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 26;
-var STUDIO_PLUGIN_VERSION = "3.1.7";
+var STUDIO_PLUGIN_VERSION = "3.1.8";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -3534,6 +3534,57 @@ function ensureBranch(ctx, state, task, at) {
   }
   return branch;
 }
+async function getDispatchContext(ctx, taskId) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const task = findTask(state, taskId);
+    if (task.kind === "fix" && !task.integration && (task.diagnosis.trim() === "" || task.plan.trim() === "")) {
+      throw new StudioStoreError(
+        "plan_required",
+        "\u6539\u4FEE\u7968\u5FC5\u987B\u6709\u8BCA\u65AD\u548C\u4FEE\u6539\u8BA1\u5212\uFF0C\u624D\u80FD\u6D3E\u5355",
+        409
+      );
+    }
+    if (task.ownerRoleId === null) {
+      throw new StudioStoreError(
+        "owner_required",
+        "\u4EFB\u52A1\u6CA1\u6709\u8D1F\u8D23\u4EBA\u89D2\u8272\uFF0C\u4E0D\u80FD\u6D3E\u5355",
+        409
+      );
+    }
+    const role = state.roles.find((item) => item.id === task.ownerRoleId);
+    const project = state.projects.find(
+      (item) => item.id === task.projectId
+    );
+    if (role === void 0 || project === void 0) {
+      throw new StudioStoreError(
+        "context_not_found",
+        "\u4EFB\u52A1\u7684\u8D1F\u8D23\u4EBA\u89D2\u8272\u6216\u9879\u76EE\u4E0D\u5B58\u5728",
+        404
+      );
+    }
+    if (project.repoPath !== null && project.stage !== "development") {
+      throw new StudioStoreError(
+        "stage_gate_required",
+        "\u9879\u76EE\u5C1A\u672A\u901A\u8FC7\u9636\u6BB5\u95E8\u7981\uFF1B\u5B8C\u6210\u67B6\u6784/Demo \u786E\u8BA4\u5E76\u8FDB\u5165\u6301\u7EED\u5F00\u53D1\u540E\u624D\u80FD\u6D3E\u5355",
+        409
+      );
+    }
+    const module = task.module === null ? void 0 : state.modules.find(
+      (item) => item.projectId === task.projectId && item.name === task.module
+    );
+    const providerProfile = role.providerProfileId === null ? null : state.providerProfiles.find(
+      (profile) => profile.id === role.providerProfileId && profile.projectId === project.id
+    ) ?? null;
+    return {
+      task: structuredClone(task),
+      role: structuredClone(role),
+      project: structuredClone(project),
+      module: module === void 0 ? null : structuredClone(module),
+      providerProfile: providerProfile === null ? null : structuredClone(providerProfile)
+    };
+  });
+}
 
 // src/host/store/workshops.ts
 async function getWorkshopContext(ctx, workshopId) {
@@ -4108,6 +4159,534 @@ async function decideDecision(ctx, decisionId, input) {
   });
 }
 
+// src/host/store/projects.ts
+async function createProject(ctx, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const at = ctx.now();
+    const project = {
+      id: newId("proj"),
+      name: requiredText(input.name, "name", 80),
+      description: optionalText(input.description, "description", 600),
+      tokenBudget: optionalTokenBudget(input.tokenBudget, "tokenBudget"),
+      repoPath: optionalText(input.repoPath, "repoPath", 1e3) || null,
+      prdPath: null,
+      invariantsPath: null,
+      modulesPath: null,
+      triggerRules: defaultTriggerRules2(),
+      stage: "discovery",
+      createdAt: at,
+      updatedAt: at
+    };
+    state.projects.push(project);
+    state.activeProjectId = project.id;
+    ctx.recordEvent(state, {
+      type: "project.created",
+      at,
+      projectId: project.id,
+      payload: { name: project.name }
+    });
+    state.updatedAt = at;
+    await ctx.save();
+    return structuredClone(project);
+  });
+}
+async function createProjectFromTemplate(ctx, input) {
+  const template = projectTemplates[input.template];
+  if (template === void 0) {
+    throw new StudioStoreError(
+      "invalid_input",
+      "\u672A\u77E5\u7684\u9879\u76EE\u6A21\u677F"
+    );
+  }
+  const project = await ctx.createProject({
+    name: input.name,
+    description: input.description,
+    repoPath: input.repoPath
+  });
+  const roles = /* @__PURE__ */ new Map();
+  for (const spec of template.roles) {
+    const role = await ctx.createRole({
+      name: spec.name,
+      title: spec.title,
+      mission: spec.mission,
+      responsibilities: spec.responsibilities,
+      decisionRights: spec.decisionRights
+    });
+    roles.set(spec.name, role);
+  }
+  for (const spec of template.tasks) {
+    const owner = roles.get(spec.owner);
+    const reviewer = roles.get(spec.reviewer);
+    await ctx.createTask({
+      title: spec.title,
+      goal: spec.goal,
+      priority: spec.priority,
+      ownerRoleId: owner?.id ?? null,
+      reviewerRoleId: reviewer?.id ?? null,
+      acceptance: spec.acceptance
+    });
+  }
+  return project;
+}
+async function updateProject(ctx, projectId, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const project = state.projects.find((item) => item.id === projectId);
+    if (project === void 0) {
+      throw new StudioStoreError("project_not_found", "\u9879\u76EE\u4E0D\u5B58\u5728", 404);
+    }
+    if (input.repoPath !== void 0) {
+      project.repoPath = optionalText(input.repoPath, "repoPath", 1e3) || null;
+    }
+    if (input.prdPath !== void 0) {
+      project.prdPath = optionalText(input.prdPath, "prdPath", 500) || null;
+    }
+    if (input.invariantsPath !== void 0) {
+      project.invariantsPath = optionalText(input.invariantsPath, "invariantsPath", 500) || null;
+    }
+    if (input.modulesPath !== void 0) {
+      project.modulesPath = optionalText(input.modulesPath, "modulesPath", 500) || null;
+    }
+    const at = ctx.now();
+    project.updatedAt = at;
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "project.updated",
+      at,
+      projectId: project.id,
+      payload: { repoPath: project.repoPath }
+    });
+    await ctx.save();
+    return structuredClone(project);
+  });
+}
+async function getStageGate(ctx, projectId, stage) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const project = findProject(state, projectId);
+    const next = nextProjectStage(project.stage);
+    if (next === null) {
+      throw new StudioStoreError(
+        "stage_complete",
+        "\u9879\u76EE\u5DF2\u7ECF\u8FDB\u5165\u6301\u7EED\u5F00\u53D1\uFF0C\u6CA1\u6709\u4E0B\u4E00\u9636\u6BB5\u95E8\u7981",
+        409
+      );
+    }
+    if (stage !== next) {
+      throw new StudioStoreError(
+        "stage_gate_out_of_order",
+        `\u4E0B\u4E00\u9636\u6BB5\u662F ${next}\uFF0C\u4E0D\u80FD\u521B\u5EFA ${stage} \u95E8\u7981`,
+        409
+      );
+    }
+    let gate = state.stageGates.find(
+      (item) => item.projectId === projectId && item.stage === stage
+    );
+    if (gate === void 0) {
+      const at = ctx.now();
+      gate = {
+        id: newId("gate"),
+        projectId,
+        stage,
+        status: "pending",
+        checklist: defaultStageChecklist(stage),
+        artifacts: [],
+        note: "",
+        decisionId: null,
+        approvedBy: "",
+        approvedAt: null,
+        waiverReason: null,
+        createdAt: at,
+        updatedAt: at
+      };
+      state.stageGates.push(gate);
+      state.updatedAt = at;
+      await ctx.save();
+    }
+    return structuredClone(gate);
+  });
+}
+async function updateStageGate(ctx, projectId, stage, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const project = findProject(state, projectId);
+    const gate = findStageGate(state, project, stage);
+    if (gate.status === "approved") {
+      throw new StudioStoreError(
+        "stage_gate_locked",
+        "\u9636\u6BB5\u95E8\u7981\u5DF2\u7ECF\u6279\u51C6\uFF0C\u4E0D\u80FD\u518D\u4FEE\u6539",
+        409
+      );
+    }
+    if (input.checklist !== void 0) {
+      gate.checklist = normalizeStageChecklist(input.checklist);
+    }
+    if (input.artifacts !== void 0) {
+      gate.artifacts = normalizeStageArtifacts(input.artifacts);
+    }
+    if (input.note !== void 0) {
+      gate.note = optionalText(input.note, "note", 4e3);
+    }
+    gate.status = "pending";
+    gate.approvedBy = "";
+    gate.approvedAt = null;
+    gate.waiverReason = null;
+    gate.updatedAt = ctx.now();
+    state.updatedAt = gate.updatedAt;
+    await ctx.save();
+    return structuredClone(gate);
+  });
+}
+async function approveStageGate(ctx, projectId, stage, input = {}) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const project = findProject(state, projectId);
+    const gate = findStageGate(state, project, stage);
+    if (gate.status === "approved") {
+      throw new StudioStoreError(
+        "stage_gate_locked",
+        "\u9636\u6BB5\u95E8\u7981\u5DF2\u7ECF\u6279\u51C6",
+        409
+      );
+    }
+    if (input.checklist !== void 0) {
+      gate.checklist = normalizeStageChecklist(input.checklist);
+    }
+    if (input.artifacts !== void 0) {
+      gate.artifacts = normalizeStageArtifacts(input.artifacts);
+    }
+    if (input.note !== void 0) {
+      gate.note = optionalText(input.note, "note", 4e3);
+    }
+    const waiverReason = optionalText(
+      input.waiverReason,
+      "waiverReason",
+      1e3
+    );
+    const missingDemo = stage === "development" && !gate.artifacts.some((artifact) => artifact.kind === "demo") && !state.prototypeDemos.some(
+      (demo) => demo.projectId === projectId && demo.result === "passed"
+    );
+    const incomplete = gate.checklist.length === 0 || gate.checklist.some((item) => !item.done) || gate.artifacts.length === 0;
+    if ((incomplete || missingDemo) && waiverReason === "") {
+      if (missingDemo && !incomplete) {
+        throw new StudioStoreError(
+          "prototype_demo_required",
+          "\u8FDB\u5165\u6301\u7EED\u5F00\u53D1\u524D\u5FC5\u987B\u767B\u8BB0\u4E00\u4E2A demo \u4EA7\u7269\uFF08\u8DEF\u5F84\u6216 URL\uFF09\uFF0C\u6216\u586B\u5199 Owner \u8C41\u514D\u7406\u7531",
+          409
+        );
+      }
+      throw new StudioStoreError(
+        "stage_gate_not_ready",
+        "\u9636\u6BB5\u95E8\u7981\u672A\u5B8C\u6210\uFF1A\u8BF7\u5B8C\u6210\u6240\u6709\u68C0\u67E5\u9879\u5E76\u81F3\u5C11\u767B\u8BB0\u4E00\u4E2A\u4EA7\u7269\uFF0C\u6216\u586B\u5199 Owner \u8C41\u514D\u7406\u7531",
+        409
+      );
+    }
+    const at = ctx.now();
+    gate.status = "approved";
+    gate.approvedBy = "Owner";
+    gate.approvedAt = at;
+    gate.waiverReason = (incomplete || missingDemo) && waiverReason !== "" ? waiverReason : null;
+    gate.updatedAt = at;
+    project.stage = stage;
+    project.updatedAt = at;
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "stage.approved",
+      at,
+      projectId,
+      payload: {
+        stage,
+        waiver: gate.waiverReason !== null
+      }
+    });
+    await ctx.save();
+    return structuredClone(gate);
+  });
+}
+async function rejectStageGate(ctx, projectId, stage, note) {
+  return ctx.runExclusive(async () => {
+    if (note.trim() === "") {
+      throw new StudioStoreError(
+        "decision_reason_required",
+        "\u62D2\u7EDD\u9636\u6BB5\u95E8\u7981\u5FC5\u987B\u5199\u660E\u7406\u7531",
+        400
+      );
+    }
+    const reason = requiredText(note, "note", 4e3);
+    const state = ctx.requireState();
+    const project = findProject(state, projectId);
+    const gate = findStageGate(state, project, stage);
+    if (gate.status === "approved") {
+      throw new StudioStoreError(
+        "stage_gate_locked",
+        "\u9636\u6BB5\u95E8\u7981\u5DF2\u7ECF\u6279\u51C6\uFF0C\u4E0D\u80FD\u518D\u62D2\u7EDD",
+        409
+      );
+    }
+    const at = ctx.now();
+    gate.status = "rejected";
+    gate.note = reason;
+    gate.approvedBy = "";
+    gate.approvedAt = null;
+    gate.waiverReason = null;
+    gate.updatedAt = at;
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "stage.rejected",
+      at,
+      projectId,
+      payload: { stage, note: reason }
+    });
+    await ctx.save();
+    return structuredClone(gate);
+  });
+}
+async function selectProject(ctx, projectId) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const project = state.projects.find((item) => item.id === projectId);
+    if (project === void 0) {
+      throw new StudioStoreError("project_not_found", "\u9879\u76EE\u4E0D\u5B58\u5728", 404);
+    }
+    state.activeProjectId = project.id;
+    state.updatedAt = ctx.now();
+    await ctx.save();
+    return structuredClone(project);
+  });
+}
+
+// src/host/store/catalog.ts
+async function createModule(ctx, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const project = pickProject(state, void 0);
+    if (project === null) {
+      throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
+    }
+    const name = requiredText(input.name, "name", 120);
+    if (state.modules.some(
+      (module2) => module2.projectId === project.id && module2.name === name
+    )) {
+      throw new StudioStoreError(
+        "module_exists",
+        "\u540C\u4E00\u9879\u76EE\u4E0B\u6A21\u5757\u540D\u4E0D\u80FD\u91CD\u590D",
+        409
+      );
+    }
+    const at = ctx.now();
+    const module = {
+      id: newId("module"),
+      projectId: project.id,
+      name,
+      responsibility: optionalText(
+        input.responsibility,
+        "responsibility",
+        2e3
+      ),
+      contractPath: optionalText(input.contractPath, "contractPath", 500) || null,
+      contractText: optionalText(
+        input.contractText,
+        "contractText",
+        8e3
+      ),
+      allowedPaths: textList(input.allowedPaths, "allowedPaths", 30),
+      forbiddenPaths: textList(
+        input.forbiddenPaths,
+        "forbiddenPaths",
+        30
+      ),
+      dependsOn: textList(input.dependsOn, "dependsOn", 20),
+      createdAt: at,
+      updatedAt: at
+    };
+    state.modules.push(module);
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "module.created",
+      at,
+      projectId: project.id,
+      payload: { moduleId: module.id, name: module.name }
+    });
+    await ctx.save();
+    return structuredClone(module);
+  });
+}
+async function updateModule(ctx, moduleId, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const module = state.modules.find((item) => item.id === moduleId);
+    if (module === void 0) {
+      throw new StudioStoreError("module_not_found", "\u6A21\u5757\u4E0D\u5B58\u5728", 404);
+    }
+    if (input.responsibility !== void 0) {
+      module.responsibility = optionalText(
+        input.responsibility,
+        "responsibility",
+        2e3
+      );
+    }
+    if (input.contractPath !== void 0) {
+      module.contractPath = optionalText(input.contractPath, "contractPath", 500) || null;
+    }
+    if (input.contractText !== void 0) {
+      module.contractText = optionalText(
+        input.contractText,
+        "contractText",
+        8e3
+      );
+    }
+    if (input.allowedPaths !== void 0) {
+      module.allowedPaths = textList(
+        input.allowedPaths,
+        "allowedPaths",
+        30
+      );
+    }
+    if (input.forbiddenPaths !== void 0) {
+      module.forbiddenPaths = textList(
+        input.forbiddenPaths,
+        "forbiddenPaths",
+        30
+      );
+    }
+    if (input.dependsOn !== void 0) {
+      module.dependsOn = textList(input.dependsOn, "dependsOn", 20);
+    }
+    const at = ctx.now();
+    module.updatedAt = at;
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "module.updated",
+      at,
+      projectId: module.projectId,
+      payload: { moduleId: module.id }
+    });
+    await ctx.save();
+    return structuredClone(module);
+  });
+}
+async function createRole(ctx, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const project = pickProject(state, void 0);
+    if (project === null) {
+      throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
+    }
+    const at = ctx.now();
+    const providerProfileId = optionalText(input.providerProfileId, "providerProfileId", 120) || null;
+    if (providerProfileId !== null) {
+      const profile = findProviderProfile(state, providerProfileId);
+      if (profile.projectId !== project.id) {
+        throw new StudioStoreError(
+          "provider_profile_not_found",
+          "Provider Profile \u4E0D\u5C5E\u4E8E\u5F53\u524D\u9879\u76EE",
+          404
+        );
+      }
+    }
+    const role = {
+      id: newId("role"),
+      projectId: project.id,
+      name: requiredText(input.name, "name", 60),
+      title: optionalText(input.title, "title", 80),
+      mission: optionalText(input.mission, "mission", 600),
+      responsibilities: textList(input.responsibilities, "responsibilities"),
+      nonGoals: textList(input.nonGoals, "nonGoals"),
+      decisionRights: textList(input.decisionRights, "decisionRights"),
+      providerProfileId,
+      model: optionalText(input.model, "model", 120) || null,
+      executor: input.executor === "claude-code" || input.executor === "codex" ? input.executor : "dsh",
+      tokenBudget: optionalTokenBudget(input.tokenBudget, "tokenBudget"),
+      dailyTokenBudget: optionalTokenBudget(
+        input.dailyTokenBudget,
+        "dailyTokenBudget"
+      ),
+      createdAt: at,
+      updatedAt: at
+    };
+    state.roles.push(role);
+    ctx.recordEvent(state, {
+      type: "role.created",
+      at,
+      projectId: project.id,
+      payload: { roleId: role.id, name: role.name }
+    });
+    state.updatedAt = at;
+    await ctx.save();
+    return structuredClone(role);
+  });
+}
+async function updateRole(ctx, roleId, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const role = state.roles.find((item) => item.id === roleId);
+    if (role === void 0) {
+      throw new StudioStoreError("role_not_found", "\u89D2\u8272\u4E0D\u5B58\u5728", 404);
+    }
+    if (input.name !== void 0) {
+      role.name = requiredText(input.name, "name", 60);
+    }
+    if (input.title !== void 0) {
+      role.title = optionalText(input.title, "title", 80);
+    }
+    if (input.mission !== void 0) {
+      role.mission = optionalText(input.mission, "mission", 600);
+    }
+    if (input.responsibilities !== void 0) {
+      role.responsibilities = textList(
+        input.responsibilities,
+        "responsibilities"
+      );
+    }
+    if (input.nonGoals !== void 0) {
+      role.nonGoals = textList(input.nonGoals, "nonGoals");
+    }
+    if (input.decisionRights !== void 0) {
+      role.decisionRights = textList(input.decisionRights, "decisionRights");
+    }
+    if (input.providerProfileId !== void 0) {
+      const nextProfileId = optionalText(input.providerProfileId, "providerProfileId", 120) || null;
+      if (nextProfileId !== null) {
+        const profile = findProviderProfile(state, nextProfileId);
+        if (profile.projectId !== role.projectId) {
+          throw new StudioStoreError(
+            "provider_profile_not_found",
+            "Provider Profile \u4E0D\u5C5E\u4E8E\u5F53\u524D\u9879\u76EE",
+            404
+          );
+        }
+      }
+      role.providerProfileId = nextProfileId;
+    }
+    if (input.model !== void 0) {
+      role.model = optionalText(input.model, "model", 120) || null;
+    }
+    if (input.executor !== void 0) {
+      role.executor = input.executor === "claude-code" || input.executor === "codex" ? input.executor : "dsh";
+    }
+    if (input.tokenBudget !== void 0) {
+      role.tokenBudget = optionalTokenBudget(input.tokenBudget, "tokenBudget");
+    }
+    if (input.dailyTokenBudget !== void 0) {
+      role.dailyTokenBudget = optionalTokenBudget(
+        input.dailyTokenBudget,
+        "dailyTokenBudget"
+      );
+    }
+    role.updatedAt = ctx.now();
+    state.updatedAt = role.updatedAt;
+    ctx.recordEvent(state, {
+      type: "role.updated",
+      at: role.updatedAt,
+      projectId: role.projectId,
+      payload: { roleId: role.id }
+    });
+    await ctx.save();
+    return structuredClone(role);
+  });
+}
+
 // src/host/store.ts
 function defaultStudioDataDir() {
   const home = process.env.DSH_HOME?.trim();
@@ -4139,7 +4718,10 @@ var StudioStore = class {
       requireState: () => this.requireState(),
       save: () => this.save(),
       recordEvent: (state, input) => this.recordEvent(state, input),
-      now: () => nowIso2(this.now)
+      now: () => nowIso2(this.now),
+      createProject: (input) => this.createProject(input),
+      createRole: (input) => this.createRole(input),
+      createTask: (input) => this.createTask(input)
     };
   }
   async init() {
@@ -4324,286 +4906,25 @@ var StudioStore = class {
     });
   }
   async createProject(input) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const at = nowIso2(this.now);
-      const project = {
-        id: newId3("proj"),
-        name: requiredText(input.name, "name", 80),
-        description: optionalText(input.description, "description", 600),
-        tokenBudget: optionalTokenBudget(input.tokenBudget, "tokenBudget"),
-        repoPath: optionalText(input.repoPath, "repoPath", 1e3) || null,
-        prdPath: null,
-        invariantsPath: null,
-        modulesPath: null,
-        triggerRules: defaultTriggerRules2(),
-        stage: "discovery",
-        createdAt: at,
-        updatedAt: at
-      };
-      state.projects.push(project);
-      state.activeProjectId = project.id;
-      this.recordEvent(state, {
-        type: "project.created",
-        at,
-        projectId: project.id,
-        payload: { name: project.name }
-      });
-      state.updatedAt = at;
-      await this.save();
-      return structuredClone(project);
-    });
+    return createProject(this.context, input);
   }
   async createProjectFromTemplate(input) {
-    const template = projectTemplates[input.template];
-    if (template === void 0) {
-      throw new StudioStoreError(
-        "invalid_input",
-        "\u672A\u77E5\u7684\u9879\u76EE\u6A21\u677F"
-      );
-    }
-    const project = await this.createProject({
-      name: input.name,
-      description: input.description,
-      repoPath: input.repoPath
-    });
-    const roles = /* @__PURE__ */ new Map();
-    for (const spec of template.roles) {
-      const role = await this.createRole({
-        name: spec.name,
-        title: spec.title,
-        mission: spec.mission,
-        responsibilities: spec.responsibilities,
-        decisionRights: spec.decisionRights
-      });
-      roles.set(spec.name, role);
-    }
-    for (const spec of template.tasks) {
-      const owner = roles.get(spec.owner);
-      const reviewer = roles.get(spec.reviewer);
-      await this.createTask({
-        title: spec.title,
-        goal: spec.goal,
-        priority: spec.priority,
-        ownerRoleId: owner?.id ?? null,
-        reviewerRoleId: reviewer?.id ?? null,
-        acceptance: spec.acceptance
-      });
-    }
-    return project;
+    return createProjectFromTemplate(this.context, input);
   }
   async updateProject(projectId, input) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const project = state.projects.find((item) => item.id === projectId);
-      if (project === void 0) {
-        throw new StudioStoreError("project_not_found", "\u9879\u76EE\u4E0D\u5B58\u5728", 404);
-      }
-      if (input.repoPath !== void 0) {
-        project.repoPath = optionalText(input.repoPath, "repoPath", 1e3) || null;
-      }
-      if (input.prdPath !== void 0) {
-        project.prdPath = optionalText(input.prdPath, "prdPath", 500) || null;
-      }
-      if (input.invariantsPath !== void 0) {
-        project.invariantsPath = optionalText(input.invariantsPath, "invariantsPath", 500) || null;
-      }
-      if (input.modulesPath !== void 0) {
-        project.modulesPath = optionalText(input.modulesPath, "modulesPath", 500) || null;
-      }
-      const at = nowIso2(this.now);
-      project.updatedAt = at;
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "project.updated",
-        at,
-        projectId: project.id,
-        payload: { repoPath: project.repoPath }
-      });
-      await this.save();
-      return structuredClone(project);
-    });
+    return updateProject(this.context, projectId, input);
   }
   async getStageGate(projectId, stage) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const project = findProject(state, projectId);
-      const next = nextProjectStage(project.stage);
-      if (next === null) {
-        throw new StudioStoreError(
-          "stage_complete",
-          "\u9879\u76EE\u5DF2\u7ECF\u8FDB\u5165\u6301\u7EED\u5F00\u53D1\uFF0C\u6CA1\u6709\u4E0B\u4E00\u9636\u6BB5\u95E8\u7981",
-          409
-        );
-      }
-      if (stage !== next) {
-        throw new StudioStoreError(
-          "stage_gate_out_of_order",
-          `\u4E0B\u4E00\u9636\u6BB5\u662F ${next}\uFF0C\u4E0D\u80FD\u521B\u5EFA ${stage} \u95E8\u7981`,
-          409
-        );
-      }
-      let gate = state.stageGates.find(
-        (item) => item.projectId === projectId && item.stage === stage
-      );
-      if (gate === void 0) {
-        const at = nowIso2(this.now);
-        gate = {
-          id: newId3("gate"),
-          projectId,
-          stage,
-          status: "pending",
-          checklist: defaultStageChecklist(stage),
-          artifacts: [],
-          note: "",
-          decisionId: null,
-          approvedBy: "",
-          approvedAt: null,
-          waiverReason: null,
-          createdAt: at,
-          updatedAt: at
-        };
-        state.stageGates.push(gate);
-        state.updatedAt = at;
-        await this.save();
-      }
-      return structuredClone(gate);
-    });
+    return getStageGate(this.context, projectId, stage);
   }
   async updateStageGate(projectId, stage, input) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const project = findProject(state, projectId);
-      const gate = findStageGate(state, project, stage);
-      if (gate.status === "approved") {
-        throw new StudioStoreError(
-          "stage_gate_locked",
-          "\u9636\u6BB5\u95E8\u7981\u5DF2\u7ECF\u6279\u51C6\uFF0C\u4E0D\u80FD\u518D\u4FEE\u6539",
-          409
-        );
-      }
-      if (input.checklist !== void 0) {
-        gate.checklist = normalizeStageChecklist(input.checklist);
-      }
-      if (input.artifacts !== void 0) {
-        gate.artifacts = normalizeStageArtifacts(input.artifacts);
-      }
-      if (input.note !== void 0) {
-        gate.note = optionalText(input.note, "note", 4e3);
-      }
-      gate.status = "pending";
-      gate.approvedBy = "";
-      gate.approvedAt = null;
-      gate.waiverReason = null;
-      gate.updatedAt = nowIso2(this.now);
-      state.updatedAt = gate.updatedAt;
-      await this.save();
-      return structuredClone(gate);
-    });
+    return updateStageGate(this.context, projectId, stage, input);
   }
-  async approveStageGate(projectId, stage, input = {}) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const project = findProject(state, projectId);
-      const gate = findStageGate(state, project, stage);
-      if (gate.status === "approved") {
-        throw new StudioStoreError(
-          "stage_gate_locked",
-          "\u9636\u6BB5\u95E8\u7981\u5DF2\u7ECF\u6279\u51C6",
-          409
-        );
-      }
-      if (input.checklist !== void 0) {
-        gate.checklist = normalizeStageChecklist(input.checklist);
-      }
-      if (input.artifacts !== void 0) {
-        gate.artifacts = normalizeStageArtifacts(input.artifacts);
-      }
-      if (input.note !== void 0) {
-        gate.note = optionalText(input.note, "note", 4e3);
-      }
-      const waiverReason = optionalText(
-        input.waiverReason,
-        "waiverReason",
-        1e3
-      );
-      const missingDemo = stage === "development" && !gate.artifacts.some((artifact) => artifact.kind === "demo") && !state.prototypeDemos.some(
-        (demo) => demo.projectId === projectId && demo.result === "passed"
-      );
-      const incomplete = gate.checklist.length === 0 || gate.checklist.some((item) => !item.done) || gate.artifacts.length === 0;
-      if ((incomplete || missingDemo) && waiverReason === "") {
-        if (missingDemo && !incomplete) {
-          throw new StudioStoreError(
-            "prototype_demo_required",
-            "\u8FDB\u5165\u6301\u7EED\u5F00\u53D1\u524D\u5FC5\u987B\u767B\u8BB0\u4E00\u4E2A demo \u4EA7\u7269\uFF08\u8DEF\u5F84\u6216 URL\uFF09\uFF0C\u6216\u586B\u5199 Owner \u8C41\u514D\u7406\u7531",
-            409
-          );
-        }
-        throw new StudioStoreError(
-          "stage_gate_not_ready",
-          "\u9636\u6BB5\u95E8\u7981\u672A\u5B8C\u6210\uFF1A\u8BF7\u5B8C\u6210\u6240\u6709\u68C0\u67E5\u9879\u5E76\u81F3\u5C11\u767B\u8BB0\u4E00\u4E2A\u4EA7\u7269\uFF0C\u6216\u586B\u5199 Owner \u8C41\u514D\u7406\u7531",
-          409
-        );
-      }
-      const at = nowIso2(this.now);
-      gate.status = "approved";
-      gate.approvedBy = "Owner";
-      gate.approvedAt = at;
-      gate.waiverReason = (incomplete || missingDemo) && waiverReason !== "" ? waiverReason : null;
-      gate.updatedAt = at;
-      project.stage = stage;
-      project.updatedAt = at;
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "stage.approved",
-        at,
-        projectId,
-        payload: {
-          stage,
-          waiver: gate.waiverReason !== null
-        }
-      });
-      await this.save();
-      return structuredClone(gate);
-    });
+  async approveStageGate(projectId, stage, input) {
+    return approveStageGate(this.context, projectId, stage, input);
   }
   async rejectStageGate(projectId, stage, note) {
-    return this.runExclusive(async () => {
-      if (note.trim() === "") {
-        throw new StudioStoreError(
-          "decision_reason_required",
-          "\u62D2\u7EDD\u9636\u6BB5\u95E8\u7981\u5FC5\u987B\u5199\u660E\u7406\u7531",
-          400
-        );
-      }
-      const reason = requiredText(note, "note", 4e3);
-      const state = this.requireState();
-      const project = findProject(state, projectId);
-      const gate = findStageGate(state, project, stage);
-      if (gate.status === "approved") {
-        throw new StudioStoreError(
-          "stage_gate_locked",
-          "\u9636\u6BB5\u95E8\u7981\u5DF2\u7ECF\u6279\u51C6\uFF0C\u4E0D\u80FD\u518D\u62D2\u7EDD",
-          409
-        );
-      }
-      const at = nowIso2(this.now);
-      gate.status = "rejected";
-      gate.note = reason;
-      gate.approvedBy = "";
-      gate.approvedAt = null;
-      gate.waiverReason = null;
-      gate.updatedAt = at;
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "stage.rejected",
-        at,
-        projectId,
-        payload: { stage, note: reason }
-      });
-      await this.save();
-      return structuredClone(gate);
-    });
+    return rejectStageGate(this.context, projectId, stage, note);
   }
   async ingestTrigger(input) {
     return ingestTrigger(this.context, input);
@@ -4648,68 +4969,10 @@ var StudioStore = class {
     return decideWorkshop(this.context, workshopId, decision);
   }
   async selectProject(projectId) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const project = state.projects.find((item) => item.id === projectId);
-      if (project === void 0) {
-        throw new StudioStoreError("project_not_found", "\u9879\u76EE\u4E0D\u5B58\u5728", 404);
-      }
-      state.activeProjectId = project.id;
-      state.updatedAt = nowIso2(this.now);
-      await this.save();
-      return structuredClone(project);
-    });
+    return selectProject(this.context, projectId);
   }
   async getDispatchContext(taskId) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const task = findTask(state, taskId);
-      if (task.kind === "fix" && !task.integration && (task.diagnosis.trim() === "" || task.plan.trim() === "")) {
-        throw new StudioStoreError(
-          "plan_required",
-          "\u6539\u4FEE\u7968\u5FC5\u987B\u6709\u8BCA\u65AD\u548C\u4FEE\u6539\u8BA1\u5212\uFF0C\u624D\u80FD\u6D3E\u5355",
-          409
-        );
-      }
-      if (task.ownerRoleId === null) {
-        throw new StudioStoreError(
-          "owner_required",
-          "\u4EFB\u52A1\u6CA1\u6709\u8D1F\u8D23\u4EBA\u89D2\u8272\uFF0C\u4E0D\u80FD\u6D3E\u5355",
-          409
-        );
-      }
-      const role = state.roles.find((item) => item.id === task.ownerRoleId);
-      const project = state.projects.find(
-        (item) => item.id === task.projectId
-      );
-      if (role === void 0 || project === void 0) {
-        throw new StudioStoreError(
-          "context_not_found",
-          "\u4EFB\u52A1\u7684\u8D1F\u8D23\u4EBA\u89D2\u8272\u6216\u9879\u76EE\u4E0D\u5B58\u5728",
-          404
-        );
-      }
-      if (project.repoPath !== null && project.stage !== "development") {
-        throw new StudioStoreError(
-          "stage_gate_required",
-          "\u9879\u76EE\u5C1A\u672A\u901A\u8FC7\u9636\u6BB5\u95E8\u7981\uFF1B\u5B8C\u6210\u67B6\u6784/Demo \u786E\u8BA4\u5E76\u8FDB\u5165\u6301\u7EED\u5F00\u53D1\u540E\u624D\u80FD\u6D3E\u5355",
-          409
-        );
-      }
-      const module = task.module === null ? void 0 : state.modules.find(
-        (item) => item.projectId === task.projectId && item.name === task.module
-      );
-      const providerProfile = role.providerProfileId === null ? null : state.providerProfiles.find(
-        (profile) => profile.id === role.providerProfileId && profile.projectId === project.id
-      ) ?? null;
-      return {
-        task: structuredClone(task),
-        role: structuredClone(role),
-        project: structuredClone(project),
-        module: module === void 0 ? null : structuredClone(module),
-        providerProfile: providerProfile === null ? null : structuredClone(providerProfile)
-      };
-    });
+    return getDispatchContext(this.context, taskId);
   }
   async getReviewContext(taskId) {
     return getReviewContext(this.context, taskId);
@@ -4754,113 +5017,10 @@ var StudioStore = class {
     return decideDecision(this.context, decisionId, input);
   }
   async createModule(input) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const project = pickProject(state, void 0);
-      if (project === null) {
-        throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
-      }
-      const name = requiredText(input.name, "name", 120);
-      if (state.modules.some(
-        (module2) => module2.projectId === project.id && module2.name === name
-      )) {
-        throw new StudioStoreError(
-          "module_exists",
-          "\u540C\u4E00\u9879\u76EE\u4E0B\u6A21\u5757\u540D\u4E0D\u80FD\u91CD\u590D",
-          409
-        );
-      }
-      const at = nowIso2(this.now);
-      const module = {
-        id: newId3("module"),
-        projectId: project.id,
-        name,
-        responsibility: optionalText(
-          input.responsibility,
-          "responsibility",
-          2e3
-        ),
-        contractPath: optionalText(input.contractPath, "contractPath", 500) || null,
-        contractText: optionalText(
-          input.contractText,
-          "contractText",
-          8e3
-        ),
-        allowedPaths: textList(input.allowedPaths, "allowedPaths", 30),
-        forbiddenPaths: textList(
-          input.forbiddenPaths,
-          "forbiddenPaths",
-          30
-        ),
-        dependsOn: textList(input.dependsOn, "dependsOn", 20),
-        createdAt: at,
-        updatedAt: at
-      };
-      state.modules.push(module);
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "module.created",
-        at,
-        projectId: project.id,
-        payload: { moduleId: module.id, name: module.name }
-      });
-      await this.save();
-      return structuredClone(module);
-    });
+    return createModule(this.context, input);
   }
   async updateModule(moduleId, input) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const module = state.modules.find((item) => item.id === moduleId);
-      if (module === void 0) {
-        throw new StudioStoreError("module_not_found", "\u6A21\u5757\u4E0D\u5B58\u5728", 404);
-      }
-      if (input.responsibility !== void 0) {
-        module.responsibility = optionalText(
-          input.responsibility,
-          "responsibility",
-          2e3
-        );
-      }
-      if (input.contractPath !== void 0) {
-        module.contractPath = optionalText(input.contractPath, "contractPath", 500) || null;
-      }
-      if (input.contractText !== void 0) {
-        module.contractText = optionalText(
-          input.contractText,
-          "contractText",
-          8e3
-        );
-      }
-      if (input.allowedPaths !== void 0) {
-        module.allowedPaths = textList(
-          input.allowedPaths,
-          "allowedPaths",
-          30
-        );
-      }
-      if (input.forbiddenPaths !== void 0) {
-        module.forbiddenPaths = textList(
-          input.forbiddenPaths,
-          "forbiddenPaths",
-          30
-        );
-      }
-      if (input.dependsOn !== void 0) {
-        module.dependsOn = textList(input.dependsOn, "dependsOn", 20);
-      }
-      const at = nowIso2(this.now);
-      module.updatedAt = at;
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "module.updated",
-        at,
-        projectId: module.projectId,
-        payload: { moduleId: module.id }
-      });
-      await this.save();
-      return structuredClone(module);
-    });
+    return updateModule(this.context, moduleId, input);
   }
   async createProviderProfile(input) {
     return createProviderProfile(this.context, input);
@@ -4881,124 +5041,10 @@ var StudioStore = class {
     return getRoleProvider(this.context, roleId);
   }
   async createRole(input) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const project = pickProject(state, void 0);
-      if (project === null) {
-        throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
-      }
-      const at = nowIso2(this.now);
-      const providerProfileId = optionalText(input.providerProfileId, "providerProfileId", 120) || null;
-      if (providerProfileId !== null) {
-        const profile = findProviderProfile(state, providerProfileId);
-        if (profile.projectId !== project.id) {
-          throw new StudioStoreError(
-            "provider_profile_not_found",
-            "Provider Profile \u4E0D\u5C5E\u4E8E\u5F53\u524D\u9879\u76EE",
-            404
-          );
-        }
-      }
-      const role = {
-        id: newId3("role"),
-        projectId: project.id,
-        name: requiredText(input.name, "name", 60),
-        title: optionalText(input.title, "title", 80),
-        mission: optionalText(input.mission, "mission", 600),
-        responsibilities: textList(input.responsibilities, "responsibilities"),
-        nonGoals: textList(input.nonGoals, "nonGoals"),
-        decisionRights: textList(input.decisionRights, "decisionRights"),
-        providerProfileId,
-        model: optionalText(input.model, "model", 120) || null,
-        executor: input.executor === "claude-code" || input.executor === "codex" ? input.executor : "dsh",
-        tokenBudget: optionalTokenBudget(input.tokenBudget, "tokenBudget"),
-        dailyTokenBudget: optionalTokenBudget(
-          input.dailyTokenBudget,
-          "dailyTokenBudget"
-        ),
-        createdAt: at,
-        updatedAt: at
-      };
-      state.roles.push(role);
-      this.recordEvent(state, {
-        type: "role.created",
-        at,
-        projectId: project.id,
-        payload: { roleId: role.id, name: role.name }
-      });
-      state.updatedAt = at;
-      await this.save();
-      return structuredClone(role);
-    });
+    return createRole(this.context, input);
   }
   async updateRole(roleId, input) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const role = state.roles.find((item) => item.id === roleId);
-      if (role === void 0) {
-        throw new StudioStoreError("role_not_found", "\u89D2\u8272\u4E0D\u5B58\u5728", 404);
-      }
-      if (input.name !== void 0) {
-        role.name = requiredText(input.name, "name", 60);
-      }
-      if (input.title !== void 0) {
-        role.title = optionalText(input.title, "title", 80);
-      }
-      if (input.mission !== void 0) {
-        role.mission = optionalText(input.mission, "mission", 600);
-      }
-      if (input.responsibilities !== void 0) {
-        role.responsibilities = textList(
-          input.responsibilities,
-          "responsibilities"
-        );
-      }
-      if (input.nonGoals !== void 0) {
-        role.nonGoals = textList(input.nonGoals, "nonGoals");
-      }
-      if (input.decisionRights !== void 0) {
-        role.decisionRights = textList(input.decisionRights, "decisionRights");
-      }
-      if (input.providerProfileId !== void 0) {
-        const nextProfileId = optionalText(input.providerProfileId, "providerProfileId", 120) || null;
-        if (nextProfileId !== null) {
-          const profile = findProviderProfile(state, nextProfileId);
-          if (profile.projectId !== role.projectId) {
-            throw new StudioStoreError(
-              "provider_profile_not_found",
-              "Provider Profile \u4E0D\u5C5E\u4E8E\u5F53\u524D\u9879\u76EE",
-              404
-            );
-          }
-        }
-        role.providerProfileId = nextProfileId;
-      }
-      if (input.model !== void 0) {
-        role.model = optionalText(input.model, "model", 120) || null;
-      }
-      if (input.executor !== void 0) {
-        role.executor = input.executor === "claude-code" || input.executor === "codex" ? input.executor : "dsh";
-      }
-      if (input.tokenBudget !== void 0) {
-        role.tokenBudget = optionalTokenBudget(input.tokenBudget, "tokenBudget");
-      }
-      if (input.dailyTokenBudget !== void 0) {
-        role.dailyTokenBudget = optionalTokenBudget(
-          input.dailyTokenBudget,
-          "dailyTokenBudget"
-        );
-      }
-      role.updatedAt = nowIso2(this.now);
-      state.updatedAt = role.updatedAt;
-      this.recordEvent(state, {
-        type: "role.updated",
-        at: role.updatedAt,
-        projectId: role.projectId,
-        payload: { roleId: role.id }
-      });
-      await this.save();
-      return structuredClone(role);
-    });
+    return updateRole(this.context, roleId, input);
   }
   async createTask(input) {
     return createTask(this.context, input);

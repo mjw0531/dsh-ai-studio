@@ -3,6 +3,10 @@ import type {
   AgentRun,
   Branch,
   Decision,
+  Module,
+  Project,
+  ProviderProfile,
+  Role,
   StudioState,
   Task,
 } from "../../shared/types.js";
@@ -771,5 +775,80 @@ export function ensureBranch(
       branch.updatedAt = at;
     }
     return branch;
+  }
+
+
+export async function getDispatchContext(
+  ctx: StoreContext,taskId: string): Promise<{
+    task: Task;
+    role: Role;
+    project: Project;
+    module: Module | null;
+    providerProfile: ProviderProfile | null;
+  }> {
+    return ctx.runExclusive(async () => {
+      const state = ctx.requireState();
+      const task = findTask(state, taskId);
+      if (
+        task.kind === "fix" &&
+        !task.integration &&
+        (task.diagnosis.trim() === "" || task.plan.trim() === "")
+      ) {
+        throw new StudioStoreError(
+          "plan_required",
+          "改修票必须有诊断和修改计划，才能派单",
+          409,
+        );
+      }
+      if (task.ownerRoleId === null) {
+        throw new StudioStoreError(
+          "owner_required",
+          "任务没有负责人角色，不能派单",
+          409,
+        );
+      }
+      const role = state.roles.find((item) => item.id === task.ownerRoleId);
+      const project = state.projects.find(
+        (item) => item.id === task.projectId,
+      );
+      if (role === undefined || project === undefined) {
+        throw new StudioStoreError(
+          "context_not_found",
+          "任务的负责人角色或项目不存在",
+          404,
+        );
+      }
+      if (project.repoPath !== null && project.stage !== "development") {
+        throw new StudioStoreError(
+          "stage_gate_required",
+          "项目尚未通过阶段门禁；完成架构/Demo 确认并进入持续开发后才能派单",
+          409,
+        );
+      }
+      const module =
+        task.module === null
+          ? undefined
+          : state.modules.find(
+              (item) =>
+                item.projectId === task.projectId &&
+                item.name === task.module,
+            );
+      const providerProfile =
+        role.providerProfileId === null
+          ? null
+          : (state.providerProfiles.find(
+              (profile) =>
+                profile.id === role.providerProfileId &&
+                profile.projectId === project.id,
+            ) ?? null);
+      return {
+        task: structuredClone(task),
+        role: structuredClone(role),
+        project: structuredClone(project),
+        module: module === undefined ? null : structuredClone(module),
+        providerProfile:
+          providerProfile === null ? null : structuredClone(providerProfile),
+      };
+    });
   }
 
