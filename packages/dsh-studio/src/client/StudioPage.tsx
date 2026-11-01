@@ -3158,6 +3158,12 @@ function StagePanel({
 
             <div className="studio-stage-artifacts">
               <div className="studio-stage-subhead">产物 / Artifacts</div>
+              {gate?.stage === "development" &&
+              !draft.artifacts.some((artifact) => artifact.kind === "demo") ? (
+                <div className="studio-hint">
+                  进入持续开发前必须登记一个 <code>demo</code> 产物：Demo 路径、URL 或 playtest 记录。
+                </div>
+              ) : null}
               {draft.artifacts.length === 0 ? (
                 <div className="studio-hint">
                   至少登记一个产物；也可以填写 Owner 豁免理由。

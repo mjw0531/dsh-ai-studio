@@ -1951,11 +1951,21 @@ export class StudioStore {
         "waiverReason",
         1000,
       );
+      const missingDemo =
+        stage === "development" &&
+        !gate.artifacts.some((artifact) => artifact.kind === "demo");
       const incomplete =
         gate.checklist.length === 0 ||
         gate.checklist.some((item) => !item.done) ||
         gate.artifacts.length === 0;
-      if (incomplete && waiverReason === "") {
+      if ((incomplete || missingDemo) && waiverReason === "") {
+        if (missingDemo && !incomplete) {
+          throw new StudioStoreError(
+            "prototype_demo_required",
+            "进入持续开发前必须登记一个 demo 产物（路径或 URL），或填写 Owner 豁免理由",
+            409,
+          );
+        }
         throw new StudioStoreError(
           "stage_gate_not_ready",
           "阶段门禁未完成：请完成所有检查项并至少登记一个产物，或填写 Owner 豁免理由",
@@ -1967,7 +1977,9 @@ export class StudioStore {
       gate.approvedBy = "Owner";
       gate.approvedAt = at;
       gate.waiverReason =
-        incomplete && waiverReason !== "" ? waiverReason : null;
+        (incomplete || missingDemo) && waiverReason !== ""
+          ? waiverReason
+          : null;
       gate.updatedAt = at;
       project.stage = stage;
       project.updatedAt = at;

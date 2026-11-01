@@ -5,7 +5,7 @@ Studio 是 DSH 的即装即用工作台插件。改领域词、工作流或接�
 ## 不可破坏的约束
 
 - **完成门禁**：任务进入 `done` 前，所有 acceptance 必须为 done，且至少有一条 evidence。不要在 UI 或 API 里绕过 `StudioStore.transitionTask`。
-- **阶段门禁**：绑定代码仓库的项目只有 `Project.stage === "development"` 才能派单；阶段只能由 Owner 通过 StageGate 推进。不允许静默跳过；豁免必须写理由并留下审计记录。旧项目迁移默认 `development`。
+- **阶段门禁**：绑定代码仓库的项目只有 `Project.stage === "development"` 才能派单；阶段只能由 Owner 通过 StageGate 推进。不允许静默跳过；豁免必须写理由并留下审计记录。旧项目迁移默认 `development`。从 `prototype` 进入 `development` 前必须登记 `demo` 产物，除非有 Owner 豁免理由。
 - **触发器门禁**：Trigger 只进入收件箱，必须由人确认才能转成 Task；同一 `source + externalId` 去重，同 `threadKey` 归入同一 Thread。不要自动派单、自动 merge 或把外部事件直接当验收结论。
 - **研讨会门禁**：Workshop 只记录参与者独立意见、汇总和 Owner 决策；AI 独立评审只是意见，不能自动 merge，也不能把 AI 共识当成 Owner 决策。评审失败必须记录为缺失意见，不能视为同意。
 - **合并门禁**：只有 `done` 任务能提交合并提案；提案必须经过 `review → approved → merged`。`merged` 是治理记录，不是 Git 事实；不要在未经明确设计的情况下自动执行 `git merge`。打回提案会把任务退回 `running`。

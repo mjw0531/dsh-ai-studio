@@ -14,7 +14,7 @@ import path from "node:path";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 21;
-var STUDIO_PLUGIN_VERSION = "2.8.1";
+var STUDIO_PLUGIN_VERSION = "2.9.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -1348,8 +1348,16 @@ var StudioStore = class {
         "waiverReason",
         1e3
       );
+      const missingDemo = stage === "development" && !gate.artifacts.some((artifact) => artifact.kind === "demo");
       const incomplete = gate.checklist.length === 0 || gate.checklist.some((item) => !item.done) || gate.artifacts.length === 0;
-      if (incomplete && waiverReason === "") {
+      if ((incomplete || missingDemo) && waiverReason === "") {
+        if (missingDemo && !incomplete) {
+          throw new StudioStoreError(
+            "prototype_demo_required",
+            "\u8FDB\u5165\u6301\u7EED\u5F00\u53D1\u524D\u5FC5\u987B\u767B\u8BB0\u4E00\u4E2A demo \u4EA7\u7269\uFF08\u8DEF\u5F84\u6216 URL\uFF09\uFF0C\u6216\u586B\u5199 Owner \u8C41\u514D\u7406\u7531",
+            409
+          );
+        }
         throw new StudioStoreError(
           "stage_gate_not_ready",
           "\u9636\u6BB5\u95E8\u7981\u672A\u5B8C\u6210\uFF1A\u8BF7\u5B8C\u6210\u6240\u6709\u68C0\u67E5\u9879\u5E76\u81F3\u5C11\u767B\u8BB0\u4E00\u4E2A\u4EA7\u7269\uFF0C\u6216\u586B\u5199 Owner \u8C41\u514D\u7406\u7531",
@@ -1360,7 +1368,7 @@ var StudioStore = class {
       gate.status = "approved";
       gate.approvedBy = "Owner";
       gate.approvedAt = at;
-      gate.waiverReason = incomplete && waiverReason !== "" ? waiverReason : null;
+      gate.waiverReason = (incomplete || missingDemo) && waiverReason !== "" ? waiverReason : null;
       gate.updatedAt = at;
       project.stage = stage;
       project.updatedAt = at;

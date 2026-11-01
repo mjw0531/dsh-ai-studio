@@ -3203,6 +3203,11 @@ function StagePanel({
         ] }, item.id)) }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-stage-artifacts", children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-stage-subhead", children: "\u4EA7\u7269 / Artifacts" }),
+          gate?.stage === "development" && !draft.artifacts.some((artifact) => artifact.kind === "demo") ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-hint", children: [
+            "\u8FDB\u5165\u6301\u7EED\u5F00\u53D1\u524D\u5FC5\u987B\u767B\u8BB0\u4E00\u4E2A ",
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("code", { children: "demo" }),
+            " \u4EA7\u7269\uFF1ADemo \u8DEF\u5F84\u3001URL \u6216 playtest \u8BB0\u5F55\u3002"
+          ] }) : null,
           draft.artifacts.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-hint", children: "\u81F3\u5C11\u767B\u8BB0\u4E00\u4E2A\u4EA7\u7269\uFF1B\u4E5F\u53EF\u4EE5\u586B\u5199 Owner \u8C41\u514D\u7406\u7531\u3002" }) : draft.artifacts.map((artifact) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-stage-artifact", children: [
             /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-pill", children: artifact.kind }),
             /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: artifact.label }),

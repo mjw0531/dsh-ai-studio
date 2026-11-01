@@ -1319,3 +1319,58 @@ test("rejects workshop notes from non-participants", async () => {
     );
   });
 });
+
+test("requires a demo artifact before entering development from prototype", async () => {
+  await withStore(async (store) => {
+    const project = await store.createProject({
+      name: "Prototype gate",
+      repoPath: "D:\\dsh-ai-studio",
+    });
+    const complete = async (stage) => {
+      const gate = await store.getStageGate(project.id, stage);
+      return store.updateStageGate(project.id, stage, {
+        checklist: gate.checklist.map((item) => ({ ...item, done: true })),
+        artifacts: [
+          { kind: "architecture", label: "Architecture", path: "docs/ARCH.md" },
+        ],
+      });
+    };
+    await complete("architecture");
+    await store.approveStageGate(project.id, "architecture");
+    await complete("prototype");
+    await store.approveStageGate(project.id, "prototype");
+
+    const development = await store.getStageGate(
+      project.id,
+      "development",
+    );
+    const updated = await store.updateStageGate(
+      project.id,
+      "development",
+      {
+        checklist: development.checklist.map((item) => ({
+          ...item,
+          done: true,
+        })),
+        artifacts: [
+          { kind: "architecture", label: "Architecture", path: "docs/ARCH.md" },
+        ],
+      },
+    );
+    await assert.rejects(
+      () => store.approveStageGate(project.id, "development"),
+      (error) =>
+        error instanceof StudioStoreError &&
+        error.code === "prototype_demo_required",
+    );
+
+    await store.updateStageGate(project.id, "development", {
+      artifacts: [
+        ...updated.artifacts,
+        { kind: "demo", label: "Demo", path: "https://example.test/demo" },
+      ],
+    });
+    const approved = await store.approveStageGate(project.id, "development");
+    assert.equal(approved.status, "approved");
+  });
+});
