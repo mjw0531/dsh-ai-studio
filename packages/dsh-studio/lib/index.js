@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 26;
-var STUDIO_PLUGIN_VERSION = "3.1.6";
+var STUDIO_PLUGIN_VERSION = "3.1.7";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -3965,6 +3965,260 @@ async function decideWorkshop(ctx, workshopId, decision) {
   });
 }
 
+// src/host/store/decisions.ts
+async function getDecisionAdrContext(ctx, decisionId) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const decision = state.decisions.find(
+      (item) => item.id === decisionId
+    );
+    if (decision === void 0) {
+      throw new StudioStoreError(
+        "decision_not_found",
+        "\u51B3\u7B56\u4E0D\u5B58\u5728",
+        404
+      );
+    }
+    const project = state.projects.find(
+      (item) => item.id === decision.projectId
+    );
+    if (project === void 0) {
+      throw new StudioStoreError(
+        "project_not_found",
+        "\u51B3\u7B56\u5BF9\u5E94\u7684\u9879\u76EE\u4E0D\u5B58\u5728",
+        404
+      );
+    }
+    return {
+      decision: structuredClone(decision),
+      project: structuredClone(project)
+    };
+  });
+}
+async function setDecisionAdrPath(ctx, decisionId, adrPath) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const decision = state.decisions.find(
+      (item) => item.id === decisionId
+    );
+    if (decision === void 0) {
+      throw new StudioStoreError(
+        "decision_not_found",
+        "\u51B3\u7B56\u4E0D\u5B58\u5728",
+        404
+      );
+    }
+    const at = ctx.now();
+    decision.adrPath = adrPath;
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "decision.adr_written",
+      at,
+      projectId: decision.projectId,
+      taskId: decision.taskId,
+      payload: { decisionId, adrPath }
+    });
+    await ctx.save();
+    return structuredClone(decision);
+  });
+}
+async function createPostMergeDecision(ctx, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const task = findTask(state, input.taskId);
+    const title = `\u5408\u5E76\u540E\u56DE\u5F52\u5931\u8D25\uFF1A${task.title.slice(0, 140)}`;
+    if (state.decisions.some(
+      (item) => item.taskId === task.id && item.title === title
+    )) {
+      return null;
+    }
+    const at = ctx.now();
+    const decision = {
+      id: newId("dec"),
+      projectId: task.projectId,
+      taskId: task.id,
+      runId: null,
+      title,
+      context: [
+        `\u5408\u5E76 ${input.mergeCommit} \u540E\u6267\u884C\u56DE\u5F52\uFF1A${input.command}\uFF08exit ${String(input.exitCode)}\uFF09`,
+        "",
+        input.output.slice(0, 6e3)
+      ].join("\n"),
+      options: [
+        {
+          label: "\u56DE\u6EDA\u8FD9\u6B21\u5408\u5E76",
+          tradeoff: `git revert ${input.mergeCommit} \u6216 git reset --hard ${input.mergeCommit}^`
+        },
+        {
+          label: "\u4FDD\u7559\u5408\u5E76\uFF0C\u4FEE\u590D\u56DE\u5F52",
+          tradeoff: "\u5728\u4E3B\u5206\u652F\u4E0A\u8FFD\u52A0\u4FEE\u590D\u63D0\u4EA4\uFF0C\u5E76\u91CD\u65B0\u8DD1\u56DE\u5F52"
+        }
+      ],
+      recommendation: "\u5408\u5E76\u540E\u56DE\u5F52\u5931\u8D25\u3002\u5148\u770B\u8F93\u51FA\u5B9A\u4F4D\u7834\u574F\u70B9\uFF1B\u65E0\u6CD5\u5FEB\u901F\u4FEE\u590D\u65F6\u56DE\u6EDA merge commit\uFF0C\u518D\u91CD\u65B0\u8D70\u63D0\u6848\u3002",
+      reversible: true,
+      adrDraft: null,
+      adrPath: null,
+      status: "pending",
+      decision: "",
+      note: "",
+      decidedBy: "",
+      tokenCost: null,
+      createdAt: at,
+      decidedAt: null
+    };
+    state.decisions.push(decision);
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "decision.escalated",
+      at,
+      projectId: task.projectId,
+      taskId: task.id,
+      payload: {
+        decisionId: decision.id,
+        proposalId: input.proposalId,
+        mergeCommit: input.mergeCommit,
+        kind: "post_merge_regression"
+      }
+    });
+    await ctx.save();
+    return structuredClone(decision);
+  });
+}
+async function createDecision(ctx, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const project = pickProject(state, void 0);
+    if (project === null) {
+      throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
+    }
+    let taskId = null;
+    if (input.taskId !== void 0 && input.taskId !== null) {
+      const task = findTask(state, input.taskId);
+      if (task.projectId !== project.id) {
+        throw new StudioStoreError(
+          "task_not_found",
+          "\u4EFB\u52A1\u4E0D\u5C5E\u4E8E\u5F53\u524D\u9879\u76EE",
+          404
+        );
+      }
+      taskId = task.id;
+    }
+    const at = ctx.now();
+    const decision = {
+      id: newId("dec"),
+      projectId: project.id,
+      taskId,
+      runId: null,
+      title: requiredText(input.title, "title", 200),
+      context: optionalText(input.context, "context", 4e3),
+      options: [],
+      recommendation: optionalText(
+        input.recommendation,
+        "recommendation",
+        2e3
+      ),
+      reversible: input.reversible !== false,
+      adrDraft: null,
+      adrPath: null,
+      status: "pending",
+      decision: "",
+      note: "",
+      decidedBy: "",
+      tokenCost: null,
+      createdAt: at,
+      decidedAt: null
+    };
+    state.decisions.push(decision);
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "decision.created",
+      at,
+      projectId: project.id,
+      taskId,
+      payload: { decisionId: decision.id, title: decision.title }
+    });
+    await ctx.save();
+    return structuredClone(decision);
+  });
+}
+async function decideDecision(ctx, decisionId, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const decision = state.decisions.find(
+      (item) => item.id === decisionId
+    );
+    if (decision === void 0) {
+      throw new StudioStoreError(
+        "decision_not_found",
+        "\u51B3\u7B56\u4E0D\u5B58\u5728",
+        404
+      );
+    }
+    if (decision.status !== "pending") {
+      throw new StudioStoreError(
+        "decision_decided",
+        "\u8FD9\u6761\u51B3\u7B56\u5DF2\u7ECF\u6709\u7ED3\u8BBA",
+        409
+      );
+    }
+    if (input.status !== "approved" && input.status !== "rejected") {
+      throw new StudioStoreError(
+        "invalid_input",
+        "\u51B3\u7B56\u72B6\u6001\u53EA\u80FD\u662F approved \u6216 rejected"
+      );
+    }
+    if (decision.reversible === false && input.status === "approved" && optionalText(input.decision, "decision", 4e3) === "") {
+      throw new StudioStoreError(
+        "decision_reason_required",
+        "\u4E0D\u53EF\u9006\u51B3\u7B56\u6279\u51C6\u65F6\u5FC5\u987B\u5199\u660E\u7ED3\u8BBA\u548C\u7406\u7531",
+        409
+      );
+    }
+    const at = ctx.now();
+    decision.status = input.status;
+    decision.decision = optionalText(input.decision, "decision", 4e3);
+    decision.note = optionalText(input.note, "note", 2e3);
+    decision.decidedBy = "Owner";
+    decision.decidedAt = at;
+    if (input.status === "approved" && decision.reversible === false) {
+      decision.adrDraft = [
+        `# ADR: ${decision.title}`,
+        "",
+        `- \u65E5\u671F\uFF1A${at.slice(0, 10)}`,
+        "- \u72B6\u6001\uFF1AAccepted",
+        "- \u4E0D\u53EF\u9006\uFF1A\u662F",
+        "",
+        "## \u80CC\u666F",
+        decision.context || "\uFF08\u672A\u586B\u5199\uFF09",
+        "",
+        "## \u51B3\u7B56",
+        decision.decision || "\uFF08\u672A\u586B\u5199\uFF09",
+        "",
+        "## \u7406\u7531",
+        decision.note || "\uFF08\u672A\u586B\u5199\uFF09",
+        "",
+        "## \u5EFA\u8BAE",
+        decision.recommendation || "\uFF08\u65E0\uFF09",
+        ""
+      ].join("\n");
+    }
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: input.status === "approved" ? "decision.approved" : "decision.rejected",
+      at,
+      projectId: decision.projectId,
+      taskId: decision.taskId,
+      payload: {
+        decisionId: decision.id,
+        decision: decision.decision,
+        note: decision.note
+      }
+    });
+    await ctx.save();
+    return structuredClone(decision);
+  });
+}
+
 // src/host/store.ts
 function defaultStudioDataDir() {
   const home = process.env.DSH_HOME?.trim();
@@ -4596,256 +4850,19 @@ var StudioStore = class {
     return recordVerification(this.context, taskId, input);
   }
   async getDecisionAdrContext(decisionId) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const decision = state.decisions.find(
-        (item) => item.id === decisionId
-      );
-      if (decision === void 0) {
-        throw new StudioStoreError(
-          "decision_not_found",
-          "\u51B3\u7B56\u4E0D\u5B58\u5728",
-          404
-        );
-      }
-      const project = state.projects.find(
-        (item) => item.id === decision.projectId
-      );
-      if (project === void 0) {
-        throw new StudioStoreError(
-          "project_not_found",
-          "\u51B3\u7B56\u5BF9\u5E94\u7684\u9879\u76EE\u4E0D\u5B58\u5728",
-          404
-        );
-      }
-      return {
-        decision: structuredClone(decision),
-        project: structuredClone(project)
-      };
-    });
+    return getDecisionAdrContext(this.context, decisionId);
   }
   async setDecisionAdrPath(decisionId, adrPath) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const decision = state.decisions.find(
-        (item) => item.id === decisionId
-      );
-      if (decision === void 0) {
-        throw new StudioStoreError(
-          "decision_not_found",
-          "\u51B3\u7B56\u4E0D\u5B58\u5728",
-          404
-        );
-      }
-      const at = nowIso2(this.now);
-      decision.adrPath = adrPath;
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "decision.adr_written",
-        at,
-        projectId: decision.projectId,
-        taskId: decision.taskId,
-        payload: { decisionId, adrPath }
-      });
-      await this.save();
-      return structuredClone(decision);
-    });
+    return setDecisionAdrPath(this.context, decisionId, adrPath);
   }
   async createPostMergeDecision(input) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const task = findTask(state, input.taskId);
-      const title = `\u5408\u5E76\u540E\u56DE\u5F52\u5931\u8D25\uFF1A${task.title.slice(0, 140)}`;
-      if (state.decisions.some(
-        (item) => item.taskId === task.id && item.title === title
-      )) {
-        return null;
-      }
-      const at = nowIso2(this.now);
-      const decision = {
-        id: newId3("dec"),
-        projectId: task.projectId,
-        taskId: task.id,
-        runId: null,
-        title,
-        context: [
-          `\u5408\u5E76 ${input.mergeCommit} \u540E\u6267\u884C\u56DE\u5F52\uFF1A${input.command}\uFF08exit ${String(input.exitCode)}\uFF09`,
-          "",
-          input.output.slice(0, 6e3)
-        ].join("\n"),
-        options: [
-          {
-            label: "\u56DE\u6EDA\u8FD9\u6B21\u5408\u5E76",
-            tradeoff: `git revert ${input.mergeCommit} \u6216 git reset --hard ${input.mergeCommit}^`
-          },
-          {
-            label: "\u4FDD\u7559\u5408\u5E76\uFF0C\u4FEE\u590D\u56DE\u5F52",
-            tradeoff: "\u5728\u4E3B\u5206\u652F\u4E0A\u8FFD\u52A0\u4FEE\u590D\u63D0\u4EA4\uFF0C\u5E76\u91CD\u65B0\u8DD1\u56DE\u5F52"
-          }
-        ],
-        recommendation: "\u5408\u5E76\u540E\u56DE\u5F52\u5931\u8D25\u3002\u5148\u770B\u8F93\u51FA\u5B9A\u4F4D\u7834\u574F\u70B9\uFF1B\u65E0\u6CD5\u5FEB\u901F\u4FEE\u590D\u65F6\u56DE\u6EDA merge commit\uFF0C\u518D\u91CD\u65B0\u8D70\u63D0\u6848\u3002",
-        reversible: true,
-        adrDraft: null,
-        adrPath: null,
-        status: "pending",
-        decision: "",
-        note: "",
-        decidedBy: "",
-        tokenCost: null,
-        createdAt: at,
-        decidedAt: null
-      };
-      state.decisions.push(decision);
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "decision.escalated",
-        at,
-        projectId: task.projectId,
-        taskId: task.id,
-        payload: {
-          decisionId: decision.id,
-          proposalId: input.proposalId,
-          mergeCommit: input.mergeCommit,
-          kind: "post_merge_regression"
-        }
-      });
-      await this.save();
-      return structuredClone(decision);
-    });
+    return createPostMergeDecision(this.context, input);
   }
   async createDecision(input) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const project = pickProject(state, void 0);
-      if (project === null) {
-        throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
-      }
-      let taskId = null;
-      if (input.taskId !== void 0 && input.taskId !== null) {
-        const task = findTask(state, input.taskId);
-        if (task.projectId !== project.id) {
-          throw new StudioStoreError(
-            "task_not_found",
-            "\u4EFB\u52A1\u4E0D\u5C5E\u4E8E\u5F53\u524D\u9879\u76EE",
-            404
-          );
-        }
-        taskId = task.id;
-      }
-      const at = nowIso2(this.now);
-      const decision = {
-        id: newId3("dec"),
-        projectId: project.id,
-        taskId,
-        runId: null,
-        title: requiredText(input.title, "title", 200),
-        context: optionalText(input.context, "context", 4e3),
-        options: [],
-        recommendation: optionalText(
-          input.recommendation,
-          "recommendation",
-          2e3
-        ),
-        reversible: input.reversible !== false,
-        adrDraft: null,
-        adrPath: null,
-        status: "pending",
-        decision: "",
-        note: "",
-        decidedBy: "",
-        tokenCost: null,
-        createdAt: at,
-        decidedAt: null
-      };
-      state.decisions.push(decision);
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "decision.created",
-        at,
-        projectId: project.id,
-        taskId,
-        payload: { decisionId: decision.id, title: decision.title }
-      });
-      await this.save();
-      return structuredClone(decision);
-    });
+    return createDecision(this.context, input);
   }
   async decideDecision(decisionId, input) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const decision = state.decisions.find(
-        (item) => item.id === decisionId
-      );
-      if (decision === void 0) {
-        throw new StudioStoreError(
-          "decision_not_found",
-          "\u51B3\u7B56\u4E0D\u5B58\u5728",
-          404
-        );
-      }
-      if (decision.status !== "pending") {
-        throw new StudioStoreError(
-          "decision_decided",
-          "\u8FD9\u6761\u51B3\u7B56\u5DF2\u7ECF\u6709\u7ED3\u8BBA",
-          409
-        );
-      }
-      if (input.status !== "approved" && input.status !== "rejected") {
-        throw new StudioStoreError(
-          "invalid_input",
-          "\u51B3\u7B56\u72B6\u6001\u53EA\u80FD\u662F approved \u6216 rejected"
-        );
-      }
-      if (decision.reversible === false && input.status === "approved" && optionalText(input.decision, "decision", 4e3) === "") {
-        throw new StudioStoreError(
-          "decision_reason_required",
-          "\u4E0D\u53EF\u9006\u51B3\u7B56\u6279\u51C6\u65F6\u5FC5\u987B\u5199\u660E\u7ED3\u8BBA\u548C\u7406\u7531",
-          409
-        );
-      }
-      const at = nowIso2(this.now);
-      decision.status = input.status;
-      decision.decision = optionalText(input.decision, "decision", 4e3);
-      decision.note = optionalText(input.note, "note", 2e3);
-      decision.decidedBy = "Owner";
-      decision.decidedAt = at;
-      if (input.status === "approved" && decision.reversible === false) {
-        decision.adrDraft = [
-          `# ADR: ${decision.title}`,
-          "",
-          `- \u65E5\u671F\uFF1A${at.slice(0, 10)}`,
-          "- \u72B6\u6001\uFF1AAccepted",
-          "- \u4E0D\u53EF\u9006\uFF1A\u662F",
-          "",
-          "## \u80CC\u666F",
-          decision.context || "\uFF08\u672A\u586B\u5199\uFF09",
-          "",
-          "## \u51B3\u7B56",
-          decision.decision || "\uFF08\u672A\u586B\u5199\uFF09",
-          "",
-          "## \u7406\u7531",
-          decision.note || "\uFF08\u672A\u586B\u5199\uFF09",
-          "",
-          "## \u5EFA\u8BAE",
-          decision.recommendation || "\uFF08\u65E0\uFF09",
-          ""
-        ].join("\n");
-      }
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: input.status === "approved" ? "decision.approved" : "decision.rejected",
-        at,
-        projectId: decision.projectId,
-        taskId: decision.taskId,
-        payload: {
-          decisionId: decision.id,
-          decision: decision.decision,
-          note: decision.note
-        }
-      });
-      await this.save();
-      return structuredClone(decision);
-    });
+    return decideDecision(this.context, decisionId, input);
   }
   async createModule(input) {
     return this.runExclusive(async () => {
