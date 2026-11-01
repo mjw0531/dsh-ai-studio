@@ -39,7 +39,7 @@ import type {
 } from "../../shared/types.js";
 import { allAccepted, formatDate, roleName } from "../lib/format.js";
 import { StatCard, StatusPill } from "../components/ui.js";
-import { TaskBoard } from "../components/TaskPanels.js";
+import { TaskBoard } from "../components/TaskBoard.js";
 import { ModalShell } from "../components/Forms.js";
 import { RecentEvents } from "../components/RecentEvents.js";
 import { TriggerInbox } from "../features/TriggerInbox.js";

@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 26;
-var STUDIO_PLUGIN_VERSION = "3.1.4";
+var STUDIO_PLUGIN_VERSION = "3.1.5";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",

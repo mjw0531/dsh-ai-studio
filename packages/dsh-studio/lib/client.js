@@ -33,7 +33,7 @@ __export(index_exports, {
 module.exports = __toCommonJS(index_exports);
 
 // src/client/StudioPage.tsx
-var import_react15 = require("react");
+var import_react17 = require("react");
 
 // src/shared/types.ts
 var PROJECT_STAGE_ORDER = [
@@ -2150,10 +2150,9 @@ function BranchPanel({
 }
 
 // src/client/views/MissionView.tsx
-var import_react11 = require("react");
+var import_react10 = require("react");
 
-// src/client/components/TaskPanels.tsx
-var import_react5 = require("react");
+// src/client/components/TaskBoard.tsx
 var import_jsx_runtime7 = require("react/jsx-runtime");
 function TaskBoard({
   tasks,
@@ -2229,908 +2228,9 @@ function TaskCard({
     }
   );
 }
-function TaskDrawer({
-  task,
-  roles,
-  mergeProposal,
-  runs,
-  verifications,
-  reviews,
-  codeMode,
-  busy,
-  onClose,
-  onDispatch,
-  onVerify,
-  onReview,
-  onToggleDocs,
-  onTransition,
-  onToggleAcceptance,
-  onAddEvidence,
-  onCreateMerge,
-  onApproveMerge,
-  onRejectMerge,
-  onCompleteMerge,
-  onExecuteMerge,
-  onRollbackMerge
-}) {
-  const [evidenceText, setEvidenceText] = (0, import_react5.useState)("");
-  const done = acceptanceDone(task);
-  const total = task.acceptance.length;
-  const complete = allAccepted(task);
-  const hasEvidence = task.evidence.length > 0;
-  const readyToAccept = complete && hasEvidence;
-  const transitions = ALLOWED_TRANSITIONS[task.status];
-  const submitEvidence = async (event) => {
-    event.preventDefault();
-    const text = evidenceText.trim();
-    if (text === "") return;
-    const ok = await onAddEvidence(text);
-    if (ok) setEvidenceText("");
-  };
-  return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-    "div",
-    {
-      className: "studio-drawer-overlay",
-      onMouseDown: (event) => {
-        if (event.target === event.currentTarget) onClose();
-      },
-      role: "presentation",
-      children: /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
-        "aside",
-        {
-          className: "studio-drawer",
-          role: "dialog",
-          "aria-modal": "true",
-          "aria-label": `\u4EFB\u52A1\uFF1A${task.title}`,
-          children: [
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-drawer-head", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { children: [
-                /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-actions", style: { marginBottom: 8 }, children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(StatusPill, { status: task.status }),
-                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(PriorityPill, { priority: task.priority }),
-                  mergeProposal !== null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(MergePill, { proposal: mergeProposal }) : null
-                ] }),
-                /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("h2", { children: task.title }),
-                /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-muted", children: [
-                  roleName(roles, task.ownerRoleId),
-                  " \u8D1F\u8D23 \xB7",
-                  " ",
-                  roleName(roles, task.reviewerRoleId),
-                  " \u9A8C\u6536"
-                ] })
-              ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-                "button",
-                {
-                  type: "button",
-                  className: "studio-btn studio-drawer-close",
-                  "data-size": "icon",
-                  onClick: onClose,
-                  "aria-label": "\u5173\u95ED",
-                  children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconX, { width: 15, height: 15 })
-                }
-              )
-            ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-drawer-body", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("section", { children: [
-                /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-section-label", children: "\u76EE\u6807" }),
-                /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-section-text", children: task.goal || "\u8FD8\u6CA1\u6709\u5199\u76EE\u6807\u3002" })
-              ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("section", { children: [
-                /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-section-label", children: [
-                  "\u9A8C\u6536\u6807\u51C6 \xB7 ",
-                  done,
-                  "/",
-                  total
-                ] }),
-                /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-acceptance", children: task.acceptance.map((item) => /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
-                  "label",
-                  {
-                    className: "studio-check",
-                    "data-done": item.done,
-                    children: [
-                      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-                        "input",
-                        {
-                          type: "checkbox",
-                          checked: item.done,
-                          disabled: busy || task.status === "done",
-                          onChange: () => onToggleAcceptance(item.id)
-                        }
-                      ),
-                      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { children: item.text })
-                    ]
-                  },
-                  item.id
-                )) }),
-                !complete && task.status === "review" ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-action-note", children: [
-                  "\u8FD8\u6709 ",
-                  total - done,
-                  " \u6761\u9A8C\u6536\u6807\u51C6\u672A\u5B8C\u6210\uFF0C\u4E0D\u80FD\u9A8C\u6536\u901A\u8FC7\u3002"
-                ] }) : null,
-                complete && !hasEvidence && task.status === "review" ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-action-note", children: "\u9A8C\u6536\u6807\u51C6\u5DF2\u5168\u90E8\u52FE\u9009\uFF0C\u4F46\u8FD8\u9700\u8981\u81F3\u5C11\u4E00\u6761\u53EF\u590D\u73B0\u7684\u8BC1\u636E\u3002" }) : null
-              ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("section", { children: [
-                /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-section-label", children: "\u8BC1\u636E" }),
-                task.evidence.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-faint", style: { fontSize: 11 }, children: "\u8FD8\u6CA1\u6709\u8BB0\u5F55\u8BC1\u636E\u3002\u9A8C\u6536\u524D\u81F3\u5C11\u7559\u4E00\u6761\u53EF\u590D\u73B0\u7684\u547D\u4EE4\u3001\u6D4B\u8BD5\u6216 replay\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-evidence", children: task.evidence.map((item) => /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-evidence-item", children: [
-                  item.text,
-                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-faint", children: formatDate(item.createdAt) })
-                ] }, item.id)) }),
-                task.status !== "done" ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
-                  "form",
-                  {
-                    onSubmit: (event) => void submitEvidence(event),
-                    style: { display: "flex", gap: 6, marginTop: 8 },
-                    children: [
-                      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-                        "input",
-                        {
-                          className: "studio-input",
-                          style: {
-                            flex: 1,
-                            border: "1px solid var(--st-border)",
-                            borderRadius: 8,
-                            background: "var(--st-panel)",
-                            padding: "7px 9px",
-                            outline: "none",
-                            fontSize: 11
-                          },
-                          value: evidenceText,
-                          onChange: (event) => setEvidenceText(event.target.value),
-                          placeholder: "\u4F8B\u5982\uFF1Apnpm test ability \u2014 42 passed",
-                          disabled: busy
-                        }
-                      ),
-                      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-                        "button",
-                        {
-                          className: "studio-btn",
-                          "data-size": "sm",
-                          type: "submit",
-                          disabled: busy || evidenceText.trim() === "",
-                          children: "\u8BB0\u5F55"
-                        }
-                      )
-                    ]
-                  }
-                ) : null
-              ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("section", { children: [
-                /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-section-label", children: "\u4E0A\u4E0B\u6587" }),
-                /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("dl", { className: "studio-kv", children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dt", { children: "\u7968\u7C7B\u578B" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("dd", { children: [
-                    TASK_KIND_LABELS[task.kind],
-                    task.integration ? " \xB7 \u96C6\u6210/playtest" : ""
-                  ] }),
-                  task.diagnosis !== "" ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(import_jsx_runtime7.Fragment, { children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dt", { children: "\u8BCA\u65AD" }),
-                    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dd", { className: "studio-pre", children: task.diagnosis })
-                  ] }) : null,
-                  task.plan !== "" ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(import_jsx_runtime7.Fragment, { children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dt", { children: "\u4FEE\u6539\u8BA1\u5212" }),
-                    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dd", { className: "studio-pre", children: task.plan })
-                  ] }) : null,
-                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dt", { children: "\u6A21\u5757" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dd", { className: "studio-mono", children: task.module ?? "\u672A\u6307\u5B9A" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dt", { children: "\u5951\u7EA6" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dd", { className: "studio-mono", children: task.contractRef ?? "\u672A\u6307\u5B9A" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dt", { children: "\u9700\u6C42" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dd", { className: "studio-mono", children: task.requirementRefs.length === 0 ? "\u672A\u6307\u5B9A" : task.requirementRefs.join(", ") }),
-                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dt", { children: "\u5931\u8D25\u6B21\u6570" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("dd", { children: [
-                    runs.filter((run) => run.status === "failed").length,
-                    " / 2"
-                  ] }),
-                  task.originTaskId !== null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(import_jsx_runtime7.Fragment, { children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dt", { children: "\u91CD\u62C6\u6765\u6E90" }),
-                    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dd", { className: "studio-mono", children: task.originTaskId })
-                  ] }) : null,
-                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dt", { children: "\u5206\u652F" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dd", { className: "studio-mono", children: task.branch ?? "\u672A\u521B\u5EFA" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dt", { children: "\u8D1F\u8D23\u4EBA" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("dd", { children: [
-                    roleName(roles, task.ownerRoleId),
-                    roleTitle(roles, task.ownerRoleId) ? ` \xB7 ${roleTitle(roles, task.ownerRoleId)}` : ""
-                  ] }),
-                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dt", { children: "\u9A8C\u6536\u4EBA" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("dd", { children: [
-                    roleName(roles, task.reviewerRoleId),
-                    roleTitle(roles, task.reviewerRoleId) ? ` \xB7 ${roleTitle(roles, task.reviewerRoleId)}` : ""
-                  ] }),
-                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dt", { children: "\u521B\u5EFA" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dd", { children: formatDate(task.createdAt) }),
-                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dt", { children: "\u66F4\u65B0" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dd", { children: formatDate(task.updatedAt) }),
-                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dt", { children: "\u4EFB\u52A1 ID" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dd", { className: "studio-mono", children: task.id })
-                ] }),
-                /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("label", { className: "studio-check", style: { marginTop: 10 }, children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-                    "input",
-                    {
-                      type: "checkbox",
-                      checked: task.docsSynced,
-                      onChange: () => void onToggleDocs()
-                    }
-                  ),
-                  "\u6587\u6863\u5DF2\u540C\u6B65\uFF08PRD / ADR / CONTEXT\uFF09"
-                ] }),
-                /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-hint", children: "\u9879\u76EE\u7ED1\u5B9A\u4E86\u77E5\u8BC6\u6587\u6863\u65F6\uFF0C\u5B8C\u6210\u524D\u5FC5\u987B\u786E\u8BA4\u6587\u6863\u5DF2\u540C\u6B65\u3002" })
-              ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-                TaskAgentPanel,
-                {
-                  task,
-                  runs,
-                  busy,
-                  codeMode,
-                  onDispatch
-                }
-              ),
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-                TaskVerificationPanel,
-                {
-                  task,
-                  runs,
-                  verifications,
-                  busy,
-                  onVerify
-                }
-              ),
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-                TaskReviewPanel,
-                {
-                  task,
-                  runs,
-                  reviews,
-                  ownerModel: roles.find((role) => role.id === task.ownerRoleId)?.model ?? null,
-                  busy,
-                  onReview
-                }
-              ),
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-                TaskMergePanel,
-                {
-                  task,
-                  proposal: mergeProposal,
-                  verification: mergeProposal?.verificationId === null || mergeProposal?.verificationId === void 0 ? null : verifications.find(
-                    (item) => item.id === mergeProposal.verificationId
-                  ) ?? null,
-                  verifications,
-                  codeMode,
-                  busy,
-                  onCreate: onCreateMerge,
-                  onApprove: onApproveMerge,
-                  onReject: onRejectMerge,
-                  onComplete: onCompleteMerge,
-                  onExecute: onExecuteMerge,
-                  onRollback: onRollbackMerge
-                }
-              ),
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("section", { children: [
-                /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-section-label", children: "\u63A8\u8FDB\u4EFB\u52A1" }),
-                transitions.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-faint", style: { fontSize: 11 }, children: "\u4EFB\u52A1\u5DF2\u5B8C\u6210\uFF0C\u4E0D\u80FD\u7EE7\u7EED\u63A8\u8FDB\u3002\u9700\u8981\u65B0\u5DE5\u4F5C\u8BF7\u521B\u5EFA\u540E\u7EED\u4EFB\u52A1\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-actions", children: transitions.map((status) => {
-                  const blockedByAcceptance = status === "done" && !readyToAccept;
-                  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
-                    "button",
-                    {
-                      type: "button",
-                      className: "studio-btn",
-                      "data-variant": status === "done" ? "primary" : void 0,
-                      "data-size": "sm",
-                      disabled: busy || blockedByAcceptance,
-                      title: blockedByAcceptance ? complete ? "\u81F3\u5C11\u8BB0\u5F55\u4E00\u6761\u8BC1\u636E\u540E\u624D\u80FD\u9A8C\u6536\u901A\u8FC7" : "\u6240\u6709\u9A8C\u6536\u6807\u51C6\u5B8C\u6210\u540E\u624D\u80FD\u9A8C\u6536\u901A\u8FC7" : TRANSITION_LABELS[status],
-                      onClick: () => onTransition(status),
-                      children: [
-                        status === "done" ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconCheck, { width: 13, height: 13 }) : null,
-                        TRANSITION_LABELS[status]
-                      ]
-                    },
-                    status
-                  );
-                }) }),
-                /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-action-note", children: "v0.9 \u5DF2\u63A5\u5165 worktree \u4EE3\u7801\u6267\u884C\u3001Host \u72EC\u7ACB\u9A8C\u8BC1\u3001\u6A21\u5757\u5951\u7EA6\u4E0E\u5951\u7EA6\u62A4\u680F\u3001\u5931\u8D25/\u9A8C\u8BC1\u95E8\u7981\u3001token \u8BA1\u91CF\u4E0E\u51B3\u7B56\u51B3\u7B56\u53F0\uFF1B\u5408\u5E76\u4E0E Git \u547D\u4EE4\u4ECD\u7531\u4EBA\u6267\u884C\u3002" })
-              ] })
-            ] })
-          ]
-        }
-      )
-    }
-  );
-}
-function TaskReviewPanel({
-  task,
-  runs,
-  reviews,
-  ownerModel,
-  busy,
-  onReview
-}) {
-  const latest = reviews[0] ?? null;
-  const hasWorkspace = runs.some((run) => run.workspacePath !== null);
-  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("section", { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-section-label", children: "\u72EC\u7ACB\u8BC4\u5BA1" }),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-action-note", style: { marginTop: 0 }, children: "\u7531\u9A8C\u6536\u4EBA\u89D2\u8272\u53E6\u5F00 Agent \u4F1A\u8BDD\uFF0C\u53EA\u770B diff \u548C Host \u9A8C\u8BC1\u7ED3\u679C\uFF0C\u4E0D\u6539\u4EE3\u7801\u3002 \u4EE3\u7801\u4EFB\u52A1\u5B8C\u6210\u524D\u5FC5\u987B\u6709\u4E00\u6B21\u901A\u8FC7\u7684\u72EC\u7ACB\u8BC4\u5BA1\u3002" }),
-    !hasWorkspace ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-faint", style: { fontSize: 11, marginTop: 9 }, children: "\u8FD8\u6CA1\u6709\u5E26 worktree \u7684 Run\uFF1B\u5148\u6D3E\u5355\u6267\u884C\u4E00\u6B21\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(import_jsx_runtime7.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
-        "button",
-        {
-          type: "button",
-          className: "studio-btn",
-          "data-size": "sm",
-          style: { marginTop: 9 },
-          disabled: busy,
-          onClick: () => void onReview(),
-          children: [
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconSpark, { width: 13, height: 13 }),
-            "\u8FD0\u884C\u72EC\u7ACB\u8BC4\u5BA1"
-          ]
-        }
-      ),
-      latest !== null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
-        "div",
-        {
-          className: "studio-review",
-          "data-verdict": latest.verdict,
-          children: [
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-review-head", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-                "span",
-                {
-                  className: "studio-pill",
-                  "data-tone": latest.verdict === "pass" ? "ok" : "p0",
-                  children: latest.verdict === "pass" ? "\u901A\u8FC7" : "\u4E0D\u901A\u8FC7"
-                }
-              ),
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { className: "studio-faint", children: [
-                latest.model ?? "\u672A\u77E5\u6A21\u578B",
-                " \xB7",
-                " ",
-                latest.tokens === null ? "\u672A\u8BA1\u91CF" : `${String(latest.tokens)} tokens`
-              ] })
-            ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("p", { children: latest.summary }),
-            ownerModel !== null && latest.model !== null && ownerModel === latest.model ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-alert", "data-tone": "warn", children: [
-              "\u8BC4\u5BA1\u4E0E\u5B9E\u73B0\u4F7F\u7528\u540C\u4E00\u6A21\u578B\uFF08",
-              latest.model,
-              "\uFF09\uFF0C\u53EF\u80FD\u5B58\u5728\u5171\u4EAB\u76F2\u70B9\u3002"
-            ] }) : null,
-            latest.findings.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("ul", { children: latest.findings.slice(0, 8).map((finding, index) => /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("li", { children: finding }, `${String(index)}-${finding}`)) }) : null
-          ]
-        }
-      ) : /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-faint", style: { fontSize: 11, marginTop: 8 }, children: "\u8FD8\u6CA1\u6709\u72EC\u7ACB\u8BC4\u5BA1\u8BB0\u5F55\u3002" })
-    ] })
-  ] });
-}
-function TaskVerificationPanel({
-  task,
-  runs,
-  verifications,
-  busy,
-  onVerify
-}) {
-  const [command, setCommand] = (0, import_react5.useState)(
-    task.verifyCommand ?? "npm test"
-  );
-  const latest = verifications[0] ?? null;
-  const workspaceRun = runs.find((run) => run.workspacePath !== null);
-  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("section", { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-section-label", children: "\u72EC\u7ACB\u9A8C\u8BC1" }),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-action-note", style: { marginTop: 0 }, children: "\u7531 Studio Host \u5728\u4EFB\u52A1 worktree \u5185\u76F4\u63A5\u6267\u884C\uFF0C\u4E0D\u7ECF\u8FC7 Agent \u4F1A\u8BDD\u3002 \u9A8C\u8BC1\u901A\u8FC7\u4F1A\u5199\u5165 evidence\uFF0C\u4F46\u4E0D\u4F1A\u81EA\u52A8\u901A\u8FC7\u9A8C\u6536\u3002" }),
-    workspaceRun === void 0 ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-faint", style: { fontSize: 11, marginTop: 9 }, children: "\u8FD8\u6CA1\u6709\u5E26 worktree \u7684 Run\uFF1B\u5148\u6D3E\u5355\u6267\u884C\u4E00\u6B21\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(import_jsx_runtime7.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-verify-form", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-          "input",
-          {
-            value: command,
-            onChange: (event) => setCommand(event.target.value),
-            "aria-label": "\u9A8C\u8BC1\u547D\u4EE4",
-            placeholder: "npm test"
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
-          "button",
-          {
-            type: "button",
-            className: "studio-btn",
-            "data-size": "sm",
-            disabled: busy || command.trim() === "",
-            onClick: () => void onVerify(command.trim()),
-            children: [
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconCheck, { width: 13, height: 13 }),
-              "\u8FD0\u884C\u9A8C\u8BC1"
-            ]
-          }
-        )
-      ] }),
-      latest === null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-faint", style: { fontSize: 11, marginTop: 8 }, children: "\u8FD8\u6CA1\u6709\u9A8C\u8BC1\u8BB0\u5F55\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
-        "div",
-        {
-          className: "studio-verification",
-          "data-passed": latest.passed,
-          children: [
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-verification-head", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "studio-pill", "data-tone": latest.passed ? "ok" : "p0", children: latest.passed ? "\u901A\u8FC7" : "\u5931\u8D25" }),
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("code", { children: latest.command }),
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { className: "studio-faint", children: [
-                "exit ",
-                latest.exitCode
-              ] })
-            ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("pre", { children: latest.output.slice(0, 4e3) || "\uFF08\u65E0\u8F93\u51FA\uFF09" })
-          ]
-        }
-      )
-    ] })
-  ] });
-}
-function TaskAgentPanel({
-  task,
-  runs,
-  busy,
-  codeMode,
-  onDispatch
-}) {
-  const latest = runs[0] ?? null;
-  const canDispatch = task.ownerRoleId !== null && (task.status === "backlog" || task.status === "ready");
-  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("section", { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-section-label", children: "Agent \u6D3E\u5355" }),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-action-note", style: { marginTop: 0 }, children: codeMode ? "\u4EE3\u7801\u6A21\u5F0F\uFF1AAgent \u5728\u72EC\u7ACB worktree \u5185\u5B9E\u73B0\u4EFB\u52A1\u3001\u8FD0\u884C\u6D4B\u8BD5\u5E76\u628A diff \u5199\u5165 Run\uFF1B\u4E0D\u4F1A\u5408\u5E76\u6216\u63A8\u9001\u3002" : "\u5206\u6790\u6A21\u5F0F\uFF1A\u8FD8\u6CA1\u6709\u7ED1\u5B9A\u4EE3\u7801\u4ED3\u5E93\u3002Agent \u53EA\u8BFB\u4EFB\u52A1\u4E0E\u5951\u7EA6\uFF0C\u8FD4\u56DE\u7ED3\u6784\u5316\u56DE\u6267\uFF1B\u5728\u8BBE\u7F6E\u91CC\u7ED1\u5B9A\u4ED3\u5E93\u5373\u53EF\u8FDB\u5165\u4EE3\u7801\u6A21\u5F0F\u3002" }),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-actions", style: { marginTop: 9 }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
-        "button",
-        {
-          type: "button",
-          className: "studio-btn",
-          "data-variant": "primary",
-          "data-size": "sm",
-          disabled: busy || !canDispatch,
-          title: task.ownerRoleId === null ? "\u8BF7\u5148\u7ED9\u4EFB\u52A1\u6307\u5B9A\u8D1F\u8D23\u4EBA\u89D2\u8272" : canDispatch ? "\u6D3E\u5355\u7ED9\u8D1F\u8D23\u4EBA\u89D2\u8272\u505A\u5206\u6790" : "\u4EFB\u52A1\u5DF2\u5728\u6267\u884C\u6216\u9A8C\u6536\uFF0C\u4E0D\u80FD\u91CD\u590D\u6D3E\u5355",
-          onClick: () => void onDispatch(),
-          children: [
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconSpark, { width: 13, height: 13 }),
-            latest?.status === "running" || latest?.status === "queued" ? "Agent \u6267\u884C\u4E2D\u2026" : codeMode ? "\u6D3E\u5355\u6267\u884C" : "\u6D3E\u5355\u5206\u6790"
-          ]
-        }
-      ),
-      latest !== null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "studio-pill", "data-tone": runTone(latest.status), children: AGENT_RUN_STATUS_LABELS[latest.status] }) : null
-    ] }),
-    runs.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-faint", style: { fontSize: 11, marginTop: 9 }, children: "\u8FD8\u6CA1\u6709 Agent \u8FD0\u884C\u8BB0\u5F55\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-run-list", children: runs.map((run) => /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(RunCard, { run }, run.id)) })
-  ] });
-}
-function runTone(status) {
-  if (status === "succeeded") return "ok";
-  if (status === "failed") return "p0";
-  if (status === "running") return "accent";
-  return "p2";
-}
-function RunCard({ run }) {
-  const receipt = run.receipt;
-  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("details", { className: "studio-run-card", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("summary", { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "studio-pill", "data-tone": runTone(run.status), children: AGENT_RUN_STATUS_LABELS[run.status] }),
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "studio-mono", children: run.model ?? "\u9ED8\u8BA4\u6A21\u578B" }),
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "studio-faint", children: run.tokens === null ? "token \u5F85\u8BA1\u91CF" : `${String(run.tokens)} tokens` }),
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "studio-faint", style: { marginLeft: "auto" }, children: formatDate(run.startedAt) })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-run-body", children: [
-      run.error !== null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-alert", children: run.error }) : null,
-      run.budgetWarning !== null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-alert", "data-tone": "warn", children: run.budgetWarning }) : null,
-      run.status === "running" || run.status === "queued" ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-faint", style: { fontSize: 11 }, children: "Agent \u6B63\u5728\u5DE5\u4F5C\uFF1B\u9875\u9762\u6BCF 4 \u79D2\u5237\u65B0\u4E00\u6B21\u3002" }) : null,
-      run.branchName !== null || run.workspacePath !== null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-run-workspace", children: [
-        run.branchName !== null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { children: "\u5206\u652F" }),
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("code", { children: run.branchName })
-        ] }) : null,
-        run.workspacePath !== null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { children: "\u5DE5\u4F5C\u533A" }),
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("code", { children: run.workspacePath })
-        ] }) : null,
-        run.diffStat !== null && run.diffStat !== "" ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("pre", { children: run.diffStat }) : null
-      ] }) : null,
-      receipt !== null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(ReceiptView, { receipt }) : run.output !== "" ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("pre", { className: "studio-run-output", children: run.output }) : null
-    ] })
-  ] });
-}
-function ReceiptView({ receipt }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-receipt", children: [
-    receipt.summary.trim() === "" || receipt.evidence.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-alert", "data-tone": "warn", children: "\u56DE\u6267\u4E0D\u5B8C\u6574\uFF1AAgent \u5FC5\u987B\u7ED9\u51FA\u975E\u7A7A summary \u548C\u81F3\u5C11\u4E00\u6761 evidence\uFF0C\u4EFB\u52A1\u4E0D\u80FD\u8FDB\u5165\u9A8C\u6536\u3002" }) : null,
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-section-text", children: receipt.summary || "\uFF08\u6CA1\u6709 summary\uFF09" }),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(ReceiptList, { label: "\u8BC1\u636E", items: receipt.evidence }),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-      ReceiptList,
-      {
-        label: "\u4EA7\u7269",
-        items: receipt.artifacts.map(
-          (item) => `${item.kind}: ${item.path}`
-        )
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-      ReceiptList,
-      {
-        label: "\u51B3\u7B56",
-        items: receipt.decisions.map(
-          (item) => `${item.title} (${item.scope}) \u2014 ${item.rationale}`
-        )
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-      ReceiptList,
-      {
-        label: "\u5951\u7EA6\u53D8\u66F4",
-        items: receipt.contractDeltas.map(
-          (item) => `${item.contract}: ${item.change}`
-        )
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-      ReceiptList,
-      {
-        label: "\u88AB\u5426\u51B3\u65B9\u6848",
-        items: receipt.rejectedOptions.map(
-          (item) => `${item.option} \u2014 ${item.reason}`
-        )
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(ReceiptList, { label: "\u963B\u585E", items: receipt.blockers })
-  ] });
-}
-function ReceiptList({ label, items }) {
-  if (items.length === 0) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-receipt-list", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { children: label }),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("ul", { children: items.map((item, index) => /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("li", { children: item }, `${label}-${String(index)}`)) })
-  ] });
-}
-function TaskMergePanel({
-  task,
-  proposal,
-  verification,
-  verifications,
-  codeMode,
-  busy,
-  onCreate,
-  onApprove,
-  onReject,
-  onComplete,
-  onExecute,
-  onRollback
-}) {
-  const [summary, setSummary] = (0, import_react5.useState)("");
-  const [branch, setBranch] = (0, import_react5.useState)(task.branch ?? "");
-  const [base, setBase] = (0, import_react5.useState)("main");
-  const [risk, setRisk] = (0, import_react5.useState)("medium");
-  const [rollback, setRollback] = (0, import_react5.useState)("");
-  const [reviewNote, setReviewNote] = (0, import_react5.useState)("");
-  const [mergeCommit, setMergeCommit] = (0, import_react5.useState)("");
-  const [localError, setLocalError] = (0, import_react5.useState)(null);
-  const complete = allAccepted(task);
-  const hasEvidence = task.evidence.length > 0;
-  const reviewable = task.status === "done";
-  const postVerification = proposal?.postMergeVerificationId === null || proposal?.postMergeVerificationId === void 0 ? null : verifications.find(
-    (item) => item.id === proposal.postMergeVerificationId
-  ) ?? null;
-  const canSubmit = reviewable && complete && hasEvidence && branch.trim() !== "" && summary.trim() !== "" && rollback.trim() !== "";
-  const activeProposal = proposal !== null && proposal.status !== "rejected" ? proposal : null;
-  const submit = async (event) => {
-    event.preventDefault();
-    if (!canSubmit) {
-      setLocalError("\u5148\u5B8C\u6210\u9A8C\u6536\u3001\u8BB0\u5F55\u8BC1\u636E\uFF0C\u5E76\u586B\u5199\u5206\u652F\u3001\u6458\u8981\u548C\u56DE\u6EDA\u65B9\u6848\u3002");
-      return;
-    }
-    setLocalError(null);
-    const ok = await onCreate({
-      branch: branch.trim(),
-      base: base.trim() || "main",
-      risk,
-      summary: summary.trim(),
-      rollback: rollback.trim()
-    });
-    if (ok) {
-      setSummary("");
-      setRollback("");
-    }
-  };
-  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("section", { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-section-label", children: "\u5408\u5E76\u6CBB\u7406" }),
-    activeProposal === null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(import_jsx_runtime7.Fragment, { children: [
-      proposal !== null && proposal.status === "rejected" ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-alert", "data-tone": "warn", style: { marginBottom: 10 }, children: [
-        "\u4E0A\u6B21\u5408\u5E76\u63D0\u6848\u88AB\u6253\u56DE\uFF1A",
-        proposal.reviewNote || "\u672A\u586B\u5199\u539F\u56E0"
-      ] }) : null,
-      !reviewable ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-faint", style: { fontSize: 11 }, children: "\u4EFB\u52A1\u9A8C\u6536\u901A\u8FC7\u540E\uFF0C\u624D\u80FD\u63D0\u4EA4\u5408\u5E76\u63D0\u6848\u3002" }) : !complete || !hasEvidence ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-faint", style: { fontSize: 11 }, children: "\u5148\u5B8C\u6210\u5168\u90E8\u9A8C\u6536\u9879\u5E76\u8BB0\u5F55\u81F3\u5C11\u4E00\u6761\u8BC1\u636E\uFF0C\u624D\u80FD\u63D0\u4EA4\u5408\u5E76\u63D0\u6848\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("form", { onSubmit: (event) => void submit(event), className: "studio-merge-form", children: [
-        codeMode && verification === null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-alert", "data-tone": "warn", children: "\u4EE3\u7801\u9879\u76EE\u9700\u8981\u5148\u8DD1\u4E00\u6B21\u901A\u8FC7\u7684\u300C\u72EC\u7ACB\u9A8C\u8BC1\u300D\uFF0C\u624D\u80FD\u63D0\u4EA4\u5408\u5E76\u63D0\u6848\u3002" }) : null,
-        localError !== null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-alert", children: localError }) : null,
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-field-row", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("label", { htmlFor: "merge-branch", children: "\u5206\u652F" }),
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-              "input",
-              {
-                id: "merge-branch",
-                value: branch,
-                onChange: (event) => setBranch(event.target.value),
-                placeholder: "task/003-ability"
-              }
-            )
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("label", { htmlFor: "merge-base", children: "\u76EE\u6807\u5206\u652F" }),
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-              "input",
-              {
-                id: "merge-base",
-                value: base,
-                onChange: (event) => setBase(event.target.value),
-                placeholder: "main"
-              }
-            )
-          ] })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("label", { htmlFor: "merge-risk", children: "\u98CE\u9669" }),
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
-            "select",
-            {
-              id: "merge-risk",
-              value: risk,
-              onChange: (event) => setRisk(event.target.value),
-              children: [
-                /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("option", { value: "low", children: MERGE_RISK_LABELS.low }),
-                /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("option", { value: "medium", children: MERGE_RISK_LABELS.medium }),
-                /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("option", { value: "high", children: MERGE_RISK_LABELS.high })
-              ]
-            }
-          )
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("label", { htmlFor: "merge-summary", children: "\u53D8\u66F4\u6458\u8981" }),
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-            "textarea",
-            {
-              id: "merge-summary",
-              value: summary,
-              onChange: (event) => setSummary(event.target.value),
-              placeholder: "\u6539\u4E86\u4EC0\u4E48\u3001\u5F71\u54CD\u54EA\u4E9B\u5951\u7EA6/\u6A21\u5757"
-            }
-          )
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("label", { htmlFor: "merge-rollback", children: "\u56DE\u6EDA\u65B9\u6848" }),
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-            "textarea",
-            {
-              id: "merge-rollback",
-              value: rollback,
-              onChange: (event) => setRollback(event.target.value),
-              placeholder: "\u51FA\u95EE\u9898\u65F6\u600E\u4E48\u56DE\u6EDA\uFF1F"
-            }
-          )
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-actions", style: { marginTop: 10 }, children: /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
-          "button",
-          {
-            type: "submit",
-            className: "studio-btn",
-            "data-variant": "primary",
-            "data-size": "sm",
-            disabled: busy || !canSubmit,
-            children: [
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconGitMerge, { width: 13, height: 13 }),
-              "\u63D0\u4EA4\u5408\u5E76\u63D0\u6848"
-            ]
-          }
-        ) }),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-action-note", children: "Studio \u53EA\u8BB0\u5F55\u6CBB\u7406\u72B6\u6001\uFF0C\u4E0D\u6267\u884C Git\u3002\u5408\u5E76\u547D\u4EE4\u7531\u4EBA\u6216 Integrator \u6267\u884C\u3002" })
-      ] })
-    ] }) : /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(import_jsx_runtime7.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-merge-card", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-merge-top", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(MergePill, { proposal: activeProposal }),
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "studio-pill", "data-tone": "p2", children: MERGE_RISK_LABELS[activeProposal.risk] }),
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { className: "studio-muted", style: { marginLeft: "auto" }, children: [
-            activeProposal.branch,
-            " \u2192 ",
-            activeProposal.base
-          ] })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("dl", { className: "studio-kv", style: { marginTop: 10 }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dt", { children: "\u53D8\u66F4\u6458\u8981" }),
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dd", { children: activeProposal.summary }),
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dt", { children: "\u56DE\u6EDA\u65B9\u6848" }),
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dd", { children: activeProposal.rollback }),
-          activeProposal.changedFiles.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(import_jsx_runtime7.Fragment, { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dt", { children: "\u53D8\u66F4\u6587\u4EF6" }),
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dd", { className: "studio-mono", children: activeProposal.changedFiles.join("\u3001") })
-          ] }) : null,
-          activeProposal.diffStat !== null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(import_jsx_runtime7.Fragment, { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dt", { children: "Diff" }),
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dd", { children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("pre", { className: "studio-diff", children: activeProposal.diffStat }) })
-          ] }) : null,
-          verification !== null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(import_jsx_runtime7.Fragment, { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dt", { children: "\u72EC\u7ACB\u9A8C\u8BC1" }),
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("dd", { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-                "span",
-                {
-                  className: "studio-pill",
-                  "data-tone": verification.passed ? "ok" : "p0",
-                  children: verification.passed ? "\u901A\u8FC7" : "\u5931\u8D25"
-                }
-              ),
-              " ",
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("code", { children: verification.command })
-            ] })
-          ] }) : null,
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dt", { children: "\u8BC4\u5BA1\u5907\u6CE8" }),
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dd", { children: activeProposal.reviewNote || "\u65E0" }),
-          activeProposal.mergeCommit !== null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(import_jsx_runtime7.Fragment, { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dt", { children: "\u5408\u5E76\u63D0\u4EA4" }),
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dd", { className: "studio-mono", children: activeProposal.mergeCommit })
-          ] }) : null,
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dt", { children: "\u521B\u5EFA" }),
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dd", { children: formatDate(activeProposal.createdAt) }),
-          activeProposal.mergedAt !== null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(import_jsx_runtime7.Fragment, { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dt", { children: "\u5408\u5E76\u65F6\u95F4" }),
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("dd", { children: formatDate(activeProposal.mergedAt) })
-          ] }) : null
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-merge-command", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "studio-faint", children: "\u4EBA\u5DE5\u6267\u884C\uFF1A" }),
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("code", { children: [
-            "git switch ",
-            activeProposal.base,
-            " && git merge --no-ff",
-            " ",
-            activeProposal.branch
-          ] })
-        ] })
-      ] }),
-      activeProposal.status === "review" ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-merge-actions", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-          "input",
-          {
-            value: reviewNote,
-            onChange: (event) => setReviewNote(event.target.value),
-            placeholder: "\u8BC4\u5BA1\u5907\u6CE8\uFF08\u6253\u56DE\u65F6\u5FC5\u586B\uFF09",
-            disabled: busy
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-actions", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
-            "button",
-            {
-              type: "button",
-              className: "studio-btn",
-              "data-variant": "primary",
-              "data-size": "sm",
-              disabled: busy,
-              onClick: () => onApprove(reviewNote.trim() || void 0),
-              children: [
-                /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconCheck, { width: 13, height: 13 }),
-                "\u6279\u51C6"
-              ]
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-            "button",
-            {
-              type: "button",
-              className: "studio-btn",
-              "data-variant": "danger",
-              "data-size": "sm",
-              disabled: busy || reviewNote.trim() === "",
-              title: reviewNote.trim() === "" ? "\u6253\u56DE\u5FC5\u987B\u5199\u6E05\u695A\u539F\u56E0" : "\u6253\u56DE\u5E76\u9000\u56DE\u6267\u884C",
-              onClick: () => onReject(reviewNote.trim()),
-              children: "\u6253\u56DE"
-            }
-          )
-        ] })
-      ] }) : activeProposal.status === "approved" ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-merge-actions", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-          "input",
-          {
-            value: mergeCommit,
-            onChange: (event) => setMergeCommit(event.target.value),
-            placeholder: "\u5408\u5E76\u63D0\u4EA4 SHA\uFF08\u53EF\u9009\uFF09",
-            disabled: busy
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-          "button",
-          {
-            type: "button",
-            className: "studio-btn",
-            "data-variant": "primary",
-            "data-size": "sm",
-            disabled: busy,
-            onClick: () => {
-              if (window.confirm(
-                `\u5C06\u5728\u5F53\u524D\u4ED3\u5E93\u6267\u884C Git merge ${activeProposal.branch} \u2192 ${activeProposal.base}\uFF0C\u4E14\u8981\u6C42\u5F53\u524D\u5C31\u5728 ${activeProposal.base} \u4E0A\u3001\u5DE5\u4F5C\u533A\u5E72\u51C0\u3002\u786E\u5B9A\u5417\uFF1F`
-              )) {
-                onExecute();
-              }
-            },
-            children: "\u6267\u884C Git \u5408\u5E76"
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
-          "button",
-          {
-            type: "button",
-            className: "studio-btn",
-            "data-size": "sm",
-            disabled: busy,
-            onClick: () => onComplete(mergeCommit.trim() || void 0),
-            children: [
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IconCheck, { width: 13, height: 13 }),
-              "\u4EC5\u8BB0\u5F55\u5408\u5E76"
-            ]
-          }
-        )
-      ] }) : /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(import_jsx_runtime7.Fragment, { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-action-note", children: "\u5408\u5E76\u5DF2\u5B8C\u6210\uFF1B\u5982\u9700\u7EE7\u7EED\u53D8\u66F4\uFF0C\u8BF7\u521B\u5EFA\u540E\u7EED\u4EFB\u52A1\u3002" }),
-        postVerification !== null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
-          "div",
-          {
-            className: "studio-verification",
-            "data-passed": postVerification.passed,
-            style: { marginTop: 8 },
-            children: [
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-verification-head", children: [
-                /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
-                  "span",
-                  {
-                    className: "studio-pill",
-                    "data-tone": postVerification.passed ? "ok" : "p0",
-                    children: [
-                      "\u5408\u5E76\u540E\u56DE\u5F52",
-                      postVerification.passed ? "\u901A\u8FC7" : "\u5931\u8D25"
-                    ]
-                  }
-                ),
-                /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("code", { children: postVerification.command }),
-                /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { className: "studio-faint", children: [
-                  "exit ",
-                  postVerification.exitCode
-                ] })
-              ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("pre", { children: postVerification.output.slice(0, 2e3) || "\uFF08\u65E0\u8F93\u51FA\uFF09" })
-            ]
-          }
-        ) : null,
-        postVerification !== null && !postVerification.passed && activeProposal.rollbackCommit === null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-          "button",
-          {
-            type: "button",
-            className: "studio-btn",
-            "data-variant": "danger",
-            "data-size": "sm",
-            style: { marginTop: 8 },
-            disabled: busy,
-            onClick: () => {
-              if (window.confirm(
-                "\u5C06\u5728\u5F53\u524D\u4ED3\u5E93\u6267\u884C git revert <merge commit>\uFF0C\u786E\u5B9A\u56DE\u6EDA\u5417\uFF1F"
-              )) {
-                onRollback();
-              }
-            },
-            children: "\u56DE\u6EDA\u8FD9\u6B21\u5408\u5E76"
-          }
-        ) : null,
-        activeProposal.rollbackCommit !== null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-faint", style: { fontSize: 10, marginTop: 6 }, children: [
-          "\u5DF2\u56DE\u6EDA\uFF1A",
-          activeProposal.rollbackCommit
-        ] }) : null
-      ] })
-    ] })
-  ] });
-}
 
 // src/client/components/Forms.tsx
-var import_react6 = require("react");
+var import_react5 = require("react");
 var import_jsx_runtime8 = require("react/jsx-runtime");
 function ModalShell({
   title,
@@ -3187,24 +2287,24 @@ function TaskForm({
   onCancel,
   onSubmit
 }) {
-  const [title, setTitle] = (0, import_react6.useState)("");
-  const [goal, setGoal] = (0, import_react6.useState)("");
-  const [priority, setPriority] = (0, import_react6.useState)("P1");
-  const [ownerRoleId, setOwnerRoleId] = (0, import_react6.useState)(roles[0]?.id ?? "");
-  const [reviewerRoleId, setReviewerRoleId] = (0, import_react6.useState)(
+  const [title, setTitle] = (0, import_react5.useState)("");
+  const [goal, setGoal] = (0, import_react5.useState)("");
+  const [priority, setPriority] = (0, import_react5.useState)("P1");
+  const [ownerRoleId, setOwnerRoleId] = (0, import_react5.useState)(roles[0]?.id ?? "");
+  const [reviewerRoleId, setReviewerRoleId] = (0, import_react5.useState)(
     roles[1]?.id ?? roles[0]?.id ?? ""
   );
-  const [acceptanceText, setAcceptanceText] = (0, import_react6.useState)("");
-  const [branch, setBranch] = (0, import_react6.useState)("");
-  const [verifyCommand, setVerifyCommand] = (0, import_react6.useState)("npm test");
-  const [moduleName, setModuleName] = (0, import_react6.useState)("");
-  const [contractRef, setContractRef] = (0, import_react6.useState)("");
-  const [requirementRefs, setRequirementRefs] = (0, import_react6.useState)("");
-  const [kind, setKind] = (0, import_react6.useState)("new");
-  const [diagnosis, setDiagnosis] = (0, import_react6.useState)("");
-  const [plan, setPlan] = (0, import_react6.useState)("");
-  const [integration, setIntegration] = (0, import_react6.useState)(false);
-  const [localError, setLocalError] = (0, import_react6.useState)(null);
+  const [acceptanceText, setAcceptanceText] = (0, import_react5.useState)("");
+  const [branch, setBranch] = (0, import_react5.useState)("");
+  const [verifyCommand, setVerifyCommand] = (0, import_react5.useState)("npm test");
+  const [moduleName, setModuleName] = (0, import_react5.useState)("");
+  const [contractRef, setContractRef] = (0, import_react5.useState)("");
+  const [requirementRefs, setRequirementRefs] = (0, import_react5.useState)("");
+  const [kind, setKind] = (0, import_react5.useState)("new");
+  const [diagnosis, setDiagnosis] = (0, import_react5.useState)("");
+  const [plan, setPlan] = (0, import_react5.useState)("");
+  const [integration, setIntegration] = (0, import_react5.useState)(false);
+  const [localError, setLocalError] = (0, import_react5.useState)(null);
   const submit = (event) => {
     event.preventDefault();
     const acceptance = acceptanceText.split("\n").map((line) => line.trim()).filter(Boolean);
@@ -3483,16 +2583,16 @@ function RoleForm({
   onCancel,
   onSubmit
 }) {
-  const [name2, setName] = (0, import_react6.useState)("");
-  const [title, setTitle] = (0, import_react6.useState)("");
-  const [mission, setMission] = (0, import_react6.useState)("");
-  const [responsibilities, setResponsibilities] = (0, import_react6.useState)("");
-  const [providerProfileId, setProviderProfileId] = (0, import_react6.useState)("");
-  const [model, setModel] = (0, import_react6.useState)("");
-  const [executor, setExecutor] = (0, import_react6.useState)("dsh");
-  const [tokenBudget, setTokenBudget] = (0, import_react6.useState)("");
-  const [dailyTokenBudget, setDailyTokenBudget] = (0, import_react6.useState)("");
-  const [localError, setLocalError] = (0, import_react6.useState)(null);
+  const [name2, setName] = (0, import_react5.useState)("");
+  const [title, setTitle] = (0, import_react5.useState)("");
+  const [mission, setMission] = (0, import_react5.useState)("");
+  const [responsibilities, setResponsibilities] = (0, import_react5.useState)("");
+  const [providerProfileId, setProviderProfileId] = (0, import_react5.useState)("");
+  const [model, setModel] = (0, import_react5.useState)("");
+  const [executor, setExecutor] = (0, import_react5.useState)("dsh");
+  const [tokenBudget, setTokenBudget] = (0, import_react5.useState)("");
+  const [dailyTokenBudget, setDailyTokenBudget] = (0, import_react5.useState)("");
+  const [localError, setLocalError] = (0, import_react5.useState)(null);
   const submit = (event) => {
     event.preventDefault();
     if (name2.trim() === "") {
@@ -3686,14 +2786,14 @@ function ProjectForm({
   onSubmit,
   onSubmitTemplate
 }) {
-  const [template, setTemplate] = (0, import_react6.useState)(
+  const [template, setTemplate] = (0, import_react5.useState)(
     "blank"
   );
-  const [name2, setName] = (0, import_react6.useState)("");
-  const [description, setDescription] = (0, import_react6.useState)("");
-  const [tokenBudget, setTokenBudget] = (0, import_react6.useState)("");
-  const [repoPath, setRepoPath] = (0, import_react6.useState)("");
-  const [localError, setLocalError] = (0, import_react6.useState)(null);
+  const [name2, setName] = (0, import_react5.useState)("");
+  const [description, setDescription] = (0, import_react5.useState)("");
+  const [tokenBudget, setTokenBudget] = (0, import_react5.useState)("");
+  const [repoPath, setRepoPath] = (0, import_react5.useState)("");
+  const [localError, setLocalError] = (0, import_react5.useState)(null);
   const submit = (event) => {
     event.preventDefault();
     if (name2.trim() === "") {
@@ -3831,7 +2931,7 @@ function RepoForm({
   onCancel,
   onSubmit
 }) {
-  const [repoPath, setRepoPath] = (0, import_react6.useState)(initial);
+  const [repoPath, setRepoPath] = (0, import_react5.useState)(initial);
   return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
     ModalShell,
     {
@@ -3886,12 +2986,12 @@ function DecisionForm({
   onCancel,
   onSubmit
 }) {
-  const [title, setTitle] = (0, import_react6.useState)("");
-  const [context, setContext] = (0, import_react6.useState)("");
-  const [recommendation, setRecommendation] = (0, import_react6.useState)("");
-  const [taskId, setTaskId] = (0, import_react6.useState)("");
-  const [reversible, setReversible] = (0, import_react6.useState)(true);
-  const [localError, setLocalError] = (0, import_react6.useState)(null);
+  const [title, setTitle] = (0, import_react5.useState)("");
+  const [context, setContext] = (0, import_react5.useState)("");
+  const [recommendation, setRecommendation] = (0, import_react5.useState)("");
+  const [taskId, setTaskId] = (0, import_react5.useState)("");
+  const [reversible, setReversible] = (0, import_react5.useState)(true);
+  const [localError, setLocalError] = (0, import_react5.useState)(null);
   const submit = (event) => {
     event.preventDefault();
     if (title.trim() === "") {
@@ -4030,7 +3130,7 @@ function RecentEvents({ events }) {
 }
 
 // src/client/features/TriggerInbox.tsx
-var import_react7 = require("react");
+var import_react6 = require("react");
 var import_jsx_runtime10 = require("react/jsx-runtime");
 function TriggerInbox({
   project,
@@ -4041,26 +3141,26 @@ function TriggerInbox({
   onIgnore,
   onSaveRules
 }) {
-  const [source, setSource] = (0, import_react7.useState)("manual");
-  const [title, setTitle] = (0, import_react7.useState)("");
-  const [body, setBody] = (0, import_react7.useState)("");
-  const [threadKey, setThreadKey] = (0, import_react7.useState)("");
-  const [rulesEnabled, setRulesEnabled] = (0, import_react7.useState)(
+  const [source, setSource] = (0, import_react6.useState)("manual");
+  const [title, setTitle] = (0, import_react6.useState)("");
+  const [body, setBody] = (0, import_react6.useState)("");
+  const [threadKey, setThreadKey] = (0, import_react6.useState)("");
+  const [rulesEnabled, setRulesEnabled] = (0, import_react6.useState)(
     project.triggerRules.enabled
   );
-  const [ruleSources, setRuleSources] = (0, import_react7.useState)(
+  const [ruleSources, setRuleSources] = (0, import_react6.useState)(
     project.triggerRules.sources
   );
-  const [ruleRepos, setRuleRepos] = (0, import_react7.useState)(
+  const [ruleRepos, setRuleRepos] = (0, import_react6.useState)(
     project.triggerRules.repos.join("\n")
   );
-  const [ruleLabels, setRuleLabels] = (0, import_react7.useState)(
+  const [ruleLabels, setRuleLabels] = (0, import_react6.useState)(
     project.triggerRules.labels.join("\n")
   );
-  const [ruleAuthors, setRuleAuthors] = (0, import_react7.useState)(
+  const [ruleAuthors, setRuleAuthors] = (0, import_react6.useState)(
     project.triggerRules.authors.join("\n")
   );
-  const [ruleMention, setRuleMention] = (0, import_react7.useState)(
+  const [ruleMention, setRuleMention] = (0, import_react6.useState)(
     project.triggerRules.mention
   );
   const pending = triggers.filter((trigger) => trigger.status === "pending");
@@ -4297,7 +3397,7 @@ function TriggerInbox({
 }
 
 // src/client/features/StagePanel.tsx
-var import_react8 = require("react");
+var import_react7 = require("react");
 var import_jsx_runtime11 = require("react/jsx-runtime");
 function StagePanel({
   project,
@@ -4309,13 +3409,13 @@ function StagePanel({
   onReject
 }) {
   const nextStage = nextProjectStage(project.stage);
-  const [draft, setDraft] = (0, import_react8.useState)(gate);
-  const [artifactKind, setArtifactKind] = (0, import_react8.useState)("prd");
-  const [artifactLabel, setArtifactLabel] = (0, import_react8.useState)("");
-  const [artifactPath, setArtifactPath] = (0, import_react8.useState)("");
-  const [waiverReason, setWaiverReason] = (0, import_react8.useState)("");
-  const [rejectNote, setRejectNote] = (0, import_react8.useState)("");
-  (0, import_react8.useEffect)(() => {
+  const [draft, setDraft] = (0, import_react7.useState)(gate);
+  const [artifactKind, setArtifactKind] = (0, import_react7.useState)("prd");
+  const [artifactLabel, setArtifactLabel] = (0, import_react7.useState)("");
+  const [artifactPath, setArtifactPath] = (0, import_react7.useState)("");
+  const [waiverReason, setWaiverReason] = (0, import_react7.useState)("");
+  const [rejectNote, setRejectNote] = (0, import_react7.useState)("");
+  (0, import_react7.useEffect)(() => {
     setDraft(gate);
   }, [gate?.id, gate?.updatedAt]);
   const currentIndex = PROJECT_STAGE_ORDER.indexOf(project.stage);
@@ -4585,7 +3685,7 @@ function StagePanel({
 }
 
 // src/client/features/WorkshopPanel.tsx
-var import_react9 = require("react");
+var import_react8 = require("react");
 var import_jsx_runtime12 = require("react/jsx-runtime");
 function WorkshopPanel({
   project,
@@ -4603,20 +3703,20 @@ function WorkshopPanel({
     (workshop) => workshop.status === "collecting" || workshop.status === "synthesized"
   ) ?? null;
   const latest = workshops[0] ?? null;
-  const [title, setTitle] = (0, import_react9.useState)("");
-  const [topic, setTopic] = (0, import_react9.useState)("");
-  const [stage, setStage] = (0, import_react9.useState)(project.stage);
-  const [participants, setParticipants] = (0, import_react9.useState)(
+  const [title, setTitle] = (0, import_react8.useState)("");
+  const [topic, setTopic] = (0, import_react8.useState)("");
+  const [stage, setStage] = (0, import_react8.useState)(project.stage);
+  const [participants, setParticipants] = (0, import_react8.useState)(
     roles.map((role) => role.id)
   );
-  const [roleId, setRoleId] = (0, import_react9.useState)(active?.participantRoleIds[0] ?? "");
-  const [summary, setSummary] = (0, import_react9.useState)("");
-  const [objections, setObjections] = (0, import_react9.useState)("");
-  const [risks, setRisks] = (0, import_react9.useState)("");
-  const [recommendation, setRecommendation] = (0, import_react9.useState)("");
-  const [synthesis, setSynthesis] = (0, import_react9.useState)(active?.synthesis ?? "");
-  const [decision, setDecision] = (0, import_react9.useState)(active?.decision ?? "");
-  (0, import_react9.useEffect)(() => {
+  const [roleId, setRoleId] = (0, import_react8.useState)(active?.participantRoleIds[0] ?? "");
+  const [summary, setSummary] = (0, import_react8.useState)("");
+  const [objections, setObjections] = (0, import_react8.useState)("");
+  const [risks, setRisks] = (0, import_react8.useState)("");
+  const [recommendation, setRecommendation] = (0, import_react8.useState)("");
+  const [synthesis, setSynthesis] = (0, import_react8.useState)(active?.synthesis ?? "");
+  const [decision, setDecision] = (0, import_react8.useState)(active?.decision ?? "");
+  (0, import_react8.useEffect)(() => {
     setRoleId(active?.participantRoleIds[0] ?? "");
     setSynthesis(active?.synthesis ?? "");
     setDecision(active?.decision ?? "");
@@ -4943,7 +4043,7 @@ function WorkshopPanel({
 }
 
 // src/client/features/PrototypeDemoPanel.tsx
-var import_react10 = require("react");
+var import_react9 = require("react");
 var import_jsx_runtime13 = require("react/jsx-runtime");
 function PrototypeDemoPanel({
   project,
@@ -4952,13 +4052,13 @@ function PrototypeDemoPanel({
   onCreate,
   onUpdate
 }) {
-  const [title, setTitle] = (0, import_react10.useState)("");
-  const [entry, setEntry] = (0, import_react10.useState)("");
-  const [startCommand, setStartCommand] = (0, import_react10.useState)("");
-  const [steps, setSteps] = (0, import_react10.useState)("");
-  const [result, setResult] = (0, import_react10.useState)("passed");
-  const [screenshotPath, setScreenshotPath] = (0, import_react10.useState)("");
-  const [notes, setNotes] = (0, import_react10.useState)("");
+  const [title, setTitle] = (0, import_react9.useState)("");
+  const [entry, setEntry] = (0, import_react9.useState)("");
+  const [startCommand, setStartCommand] = (0, import_react9.useState)("");
+  const [steps, setSteps] = (0, import_react9.useState)("");
+  const [result, setResult] = (0, import_react9.useState)("passed");
+  const [screenshotPath, setScreenshotPath] = (0, import_react9.useState)("");
+  const [notes, setNotes] = (0, import_react9.useState)("");
   return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("section", { className: "studio-panel studio-demo-panel", children: [
     /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "studio-panel-head", children: [
       /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconSpark, { width: 14, height: 14 }),
@@ -5149,14 +4249,14 @@ function ModuleForm({
   onCancel,
   onSubmit
 }) {
-  const [name2, setName] = (0, import_react11.useState)("");
-  const [responsibility, setResponsibility] = (0, import_react11.useState)("");
-  const [contractPath, setContractPath] = (0, import_react11.useState)("");
-  const [contractText, setContractText] = (0, import_react11.useState)("");
-  const [allowedPaths, setAllowedPaths] = (0, import_react11.useState)("");
-  const [forbiddenPaths, setForbiddenPaths] = (0, import_react11.useState)("");
-  const [dependsOn, setDependsOn] = (0, import_react11.useState)("");
-  const [localError, setLocalError] = (0, import_react11.useState)(null);
+  const [name2, setName] = (0, import_react10.useState)("");
+  const [responsibility, setResponsibility] = (0, import_react10.useState)("");
+  const [contractPath, setContractPath] = (0, import_react10.useState)("");
+  const [contractText, setContractText] = (0, import_react10.useState)("");
+  const [allowedPaths, setAllowedPaths] = (0, import_react10.useState)("");
+  const [forbiddenPaths, setForbiddenPaths] = (0, import_react10.useState)("");
+  const [dependsOn, setDependsOn] = (0, import_react10.useState)("");
+  const [localError, setLocalError] = (0, import_react10.useState)(null);
   const submit = (event) => {
     event.preventDefault();
     if (name2.trim() === "") {
@@ -5593,13 +4693,13 @@ function MissionView({
 }
 
 // src/client/views/TasksView.tsx
-var import_react12 = require("react");
+var import_react11 = require("react");
 var import_jsx_runtime15 = require("react/jsx-runtime");
 function TasksView({
   data,
   onOpenTask
 }) {
-  const [filter, setFilter] = (0, import_react12.useState)("all");
+  const [filter, setFilter] = (0, import_react11.useState)("all");
   const tasks = filter === "all" ? data.tasks : data.tasks.filter((task) => task.status === filter);
   return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(import_jsx_runtime15.Fragment, { children: [
     /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "studio-page-head", children: /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { children: [
@@ -5659,7 +4759,7 @@ function TasksView({
 }
 
 // src/client/views/MergeView.tsx
-var import_react13 = require("react");
+var import_react12 = require("react");
 var import_jsx_runtime16 = require("react/jsx-runtime");
 function MergeView({
   data,
@@ -5738,8 +4838,8 @@ function MergeProposalCard({
   onReject,
   onComplete
 }) {
-  const [note, setNote] = (0, import_react13.useState)("");
-  const [commit, setCommit] = (0, import_react13.useState)("");
+  const [note, setNote] = (0, import_react12.useState)("");
+  const [commit, setCommit] = (0, import_react12.useState)("");
   return /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("article", { className: "studio-merge-card", "data-status": proposal.status, children: [
     /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("div", { className: "studio-merge-top", children: [
       /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(MergePill, { proposal }),
@@ -5849,7 +4949,7 @@ function MergeProposalCard({
 }
 
 // src/client/views/SettingsView.tsx
-var import_react14 = require("react");
+var import_react13 = require("react");
 var import_jsx_runtime17 = require("react/jsx-runtime");
 function SettingsView({
   boot,
@@ -5863,9 +4963,9 @@ function SettingsView({
   onBundle,
   onImportBundle
 }) {
-  const [companyName, setCompanyName] = (0, import_react14.useState)(data.company.name);
-  const [savingCompany, setSavingCompany] = (0, import_react14.useState)(false);
-  (0, import_react14.useEffect)(() => {
+  const [companyName, setCompanyName] = (0, import_react13.useState)(data.company.name);
+  const [savingCompany, setSavingCompany] = (0, import_react13.useState)(false);
+  (0, import_react13.useEffect)(() => {
     setCompanyName(data.company.name);
   }, [data.company.name]);
   return /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(import_jsx_runtime17.Fragment, { children: [
@@ -6168,8 +5268,921 @@ function MissingHost({
   ) });
 }
 
-// src/client/StudioPage.tsx
+// src/client/components/TaskDrawer.tsx
+var import_react16 = require("react");
+
+// src/client/components/TaskMergePanel.tsx
+var import_react14 = require("react");
 var import_jsx_runtime19 = require("react/jsx-runtime");
+function TaskMergePanel({
+  task,
+  proposal,
+  verification,
+  verifications,
+  codeMode,
+  busy,
+  onCreate,
+  onApprove,
+  onReject,
+  onComplete,
+  onExecute,
+  onRollback
+}) {
+  const [summary, setSummary] = (0, import_react14.useState)("");
+  const [branch, setBranch] = (0, import_react14.useState)(task.branch ?? "");
+  const [base, setBase] = (0, import_react14.useState)("main");
+  const [risk, setRisk] = (0, import_react14.useState)("medium");
+  const [rollback, setRollback] = (0, import_react14.useState)("");
+  const [reviewNote, setReviewNote] = (0, import_react14.useState)("");
+  const [mergeCommit, setMergeCommit] = (0, import_react14.useState)("");
+  const [localError, setLocalError] = (0, import_react14.useState)(null);
+  const complete = allAccepted(task);
+  const hasEvidence = task.evidence.length > 0;
+  const reviewable = task.status === "done";
+  const postVerification = proposal?.postMergeVerificationId === null || proposal?.postMergeVerificationId === void 0 ? null : verifications.find(
+    (item) => item.id === proposal.postMergeVerificationId
+  ) ?? null;
+  const canSubmit = reviewable && complete && hasEvidence && branch.trim() !== "" && summary.trim() !== "" && rollback.trim() !== "";
+  const activeProposal = proposal !== null && proposal.status !== "rejected" ? proposal : null;
+  const submit = async (event) => {
+    event.preventDefault();
+    if (!canSubmit) {
+      setLocalError("\u5148\u5B8C\u6210\u9A8C\u6536\u3001\u8BB0\u5F55\u8BC1\u636E\uFF0C\u5E76\u586B\u5199\u5206\u652F\u3001\u6458\u8981\u548C\u56DE\u6EDA\u65B9\u6848\u3002");
+      return;
+    }
+    setLocalError(null);
+    const ok = await onCreate({
+      branch: branch.trim(),
+      base: base.trim() || "main",
+      risk,
+      summary: summary.trim(),
+      rollback: rollback.trim()
+    });
+    if (ok) {
+      setSummary("");
+      setRollback("");
+    }
+  };
+  return /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("section", { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "studio-section-label", children: "\u5408\u5E76\u6CBB\u7406" }),
+    activeProposal === null ? /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(import_jsx_runtime19.Fragment, { children: [
+      proposal !== null && proposal.status === "rejected" ? /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-alert", "data-tone": "warn", style: { marginBottom: 10 }, children: [
+        "\u4E0A\u6B21\u5408\u5E76\u63D0\u6848\u88AB\u6253\u56DE\uFF1A",
+        proposal.reviewNote || "\u672A\u586B\u5199\u539F\u56E0"
+      ] }) : null,
+      !reviewable ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "studio-faint", style: { fontSize: 11 }, children: "\u4EFB\u52A1\u9A8C\u6536\u901A\u8FC7\u540E\uFF0C\u624D\u80FD\u63D0\u4EA4\u5408\u5E76\u63D0\u6848\u3002" }) : !complete || !hasEvidence ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "studio-faint", style: { fontSize: 11 }, children: "\u5148\u5B8C\u6210\u5168\u90E8\u9A8C\u6536\u9879\u5E76\u8BB0\u5F55\u81F3\u5C11\u4E00\u6761\u8BC1\u636E\uFF0C\u624D\u80FD\u63D0\u4EA4\u5408\u5E76\u63D0\u6848\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("form", { onSubmit: (event) => void submit(event), className: "studio-merge-form", children: [
+        codeMode && verification === null ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "studio-alert", "data-tone": "warn", children: "\u4EE3\u7801\u9879\u76EE\u9700\u8981\u5148\u8DD1\u4E00\u6B21\u901A\u8FC7\u7684\u300C\u72EC\u7ACB\u9A8C\u8BC1\u300D\uFF0C\u624D\u80FD\u63D0\u4EA4\u5408\u5E76\u63D0\u6848\u3002" }) : null,
+        localError !== null ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "studio-alert", children: localError }) : null,
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-field-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("label", { htmlFor: "merge-branch", children: "\u5206\u652F" }),
+            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+              "input",
+              {
+                id: "merge-branch",
+                value: branch,
+                onChange: (event) => setBranch(event.target.value),
+                placeholder: "task/003-ability"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("label", { htmlFor: "merge-base", children: "\u76EE\u6807\u5206\u652F" }),
+            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+              "input",
+              {
+                id: "merge-base",
+                value: base,
+                onChange: (event) => setBase(event.target.value),
+                placeholder: "main"
+              }
+            )
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("label", { htmlFor: "merge-risk", children: "\u98CE\u9669" }),
+          /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(
+            "select",
+            {
+              id: "merge-risk",
+              value: risk,
+              onChange: (event) => setRisk(event.target.value),
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("option", { value: "low", children: MERGE_RISK_LABELS.low }),
+                /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("option", { value: "medium", children: MERGE_RISK_LABELS.medium }),
+                /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("option", { value: "high", children: MERGE_RISK_LABELS.high })
+              ]
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("label", { htmlFor: "merge-summary", children: "\u53D8\u66F4\u6458\u8981" }),
+          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+            "textarea",
+            {
+              id: "merge-summary",
+              value: summary,
+              onChange: (event) => setSummary(event.target.value),
+              placeholder: "\u6539\u4E86\u4EC0\u4E48\u3001\u5F71\u54CD\u54EA\u4E9B\u5951\u7EA6/\u6A21\u5757"
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("label", { htmlFor: "merge-rollback", children: "\u56DE\u6EDA\u65B9\u6848" }),
+          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+            "textarea",
+            {
+              id: "merge-rollback",
+              value: rollback,
+              onChange: (event) => setRollback(event.target.value),
+              placeholder: "\u51FA\u95EE\u9898\u65F6\u600E\u4E48\u56DE\u6EDA\uFF1F"
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "studio-actions", style: { marginTop: 10 }, children: /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(
+          "button",
+          {
+            type: "submit",
+            className: "studio-btn",
+            "data-variant": "primary",
+            "data-size": "sm",
+            disabled: busy || !canSubmit,
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(IconGitMerge, { width: 13, height: 13 }),
+              "\u63D0\u4EA4\u5408\u5E76\u63D0\u6848"
+            ]
+          }
+        ) }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "studio-action-note", children: "Studio \u53EA\u8BB0\u5F55\u6CBB\u7406\u72B6\u6001\uFF0C\u4E0D\u6267\u884C Git\u3002\u5408\u5E76\u547D\u4EE4\u7531\u4EBA\u6216 Integrator \u6267\u884C\u3002" })
+      ] })
+    ] }) : /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(import_jsx_runtime19.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-merge-card", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-merge-top", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(MergePill, { proposal: activeProposal }),
+          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { className: "studio-pill", "data-tone": "p2", children: MERGE_RISK_LABELS[activeProposal.risk] }),
+          /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("span", { className: "studio-muted", style: { marginLeft: "auto" }, children: [
+            activeProposal.branch,
+            " \u2192 ",
+            activeProposal.base
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("dl", { className: "studio-kv", style: { marginTop: 10 }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dt", { children: "\u53D8\u66F4\u6458\u8981" }),
+          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dd", { children: activeProposal.summary }),
+          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dt", { children: "\u56DE\u6EDA\u65B9\u6848" }),
+          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dd", { children: activeProposal.rollback }),
+          activeProposal.changedFiles.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(import_jsx_runtime19.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dt", { children: "\u53D8\u66F4\u6587\u4EF6" }),
+            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dd", { className: "studio-mono", children: activeProposal.changedFiles.join("\u3001") })
+          ] }) : null,
+          activeProposal.diffStat !== null ? /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(import_jsx_runtime19.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dt", { children: "Diff" }),
+            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dd", { children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("pre", { className: "studio-diff", children: activeProposal.diffStat }) })
+          ] }) : null,
+          verification !== null ? /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(import_jsx_runtime19.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dt", { children: "\u72EC\u7ACB\u9A8C\u8BC1" }),
+            /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("dd", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+                "span",
+                {
+                  className: "studio-pill",
+                  "data-tone": verification.passed ? "ok" : "p0",
+                  children: verification.passed ? "\u901A\u8FC7" : "\u5931\u8D25"
+                }
+              ),
+              " ",
+              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("code", { children: verification.command })
+            ] })
+          ] }) : null,
+          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dt", { children: "\u8BC4\u5BA1\u5907\u6CE8" }),
+          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dd", { children: activeProposal.reviewNote || "\u65E0" }),
+          activeProposal.mergeCommit !== null ? /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(import_jsx_runtime19.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dt", { children: "\u5408\u5E76\u63D0\u4EA4" }),
+            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dd", { className: "studio-mono", children: activeProposal.mergeCommit })
+          ] }) : null,
+          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dt", { children: "\u521B\u5EFA" }),
+          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dd", { children: formatDate(activeProposal.createdAt) }),
+          activeProposal.mergedAt !== null ? /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(import_jsx_runtime19.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dt", { children: "\u5408\u5E76\u65F6\u95F4" }),
+            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dd", { children: formatDate(activeProposal.mergedAt) })
+          ] }) : null
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-merge-command", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { className: "studio-faint", children: "\u4EBA\u5DE5\u6267\u884C\uFF1A" }),
+          /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("code", { children: [
+            "git switch ",
+            activeProposal.base,
+            " && git merge --no-ff",
+            " ",
+            activeProposal.branch
+          ] })
+        ] })
+      ] }),
+      activeProposal.status === "review" ? /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-merge-actions", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+          "input",
+          {
+            value: reviewNote,
+            onChange: (event) => setReviewNote(event.target.value),
+            placeholder: "\u8BC4\u5BA1\u5907\u6CE8\uFF08\u6253\u56DE\u65F6\u5FC5\u586B\uFF09",
+            disabled: busy
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-actions", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(
+            "button",
+            {
+              type: "button",
+              className: "studio-btn",
+              "data-variant": "primary",
+              "data-size": "sm",
+              disabled: busy,
+              onClick: () => onApprove(reviewNote.trim() || void 0),
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(IconCheck, { width: 13, height: 13 }),
+                "\u6279\u51C6"
+              ]
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+            "button",
+            {
+              type: "button",
+              className: "studio-btn",
+              "data-variant": "danger",
+              "data-size": "sm",
+              disabled: busy || reviewNote.trim() === "",
+              title: reviewNote.trim() === "" ? "\u6253\u56DE\u5FC5\u987B\u5199\u6E05\u695A\u539F\u56E0" : "\u6253\u56DE\u5E76\u9000\u56DE\u6267\u884C",
+              onClick: () => onReject(reviewNote.trim()),
+              children: "\u6253\u56DE"
+            }
+          )
+        ] })
+      ] }) : activeProposal.status === "approved" ? /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-merge-actions", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+          "input",
+          {
+            value: mergeCommit,
+            onChange: (event) => setMergeCommit(event.target.value),
+            placeholder: "\u5408\u5E76\u63D0\u4EA4 SHA\uFF08\u53EF\u9009\uFF09",
+            disabled: busy
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+          "button",
+          {
+            type: "button",
+            className: "studio-btn",
+            "data-variant": "primary",
+            "data-size": "sm",
+            disabled: busy,
+            onClick: () => {
+              if (window.confirm(
+                `\u5C06\u5728\u5F53\u524D\u4ED3\u5E93\u6267\u884C Git merge ${activeProposal.branch} \u2192 ${activeProposal.base}\uFF0C\u4E14\u8981\u6C42\u5F53\u524D\u5C31\u5728 ${activeProposal.base} \u4E0A\u3001\u5DE5\u4F5C\u533A\u5E72\u51C0\u3002\u786E\u5B9A\u5417\uFF1F`
+              )) {
+                onExecute();
+              }
+            },
+            children: "\u6267\u884C Git \u5408\u5E76"
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(
+          "button",
+          {
+            type: "button",
+            className: "studio-btn",
+            "data-size": "sm",
+            disabled: busy,
+            onClick: () => onComplete(mergeCommit.trim() || void 0),
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(IconCheck, { width: 13, height: 13 }),
+              "\u4EC5\u8BB0\u5F55\u5408\u5E76"
+            ]
+          }
+        )
+      ] }) : /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(import_jsx_runtime19.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "studio-action-note", children: "\u5408\u5E76\u5DF2\u5B8C\u6210\uFF1B\u5982\u9700\u7EE7\u7EED\u53D8\u66F4\uFF0C\u8BF7\u521B\u5EFA\u540E\u7EED\u4EFB\u52A1\u3002" }),
+        postVerification !== null ? /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(
+          "div",
+          {
+            className: "studio-verification",
+            "data-passed": postVerification.passed,
+            style: { marginTop: 8 },
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-verification-head", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(
+                  "span",
+                  {
+                    className: "studio-pill",
+                    "data-tone": postVerification.passed ? "ok" : "p0",
+                    children: [
+                      "\u5408\u5E76\u540E\u56DE\u5F52",
+                      postVerification.passed ? "\u901A\u8FC7" : "\u5931\u8D25"
+                    ]
+                  }
+                ),
+                /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("code", { children: postVerification.command }),
+                /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("span", { className: "studio-faint", children: [
+                  "exit ",
+                  postVerification.exitCode
+                ] })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("pre", { children: postVerification.output.slice(0, 2e3) || "\uFF08\u65E0\u8F93\u51FA\uFF09" })
+            ]
+          }
+        ) : null,
+        postVerification !== null && !postVerification.passed && activeProposal.rollbackCommit === null ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+          "button",
+          {
+            type: "button",
+            className: "studio-btn",
+            "data-variant": "danger",
+            "data-size": "sm",
+            style: { marginTop: 8 },
+            disabled: busy,
+            onClick: () => {
+              if (window.confirm(
+                "\u5C06\u5728\u5F53\u524D\u4ED3\u5E93\u6267\u884C git revert <merge commit>\uFF0C\u786E\u5B9A\u56DE\u6EDA\u5417\uFF1F"
+              )) {
+                onRollback();
+              }
+            },
+            children: "\u56DE\u6EDA\u8FD9\u6B21\u5408\u5E76"
+          }
+        ) : null,
+        activeProposal.rollbackCommit !== null ? /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-faint", style: { fontSize: 10, marginTop: 6 }, children: [
+          "\u5DF2\u56DE\u6EDA\uFF1A",
+          activeProposal.rollbackCommit
+        ] }) : null
+      ] })
+    ] })
+  ] });
+}
+
+// src/client/components/TaskRunPanels.tsx
+var import_react15 = require("react");
+var import_jsx_runtime20 = require("react/jsx-runtime");
+function TaskReviewPanel({
+  task,
+  runs,
+  reviews,
+  ownerModel,
+  busy,
+  onReview
+}) {
+  const latest = reviews[0] ?? null;
+  const hasWorkspace = runs.some((run) => run.workspacePath !== null);
+  return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("section", { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-section-label", children: "\u72EC\u7ACB\u8BC4\u5BA1" }),
+    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-action-note", style: { marginTop: 0 }, children: "\u7531\u9A8C\u6536\u4EBA\u89D2\u8272\u53E6\u5F00 Agent \u4F1A\u8BDD\uFF0C\u53EA\u770B diff \u548C Host \u9A8C\u8BC1\u7ED3\u679C\uFF0C\u4E0D\u6539\u4EE3\u7801\u3002 \u4EE3\u7801\u4EFB\u52A1\u5B8C\u6210\u524D\u5FC5\u987B\u6709\u4E00\u6B21\u901A\u8FC7\u7684\u72EC\u7ACB\u8BC4\u5BA1\u3002" }),
+    !hasWorkspace ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-faint", style: { fontSize: 11, marginTop: 9 }, children: "\u8FD8\u6CA1\u6709\u5E26 worktree \u7684 Run\uFF1B\u5148\u6D3E\u5355\u6267\u884C\u4E00\u6B21\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(import_jsx_runtime20.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
+        "button",
+        {
+          type: "button",
+          className: "studio-btn",
+          "data-size": "sm",
+          style: { marginTop: 9 },
+          disabled: busy,
+          onClick: () => void onReview(),
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(IconSpark, { width: 13, height: 13 }),
+            "\u8FD0\u884C\u72EC\u7ACB\u8BC4\u5BA1"
+          ]
+        }
+      ),
+      latest !== null ? /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
+        "div",
+        {
+          className: "studio-review",
+          "data-verdict": latest.verdict,
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-review-head", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
+                "span",
+                {
+                  className: "studio-pill",
+                  "data-tone": latest.verdict === "pass" ? "ok" : "p0",
+                  children: latest.verdict === "pass" ? "\u901A\u8FC7" : "\u4E0D\u901A\u8FC7"
+                }
+              ),
+              /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("span", { className: "studio-faint", children: [
+                latest.model ?? "\u672A\u77E5\u6A21\u578B",
+                " \xB7",
+                " ",
+                latest.tokens === null ? "\u672A\u8BA1\u91CF" : `${String(latest.tokens)} tokens`
+              ] })
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("p", { children: latest.summary }),
+            ownerModel !== null && latest.model !== null && ownerModel === latest.model ? /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-alert", "data-tone": "warn", children: [
+              "\u8BC4\u5BA1\u4E0E\u5B9E\u73B0\u4F7F\u7528\u540C\u4E00\u6A21\u578B\uFF08",
+              latest.model,
+              "\uFF09\uFF0C\u53EF\u80FD\u5B58\u5728\u5171\u4EAB\u76F2\u70B9\u3002"
+            ] }) : null,
+            latest.findings.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("ul", { children: latest.findings.slice(0, 8).map((finding, index) => /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("li", { children: finding }, `${String(index)}-${finding}`)) }) : null
+          ]
+        }
+      ) : /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-faint", style: { fontSize: 11, marginTop: 8 }, children: "\u8FD8\u6CA1\u6709\u72EC\u7ACB\u8BC4\u5BA1\u8BB0\u5F55\u3002" })
+    ] })
+  ] });
+}
+function TaskVerificationPanel({
+  task,
+  runs,
+  verifications,
+  busy,
+  onVerify
+}) {
+  const [command, setCommand] = (0, import_react15.useState)(
+    task.verifyCommand ?? "npm test"
+  );
+  const latest = verifications[0] ?? null;
+  const workspaceRun = runs.find((run) => run.workspacePath !== null);
+  return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("section", { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-section-label", children: "\u72EC\u7ACB\u9A8C\u8BC1" }),
+    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-action-note", style: { marginTop: 0 }, children: "\u7531 Studio Host \u5728\u4EFB\u52A1 worktree \u5185\u76F4\u63A5\u6267\u884C\uFF0C\u4E0D\u7ECF\u8FC7 Agent \u4F1A\u8BDD\u3002 \u9A8C\u8BC1\u901A\u8FC7\u4F1A\u5199\u5165 evidence\uFF0C\u4F46\u4E0D\u4F1A\u81EA\u52A8\u901A\u8FC7\u9A8C\u6536\u3002" }),
+    workspaceRun === void 0 ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-faint", style: { fontSize: 11, marginTop: 9 }, children: "\u8FD8\u6CA1\u6709\u5E26 worktree \u7684 Run\uFF1B\u5148\u6D3E\u5355\u6267\u884C\u4E00\u6B21\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(import_jsx_runtime20.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-verify-form", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
+          "input",
+          {
+            value: command,
+            onChange: (event) => setCommand(event.target.value),
+            "aria-label": "\u9A8C\u8BC1\u547D\u4EE4",
+            placeholder: "npm test"
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
+          "button",
+          {
+            type: "button",
+            className: "studio-btn",
+            "data-size": "sm",
+            disabled: busy || command.trim() === "",
+            onClick: () => void onVerify(command.trim()),
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(IconCheck, { width: 13, height: 13 }),
+              "\u8FD0\u884C\u9A8C\u8BC1"
+            ]
+          }
+        )
+      ] }),
+      latest === null ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-faint", style: { fontSize: 11, marginTop: 8 }, children: "\u8FD8\u6CA1\u6709\u9A8C\u8BC1\u8BB0\u5F55\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
+        "div",
+        {
+          className: "studio-verification",
+          "data-passed": latest.passed,
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-verification-head", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { className: "studio-pill", "data-tone": latest.passed ? "ok" : "p0", children: latest.passed ? "\u901A\u8FC7" : "\u5931\u8D25" }),
+              /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("code", { children: latest.command }),
+              /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("span", { className: "studio-faint", children: [
+                "exit ",
+                latest.exitCode
+              ] })
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("pre", { children: latest.output.slice(0, 4e3) || "\uFF08\u65E0\u8F93\u51FA\uFF09" })
+          ]
+        }
+      )
+    ] })
+  ] });
+}
+function TaskAgentPanel({
+  task,
+  runs,
+  busy,
+  codeMode,
+  onDispatch
+}) {
+  const latest = runs[0] ?? null;
+  const canDispatch = task.ownerRoleId !== null && (task.status === "backlog" || task.status === "ready");
+  return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("section", { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-section-label", children: "Agent \u6D3E\u5355" }),
+    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-action-note", style: { marginTop: 0 }, children: codeMode ? "\u4EE3\u7801\u6A21\u5F0F\uFF1AAgent \u5728\u72EC\u7ACB worktree \u5185\u5B9E\u73B0\u4EFB\u52A1\u3001\u8FD0\u884C\u6D4B\u8BD5\u5E76\u628A diff \u5199\u5165 Run\uFF1B\u4E0D\u4F1A\u5408\u5E76\u6216\u63A8\u9001\u3002" : "\u5206\u6790\u6A21\u5F0F\uFF1A\u8FD8\u6CA1\u6709\u7ED1\u5B9A\u4EE3\u7801\u4ED3\u5E93\u3002Agent \u53EA\u8BFB\u4EFB\u52A1\u4E0E\u5951\u7EA6\uFF0C\u8FD4\u56DE\u7ED3\u6784\u5316\u56DE\u6267\uFF1B\u5728\u8BBE\u7F6E\u91CC\u7ED1\u5B9A\u4ED3\u5E93\u5373\u53EF\u8FDB\u5165\u4EE3\u7801\u6A21\u5F0F\u3002" }),
+    /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-actions", style: { marginTop: 9 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
+        "button",
+        {
+          type: "button",
+          className: "studio-btn",
+          "data-variant": "primary",
+          "data-size": "sm",
+          disabled: busy || !canDispatch,
+          title: task.ownerRoleId === null ? "\u8BF7\u5148\u7ED9\u4EFB\u52A1\u6307\u5B9A\u8D1F\u8D23\u4EBA\u89D2\u8272" : canDispatch ? "\u6D3E\u5355\u7ED9\u8D1F\u8D23\u4EBA\u89D2\u8272\u505A\u5206\u6790" : "\u4EFB\u52A1\u5DF2\u5728\u6267\u884C\u6216\u9A8C\u6536\uFF0C\u4E0D\u80FD\u91CD\u590D\u6D3E\u5355",
+          onClick: () => void onDispatch(),
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(IconSpark, { width: 13, height: 13 }),
+            latest?.status === "running" || latest?.status === "queued" ? "Agent \u6267\u884C\u4E2D\u2026" : codeMode ? "\u6D3E\u5355\u6267\u884C" : "\u6D3E\u5355\u5206\u6790"
+          ]
+        }
+      ),
+      latest !== null ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { className: "studio-pill", "data-tone": runTone(latest.status), children: AGENT_RUN_STATUS_LABELS[latest.status] }) : null
+    ] }),
+    runs.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-faint", style: { fontSize: 11, marginTop: 9 }, children: "\u8FD8\u6CA1\u6709 Agent \u8FD0\u884C\u8BB0\u5F55\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-run-list", children: runs.map((run) => /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(RunCard, { run }, run.id)) })
+  ] });
+}
+function runTone(status) {
+  if (status === "succeeded") return "ok";
+  if (status === "failed") return "p0";
+  if (status === "running") return "accent";
+  return "p2";
+}
+function RunCard({ run }) {
+  const receipt = run.receipt;
+  return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("details", { className: "studio-run-card", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("summary", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { className: "studio-pill", "data-tone": runTone(run.status), children: AGENT_RUN_STATUS_LABELS[run.status] }),
+      /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { className: "studio-mono", children: run.model ?? "\u9ED8\u8BA4\u6A21\u578B" }),
+      /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { className: "studio-faint", children: run.tokens === null ? "token \u5F85\u8BA1\u91CF" : `${String(run.tokens)} tokens` }),
+      /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { className: "studio-faint", style: { marginLeft: "auto" }, children: formatDate(run.startedAt) })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-run-body", children: [
+      run.error !== null ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-alert", children: run.error }) : null,
+      run.budgetWarning !== null ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-alert", "data-tone": "warn", children: run.budgetWarning }) : null,
+      run.status === "running" || run.status === "queued" ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-faint", style: { fontSize: 11 }, children: "Agent \u6B63\u5728\u5DE5\u4F5C\uFF1B\u9875\u9762\u6BCF 4 \u79D2\u5237\u65B0\u4E00\u6B21\u3002" }) : null,
+      run.branchName !== null || run.workspacePath !== null ? /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-run-workspace", children: [
+        run.branchName !== null ? /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { children: "\u5206\u652F" }),
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("code", { children: run.branchName })
+        ] }) : null,
+        run.workspacePath !== null ? /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { children: "\u5DE5\u4F5C\u533A" }),
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("code", { children: run.workspacePath })
+        ] }) : null,
+        run.diffStat !== null && run.diffStat !== "" ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("pre", { children: run.diffStat }) : null
+      ] }) : null,
+      receipt !== null ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(ReceiptView, { receipt }) : run.output !== "" ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("pre", { className: "studio-run-output", children: run.output }) : null
+    ] })
+  ] });
+}
+function ReceiptView({ receipt }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-receipt", children: [
+    receipt.summary.trim() === "" || receipt.evidence.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-alert", "data-tone": "warn", children: "\u56DE\u6267\u4E0D\u5B8C\u6574\uFF1AAgent \u5FC5\u987B\u7ED9\u51FA\u975E\u7A7A summary \u548C\u81F3\u5C11\u4E00\u6761 evidence\uFF0C\u4EFB\u52A1\u4E0D\u80FD\u8FDB\u5165\u9A8C\u6536\u3002" }) : null,
+    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-section-text", children: receipt.summary || "\uFF08\u6CA1\u6709 summary\uFF09" }),
+    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(ReceiptList, { label: "\u8BC1\u636E", items: receipt.evidence }),
+    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
+      ReceiptList,
+      {
+        label: "\u4EA7\u7269",
+        items: receipt.artifacts.map(
+          (item) => `${item.kind}: ${item.path}`
+        )
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
+      ReceiptList,
+      {
+        label: "\u51B3\u7B56",
+        items: receipt.decisions.map(
+          (item) => `${item.title} (${item.scope}) \u2014 ${item.rationale}`
+        )
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
+      ReceiptList,
+      {
+        label: "\u5951\u7EA6\u53D8\u66F4",
+        items: receipt.contractDeltas.map(
+          (item) => `${item.contract}: ${item.change}`
+        )
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
+      ReceiptList,
+      {
+        label: "\u88AB\u5426\u51B3\u65B9\u6848",
+        items: receipt.rejectedOptions.map(
+          (item) => `${item.option} \u2014 ${item.reason}`
+        )
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(ReceiptList, { label: "\u963B\u585E", items: receipt.blockers })
+  ] });
+}
+function ReceiptList({ label, items }) {
+  if (items.length === 0) return null;
+  return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-receipt-list", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { children: label }),
+    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("ul", { children: items.map((item, index) => /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("li", { children: item }, `${label}-${String(index)}`)) })
+  ] });
+}
+
+// src/client/components/TaskDrawer.tsx
+var import_jsx_runtime21 = require("react/jsx-runtime");
+function TaskDrawer({
+  task,
+  roles,
+  mergeProposal,
+  runs,
+  verifications,
+  reviews,
+  codeMode,
+  busy,
+  onClose,
+  onDispatch,
+  onVerify,
+  onReview,
+  onToggleDocs,
+  onTransition,
+  onToggleAcceptance,
+  onAddEvidence,
+  onCreateMerge,
+  onApproveMerge,
+  onRejectMerge,
+  onCompleteMerge,
+  onExecuteMerge,
+  onRollbackMerge
+}) {
+  const [evidenceText, setEvidenceText] = (0, import_react16.useState)("");
+  const done = acceptanceDone(task);
+  const total = task.acceptance.length;
+  const complete = allAccepted(task);
+  const hasEvidence = task.evidence.length > 0;
+  const readyToAccept = complete && hasEvidence;
+  const transitions = ALLOWED_TRANSITIONS[task.status];
+  const submitEvidence = async (event) => {
+    event.preventDefault();
+    const text = evidenceText.trim();
+    if (text === "") return;
+    const ok = await onAddEvidence(text);
+    if (ok) setEvidenceText("");
+  };
+  return /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+    "div",
+    {
+      className: "studio-drawer-overlay",
+      onMouseDown: (event) => {
+        if (event.target === event.currentTarget) onClose();
+      },
+      role: "presentation",
+      children: /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
+        "aside",
+        {
+          className: "studio-drawer",
+          role: "dialog",
+          "aria-modal": "true",
+          "aria-label": `\u4EFB\u52A1\uFF1A${task.title}`,
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "studio-drawer-head", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "studio-actions", style: { marginBottom: 8 }, children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(StatusPill, { status: task.status }),
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(PriorityPill, { priority: task.priority }),
+                  mergeProposal !== null ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(MergePill, { proposal: mergeProposal }) : null
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("h2", { children: task.title }),
+                /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "studio-muted", children: [
+                  roleName(roles, task.ownerRoleId),
+                  " \u8D1F\u8D23 \xB7",
+                  " ",
+                  roleName(roles, task.reviewerRoleId),
+                  " \u9A8C\u6536"
+                ] })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+                "button",
+                {
+                  type: "button",
+                  className: "studio-btn studio-drawer-close",
+                  "data-size": "icon",
+                  onClick: onClose,
+                  "aria-label": "\u5173\u95ED",
+                  children: /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(IconX, { width: 15, height: 15 })
+                }
+              )
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "studio-drawer-body", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("section", { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-section-label", children: "\u76EE\u6807" }),
+                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-section-text", children: task.goal || "\u8FD8\u6CA1\u6709\u5199\u76EE\u6807\u3002" })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("section", { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "studio-section-label", children: [
+                  "\u9A8C\u6536\u6807\u51C6 \xB7 ",
+                  done,
+                  "/",
+                  total
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-acceptance", children: task.acceptance.map((item) => /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
+                  "label",
+                  {
+                    className: "studio-check",
+                    "data-done": item.done,
+                    children: [
+                      /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+                        "input",
+                        {
+                          type: "checkbox",
+                          checked: item.done,
+                          disabled: busy || task.status === "done",
+                          onChange: () => onToggleAcceptance(item.id)
+                        }
+                      ),
+                      /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("span", { children: item.text })
+                    ]
+                  },
+                  item.id
+                )) }),
+                !complete && task.status === "review" ? /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "studio-action-note", children: [
+                  "\u8FD8\u6709 ",
+                  total - done,
+                  " \u6761\u9A8C\u6536\u6807\u51C6\u672A\u5B8C\u6210\uFF0C\u4E0D\u80FD\u9A8C\u6536\u901A\u8FC7\u3002"
+                ] }) : null,
+                complete && !hasEvidence && task.status === "review" ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-action-note", children: "\u9A8C\u6536\u6807\u51C6\u5DF2\u5168\u90E8\u52FE\u9009\uFF0C\u4F46\u8FD8\u9700\u8981\u81F3\u5C11\u4E00\u6761\u53EF\u590D\u73B0\u7684\u8BC1\u636E\u3002" }) : null
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("section", { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-section-label", children: "\u8BC1\u636E" }),
+                task.evidence.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-faint", style: { fontSize: 11 }, children: "\u8FD8\u6CA1\u6709\u8BB0\u5F55\u8BC1\u636E\u3002\u9A8C\u6536\u524D\u81F3\u5C11\u7559\u4E00\u6761\u53EF\u590D\u73B0\u7684\u547D\u4EE4\u3001\u6D4B\u8BD5\u6216 replay\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-evidence", children: task.evidence.map((item) => /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "studio-evidence-item", children: [
+                  item.text,
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-faint", children: formatDate(item.createdAt) })
+                ] }, item.id)) }),
+                task.status !== "done" ? /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
+                  "form",
+                  {
+                    onSubmit: (event) => void submitEvidence(event),
+                    style: { display: "flex", gap: 6, marginTop: 8 },
+                    children: [
+                      /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+                        "input",
+                        {
+                          className: "studio-input",
+                          style: {
+                            flex: 1,
+                            border: "1px solid var(--st-border)",
+                            borderRadius: 8,
+                            background: "var(--st-panel)",
+                            padding: "7px 9px",
+                            outline: "none",
+                            fontSize: 11
+                          },
+                          value: evidenceText,
+                          onChange: (event) => setEvidenceText(event.target.value),
+                          placeholder: "\u4F8B\u5982\uFF1Apnpm test ability \u2014 42 passed",
+                          disabled: busy
+                        }
+                      ),
+                      /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+                        "button",
+                        {
+                          className: "studio-btn",
+                          "data-size": "sm",
+                          type: "submit",
+                          disabled: busy || evidenceText.trim() === "",
+                          children: "\u8BB0\u5F55"
+                        }
+                      )
+                    ]
+                  }
+                ) : null
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("section", { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-section-label", children: "\u4E0A\u4E0B\u6587" }),
+                /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("dl", { className: "studio-kv", children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dt", { children: "\u7968\u7C7B\u578B" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("dd", { children: [
+                    TASK_KIND_LABELS[task.kind],
+                    task.integration ? " \xB7 \u96C6\u6210/playtest" : ""
+                  ] }),
+                  task.diagnosis !== "" ? /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(import_jsx_runtime21.Fragment, { children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dt", { children: "\u8BCA\u65AD" }),
+                    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dd", { className: "studio-pre", children: task.diagnosis })
+                  ] }) : null,
+                  task.plan !== "" ? /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(import_jsx_runtime21.Fragment, { children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dt", { children: "\u4FEE\u6539\u8BA1\u5212" }),
+                    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dd", { className: "studio-pre", children: task.plan })
+                  ] }) : null,
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dt", { children: "\u6A21\u5757" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dd", { className: "studio-mono", children: task.module ?? "\u672A\u6307\u5B9A" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dt", { children: "\u5951\u7EA6" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dd", { className: "studio-mono", children: task.contractRef ?? "\u672A\u6307\u5B9A" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dt", { children: "\u9700\u6C42" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dd", { className: "studio-mono", children: task.requirementRefs.length === 0 ? "\u672A\u6307\u5B9A" : task.requirementRefs.join(", ") }),
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dt", { children: "\u5931\u8D25\u6B21\u6570" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("dd", { children: [
+                    runs.filter((run) => run.status === "failed").length,
+                    " / 2"
+                  ] }),
+                  task.originTaskId !== null ? /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(import_jsx_runtime21.Fragment, { children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dt", { children: "\u91CD\u62C6\u6765\u6E90" }),
+                    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dd", { className: "studio-mono", children: task.originTaskId })
+                  ] }) : null,
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dt", { children: "\u5206\u652F" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dd", { className: "studio-mono", children: task.branch ?? "\u672A\u521B\u5EFA" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dt", { children: "\u8D1F\u8D23\u4EBA" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("dd", { children: [
+                    roleName(roles, task.ownerRoleId),
+                    roleTitle(roles, task.ownerRoleId) ? ` \xB7 ${roleTitle(roles, task.ownerRoleId)}` : ""
+                  ] }),
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dt", { children: "\u9A8C\u6536\u4EBA" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("dd", { children: [
+                    roleName(roles, task.reviewerRoleId),
+                    roleTitle(roles, task.reviewerRoleId) ? ` \xB7 ${roleTitle(roles, task.reviewerRoleId)}` : ""
+                  ] }),
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dt", { children: "\u521B\u5EFA" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dd", { children: formatDate(task.createdAt) }),
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dt", { children: "\u66F4\u65B0" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dd", { children: formatDate(task.updatedAt) }),
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dt", { children: "\u4EFB\u52A1 ID" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dd", { className: "studio-mono", children: task.id })
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("label", { className: "studio-check", style: { marginTop: 10 }, children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+                    "input",
+                    {
+                      type: "checkbox",
+                      checked: task.docsSynced,
+                      onChange: () => void onToggleDocs()
+                    }
+                  ),
+                  "\u6587\u6863\u5DF2\u540C\u6B65\uFF08PRD / ADR / CONTEXT\uFF09"
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-hint", children: "\u9879\u76EE\u7ED1\u5B9A\u4E86\u77E5\u8BC6\u6587\u6863\u65F6\uFF0C\u5B8C\u6210\u524D\u5FC5\u987B\u786E\u8BA4\u6587\u6863\u5DF2\u540C\u6B65\u3002" })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+                TaskAgentPanel,
+                {
+                  task,
+                  runs,
+                  busy,
+                  codeMode,
+                  onDispatch
+                }
+              ),
+              /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+                TaskVerificationPanel,
+                {
+                  task,
+                  runs,
+                  verifications,
+                  busy,
+                  onVerify
+                }
+              ),
+              /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+                TaskReviewPanel,
+                {
+                  task,
+                  runs,
+                  reviews,
+                  ownerModel: roles.find((role) => role.id === task.ownerRoleId)?.model ?? null,
+                  busy,
+                  onReview
+                }
+              ),
+              /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+                TaskMergePanel,
+                {
+                  task,
+                  proposal: mergeProposal,
+                  verification: mergeProposal?.verificationId === null || mergeProposal?.verificationId === void 0 ? null : verifications.find(
+                    (item) => item.id === mergeProposal.verificationId
+                  ) ?? null,
+                  verifications,
+                  codeMode,
+                  busy,
+                  onCreate: onCreateMerge,
+                  onApprove: onApproveMerge,
+                  onReject: onRejectMerge,
+                  onComplete: onCompleteMerge,
+                  onExecute: onExecuteMerge,
+                  onRollback: onRollbackMerge
+                }
+              ),
+              /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("section", { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-section-label", children: "\u63A8\u8FDB\u4EFB\u52A1" }),
+                transitions.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-faint", style: { fontSize: 11 }, children: "\u4EFB\u52A1\u5DF2\u5B8C\u6210\uFF0C\u4E0D\u80FD\u7EE7\u7EED\u63A8\u8FDB\u3002\u9700\u8981\u65B0\u5DE5\u4F5C\u8BF7\u521B\u5EFA\u540E\u7EED\u4EFB\u52A1\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-actions", children: transitions.map((status) => {
+                  const blockedByAcceptance = status === "done" && !readyToAccept;
+                  return /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
+                    "button",
+                    {
+                      type: "button",
+                      className: "studio-btn",
+                      "data-variant": status === "done" ? "primary" : void 0,
+                      "data-size": "sm",
+                      disabled: busy || blockedByAcceptance,
+                      title: blockedByAcceptance ? complete ? "\u81F3\u5C11\u8BB0\u5F55\u4E00\u6761\u8BC1\u636E\u540E\u624D\u80FD\u9A8C\u6536\u901A\u8FC7" : "\u6240\u6709\u9A8C\u6536\u6807\u51C6\u5B8C\u6210\u540E\u624D\u80FD\u9A8C\u6536\u901A\u8FC7" : TRANSITION_LABELS[status],
+                      onClick: () => onTransition(status),
+                      children: [
+                        status === "done" ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(IconCheck, { width: 13, height: 13 }) : null,
+                        TRANSITION_LABELS[status]
+                      ]
+                    },
+                    status
+                  );
+                }) }),
+                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-action-note", children: "v0.9 \u5DF2\u63A5\u5165 worktree \u4EE3\u7801\u6267\u884C\u3001Host \u72EC\u7ACB\u9A8C\u8BC1\u3001\u6A21\u5757\u5951\u7EA6\u4E0E\u5951\u7EA6\u62A4\u680F\u3001\u5931\u8D25/\u9A8C\u8BC1\u95E8\u7981\u3001token \u8BA1\u91CF\u4E0E\u51B3\u7B56\u51B3\u7B56\u53F0\uFF1B\u5408\u5E76\u4E0E Git \u547D\u4EE4\u4ECD\u7531\u4EBA\u6267\u884C\u3002" })
+              ] })
+            ] })
+          ]
+        }
+      )
+    }
+  );
+}
+
+// src/client/StudioPage.tsx
+var import_jsx_runtime22 = require("react/jsx-runtime");
 var NAV_ITEMS = [
   { id: "company", label: "\u516C\u53F8", caption: "Owner Dashboard" },
   { id: "boardroom", label: "\u51B3\u7B56\u53F0", caption: "Decision Desk" },
@@ -6200,44 +6213,44 @@ function readStoredTaskId() {
   }
 }
 function StudioPage() {
-  const initialBoot = (0, import_react15.useMemo)(() => readStudioBoot(), []);
-  const [boot, setBoot] = (0, import_react15.useState)(initialBoot);
-  const [bootError, setBootError] = (0, import_react15.useState)(null);
-  const [bootChecked, setBootChecked] = (0, import_react15.useState)(initialBoot !== null);
-  const client = (0, import_react15.useMemo)(
+  const initialBoot = (0, import_react17.useMemo)(() => readStudioBoot(), []);
+  const [boot, setBoot] = (0, import_react17.useState)(initialBoot);
+  const [bootError, setBootError] = (0, import_react17.useState)(null);
+  const [bootChecked, setBootChecked] = (0, import_react17.useState)(initialBoot !== null);
+  const client = (0, import_react17.useMemo)(
     () => boot === null ? null : new StudioClient(boot),
     [boot]
   );
-  const [data, setData] = (0, import_react15.useState)(null);
-  const [loading, setLoading] = (0, import_react15.useState)(true);
-  const [busy, setBusy] = (0, import_react15.useState)(false);
-  const [error, setError] = (0, import_react15.useState)(null);
-  const [tab, setTab] = (0, import_react15.useState)(readStoredTab);
-  const [selectedTaskId, setSelectedTaskId] = (0, import_react15.useState)(
+  const [data, setData] = (0, import_react17.useState)(null);
+  const [loading, setLoading] = (0, import_react17.useState)(true);
+  const [busy, setBusy] = (0, import_react17.useState)(false);
+  const [error, setError] = (0, import_react17.useState)(null);
+  const [tab, setTab] = (0, import_react17.useState)(readStoredTab);
+  const [selectedTaskId, setSelectedTaskId] = (0, import_react17.useState)(
     readStoredTaskId
   );
-  const [modal, setModal] = (0, import_react15.useState)(null);
-  const [toast, setToast] = (0, import_react15.useState)(null);
-  const [theme, setTheme] = (0, import_react15.useState)(() => {
+  const [modal, setModal] = (0, import_react17.useState)(null);
+  const [toast, setToast] = (0, import_react17.useState)(null);
+  const [theme, setTheme] = (0, import_react17.useState)(() => {
     try {
       return localStorage.getItem("studio.theme") === "light" ? "light" : "dark";
     } catch {
       return "dark";
     }
   });
-  (0, import_react15.useEffect)(() => {
+  (0, import_react17.useEffect)(() => {
     try {
       localStorage.setItem("studio.theme", theme);
     } catch {
     }
   }, [theme]);
-  (0, import_react15.useEffect)(() => {
+  (0, import_react17.useEffect)(() => {
     try {
       localStorage.setItem(STUDIO_TAB_KEY, tab);
     } catch {
     }
   }, [tab]);
-  (0, import_react15.useEffect)(() => {
+  (0, import_react17.useEffect)(() => {
     try {
       if (selectedTaskId === null) {
         localStorage.removeItem(STUDIO_TASK_KEY);
@@ -6247,13 +6260,13 @@ function StudioPage() {
     } catch {
     }
   }, [selectedTaskId]);
-  (0, import_react15.useEffect)(() => {
+  (0, import_react17.useEffect)(() => {
     if (data === null || selectedTaskId === null) return;
     if (!data.tasks.some((task) => task.id === selectedTaskId)) {
       setSelectedTaskId(null);
     }
   }, [data, selectedTaskId]);
-  (0, import_react15.useEffect)(() => {
+  (0, import_react17.useEffect)(() => {
     if (boot !== null || bootChecked) return;
     let cancelled = false;
     void resolveStudioBoot().then((result) => {
@@ -6266,7 +6279,7 @@ function StudioPage() {
       cancelled = true;
     };
   }, [boot, bootChecked]);
-  const load = (0, import_react15.useCallback)(
+  const load = (0, import_react17.useCallback)(
     async (projectId, silent = false) => {
       if (client === null) return;
       if (!silent) setLoading(true);
@@ -6288,19 +6301,19 @@ function StudioPage() {
     },
     [client]
   );
-  (0, import_react15.useEffect)(() => {
+  (0, import_react17.useEffect)(() => {
     if (client === null) {
       setLoading(false);
       return;
     }
     void load();
   }, [client, load]);
-  (0, import_react15.useEffect)(() => {
+  (0, import_react17.useEffect)(() => {
     if (toast === null) return;
     const timer = window.setTimeout(() => setToast(null), 4200);
     return () => window.clearTimeout(timer);
   }, [toast]);
-  (0, import_react15.useEffect)(() => {
+  (0, import_react17.useEffect)(() => {
     const onKey = (event) => {
       if (event.key !== "Escape") return;
       if (selectedTaskId !== null) setSelectedTaskId(null);
@@ -6309,7 +6322,7 @@ function StudioPage() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [selectedTaskId, modal]);
-  const run = (0, import_react15.useCallback)(
+  const run = (0, import_react17.useCallback)(
     async (action, successMessage) => {
       if (client === null) return false;
       setBusy(true);
@@ -6327,7 +6340,7 @@ function StudioPage() {
     },
     [client, load]
   );
-  const selectProject = (0, import_react15.useCallback)(
+  const selectProject = (0, import_react17.useCallback)(
     async (projectId) => {
       if (client === null) return false;
       setBusy(true);
@@ -6344,7 +6357,7 @@ function StudioPage() {
     },
     [client, load]
   );
-  const openCompanyProject = (0, import_react15.useCallback)(
+  const openCompanyProject = (0, import_react17.useCallback)(
     async (projectId) => {
       if (projectId !== data?.activeProjectId) {
         const ok = await selectProject(projectId);
@@ -6354,7 +6367,7 @@ function StudioPage() {
     },
     [data?.activeProjectId, selectProject]
   );
-  const openCompanyNeed = (0, import_react15.useCallback)(
+  const openCompanyNeed = (0, import_react17.useCallback)(
     async (need) => {
       if (need.projectId !== data?.activeProjectId) {
         const ok = await selectProject(need.projectId);
@@ -6369,7 +6382,7 @@ function StudioPage() {
     },
     [data?.activeProjectId, selectProject]
   );
-  (0, import_react15.useEffect)(() => {
+  (0, import_react17.useEffect)(() => {
     if (data === null || !data.runs.some(
       (run2) => run2.status === "running" || run2.status === "queued"
     )) {
@@ -6381,9 +6394,9 @@ function StudioPage() {
     return () => window.clearInterval(timer);
   }, [data?.runs, load]);
   const selectedTask = data?.tasks.find((task) => task.id === selectedTaskId) ?? null;
-  if (!bootChecked) return /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(LoadingState, {});
+  if (!bootChecked) return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(LoadingState, {});
   if (boot === null) {
-    return /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
       MissingHost,
       {
         error: bootError,
@@ -6392,8 +6405,8 @@ function StudioPage() {
     );
   }
   if (data === null) {
-    if (error === null || loading) return /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(LoadingState, {});
-    return /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+    if (error === null || loading) return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(LoadingState, {});
+    return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
       ErrorState,
       {
         message: error,
@@ -6940,16 +6953,16 @@ function StudioPage() {
       "ADR \u5DF2\u5199\u5165 docs/adr"
     );
   };
-  return /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-root", "data-theme": theme, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("header", { className: "studio-header", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-brand", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "studio-mark", children: "S" }),
-        /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "studio-brand-name", children: data.company.name }),
-          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "studio-brand-sub", children: "AI Studio" })
+  return /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-root", "data-theme": theme, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("header", { className: "studio-header", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-brand", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "studio-mark", children: "S" }),
+        /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "studio-brand-name", children: data.company.name }),
+          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "studio-brand-sub", children: "AI Studio" })
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "studio-project-picker", children: data.projects.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { className: "studio-muted", children: "\u8FD8\u6CA1\u6709\u9879\u76EE" }) : /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+      /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "studio-project-picker", children: data.projects.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { className: "studio-muted", children: "\u8FD8\u6CA1\u6709\u9879\u76EE" }) : /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
         "select",
         {
           className: "studio-select",
@@ -6957,16 +6970,16 @@ function StudioPage() {
           onChange: (event) => void selectProject(event.target.value),
           disabled: busy,
           "aria-label": "\u5207\u6362\u9879\u76EE",
-          children: data.projects.map((item) => /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("option", { value: item.id, children: item.name }, item.id))
+          children: data.projects.map((item) => /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("option", { value: item.id, children: item.name }, item.id))
         }
       ) }),
-      /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-header-actions", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("span", { className: "studio-status", title: "Host \u4E0E\u9875\u9762\u5DF2\u8FDE\u63A5", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { className: "studio-status-dot" }),
+      /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-header-actions", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("span", { className: "studio-status", title: "Host \u4E0E\u9875\u9762\u5DF2\u8FDE\u63A5", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { className: "studio-status-dot" }),
           "\u672C\u5730 \xB7 v",
           boot.pluginVersion
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
           "button",
           {
             className: "studio-btn",
@@ -6977,7 +6990,7 @@ function StudioPage() {
             children: "\u5BFC\u51FA"
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
           "input",
           {
             id: "studio-import-file",
@@ -6987,7 +7000,7 @@ function StudioPage() {
             onChange: (event) => void importData(event)
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
           "button",
           {
             className: "studio-btn",
@@ -6998,7 +7011,7 @@ function StudioPage() {
             children: "\u5BFC\u5165"
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
           "button",
           {
             className: "studio-btn",
@@ -7007,10 +7020,10 @@ function StudioPage() {
             onClick: () => setTheme((current) => current === "dark" ? "light" : "dark"),
             title: theme === "dark" ? "\u5207\u6362\u5230\u6D45\u8272" : "\u5207\u6362\u5230\u6DF1\u8272",
             "aria-label": "\u5207\u6362\u4E3B\u9898",
-            children: theme === "dark" ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(IconSun, { width: 15, height: 15 }) : /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(IconMoon, { width: 15, height: 15 })
+            children: theme === "dark" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(IconSun, { width: 15, height: 15 }) : /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(IconMoon, { width: 15, height: 15 })
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
           "button",
           {
             className: "studio-btn",
@@ -7020,17 +7033,17 @@ function StudioPage() {
             disabled: project === null || data.roles.length === 0,
             title: project === null ? "\u8BF7\u5148\u521B\u5EFA\u9879\u76EE" : data.roles.length === 0 ? "\u8BF7\u5148\u521B\u5EFA\u81F3\u5C11\u4E00\u4E2A\u89D2\u8272" : "\u65B0\u5EFA\u4EFB\u52A1",
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(IconPlus, { width: 14, height: 14 }),
+              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(IconPlus, { width: 14, height: 14 }),
               "\u65B0\u5EFA\u4EFB\u52A1"
             ]
           }
         )
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-body", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("nav", { className: "studio-nav", "aria-label": "Studio \u5BFC\u822A", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "studio-nav-label", children: "Workspace" }),
-        NAV_ITEMS.map((item) => /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(
+    /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-body", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("nav", { className: "studio-nav", "aria-label": "Studio \u5BFC\u822A", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "studio-nav-label", children: "Workspace" }),
+        NAV_ITEMS.map((item) => /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
           "button",
           {
             type: "button",
@@ -7038,15 +7051,15 @@ function StudioPage() {
             "data-active": tab === item.id,
             onClick: () => setTab(item.id),
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(NavIcon, { tab: item.id }),
-              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { children: item.label }),
-              item.id === "company" && data.company.needs.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { className: "studio-nav-count", children: data.company.needs.length }) : item.id === "boardroom" && data.company.totals.pendingDecisions > 0 ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { className: "studio-nav-count", children: data.company.totals.pendingDecisions }) : item.id === "mission" && reviewCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { className: "studio-nav-count", children: reviewCount }) : item.id === "tasks" ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { className: "studio-nav-count", children: data.stats.total }) : item.id === "merges" && mergeCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { className: "studio-nav-count", children: mergeCount }) : item.id === "team" ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { className: "studio-nav-count", children: data.roles.length }) : null
+              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(NavIcon, { tab: item.id }),
+              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { children: item.label }),
+              item.id === "company" && data.company.needs.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { className: "studio-nav-count", children: data.company.needs.length }) : item.id === "boardroom" && data.company.totals.pendingDecisions > 0 ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { className: "studio-nav-count", children: data.company.totals.pendingDecisions }) : item.id === "mission" && reviewCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { className: "studio-nav-count", children: reviewCount }) : item.id === "tasks" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { className: "studio-nav-count", children: data.stats.total }) : item.id === "merges" && mergeCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { className: "studio-nav-count", children: mergeCount }) : item.id === "team" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { className: "studio-nav-count", children: data.roles.length }) : null
             ]
           },
           item.id
         )),
-        /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-nav-footer", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("strong", { children: tab === "company" ? "\u8D5B\u535A\u516C\u53F8" : project?.name ?? "\u672A\u9009\u62E9\u9879\u76EE" }),
+        /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-nav-footer", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("strong", { children: tab === "company" ? "\u8D5B\u535A\u516C\u53F8" : project?.name ?? "\u672A\u9009\u62E9\u9879\u76EE" }),
           tab === "company" ? `${String(data.company.totals.projects)} \u4E2A\u9879\u76EE \xB7 ${String(
             data.company.totals.openTasks
           )} \u4E2A\u672A\u5B8C\u6210` : `${String(data.stats.total)} \u4E2A\u4EFB\u52A1 \xB7 ${String(
@@ -7054,10 +7067,10 @@ function StudioPage() {
           )} \u4E2A\u89D2\u8272`
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("main", { className: "studio-main", children: /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-main-inner", children: [
-        error !== null ? /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-alert", "data-tone": "warn", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("main", { className: "studio-main", children: /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-main-inner", children: [
+        error !== null ? /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-alert", "data-tone": "warn", children: [
           error,
-          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
             "button",
             {
               type: "button",
@@ -7069,8 +7082,8 @@ function StudioPage() {
             }
           )
         ] }) : null,
-        data.app.warning !== null && data.app.warning !== void 0 ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "studio-alert", "data-tone": "warn", children: data.app.warning }) : null,
-        tab === "company" ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+        data.app.warning !== null && data.app.warning !== void 0 ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "studio-alert", "data-tone": "warn", children: data.app.warning }) : null,
+        tab === "company" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
           CompanyView,
           {
             data,
@@ -7080,7 +7093,7 @@ function StudioPage() {
             onNewProject: () => setModal({ kind: "project" })
           }
         ) : null,
-        tab === "boardroom" ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+        tab === "boardroom" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
           BoardroomView,
           {
             decisions: data.decisions,
@@ -7092,7 +7105,7 @@ function StudioPage() {
             onWriteAdr: writeAdr
           }
         ) : null,
-        tab === "knowledge" ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+        tab === "knowledge" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
           KnowledgeView,
           {
             project: data.project,
@@ -7103,7 +7116,7 @@ function StudioPage() {
             onNewModule: () => setModal({ kind: "module" })
           }
         ) : null,
-        tab === "mission" ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+        tab === "mission" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
           MissionView,
           {
             data,
@@ -7129,14 +7142,14 @@ function StudioPage() {
             onSummarizeWorkshop: summarizeWorkshopAi
           }
         ) : null,
-        tab === "tasks" ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+        tab === "tasks" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
           TasksView,
           {
             data,
             onOpenTask: setSelectedTaskId
           }
         ) : null,
-        tab === "merges" ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+        tab === "merges" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
           MergeView,
           {
             data,
@@ -7147,7 +7160,7 @@ function StudioPage() {
             onComplete: (proposal, commit) => void completeMerge(proposal, commit)
           }
         ) : null,
-        tab === "team" ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+        tab === "team" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
           TeamView,
           {
             data,
@@ -7162,7 +7175,7 @@ function StudioPage() {
             onProbeProvider: probeProviderProfile
           }
         ) : null,
-        tab === "settings" ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+        tab === "settings" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
           SettingsView,
           {
             boot,
@@ -7179,7 +7192,7 @@ function StudioPage() {
         ) : null
       ] }) })
     ] }),
-    selectedTask !== null ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+    selectedTask !== null ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
       TaskDrawer,
       {
         task: selectedTask,
@@ -7227,7 +7240,7 @@ function StudioPage() {
       },
       selectedTask.id
     ) : null,
-    modal?.kind === "task" ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+    modal?.kind === "task" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
       TaskForm,
       {
         roles: data.roles,
@@ -7236,7 +7249,7 @@ function StudioPage() {
         onSubmit: (input) => void createTask(input)
       }
     ) : null,
-    modal?.kind === "role" ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+    modal?.kind === "role" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
       RoleForm,
       {
         busy,
@@ -7245,7 +7258,7 @@ function StudioPage() {
         onSubmit: (input) => void createRole(input)
       }
     ) : null,
-    modal?.kind === "project" ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+    modal?.kind === "project" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
       ProjectForm,
       {
         busy,
@@ -7254,7 +7267,7 @@ function StudioPage() {
         onSubmitTemplate: (input) => void createProjectFromTemplate(input)
       }
     ) : null,
-    modal?.kind === "repo" ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+    modal?.kind === "repo" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
       RepoForm,
       {
         initial: data.project?.repoPath ?? "",
@@ -7263,7 +7276,7 @@ function StudioPage() {
         onSubmit: (repoPath) => void updateProjectRepo(repoPath)
       }
     ) : null,
-    modal?.kind === "module" ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+    modal?.kind === "module" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
       ModuleForm,
       {
         busy,
@@ -7271,7 +7284,7 @@ function StudioPage() {
         onSubmit: (input) => void createModule(input)
       }
     ) : null,
-    modal?.kind === "decision" ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+    modal?.kind === "decision" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
       DecisionForm,
       {
         tasks: data.tasks,
@@ -7280,8 +7293,8 @@ function StudioPage() {
         onSubmit: (input) => void createDecision(input)
       }
     ) : null,
-    toast !== null ? /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-toast", "data-kind": toast.kind, role: "status", children: [
-      toast.kind === "ok" ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(IconCheck, { width: 14, height: 14 }) : /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(IconAlert, { width: 14, height: 14 }),
+    toast !== null ? /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-toast", "data-kind": toast.kind, role: "status", children: [
+      toast.kind === "ok" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(IconCheck, { width: 14, height: 14 }) : /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(IconAlert, { width: 14, height: 14 }),
       toast.text
     ] }) : null
   ] });
@@ -8982,11 +8995,11 @@ var studioCss = `
 `;
 
 // src/client/index.tsx
-var import_jsx_runtime20 = require("react/jsx-runtime");
+var import_jsx_runtime23 = require("react/jsx-runtime");
 var name = "dsh-studio-client";
 var inject = ["slots", "layout"];
 function StudioIcon() {
-  return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)(
     "svg",
     {
       width: "16",
@@ -8999,8 +9012,8 @@ function StudioIcon() {
       strokeLinejoin: "round",
       "aria-hidden": "true",
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("path", { d: "M4 7.5 12 3l8 4.5v9L12 21l-8-4.5Z" }),
-        /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("path", { d: "M8 10.5v4M12 8.5v7M16 10.5v4" })
+        /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("path", { d: "M4 7.5 12 3l8 4.5v9L12 21l-8-4.5Z" }),
+        /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("path", { d: "M8 10.5v4M12 8.5v7M16 10.5v4" })
       ]
     }
   );

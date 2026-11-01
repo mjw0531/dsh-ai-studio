@@ -116,11 +116,7 @@ import {
   LoadingState,
   MissingHost,
 } from "./components/States.js";
-import {
-  TaskBoard,
-  TaskDrawer,
-  TaskMergePanel,
-} from "./components/TaskPanels.js";
+import { TaskDrawer } from "./components/TaskDrawer.js";
 import {
   DecisionForm,
   ModalShell,

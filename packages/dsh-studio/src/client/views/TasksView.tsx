@@ -12,7 +12,7 @@ import type {
   TaskStatus,
 } from "../../shared/types.js";
 import { StatusPill } from "../components/ui.js";
-import { TaskBoard } from "../components/TaskPanels.js";
+import { TaskBoard } from "../components/TaskBoard.js";
 import { IconKanban } from "../icons.js";
 
 export function TasksView({
