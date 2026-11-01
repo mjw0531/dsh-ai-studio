@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 26;
-var STUDIO_PLUGIN_VERSION = "3.0.8";
+var STUDIO_PLUGIN_VERSION = "3.0.9";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -2571,6 +2571,305 @@ async function ignoreTrigger(ctx, triggerId, note = "") {
   });
 }
 
+// src/host/store/tasks.ts
+async function createTask(ctx, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const project = pickProject(state, void 0);
+    if (project === null) {
+      throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
+    }
+    const at = ctx.now();
+    const ownerRoleId = resolveRoleId(
+      state,
+      project.id,
+      input.ownerRoleId,
+      "ownerRoleId"
+    );
+    const reviewerRoleId = resolveRoleId(
+      state,
+      project.id,
+      input.reviewerRoleId,
+      "reviewerRoleId"
+    );
+    const task = {
+      id: newId2("task"),
+      projectId: project.id,
+      title: requiredText(input.title, "title", 160),
+      goal: optionalText(input.goal, "goal", 2e3),
+      status: "backlog",
+      priority: isTaskPriority(input.priority) ? input.priority : "P1",
+      ownerRoleId,
+      reviewerRoleId,
+      acceptance: normalizeAcceptance(input.acceptance ?? []),
+      evidence: [],
+      branch: optionalText(input.branch, "branch", 160) || null,
+      verifyCommand: optionalText(input.verifyCommand, "verifyCommand", 500) || null,
+      module: optionalText(input.module, "module", 120) || null,
+      contractRef: optionalText(input.contractRef, "contractRef", 300) || null,
+      requirementRefs: textList(input.requirementRefs, "requirementRefs", 30),
+      kind: input.kind === "fix" ? "fix" : "new",
+      diagnosis: optionalText(input.diagnosis, "diagnosis", 4e3),
+      plan: optionalText(input.plan, "plan", 4e3),
+      integration: input.integration === true,
+      originTaskId: optionalText(input.originTaskId, "originTaskId", 120) || null,
+      docsSynced: false,
+      createdAt: at,
+      updatedAt: at
+    };
+    state.tasks.push(task);
+    ctx.recordEvent(state, {
+      type: "task.created",
+      at,
+      projectId: project.id,
+      taskId: task.id,
+      payload: { title: task.title, priority: task.priority }
+    });
+    state.updatedAt = at;
+    await ctx.save();
+    return structuredClone(task);
+  });
+}
+async function updateTask(ctx, taskId, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const task = findTask(state, taskId);
+    if (task.status === "done") {
+      throw new StudioStoreError(
+        "task_locked",
+        "\u5DF2\u5B8C\u6210\u7684\u4EFB\u52A1\u4E0D\u80FD\u76F4\u63A5\u4FEE\u6539\uFF0C\u8BF7\u521B\u5EFA\u4E00\u4E2A\u540E\u7EED\u4EFB\u52A1"
+      );
+    }
+    const at = ctx.now();
+    if (input.title !== void 0) {
+      task.title = requiredText(input.title, "title", 160);
+    }
+    if (input.goal !== void 0) {
+      task.goal = optionalText(input.goal, "goal", 2e3);
+    }
+    if (input.priority !== void 0) {
+      if (!isTaskPriority(input.priority)) {
+        throw new StudioStoreError("invalid_input", "priority \u65E0\u6548");
+      }
+      task.priority = input.priority;
+    }
+    if (input.ownerRoleId !== void 0) {
+      task.ownerRoleId = resolveRoleId(
+        state,
+        task.projectId,
+        input.ownerRoleId,
+        "ownerRoleId"
+      );
+    }
+    if (input.reviewerRoleId !== void 0) {
+      task.reviewerRoleId = resolveRoleId(
+        state,
+        task.projectId,
+        input.reviewerRoleId,
+        "reviewerRoleId"
+      );
+    }
+    if (input.acceptance !== void 0) {
+      task.acceptance = normalizeAcceptance(input.acceptance, task.acceptance);
+    }
+    if (input.evidence !== void 0) {
+      task.evidence = normalizeEvidence(input.evidence, task.evidence, at);
+    }
+    if (input.branch !== void 0) {
+      task.branch = optionalText(input.branch, "branch", 160) || null;
+    }
+    if (input.verifyCommand !== void 0) {
+      task.verifyCommand = optionalText(input.verifyCommand, "verifyCommand", 500) || null;
+    }
+    if (input.module !== void 0) {
+      task.module = optionalText(input.module, "module", 120) || null;
+    }
+    if (input.contractRef !== void 0) {
+      task.contractRef = optionalText(input.contractRef, "contractRef", 300) || null;
+    }
+    if (input.requirementRefs !== void 0) {
+      task.requirementRefs = textList(
+        input.requirementRefs,
+        "requirementRefs",
+        30
+      );
+    }
+    if (input.kind !== void 0) {
+      task.kind = input.kind === "fix" ? "fix" : "new";
+    }
+    if (input.diagnosis !== void 0) {
+      task.diagnosis = optionalText(input.diagnosis, "diagnosis", 4e3);
+    }
+    if (input.plan !== void 0) {
+      task.plan = optionalText(input.plan, "plan", 4e3);
+    }
+    if (input.integration !== void 0) {
+      task.integration = input.integration === true;
+    }
+    if (input.docsSynced !== void 0) {
+      task.docsSynced = input.docsSynced === true;
+    }
+    task.updatedAt = at;
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "task.updated",
+      at,
+      projectId: task.projectId,
+      taskId: task.id,
+      payload: { fields: Object.keys(input) }
+    });
+    await ctx.save();
+    return structuredClone(task);
+  });
+}
+async function transitionTask(ctx, taskId, next) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const task = findTask(state, taskId);
+    if (task.status === next) {
+      return structuredClone(task);
+    }
+    if (!isTaskStatus(next) || !canTransition(task.status, next)) {
+      throw new StudioStoreError(
+        "invalid_transition",
+        `\u4E0D\u80FD\u4ECE\u300C${task.status}\u300D\u76F4\u63A5\u5207\u6362\u5230\u300C${String(next)}\u300D`,
+        409
+      );
+    }
+    if (next === "done") {
+      if (task.acceptance.length === 0) {
+        throw new StudioStoreError(
+          "acceptance_required",
+          "\u6CA1\u6709\u9A8C\u6536\u6807\u51C6\uFF0C\u4E0D\u80FD\u5B8C\u6210\u4EFB\u52A1",
+          409
+        );
+      }
+      const open = task.acceptance.filter((item) => !item.done);
+      if (open.length > 0) {
+        throw new StudioStoreError(
+          "acceptance_incomplete",
+          `\u8FD8\u6709 ${String(open.length)} \u6761\u9A8C\u6536\u6807\u51C6\u672A\u5B8C\u6210`,
+          409
+        );
+      }
+      if (task.evidence.length === 0) {
+        throw new StudioStoreError(
+          "evidence_required",
+          "\u9A8C\u6536\u524D\u81F3\u5C11\u8BB0\u5F55\u4E00\u6761\u53EF\u590D\u73B0\u7684\u8BC1\u636E\uFF08\u547D\u4EE4\u3001\u6D4B\u8BD5\u6216 replay\uFF09",
+          409
+        );
+      }
+      const project = state.projects.find(
+        (item) => item.id === task.projectId
+      );
+      const hasCodeRun = state.runs.some(
+        (item) => item.taskId === task.id && item.workspacePath !== null
+      );
+      if (project?.repoPath !== null && project?.repoPath !== void 0 && hasCodeRun && !state.reviews.some(
+        (review) => review.taskId === task.id && review.verdict === "pass"
+      )) {
+        throw new StudioStoreError(
+          "review_required",
+          "\u4EE3\u7801\u4EFB\u52A1\u5B8C\u6210\u524D\u5FC5\u987B\u6709\u4E00\u6B21\u901A\u8FC7\u7684\u72EC\u7ACB\u8BC4\u5BA1",
+          409
+        );
+      }
+      const hasDocs = project !== void 0 && (project.prdPath !== null || project.invariantsPath !== null || project.modulesPath !== null);
+      if (hasDocs && !task.docsSynced) {
+        throw new StudioStoreError(
+          "docs_sync_required",
+          "\u9879\u76EE\u5DF2\u7ED1\u5B9A PRD/INVARIANTS/MODULES\uFF0C\u5B8C\u6210\u524D\u5FC5\u987B\u786E\u8BA4\u6587\u6863\u5DF2\u540C\u6B65",
+          409
+        );
+      }
+    }
+    const from = task.status;
+    const at = ctx.now();
+    task.status = next;
+    task.updatedAt = at;
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "task.transitioned",
+      at,
+      projectId: task.projectId,
+      taskId: task.id,
+      payload: { from, to: next }
+    });
+    if (next === "done") {
+      scheduleIntegrationGate(ctx, state, task.projectId, at);
+    }
+    await ctx.save();
+    return structuredClone(task);
+  });
+}
+function scheduleIntegrationGate(ctx, state, projectId, at) {
+  const done = state.tasks.filter(
+    (item) => item.projectId === projectId && item.status === "done"
+  ).length;
+  const generated = state.tasks.filter(
+    (item) => item.projectId === projectId && item.title.startsWith("\u96C6\u6210\u9A8C\u6536\uFF08\u81EA\u52A8 #")
+  ).length;
+  if (Math.floor(done / 3) <= generated) return;
+  const lead = state.roles.find(
+    (role) => role.projectId === projectId && (role.id === "role-lead" || role.title.includes("\u5236\u4F5C\u4EBA"))
+  ) ?? state.roles.find((role) => role.projectId === projectId);
+  const verifier = state.roles.find(
+    (role) => role.projectId === projectId && (role.id === "role-verifier" || role.title.includes("QA"))
+  ) ?? lead;
+  if (lead === void 0) return;
+  const index = generated + 1;
+  const task = {
+    id: newId2("task"),
+    projectId,
+    title: `\u96C6\u6210\u9A8C\u6536\uFF08\u81EA\u52A8 #${String(index)}\uFF09`,
+    goal: "\u6BCF 3 \u4E2A\u5B8C\u6210\u4EFB\u52A1\u540E\u7684\u96C6\u6210 gate\uFF1A\u6253\u5305\u5F53\u524D build\uFF0C\u4EBA\u73A9 10 \u5206\u949F\uFF0C\u8BB0\u5F55\u963B\u65AD\u95EE\u9898\u4E0E\u53EF\u7EE7\u7EED\u8FED\u4EE3\u7684\u5224\u65AD\u3002",
+    status: "backlog",
+    priority: "P1",
+    ownerRoleId: lead.id,
+    reviewerRoleId: verifier?.id ?? lead.id,
+    acceptance: [
+      {
+        id: newId2("acc"),
+        text: "\u6253\u5305\u51FA\u53EF\u8FD0\u884C build",
+        done: false
+      },
+      {
+        id: newId2("acc"),
+        text: "\u4EBA\u73A9 10 \u5206\u949F\u5E76\u8BB0\u5F55\u963B\u65AD\u95EE\u9898",
+        done: false
+      }
+    ],
+    evidence: [],
+    branch: null,
+    verifyCommand: "npm test",
+    module: null,
+    contractRef: null,
+    requirementRefs: [],
+    kind: "new",
+    diagnosis: "",
+    plan: "",
+    integration: true,
+    originTaskId: null,
+    docsSynced: false,
+    createdAt: at,
+    updatedAt: at
+  };
+  state.tasks.push(task);
+  ctx.recordEvent(state, {
+    type: "integration.scheduled",
+    at,
+    projectId,
+    taskId: task.id,
+    payload: { index, doneTasks: done }
+  });
+}
+async function listTransitions(ctx, taskId) {
+  return ctx.runExclusive(async () => {
+    const task = findTask(ctx.requireState(), taskId);
+    return [...ALLOWED_TRANSITIONS[task.status]];
+  });
+}
+
 // src/host/store.ts
 function defaultStudioDataDir() {
   const home = process.env.DSH_HOME?.trim();
@@ -4602,301 +4901,16 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
     });
   }
   async createTask(input) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const project = pickProject(state, void 0);
-      if (project === null) {
-        throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
-      }
-      const at = nowIso2(this.now);
-      const ownerRoleId = resolveRoleId(
-        state,
-        project.id,
-        input.ownerRoleId,
-        "ownerRoleId"
-      );
-      const reviewerRoleId = resolveRoleId(
-        state,
-        project.id,
-        input.reviewerRoleId,
-        "reviewerRoleId"
-      );
-      const task = {
-        id: newId3("task"),
-        projectId: project.id,
-        title: requiredText(input.title, "title", 160),
-        goal: optionalText(input.goal, "goal", 2e3),
-        status: "backlog",
-        priority: isTaskPriority(input.priority) ? input.priority : "P1",
-        ownerRoleId,
-        reviewerRoleId,
-        acceptance: normalizeAcceptance(input.acceptance ?? []),
-        evidence: [],
-        branch: optionalText(input.branch, "branch", 160) || null,
-        verifyCommand: optionalText(input.verifyCommand, "verifyCommand", 500) || null,
-        module: optionalText(input.module, "module", 120) || null,
-        contractRef: optionalText(input.contractRef, "contractRef", 300) || null,
-        requirementRefs: textList(input.requirementRefs, "requirementRefs", 30),
-        kind: input.kind === "fix" ? "fix" : "new",
-        diagnosis: optionalText(input.diagnosis, "diagnosis", 4e3),
-        plan: optionalText(input.plan, "plan", 4e3),
-        integration: input.integration === true,
-        originTaskId: optionalText(input.originTaskId, "originTaskId", 120) || null,
-        docsSynced: false,
-        createdAt: at,
-        updatedAt: at
-      };
-      state.tasks.push(task);
-      this.recordEvent(state, {
-        type: "task.created",
-        at,
-        projectId: project.id,
-        taskId: task.id,
-        payload: { title: task.title, priority: task.priority }
-      });
-      state.updatedAt = at;
-      await this.save();
-      return structuredClone(task);
-    });
+    return createTask(this.context, input);
   }
   async updateTask(taskId, input) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const task = findTask(state, taskId);
-      if (task.status === "done") {
-        throw new StudioStoreError(
-          "task_locked",
-          "\u5DF2\u5B8C\u6210\u7684\u4EFB\u52A1\u4E0D\u80FD\u76F4\u63A5\u4FEE\u6539\uFF0C\u8BF7\u521B\u5EFA\u4E00\u4E2A\u540E\u7EED\u4EFB\u52A1"
-        );
-      }
-      const at = nowIso2(this.now);
-      if (input.title !== void 0) {
-        task.title = requiredText(input.title, "title", 160);
-      }
-      if (input.goal !== void 0) {
-        task.goal = optionalText(input.goal, "goal", 2e3);
-      }
-      if (input.priority !== void 0) {
-        if (!isTaskPriority(input.priority)) {
-          throw new StudioStoreError("invalid_input", "priority \u65E0\u6548");
-        }
-        task.priority = input.priority;
-      }
-      if (input.ownerRoleId !== void 0) {
-        task.ownerRoleId = resolveRoleId(
-          state,
-          task.projectId,
-          input.ownerRoleId,
-          "ownerRoleId"
-        );
-      }
-      if (input.reviewerRoleId !== void 0) {
-        task.reviewerRoleId = resolveRoleId(
-          state,
-          task.projectId,
-          input.reviewerRoleId,
-          "reviewerRoleId"
-        );
-      }
-      if (input.acceptance !== void 0) {
-        task.acceptance = normalizeAcceptance(input.acceptance, task.acceptance);
-      }
-      if (input.evidence !== void 0) {
-        task.evidence = normalizeEvidence(input.evidence, task.evidence, at);
-      }
-      if (input.branch !== void 0) {
-        task.branch = optionalText(input.branch, "branch", 160) || null;
-      }
-      if (input.verifyCommand !== void 0) {
-        task.verifyCommand = optionalText(input.verifyCommand, "verifyCommand", 500) || null;
-      }
-      if (input.module !== void 0) {
-        task.module = optionalText(input.module, "module", 120) || null;
-      }
-      if (input.contractRef !== void 0) {
-        task.contractRef = optionalText(input.contractRef, "contractRef", 300) || null;
-      }
-      if (input.requirementRefs !== void 0) {
-        task.requirementRefs = textList(
-          input.requirementRefs,
-          "requirementRefs",
-          30
-        );
-      }
-      if (input.kind !== void 0) {
-        task.kind = input.kind === "fix" ? "fix" : "new";
-      }
-      if (input.diagnosis !== void 0) {
-        task.diagnosis = optionalText(input.diagnosis, "diagnosis", 4e3);
-      }
-      if (input.plan !== void 0) {
-        task.plan = optionalText(input.plan, "plan", 4e3);
-      }
-      if (input.integration !== void 0) {
-        task.integration = input.integration === true;
-      }
-      if (input.docsSynced !== void 0) {
-        task.docsSynced = input.docsSynced === true;
-      }
-      task.updatedAt = at;
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "task.updated",
-        at,
-        projectId: task.projectId,
-        taskId: task.id,
-        payload: { fields: Object.keys(input) }
-      });
-      await this.save();
-      return structuredClone(task);
-    });
+    return updateTask(this.context, taskId, input);
   }
   async transitionTask(taskId, next) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const task = findTask(state, taskId);
-      if (task.status === next) {
-        return structuredClone(task);
-      }
-      if (!isTaskStatus(next) || !canTransition(task.status, next)) {
-        throw new StudioStoreError(
-          "invalid_transition",
-          `\u4E0D\u80FD\u4ECE\u300C${task.status}\u300D\u76F4\u63A5\u5207\u6362\u5230\u300C${String(next)}\u300D`,
-          409
-        );
-      }
-      if (next === "done") {
-        if (task.acceptance.length === 0) {
-          throw new StudioStoreError(
-            "acceptance_required",
-            "\u6CA1\u6709\u9A8C\u6536\u6807\u51C6\uFF0C\u4E0D\u80FD\u5B8C\u6210\u4EFB\u52A1",
-            409
-          );
-        }
-        const open = task.acceptance.filter((item) => !item.done);
-        if (open.length > 0) {
-          throw new StudioStoreError(
-            "acceptance_incomplete",
-            `\u8FD8\u6709 ${String(open.length)} \u6761\u9A8C\u6536\u6807\u51C6\u672A\u5B8C\u6210`,
-            409
-          );
-        }
-        if (task.evidence.length === 0) {
-          throw new StudioStoreError(
-            "evidence_required",
-            "\u9A8C\u6536\u524D\u81F3\u5C11\u8BB0\u5F55\u4E00\u6761\u53EF\u590D\u73B0\u7684\u8BC1\u636E\uFF08\u547D\u4EE4\u3001\u6D4B\u8BD5\u6216 replay\uFF09",
-            409
-          );
-        }
-        const project = state.projects.find(
-          (item) => item.id === task.projectId
-        );
-        const hasCodeRun = state.runs.some(
-          (item) => item.taskId === task.id && item.workspacePath !== null
-        );
-        if (project?.repoPath !== null && project?.repoPath !== void 0 && hasCodeRun && !state.reviews.some(
-          (review) => review.taskId === task.id && review.verdict === "pass"
-        )) {
-          throw new StudioStoreError(
-            "review_required",
-            "\u4EE3\u7801\u4EFB\u52A1\u5B8C\u6210\u524D\u5FC5\u987B\u6709\u4E00\u6B21\u901A\u8FC7\u7684\u72EC\u7ACB\u8BC4\u5BA1",
-            409
-          );
-        }
-        const hasDocs = project !== void 0 && (project.prdPath !== null || project.invariantsPath !== null || project.modulesPath !== null);
-        if (hasDocs && !task.docsSynced) {
-          throw new StudioStoreError(
-            "docs_sync_required",
-            "\u9879\u76EE\u5DF2\u7ED1\u5B9A PRD/INVARIANTS/MODULES\uFF0C\u5B8C\u6210\u524D\u5FC5\u987B\u786E\u8BA4\u6587\u6863\u5DF2\u540C\u6B65",
-            409
-          );
-        }
-      }
-      const from = task.status;
-      const at = nowIso2(this.now);
-      task.status = next;
-      task.updatedAt = at;
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "task.transitioned",
-        at,
-        projectId: task.projectId,
-        taskId: task.id,
-        payload: { from, to: next }
-      });
-      if (next === "done") {
-        this.scheduleIntegrationGate(state, task.projectId, at);
-      }
-      await this.save();
-      return structuredClone(task);
-    });
-  }
-  scheduleIntegrationGate(state, projectId, at) {
-    const done = state.tasks.filter(
-      (item) => item.projectId === projectId && item.status === "done"
-    ).length;
-    const generated = state.tasks.filter(
-      (item) => item.projectId === projectId && item.title.startsWith("\u96C6\u6210\u9A8C\u6536\uFF08\u81EA\u52A8 #")
-    ).length;
-    if (Math.floor(done / 3) <= generated) return;
-    const lead = state.roles.find(
-      (role) => role.projectId === projectId && (role.id === "role-lead" || role.title.includes("\u5236\u4F5C\u4EBA"))
-    ) ?? state.roles.find((role) => role.projectId === projectId);
-    const verifier = state.roles.find(
-      (role) => role.projectId === projectId && (role.id === "role-verifier" || role.title.includes("QA"))
-    ) ?? lead;
-    if (lead === void 0) return;
-    const index = generated + 1;
-    const task = {
-      id: newId3("task"),
-      projectId,
-      title: `\u96C6\u6210\u9A8C\u6536\uFF08\u81EA\u52A8 #${String(index)}\uFF09`,
-      goal: "\u6BCF 3 \u4E2A\u5B8C\u6210\u4EFB\u52A1\u540E\u7684\u96C6\u6210 gate\uFF1A\u6253\u5305\u5F53\u524D build\uFF0C\u4EBA\u73A9 10 \u5206\u949F\uFF0C\u8BB0\u5F55\u963B\u65AD\u95EE\u9898\u4E0E\u53EF\u7EE7\u7EED\u8FED\u4EE3\u7684\u5224\u65AD\u3002",
-      status: "backlog",
-      priority: "P1",
-      ownerRoleId: lead.id,
-      reviewerRoleId: verifier?.id ?? lead.id,
-      acceptance: [
-        {
-          id: newId3("acc"),
-          text: "\u6253\u5305\u51FA\u53EF\u8FD0\u884C build",
-          done: false
-        },
-        {
-          id: newId3("acc"),
-          text: "\u4EBA\u73A9 10 \u5206\u949F\u5E76\u8BB0\u5F55\u963B\u65AD\u95EE\u9898",
-          done: false
-        }
-      ],
-      evidence: [],
-      branch: null,
-      verifyCommand: "npm test",
-      module: null,
-      contractRef: null,
-      requirementRefs: [],
-      kind: "new",
-      diagnosis: "",
-      plan: "",
-      integration: true,
-      originTaskId: null,
-      docsSynced: false,
-      createdAt: at,
-      updatedAt: at
-    };
-    state.tasks.push(task);
-    this.recordEvent(state, {
-      type: "integration.scheduled",
-      at,
-      projectId,
-      taskId: task.id,
-      payload: { index, doneTasks: done }
-    });
+    return transitionTask(this.context, taskId, next);
   }
   async listTransitions(taskId) {
-    return this.runExclusive(async () => {
-      const task = findTask(this.requireState(), taskId);
-      return [...ALLOWED_TRANSITIONS[task.status]];
-    });
+    return listTransitions(this.context, taskId);
   }
   async createMergeProposal(taskId, input) {
     return createMergeProposal(this.context, taskId, input);
