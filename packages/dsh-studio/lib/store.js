@@ -14,7 +14,7 @@ import path from "node:path";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 26;
-var STUDIO_PLUGIN_VERSION = "3.0.9";
+var STUDIO_PLUGIN_VERSION = "3.1.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -2759,6 +2759,155 @@ async function listTransitions(ctx, taskId) {
   });
 }
 
+// src/host/store/reviews.ts
+async function getReviewContext(ctx, taskId) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const task = findTask(state, taskId);
+    if (task.reviewerRoleId === null) {
+      throw new StudioStoreError(
+        "reviewer_required",
+        "\u4EFB\u52A1\u6CA1\u6709\u9A8C\u6536\u4EBA\u89D2\u8272\uFF0C\u4E0D\u80FD\u72EC\u7ACB\u8BC4\u5BA1",
+        409
+      );
+    }
+    const role = state.roles.find(
+      (item) => item.id === task.reviewerRoleId
+    );
+    const project = state.projects.find(
+      (item) => item.id === task.projectId
+    );
+    if (role === void 0 || project === void 0) {
+      throw new StudioStoreError(
+        "context_not_found",
+        "\u9A8C\u6536\u4EBA\u89D2\u8272\u6216\u9879\u76EE\u4E0D\u5B58\u5728",
+        404
+      );
+    }
+    const run = [...state.runs].filter(
+      (item) => item.taskId === taskId && item.workspacePath !== null
+    ).sort(
+      (left, right) => right.startedAt.localeCompare(left.startedAt)
+    )[0];
+    const verification = [...state.verifications].filter((item) => item.taskId === taskId).sort(
+      (left, right) => right.createdAt.localeCompare(left.createdAt)
+    )[0];
+    const providerProfile = role.providerProfileId === null ? null : state.providerProfiles.find(
+      (profile) => profile.id === role.providerProfileId && profile.projectId === project.id
+    ) ?? null;
+    return {
+      task: structuredClone(task),
+      role: structuredClone(role),
+      project: structuredClone(project),
+      run: run === void 0 ? null : structuredClone(run),
+      verification: verification === void 0 ? null : structuredClone(verification),
+      providerProfile: providerProfile === null ? null : structuredClone(providerProfile)
+    };
+  });
+}
+async function recordReview(ctx, taskId, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const task = findTask(state, taskId);
+    const at = ctx.now();
+    const review = {
+      id: newId2("review"),
+      projectId: task.projectId,
+      taskId,
+      runId: input.runId ?? null,
+      reviewerRoleId: input.reviewerRoleId,
+      model: input.model,
+      verdict: input.verdict,
+      summary: requiredText(input.summary, "summary", 2e3),
+      findings: textList(input.findings, "findings", 30),
+      tokens: input.tokens,
+      createdAt: at
+    };
+    state.reviews.push(review);
+    if (review.verdict === "pass") {
+      const text = `\u72EC\u7ACB\u8BC4\u5BA1\u901A\u8FC7\uFF08${input.model}\uFF09\uFF1A${review.summary}`;
+      if (!task.evidence.some((item) => item.text === text)) {
+        task.evidence.push({ id: newId2("ev"), text, createdAt: at });
+      }
+    }
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: review.verdict === "pass" ? "review.passed" : "review.failed",
+      at,
+      projectId: task.projectId,
+      taskId,
+      payload: { reviewId: review.id, model: review.model }
+    });
+    await ctx.save();
+    return structuredClone(review);
+  });
+}
+async function getTaskVerificationContext(ctx, taskId) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const task = findTask(state, taskId);
+    const run = [...state.runs].filter(
+      (item) => item.taskId === taskId && item.workspacePath !== null
+    ).sort(
+      (left, right) => right.startedAt.localeCompare(left.startedAt)
+    )[0];
+    return {
+      task: structuredClone(task),
+      run: run === void 0 ? null : structuredClone(run)
+    };
+  });
+}
+async function recordVerification(ctx, taskId, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const task = findTask(state, taskId);
+    const at = ctx.now();
+    const run = input.runId ? state.runs.find((item) => item.id === input.runId) : [...state.runs].filter(
+      (item) => item.taskId === taskId && item.workspacePath !== null
+    ).sort(
+      (left, right) => right.startedAt.localeCompare(left.startedAt)
+    )[0];
+    const verification = {
+      id: newId2("verify"),
+      projectId: task.projectId,
+      taskId,
+      runId: run?.id ?? null,
+      command: requiredText(input.command, "command", 500),
+      workdir: requiredText(input.workdir, "workdir", 1e3),
+      exitCode: input.exitCode,
+      output: input.output.slice(0, 2e4),
+      passed: input.passed,
+      createdAt: at
+    };
+    state.verifications.push(verification);
+    if (input.passed) {
+      const text = `\u9A8C\u8BC1\u901A\u8FC7\uFF1A\`${verification.command}\`\uFF08exit 0\uFF09`;
+      if (!task.evidence.some((item) => item.text === text)) {
+        task.evidence.push({
+          id: newId2("ev"),
+          text,
+          createdAt: at
+        });
+      }
+    }
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: input.passed ? "verification.passed" : "verification.failed",
+      at,
+      projectId: task.projectId,
+      taskId,
+      payload: {
+        verificationId: verification.id,
+        command: verification.command,
+        exitCode: verification.exitCode,
+        runId: verification.runId
+      }
+    });
+    await ctx.save();
+    return structuredClone(verification);
+  });
+}
+
 // src/host/store.ts
 function defaultStudioDataDir() {
   const home = process.env.DSH_HOME?.trim();
@@ -3656,101 +3805,13 @@ var StudioStore = class {
     });
   }
   async getReviewContext(taskId) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const task = findTask(state, taskId);
-      if (task.reviewerRoleId === null) {
-        throw new StudioStoreError(
-          "reviewer_required",
-          "\u4EFB\u52A1\u6CA1\u6709\u9A8C\u6536\u4EBA\u89D2\u8272\uFF0C\u4E0D\u80FD\u72EC\u7ACB\u8BC4\u5BA1",
-          409
-        );
-      }
-      const role = state.roles.find(
-        (item) => item.id === task.reviewerRoleId
-      );
-      const project = state.projects.find(
-        (item) => item.id === task.projectId
-      );
-      if (role === void 0 || project === void 0) {
-        throw new StudioStoreError(
-          "context_not_found",
-          "\u9A8C\u6536\u4EBA\u89D2\u8272\u6216\u9879\u76EE\u4E0D\u5B58\u5728",
-          404
-        );
-      }
-      const run = [...state.runs].filter(
-        (item) => item.taskId === taskId && item.workspacePath !== null
-      ).sort(
-        (left, right) => right.startedAt.localeCompare(left.startedAt)
-      )[0];
-      const verification = [...state.verifications].filter((item) => item.taskId === taskId).sort(
-        (left, right) => right.createdAt.localeCompare(left.createdAt)
-      )[0];
-      const providerProfile = role.providerProfileId === null ? null : state.providerProfiles.find(
-        (profile) => profile.id === role.providerProfileId && profile.projectId === project.id
-      ) ?? null;
-      return {
-        task: structuredClone(task),
-        role: structuredClone(role),
-        project: structuredClone(project),
-        run: run === void 0 ? null : structuredClone(run),
-        verification: verification === void 0 ? null : structuredClone(verification),
-        providerProfile: providerProfile === null ? null : structuredClone(providerProfile)
-      };
-    });
+    return getReviewContext(this.context, taskId);
   }
   async recordReview(taskId, input) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const task = findTask(state, taskId);
-      const at = nowIso2(this.now);
-      const review = {
-        id: newId3("review"),
-        projectId: task.projectId,
-        taskId,
-        runId: input.runId ?? null,
-        reviewerRoleId: input.reviewerRoleId,
-        model: input.model,
-        verdict: input.verdict,
-        summary: requiredText(input.summary, "summary", 2e3),
-        findings: textList(input.findings, "findings", 30),
-        tokens: input.tokens,
-        createdAt: at
-      };
-      state.reviews.push(review);
-      if (review.verdict === "pass") {
-        const text = `\u72EC\u7ACB\u8BC4\u5BA1\u901A\u8FC7\uFF08${input.model}\uFF09\uFF1A${review.summary}`;
-        if (!task.evidence.some((item) => item.text === text)) {
-          task.evidence.push({ id: newId3("ev"), text, createdAt: at });
-        }
-      }
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: review.verdict === "pass" ? "review.passed" : "review.failed",
-        at,
-        projectId: task.projectId,
-        taskId,
-        payload: { reviewId: review.id, model: review.model }
-      });
-      await this.save();
-      return structuredClone(review);
-    });
+    return recordReview(this.context, taskId, input);
   }
   async getTaskVerificationContext(taskId) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const task = findTask(state, taskId);
-      const run = [...state.runs].filter(
-        (item) => item.taskId === taskId && item.workspacePath !== null
-      ).sort(
-        (left, right) => right.startedAt.localeCompare(left.startedAt)
-      )[0];
-      return {
-        task: structuredClone(task),
-        run: run === void 0 ? null : structuredClone(run)
-      };
-    });
+    return getTaskVerificationContext(this.context, taskId);
   }
   async beginRun(taskId, prompt, workspace, execution) {
     return this.runExclusive(async () => {
@@ -4241,54 +4302,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
     });
   }
   async recordVerification(taskId, input) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const task = findTask(state, taskId);
-      const at = nowIso2(this.now);
-      const run = input.runId ? state.runs.find((item) => item.id === input.runId) : [...state.runs].filter(
-        (item) => item.taskId === taskId && item.workspacePath !== null
-      ).sort(
-        (left, right) => right.startedAt.localeCompare(left.startedAt)
-      )[0];
-      const verification = {
-        id: newId3("verify"),
-        projectId: task.projectId,
-        taskId,
-        runId: run?.id ?? null,
-        command: requiredText(input.command, "command", 500),
-        workdir: requiredText(input.workdir, "workdir", 1e3),
-        exitCode: input.exitCode,
-        output: input.output.slice(0, 2e4),
-        passed: input.passed,
-        createdAt: at
-      };
-      state.verifications.push(verification);
-      if (input.passed) {
-        const text = `\u9A8C\u8BC1\u901A\u8FC7\uFF1A\`${verification.command}\`\uFF08exit 0\uFF09`;
-        if (!task.evidence.some((item) => item.text === text)) {
-          task.evidence.push({
-            id: newId3("ev"),
-            text,
-            createdAt: at
-          });
-        }
-      }
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: input.passed ? "verification.passed" : "verification.failed",
-        at,
-        projectId: task.projectId,
-        taskId,
-        payload: {
-          verificationId: verification.id,
-          command: verification.command,
-          exitCode: verification.exitCode,
-          runId: verification.runId
-        }
-      });
-      await this.save();
-      return structuredClone(verification);
-    });
+    return recordVerification(this.context, taskId, input);
   }
   async getDecisionAdrContext(decisionId) {
     return this.runExclusive(async () => {
