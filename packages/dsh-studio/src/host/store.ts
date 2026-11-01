@@ -145,6 +145,14 @@ import {
   setMergePostVerification as setMergePostVerificationImpl,
 } from "./store/merge.js";
 import {
+  acceptTrigger as acceptTriggerImpl,
+  getTriggerRules as getTriggerRulesImpl,
+  ignoreTrigger as ignoreTriggerImpl,
+  ingestTrigger as ingestTriggerImpl,
+  ingestWebhook as ingestWebhookImpl,
+  updateTriggerRules as updateTriggerRulesImpl,
+} from "./store/triggers.js";
+import {
   defaultStageChecklist,
   defaultTriggerRules,
   isRecord,
@@ -776,142 +784,18 @@ export class StudioStore {
   }
 
   async ingestTrigger(input: CreateTriggerInput): Promise<Trigger> {
-    return this.runExclusive(async () => {
-      if (
-        !isTriggerSource(input.source) ||
-        typeof input.title !== "string" ||
-        input.title.trim() === ""
-      ) {
-        throw new StudioStoreError(
-          "invalid_input",
-          "触发事件必须有受支持的 source 和 title",
-        );
-      }
-      const state = this.requireState();
-      const project = pickProject(state, undefined);
-      if (project === null) {
-        throw new StudioStoreError("project_required", "请先创建一个项目");
-      }
-      const externalId = optionalText(input.externalId, "externalId", 240);
-      if (externalId !== "") {
-        const duplicate = state.triggers.find(
-          (trigger) =>
-            trigger.projectId === project.id &&
-            trigger.source === input.source &&
-            trigger.externalId === externalId,
-        );
-        if (duplicate !== undefined) return structuredClone(duplicate);
-      }
-      const threadKey =
-        optionalText(input.threadKey, "threadKey", 240) ||
-        externalId ||
-        `thread-${randomUUID().slice(0, 8)}`;
-      const title = requiredText(input.title, "title", 240);
-      const at = nowIso(this.now);
-      let thread = state.threads.find(
-        (item) => item.projectId === project.id && item.key === threadKey,
-      );
-      if (thread === undefined) {
-        thread = {
-          id: newId("thread"),
-          projectId: project.id,
-          key: threadKey,
-          source: input.source,
-          title,
-          taskId: null,
-          triggerIds: [],
-          createdAt: at,
-          updatedAt: at,
-        };
-        state.threads.push(thread);
-      }
-      const trigger: Trigger = {
-        id: newId("trigger"),
-        projectId: project.id,
-        source: input.source,
-        externalId,
-        threadKey,
-        title,
-        body: optionalText(input.body, "body", 8000),
-        url: optionalText(input.url, "url", 1000),
-        status: thread.taskId === null ? "pending" : "accepted",
-        taskId: thread.taskId,
-        threadId: thread.id,
-        note: "",
-        createdAt: at,
-        updatedAt: at,
-      };
-      state.triggers.push(trigger);
-      thread.triggerIds.push(trigger.id);
-      thread.updatedAt = at;
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "trigger.received",
-        at,
-        projectId: project.id,
-        taskId: thread.taskId,
-        payload: {
-          source: trigger.source,
-          threadKey,
-          routedToExistingTask: thread.taskId !== null,
-        },
-      });
-      await this.save();
-      return structuredClone(trigger);
-    });
+    return ingestTriggerImpl(this.context, input);
   }
 
   async getTriggerRules(projectId: string): Promise<TriggerRules> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      return structuredClone(findProject(state, projectId).triggerRules);
-    });
+    return getTriggerRulesImpl(this.context, projectId);
   }
 
   async updateTriggerRules(
     projectId: string,
     input: UpdateTriggerRulesInput,
   ): Promise<TriggerRules> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const project = findProject(state, projectId);
-      if (input.enabled !== undefined) {
-        project.triggerRules.enabled = input.enabled;
-      }
-      if (input.sources !== undefined) {
-        project.triggerRules.sources = input.sources.filter(isTriggerSource);
-      }
-      if (input.repos !== undefined) {
-        project.triggerRules.repos = textList(input.repos, "repos", 20);
-      }
-      if (input.labels !== undefined) {
-        project.triggerRules.labels = textList(input.labels, "labels", 20);
-      }
-      if (input.authors !== undefined) {
-        project.triggerRules.authors = textList(
-          input.authors,
-          "authors",
-          20,
-        );
-      }
-      if (input.mention !== undefined) {
-        project.triggerRules.mention = optionalText(
-          input.mention,
-          "mention",
-          120,
-        );
-      }
-      project.updatedAt = nowIso(this.now);
-      state.updatedAt = project.updatedAt;
-      this.recordEvent(state, {
-        type: "trigger.rules_updated",
-        at: project.updatedAt,
-        projectId: project.id,
-        payload: { enabled: project.triggerRules.enabled },
-      });
-      await this.save();
-      return structuredClone(project.triggerRules);
-    });
+    return updateTriggerRulesImpl(this.context, projectId, input);
   }
 
   async ingestWebhook(
@@ -919,223 +803,18 @@ export class StudioStore {
     source: TriggerSource,
     payload: Record<string, unknown>,
   ): Promise<WebhookIngestResult> {
-    const rules = await this.getTriggerRules(projectId);
-    if (!rules.enabled) {
-      return this.rejectWebhook(projectId, source, "Webhook 未启用");
-    }
-    if (!rules.sources.includes(source)) {
-      return this.rejectWebhook(projectId, source, "source 不在允许列表");
-    }
-    const normalized = normalizeWebhookPayload(source, payload);
-    if (
-      rules.repos.length > 0 &&
-      !rules.repos.some(
-        (repo) => repo.toLowerCase() === normalized.repo.toLowerCase(),
-      )
-    ) {
-      return this.rejectWebhook(projectId, source, "repo 不匹配");
-    }
-    if (
-      rules.labels.length > 0 &&
-      !rules.labels.some((label) =>
-        normalized.labels.some(
-          (current) => current.toLowerCase() === label.toLowerCase(),
-        ),
-      )
-    ) {
-      return this.rejectWebhook(projectId, source, "label 不匹配");
-    }
-    if (
-      rules.authors.length > 0 &&
-      !rules.authors.some(
-        (author) =>
-          author.toLowerCase() === normalized.author.toLowerCase(),
-      )
-    ) {
-      return this.rejectWebhook(projectId, source, "author 不匹配");
-    }
-    if (
-      rules.mention !== "" &&
-      !`${normalized.title}\n${normalized.body}`.includes(rules.mention)
-    ) {
-      return this.rejectWebhook(projectId, source, "mention 不匹配");
-    }
-    const trigger = await this.ingestTrigger({
-      source,
-      externalId: normalized.externalId,
-      threadKey: normalized.threadKey,
-      title: normalized.title,
-      body: normalized.body,
-      url: normalized.url,
-    });
-    return {
-      accepted: true,
-      reason: "accepted",
-      trigger,
-    };
-  }
-
-  private async rejectWebhook(
-    projectId: string,
-    source: TriggerSource,
-    reason: string,
-  ): Promise<WebhookIngestResult> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const at = nowIso(this.now);
-      this.recordEvent(state, {
-        type: "trigger.webhook_filtered",
-        at,
-        projectId,
-        payload: { source, reason },
-      });
-      await this.save();
-      return { accepted: false, reason, trigger: null };
-    });
+    return ingestWebhookImpl(this.context, projectId, source, payload);
   }
 
   async acceptTrigger(
     triggerId: string,
     input: AcceptTriggerInput = {},
   ): Promise<{ trigger: Trigger; task: Task }> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const trigger = findTrigger(state, triggerId);
-      if (trigger.status === "ignored") {
-        throw new StudioStoreError(
-          "trigger_ignored",
-          "已忽略的触发事件不能转为任务",
-          409,
-        );
-      }
-      const project = findProject(state, trigger.projectId);
-      if (trigger.status === "accepted" && trigger.taskId !== null) {
-        return {
-          trigger: structuredClone(trigger),
-          task: structuredClone(findTask(state, trigger.taskId)),
-        };
-      }
-
-      const thread =
-        trigger.threadId === null
-          ? undefined
-          : state.threads.find((item) => item.id === trigger.threadId);
-      if (thread?.taskId !== null && thread?.taskId !== undefined) {
-        const at = nowIso(this.now);
-        const task = findTask(state, thread.taskId);
-        trigger.status = "accepted";
-        trigger.taskId = task.id;
-        trigger.updatedAt = at;
-        task.evidence.push({
-          id: newId("ev"),
-          text: `触发事件：${trigger.title}`,
-          createdAt: at,
-        });
-        task.updatedAt = at;
-        state.updatedAt = at;
-        this.recordEvent(state, {
-          type: "trigger.routed",
-          at,
-          projectId: project.id,
-          taskId: task.id,
-          payload: { triggerId: trigger.id, source: trigger.source },
-        });
-        await this.save();
-        return {
-          trigger: structuredClone(trigger),
-          task: structuredClone(task),
-        };
-      }
-
-      const roles = state.roles.filter((role) => role.projectId === project.id);
-      const lead =
-        roles.find((role) => role.name.toLowerCase() === "lead") ?? roles[0];
-      const reviewer =
-        roles.find((role) => role.name.toLowerCase() === "verifier") ??
-        roles.find((role) => role.name.toLowerCase() === "architect") ??
-        lead;
-      const at = nowIso(this.now);
-      const acceptance = normalizeAcceptance(
-        input.acceptance !== undefined && input.acceptance.length > 0
-          ? input.acceptance
-          : ["人工确认触发内容与验收标准"],
-        [],
-      );
-      const task: Task = {
-        id: newId("task"),
-        projectId: project.id,
-        title: trigger.title,
-        goal: trigger.body || trigger.title,
-        status: "backlog",
-        priority: isTaskPriority(input.priority) ? input.priority : "P1",
-        ownerRoleId: input.ownerRoleId ?? lead?.id ?? null,
-        reviewerRoleId: input.reviewerRoleId ?? reviewer?.id ?? null,
-        acceptance,
-        evidence: [],
-        branch: null,
-        verifyCommand: null,
-        module: null,
-        contractRef: null,
-        requirementRefs: [`trigger:${trigger.id}`],
-        kind: "new",
-        diagnosis: "",
-        plan: "",
-        integration: false,
-        originTaskId: null,
-        docsSynced: false,
-        createdAt: at,
-        updatedAt: at,
-      };
-      state.tasks.push(task);
-      trigger.status = "accepted";
-      trigger.taskId = task.id;
-      trigger.updatedAt = at;
-      if (thread !== undefined) {
-        thread.taskId = task.id;
-        thread.updatedAt = at;
-      }
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "trigger.accepted",
-        at,
-        projectId: project.id,
-        taskId: task.id,
-        payload: { triggerId: trigger.id, source: trigger.source },
-      });
-      await this.save();
-      return {
-        trigger: structuredClone(trigger),
-        task: structuredClone(task),
-      };
-    });
+    return acceptTriggerImpl(this.context, triggerId, input);
   }
 
   async ignoreTrigger(triggerId: string, note = ""): Promise<Trigger> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const trigger = findTrigger(state, triggerId);
-      if (trigger.status === "accepted") {
-        throw new StudioStoreError(
-          "trigger_accepted",
-          "已转为任务的触发事件不能忽略",
-          409,
-        );
-      }
-      const at = nowIso(this.now);
-      trigger.status = "ignored";
-      trigger.note = optionalText(note, "note", 2000);
-      trigger.updatedAt = at;
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "trigger.ignored",
-        at,
-        projectId: trigger.projectId,
-        taskId: null,
-        payload: { triggerId: trigger.id },
-      });
-      await this.save();
-      return structuredClone(trigger);
-    });
+    return ignoreTriggerImpl(this.context, triggerId, note);
   }
 
   async getWorkshopContext(workshopId: string): Promise<{

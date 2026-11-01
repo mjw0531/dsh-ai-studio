@@ -1,5 +1,5 @@
 // src/host/store.ts
-import { randomUUID as randomUUID4 } from "node:crypto";
+import { randomUUID as randomUUID5 } from "node:crypto";
 import { existsSync } from "node:fs";
 import {
   copyFile,
@@ -14,7 +14,7 @@ import path from "node:path";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 26;
-var STUDIO_PLUGIN_VERSION = "3.0.7";
+var STUDIO_PLUGIN_VERSION = "3.0.8";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -2148,6 +2148,318 @@ async function recordRollback(ctx, proposalId, rollbackCommit) {
   });
 }
 
+// src/host/store/triggers.ts
+import { randomUUID as randomUUID4 } from "node:crypto";
+async function ingestTrigger(ctx, input) {
+  return ctx.runExclusive(async () => {
+    if (!isTriggerSource(input.source) || typeof input.title !== "string" || input.title.trim() === "") {
+      throw new StudioStoreError(
+        "invalid_input",
+        "\u89E6\u53D1\u4E8B\u4EF6\u5FC5\u987B\u6709\u53D7\u652F\u6301\u7684 source \u548C title"
+      );
+    }
+    const state = ctx.requireState();
+    const project = pickProject(state, void 0);
+    if (project === null) {
+      throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
+    }
+    const externalId = optionalText(input.externalId, "externalId", 240);
+    if (externalId !== "") {
+      const duplicate = state.triggers.find(
+        (trigger2) => trigger2.projectId === project.id && trigger2.source === input.source && trigger2.externalId === externalId
+      );
+      if (duplicate !== void 0) return structuredClone(duplicate);
+    }
+    const threadKey = optionalText(input.threadKey, "threadKey", 240) || externalId || `thread-${randomUUID4().slice(0, 8)}`;
+    const title = requiredText(input.title, "title", 240);
+    const at = ctx.now();
+    let thread = state.threads.find(
+      (item) => item.projectId === project.id && item.key === threadKey
+    );
+    if (thread === void 0) {
+      thread = {
+        id: newId2("thread"),
+        projectId: project.id,
+        key: threadKey,
+        source: input.source,
+        title,
+        taskId: null,
+        triggerIds: [],
+        createdAt: at,
+        updatedAt: at
+      };
+      state.threads.push(thread);
+    }
+    const trigger = {
+      id: newId2("trigger"),
+      projectId: project.id,
+      source: input.source,
+      externalId,
+      threadKey,
+      title,
+      body: optionalText(input.body, "body", 8e3),
+      url: optionalText(input.url, "url", 1e3),
+      status: thread.taskId === null ? "pending" : "accepted",
+      taskId: thread.taskId,
+      threadId: thread.id,
+      note: "",
+      createdAt: at,
+      updatedAt: at
+    };
+    state.triggers.push(trigger);
+    thread.triggerIds.push(trigger.id);
+    thread.updatedAt = at;
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "trigger.received",
+      at,
+      projectId: project.id,
+      taskId: thread.taskId,
+      payload: {
+        source: trigger.source,
+        threadKey,
+        routedToExistingTask: thread.taskId !== null
+      }
+    });
+    await ctx.save();
+    return structuredClone(trigger);
+  });
+}
+async function getTriggerRules(ctx, projectId) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    return structuredClone(findProject(state, projectId).triggerRules);
+  });
+}
+async function updateTriggerRules(ctx, projectId, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const project = findProject(state, projectId);
+    if (input.enabled !== void 0) {
+      project.triggerRules.enabled = input.enabled;
+    }
+    if (input.sources !== void 0) {
+      project.triggerRules.sources = input.sources.filter(isTriggerSource);
+    }
+    if (input.repos !== void 0) {
+      project.triggerRules.repos = textList(input.repos, "repos", 20);
+    }
+    if (input.labels !== void 0) {
+      project.triggerRules.labels = textList(input.labels, "labels", 20);
+    }
+    if (input.authors !== void 0) {
+      project.triggerRules.authors = textList(
+        input.authors,
+        "authors",
+        20
+      );
+    }
+    if (input.mention !== void 0) {
+      project.triggerRules.mention = optionalText(
+        input.mention,
+        "mention",
+        120
+      );
+    }
+    project.updatedAt = ctx.now();
+    state.updatedAt = project.updatedAt;
+    ctx.recordEvent(state, {
+      type: "trigger.rules_updated",
+      at: project.updatedAt,
+      projectId: project.id,
+      payload: { enabled: project.triggerRules.enabled }
+    });
+    await ctx.save();
+    return structuredClone(project.triggerRules);
+  });
+}
+async function ingestWebhook(ctx, projectId, source, payload) {
+  const rules = await getTriggerRules(ctx, projectId);
+  if (!rules.enabled) {
+    return rejectWebhook(ctx, projectId, source, "Webhook \u672A\u542F\u7528");
+  }
+  if (!rules.sources.includes(source)) {
+    return rejectWebhook(ctx, projectId, source, "source \u4E0D\u5728\u5141\u8BB8\u5217\u8868");
+  }
+  const normalized = normalizeWebhookPayload(source, payload);
+  if (rules.repos.length > 0 && !rules.repos.some(
+    (repo) => repo.toLowerCase() === normalized.repo.toLowerCase()
+  )) {
+    return rejectWebhook(ctx, projectId, source, "repo \u4E0D\u5339\u914D");
+  }
+  if (rules.labels.length > 0 && !rules.labels.some(
+    (label) => normalized.labels.some(
+      (current) => current.toLowerCase() === label.toLowerCase()
+    )
+  )) {
+    return rejectWebhook(ctx, projectId, source, "label \u4E0D\u5339\u914D");
+  }
+  if (rules.authors.length > 0 && !rules.authors.some(
+    (author) => author.toLowerCase() === normalized.author.toLowerCase()
+  )) {
+    return rejectWebhook(ctx, projectId, source, "author \u4E0D\u5339\u914D");
+  }
+  if (rules.mention !== "" && !`${normalized.title}
+${normalized.body}`.includes(rules.mention)) {
+    return rejectWebhook(ctx, projectId, source, "mention \u4E0D\u5339\u914D");
+  }
+  const trigger = await ingestTrigger(ctx, {
+    source,
+    externalId: normalized.externalId,
+    threadKey: normalized.threadKey,
+    title: normalized.title,
+    body: normalized.body,
+    url: normalized.url
+  });
+  return {
+    accepted: true,
+    reason: "accepted",
+    trigger
+  };
+}
+async function rejectWebhook(ctx, projectId, source, reason) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const at = ctx.now();
+    ctx.recordEvent(state, {
+      type: "trigger.webhook_filtered",
+      at,
+      projectId,
+      payload: { source, reason }
+    });
+    await ctx.save();
+    return { accepted: false, reason, trigger: null };
+  });
+}
+async function acceptTrigger(ctx, triggerId, input = {}) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const trigger = findTrigger(state, triggerId);
+    if (trigger.status === "ignored") {
+      throw new StudioStoreError(
+        "trigger_ignored",
+        "\u5DF2\u5FFD\u7565\u7684\u89E6\u53D1\u4E8B\u4EF6\u4E0D\u80FD\u8F6C\u4E3A\u4EFB\u52A1",
+        409
+      );
+    }
+    const project = findProject(state, trigger.projectId);
+    if (trigger.status === "accepted" && trigger.taskId !== null) {
+      return {
+        trigger: structuredClone(trigger),
+        task: structuredClone(findTask(state, trigger.taskId))
+      };
+    }
+    const thread = trigger.threadId === null ? void 0 : state.threads.find((item) => item.id === trigger.threadId);
+    if (thread?.taskId !== null && thread?.taskId !== void 0) {
+      const at2 = ctx.now();
+      const task2 = findTask(state, thread.taskId);
+      trigger.status = "accepted";
+      trigger.taskId = task2.id;
+      trigger.updatedAt = at2;
+      task2.evidence.push({
+        id: newId2("ev"),
+        text: `\u89E6\u53D1\u4E8B\u4EF6\uFF1A${trigger.title}`,
+        createdAt: at2
+      });
+      task2.updatedAt = at2;
+      state.updatedAt = at2;
+      ctx.recordEvent(state, {
+        type: "trigger.routed",
+        at: at2,
+        projectId: project.id,
+        taskId: task2.id,
+        payload: { triggerId: trigger.id, source: trigger.source }
+      });
+      await ctx.save();
+      return {
+        trigger: structuredClone(trigger),
+        task: structuredClone(task2)
+      };
+    }
+    const roles = state.roles.filter((role) => role.projectId === project.id);
+    const lead = roles.find((role) => role.name.toLowerCase() === "lead") ?? roles[0];
+    const reviewer = roles.find((role) => role.name.toLowerCase() === "verifier") ?? roles.find((role) => role.name.toLowerCase() === "architect") ?? lead;
+    const at = ctx.now();
+    const acceptance = normalizeAcceptance(
+      input.acceptance !== void 0 && input.acceptance.length > 0 ? input.acceptance : ["\u4EBA\u5DE5\u786E\u8BA4\u89E6\u53D1\u5185\u5BB9\u4E0E\u9A8C\u6536\u6807\u51C6"],
+      []
+    );
+    const task = {
+      id: newId2("task"),
+      projectId: project.id,
+      title: trigger.title,
+      goal: trigger.body || trigger.title,
+      status: "backlog",
+      priority: isTaskPriority(input.priority) ? input.priority : "P1",
+      ownerRoleId: input.ownerRoleId ?? lead?.id ?? null,
+      reviewerRoleId: input.reviewerRoleId ?? reviewer?.id ?? null,
+      acceptance,
+      evidence: [],
+      branch: null,
+      verifyCommand: null,
+      module: null,
+      contractRef: null,
+      requirementRefs: [`trigger:${trigger.id}`],
+      kind: "new",
+      diagnosis: "",
+      plan: "",
+      integration: false,
+      originTaskId: null,
+      docsSynced: false,
+      createdAt: at,
+      updatedAt: at
+    };
+    state.tasks.push(task);
+    trigger.status = "accepted";
+    trigger.taskId = task.id;
+    trigger.updatedAt = at;
+    if (thread !== void 0) {
+      thread.taskId = task.id;
+      thread.updatedAt = at;
+    }
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "trigger.accepted",
+      at,
+      projectId: project.id,
+      taskId: task.id,
+      payload: { triggerId: trigger.id, source: trigger.source }
+    });
+    await ctx.save();
+    return {
+      trigger: structuredClone(trigger),
+      task: structuredClone(task)
+    };
+  });
+}
+async function ignoreTrigger(ctx, triggerId, note = "") {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const trigger = findTrigger(state, triggerId);
+    if (trigger.status === "accepted") {
+      throw new StudioStoreError(
+        "trigger_accepted",
+        "\u5DF2\u8F6C\u4E3A\u4EFB\u52A1\u7684\u89E6\u53D1\u4E8B\u4EF6\u4E0D\u80FD\u5FFD\u7565",
+        409
+      );
+    }
+    const at = ctx.now();
+    trigger.status = "ignored";
+    trigger.note = optionalText(note, "note", 2e3);
+    trigger.updatedAt = at;
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "trigger.ignored",
+      at,
+      projectId: trigger.projectId,
+      taskId: null,
+      payload: { triggerId: trigger.id }
+    });
+    await ctx.save();
+    return structuredClone(trigger);
+  });
+}
+
 // src/host/store.ts
 function defaultStudioDataDir() {
   const home = process.env.DSH_HOME?.trim();
@@ -2160,7 +2472,7 @@ function nowIso2(now) {
   return now().toISOString();
 }
 function newId3(prefix) {
-  return `${prefix}-${randomUUID4().slice(0, 8)}`;
+  return `${prefix}-${randomUUID5().slice(0, 8)}`;
 }
 var StudioStore = class {
   dataDir;
@@ -2646,313 +2958,22 @@ var StudioStore = class {
     });
   }
   async ingestTrigger(input) {
-    return this.runExclusive(async () => {
-      if (!isTriggerSource(input.source) || typeof input.title !== "string" || input.title.trim() === "") {
-        throw new StudioStoreError(
-          "invalid_input",
-          "\u89E6\u53D1\u4E8B\u4EF6\u5FC5\u987B\u6709\u53D7\u652F\u6301\u7684 source \u548C title"
-        );
-      }
-      const state = this.requireState();
-      const project = pickProject(state, void 0);
-      if (project === null) {
-        throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
-      }
-      const externalId = optionalText(input.externalId, "externalId", 240);
-      if (externalId !== "") {
-        const duplicate = state.triggers.find(
-          (trigger2) => trigger2.projectId === project.id && trigger2.source === input.source && trigger2.externalId === externalId
-        );
-        if (duplicate !== void 0) return structuredClone(duplicate);
-      }
-      const threadKey = optionalText(input.threadKey, "threadKey", 240) || externalId || `thread-${randomUUID4().slice(0, 8)}`;
-      const title = requiredText(input.title, "title", 240);
-      const at = nowIso2(this.now);
-      let thread = state.threads.find(
-        (item) => item.projectId === project.id && item.key === threadKey
-      );
-      if (thread === void 0) {
-        thread = {
-          id: newId3("thread"),
-          projectId: project.id,
-          key: threadKey,
-          source: input.source,
-          title,
-          taskId: null,
-          triggerIds: [],
-          createdAt: at,
-          updatedAt: at
-        };
-        state.threads.push(thread);
-      }
-      const trigger = {
-        id: newId3("trigger"),
-        projectId: project.id,
-        source: input.source,
-        externalId,
-        threadKey,
-        title,
-        body: optionalText(input.body, "body", 8e3),
-        url: optionalText(input.url, "url", 1e3),
-        status: thread.taskId === null ? "pending" : "accepted",
-        taskId: thread.taskId,
-        threadId: thread.id,
-        note: "",
-        createdAt: at,
-        updatedAt: at
-      };
-      state.triggers.push(trigger);
-      thread.triggerIds.push(trigger.id);
-      thread.updatedAt = at;
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "trigger.received",
-        at,
-        projectId: project.id,
-        taskId: thread.taskId,
-        payload: {
-          source: trigger.source,
-          threadKey,
-          routedToExistingTask: thread.taskId !== null
-        }
-      });
-      await this.save();
-      return structuredClone(trigger);
-    });
+    return ingestTrigger(this.context, input);
   }
   async getTriggerRules(projectId) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      return structuredClone(findProject(state, projectId).triggerRules);
-    });
+    return getTriggerRules(this.context, projectId);
   }
   async updateTriggerRules(projectId, input) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const project = findProject(state, projectId);
-      if (input.enabled !== void 0) {
-        project.triggerRules.enabled = input.enabled;
-      }
-      if (input.sources !== void 0) {
-        project.triggerRules.sources = input.sources.filter(isTriggerSource);
-      }
-      if (input.repos !== void 0) {
-        project.triggerRules.repos = textList(input.repos, "repos", 20);
-      }
-      if (input.labels !== void 0) {
-        project.triggerRules.labels = textList(input.labels, "labels", 20);
-      }
-      if (input.authors !== void 0) {
-        project.triggerRules.authors = textList(
-          input.authors,
-          "authors",
-          20
-        );
-      }
-      if (input.mention !== void 0) {
-        project.triggerRules.mention = optionalText(
-          input.mention,
-          "mention",
-          120
-        );
-      }
-      project.updatedAt = nowIso2(this.now);
-      state.updatedAt = project.updatedAt;
-      this.recordEvent(state, {
-        type: "trigger.rules_updated",
-        at: project.updatedAt,
-        projectId: project.id,
-        payload: { enabled: project.triggerRules.enabled }
-      });
-      await this.save();
-      return structuredClone(project.triggerRules);
-    });
+    return updateTriggerRules(this.context, projectId, input);
   }
   async ingestWebhook(projectId, source, payload) {
-    const rules = await this.getTriggerRules(projectId);
-    if (!rules.enabled) {
-      return this.rejectWebhook(projectId, source, "Webhook \u672A\u542F\u7528");
-    }
-    if (!rules.sources.includes(source)) {
-      return this.rejectWebhook(projectId, source, "source \u4E0D\u5728\u5141\u8BB8\u5217\u8868");
-    }
-    const normalized = normalizeWebhookPayload(source, payload);
-    if (rules.repos.length > 0 && !rules.repos.some(
-      (repo) => repo.toLowerCase() === normalized.repo.toLowerCase()
-    )) {
-      return this.rejectWebhook(projectId, source, "repo \u4E0D\u5339\u914D");
-    }
-    if (rules.labels.length > 0 && !rules.labels.some(
-      (label) => normalized.labels.some(
-        (current) => current.toLowerCase() === label.toLowerCase()
-      )
-    )) {
-      return this.rejectWebhook(projectId, source, "label \u4E0D\u5339\u914D");
-    }
-    if (rules.authors.length > 0 && !rules.authors.some(
-      (author) => author.toLowerCase() === normalized.author.toLowerCase()
-    )) {
-      return this.rejectWebhook(projectId, source, "author \u4E0D\u5339\u914D");
-    }
-    if (rules.mention !== "" && !`${normalized.title}
-${normalized.body}`.includes(rules.mention)) {
-      return this.rejectWebhook(projectId, source, "mention \u4E0D\u5339\u914D");
-    }
-    const trigger = await this.ingestTrigger({
-      source,
-      externalId: normalized.externalId,
-      threadKey: normalized.threadKey,
-      title: normalized.title,
-      body: normalized.body,
-      url: normalized.url
-    });
-    return {
-      accepted: true,
-      reason: "accepted",
-      trigger
-    };
-  }
-  async rejectWebhook(projectId, source, reason) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const at = nowIso2(this.now);
-      this.recordEvent(state, {
-        type: "trigger.webhook_filtered",
-        at,
-        projectId,
-        payload: { source, reason }
-      });
-      await this.save();
-      return { accepted: false, reason, trigger: null };
-    });
+    return ingestWebhook(this.context, projectId, source, payload);
   }
   async acceptTrigger(triggerId, input = {}) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const trigger = findTrigger(state, triggerId);
-      if (trigger.status === "ignored") {
-        throw new StudioStoreError(
-          "trigger_ignored",
-          "\u5DF2\u5FFD\u7565\u7684\u89E6\u53D1\u4E8B\u4EF6\u4E0D\u80FD\u8F6C\u4E3A\u4EFB\u52A1",
-          409
-        );
-      }
-      const project = findProject(state, trigger.projectId);
-      if (trigger.status === "accepted" && trigger.taskId !== null) {
-        return {
-          trigger: structuredClone(trigger),
-          task: structuredClone(findTask(state, trigger.taskId))
-        };
-      }
-      const thread = trigger.threadId === null ? void 0 : state.threads.find((item) => item.id === trigger.threadId);
-      if (thread?.taskId !== null && thread?.taskId !== void 0) {
-        const at2 = nowIso2(this.now);
-        const task2 = findTask(state, thread.taskId);
-        trigger.status = "accepted";
-        trigger.taskId = task2.id;
-        trigger.updatedAt = at2;
-        task2.evidence.push({
-          id: newId3("ev"),
-          text: `\u89E6\u53D1\u4E8B\u4EF6\uFF1A${trigger.title}`,
-          createdAt: at2
-        });
-        task2.updatedAt = at2;
-        state.updatedAt = at2;
-        this.recordEvent(state, {
-          type: "trigger.routed",
-          at: at2,
-          projectId: project.id,
-          taskId: task2.id,
-          payload: { triggerId: trigger.id, source: trigger.source }
-        });
-        await this.save();
-        return {
-          trigger: structuredClone(trigger),
-          task: structuredClone(task2)
-        };
-      }
-      const roles = state.roles.filter((role) => role.projectId === project.id);
-      const lead = roles.find((role) => role.name.toLowerCase() === "lead") ?? roles[0];
-      const reviewer = roles.find((role) => role.name.toLowerCase() === "verifier") ?? roles.find((role) => role.name.toLowerCase() === "architect") ?? lead;
-      const at = nowIso2(this.now);
-      const acceptance = normalizeAcceptance(
-        input.acceptance !== void 0 && input.acceptance.length > 0 ? input.acceptance : ["\u4EBA\u5DE5\u786E\u8BA4\u89E6\u53D1\u5185\u5BB9\u4E0E\u9A8C\u6536\u6807\u51C6"],
-        []
-      );
-      const task = {
-        id: newId3("task"),
-        projectId: project.id,
-        title: trigger.title,
-        goal: trigger.body || trigger.title,
-        status: "backlog",
-        priority: isTaskPriority(input.priority) ? input.priority : "P1",
-        ownerRoleId: input.ownerRoleId ?? lead?.id ?? null,
-        reviewerRoleId: input.reviewerRoleId ?? reviewer?.id ?? null,
-        acceptance,
-        evidence: [],
-        branch: null,
-        verifyCommand: null,
-        module: null,
-        contractRef: null,
-        requirementRefs: [`trigger:${trigger.id}`],
-        kind: "new",
-        diagnosis: "",
-        plan: "",
-        integration: false,
-        originTaskId: null,
-        docsSynced: false,
-        createdAt: at,
-        updatedAt: at
-      };
-      state.tasks.push(task);
-      trigger.status = "accepted";
-      trigger.taskId = task.id;
-      trigger.updatedAt = at;
-      if (thread !== void 0) {
-        thread.taskId = task.id;
-        thread.updatedAt = at;
-      }
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "trigger.accepted",
-        at,
-        projectId: project.id,
-        taskId: task.id,
-        payload: { triggerId: trigger.id, source: trigger.source }
-      });
-      await this.save();
-      return {
-        trigger: structuredClone(trigger),
-        task: structuredClone(task)
-      };
-    });
+    return acceptTrigger(this.context, triggerId, input);
   }
   async ignoreTrigger(triggerId, note = "") {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const trigger = findTrigger(state, triggerId);
-      if (trigger.status === "accepted") {
-        throw new StudioStoreError(
-          "trigger_accepted",
-          "\u5DF2\u8F6C\u4E3A\u4EFB\u52A1\u7684\u89E6\u53D1\u4E8B\u4EF6\u4E0D\u80FD\u5FFD\u7565",
-          409
-        );
-      }
-      const at = nowIso2(this.now);
-      trigger.status = "ignored";
-      trigger.note = optionalText(note, "note", 2e3);
-      trigger.updatedAt = at;
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "trigger.ignored",
-        at,
-        projectId: trigger.projectId,
-        taskId: null,
-        payload: { triggerId: trigger.id }
-      });
-      await this.save();
-      return structuredClone(trigger);
-    });
+    return ignoreTrigger(this.context, triggerId, note);
   }
   async getWorkshopContext(workshopId) {
     return this.runExclusive(async () => {
@@ -4816,7 +4837,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
     state.updatedAt = nowIso2(this.now);
     const serialized = `${JSON.stringify(state, null, 2)}
 `;
-    const temp = `${this.file}.${randomUUID4()}.tmp`;
+    const temp = `${this.file}.${randomUUID5()}.tmp`;
     await writeFile(temp, serialized, "utf8");
     try {
       await rename(temp, this.file);
