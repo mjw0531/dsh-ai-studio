@@ -400,6 +400,146 @@ export const studioCss = `
 
 .studio-panel-body { padding: 14px 16px; }
 
+.studio-stage-panel { margin-bottom: 12px; }
+.studio-stage-track {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.studio-stage-step {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 9px;
+  border: 1px solid var(--st-border);
+  border-radius: 8px;
+  color: var(--st-muted);
+  background: var(--st-panel-2);
+}
+.studio-stage-step[data-state="done"] {
+  color: var(--st-ok);
+  border-color: rgba(91, 214, 162, 0.22);
+  background: var(--st-ok-soft);
+}
+.studio-stage-step[data-state="current"] {
+  color: var(--st-accent);
+  border-color: rgba(127, 157, 255, 0.35);
+  background: var(--st-accent-soft);
+}
+.studio-stage-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  font-size: 10px;
+  font-weight: 700;
+}
+.studio-stage-step strong { display: block; font-size: 11px; }
+.studio-stage-step small { display: block; color: var(--st-faint); font-size: 9px; }
+.studio-stage-empty,
+.studio-stage-complete {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px dashed var(--st-border);
+  border-radius: 8px;
+  color: var(--st-muted);
+  font-size: 11px;
+}
+.studio-stage-empty { justify-content: space-between; }
+.studio-stage-empty p { margin: 0; }
+.studio-stage-gate {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+.studio-stage-gate-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.studio-stage-gate-head strong { font-size: 12px; }
+.studio-stage-checklist {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 14px;
+}
+.studio-stage-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  color: var(--st-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.studio-stage-check input { margin-top: 2px; accent-color: var(--st-accent); }
+.studio-stage-artifacts {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.studio-stage-subhead {
+  color: var(--st-muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+}
+.studio-stage-artifact {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 8px;
+  border: 1px solid var(--st-border);
+  border-radius: 7px;
+  background: var(--st-panel-2);
+  font-size: 11px;
+}
+.studio-stage-artifact code {
+  overflow: hidden;
+  color: var(--st-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.studio-stage-artifact .studio-icon-btn { margin-left: auto; }
+.studio-stage-artifact-form {
+  display: grid;
+  grid-template-columns: 110px 1fr 1.2fr auto;
+  gap: 6px;
+}
+.studio-stage-artifact-form select,
+.studio-stage-artifact-form input {
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--st-border);
+  border-radius: 6px;
+  color: var(--st-text);
+  background: var(--st-panel);
+  font: inherit;
+  font-size: 11px;
+}
+.studio-stage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.studio-stage-approved {
+  padding: 9px 11px;
+  border: 1px solid rgba(91, 214, 162, 0.22);
+  border-radius: 7px;
+  color: var(--st-ok);
+  background: var(--st-ok-soft);
+  font-size: 11px;
+}
+
 .studio-needs {
   display: flex;
   flex-direction: column;
@@ -1247,6 +1387,7 @@ export const studioCss = `
   .studio-company-bottom { grid-template-columns: 1fr; }
   .studio-grid-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .studio-risk-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .studio-stage-artifact-form { grid-template-columns: 100px 1fr; }
 }
 
 @media (max-width: 860px) {
@@ -1264,5 +1405,9 @@ export const studioCss = `
   .studio-field-row { grid-template-columns: 1fr; }
   .studio-title { font-size: 20px; }
   .studio-risk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .studio-stage-track { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .studio-stage-checklist { grid-template-columns: 1fr; }
+  .studio-stage-artifact-form { grid-template-columns: 1fr; }
+  .studio-stage-empty { align-items: flex-start; flex-direction: column; }
 }
 `;

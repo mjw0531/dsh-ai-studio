@@ -32,6 +32,14 @@ _Avoid_: 产能（产能还需要真实执行与时间数据）
 一个有明确目标、仓库根目录、验收标准和生命周期的产品单元。
 _Avoid_: 世界书、工作区（workspace 在 DSH 里另有所指）
 
+**Project Stage（项目阶段）**:
+项目在 `discovery → architecture → prototype → development` 中的当前位置；新项目从 discovery 开始，旧项目迁移为 development。
+_Avoid_: 任务状态（TaskStatus 是单个任务的流转）
+
+**Stage Gate（阶段门禁）**:
+进入下一阶段前的 Owner 确认记录：检查项、产物、说明、批准/拒绝、豁免理由；未批准的代码项目不能派单。
+_Avoid_: 任务验收（任务验收针对单个 Task）
+
 **Project Book（项目书）**:
 项目知识的检索索引，按触发词、范围、优先级向 Agent 注入条目；不是项目的本体。
 _Avoid_: 世界书、知识库（过于宽泛）

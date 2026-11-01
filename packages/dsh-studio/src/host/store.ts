@@ -17,8 +17,10 @@ import {
   STUDIO_PLUGIN_VERSION,
   STUDIO_SCHEMA_VERSION,
   canTransition,
+  isProjectStage,
   isTaskPriority,
   isTaskStatus,
+  nextProjectStage,
 } from "../shared/types.js";
 import type {
   AcceptanceItem,
@@ -44,13 +46,19 @@ import type {
   CreateProjectInput,
   CreateRoleInput,
   CreateTaskInput,
+  ApproveStageGateInput,
   EvidenceItem,
   MergeProposal,
   MergeRisk,
   OwnerNeed,
   Project,
+  ProjectStage,
   Role,
   RoleLoadSummary,
+  StageArtifact,
+  StageArtifactKind,
+  StageCheckItem,
+  StageGate,
   StudioEvent,
   StudioState,
   StudioStats,
@@ -58,6 +66,7 @@ import type {
   TaskPriority,
   TaskStatus,
   UpdateProjectInput,
+  UpdateStageGateInput,
   UpdateTaskInput,
   Verification,
 } from "../shared/types.js";
@@ -162,6 +171,88 @@ function textList(value: unknown, field: string, maxItems = 20): string[] {
   return value
     .slice(0, maxItems)
     .map((item, index) => requiredText(item, `${field}[${String(index)}]`, 400));
+}
+
+function defaultStageChecklist(stage: ProjectStage): StageCheckItem[] {
+  const texts: Record<Exclude<ProjectStage, "discovery">, string[]> = {
+    architecture: [
+      "PRD 已评审，范围与当前版本一致",
+      "目标与非目标已写明",
+      "验收标准可观察、可验证",
+      "风险与未决问题已记录",
+    ],
+    prototype: [
+      "架构文档已完成并经 Owner 确认",
+      "模块边界与契约已建立",
+      "测试策略与验证命令已确定",
+      "高风险决策已有 ADR 或 Decision",
+    ],
+    development: [
+      "Demo 脚本已通过",
+      "Demo 证据已记录",
+      "已知限制和改进项已列出",
+      "已决定 evolve 或 rewrite",
+    ],
+  };
+  return (texts[stage as Exclude<ProjectStage, "discovery">] ?? []).map(
+    (text) => ({ id: newId("check"), text, done: false }),
+  );
+}
+
+function normalizeStageChecklist(value: unknown): StageCheckItem[] {
+  if (!Array.isArray(value)) {
+    throw new StudioStoreError("invalid_input", "checklist 必须是数组");
+  }
+  return value.slice(0, 30).map((raw, index) => {
+    if (!isRecord(raw)) {
+      throw new StudioStoreError(
+        "invalid_input",
+        `checklist[${String(index)}] 必须是对象`,
+      );
+    }
+    return {
+      id:
+        typeof raw.id === "string" && raw.id !== ""
+          ? raw.id
+          : newId("check"),
+      text: requiredText(raw.text, `checklist[${String(index)}].text`, 500),
+      done: raw.done === true,
+    };
+  });
+}
+
+function normalizeStageArtifacts(value: unknown): StageArtifact[] {
+  if (!Array.isArray(value)) {
+    throw new StudioStoreError("invalid_input", "artifacts 必须是数组");
+  }
+  return value.slice(0, 20).map((raw, index) => {
+    if (!isRecord(raw)) {
+      throw new StudioStoreError(
+        "invalid_input",
+        `artifacts[${String(index)}] 必须是对象`,
+      );
+    }
+    const kind: StageArtifactKind = isStageArtifactKind(raw.kind)
+      ? raw.kind
+      : "other";
+    return {
+      id:
+        typeof raw.id === "string" && raw.id !== ""
+          ? raw.id
+          : newId("artifact"),
+      kind,
+      label: requiredText(
+        raw.label,
+        `artifacts[${String(index)}].label`,
+        160,
+      ),
+      path: requiredText(
+        raw.path,
+        `artifacts[${String(index)}].path`,
+        500,
+      ),
+    };
+  });
 }
 
 function normalizeAcceptance(
@@ -658,6 +749,7 @@ function isProject(value: unknown): value is Project {
     (value.modulesPath === null ||
       value.modulesPath === undefined ||
       typeof value.modulesPath === "string") &&
+    isProjectStage(value.stage) &&
     typeof value.createdAt === "string" &&
     typeof value.updatedAt === "string"
   );
@@ -740,6 +832,8 @@ function isTask(value: unknown): value is Task {
     (value.contractRef === null ||
       value.contractRef === undefined ||
       typeof value.contractRef === "string") &&
+    Array.isArray(value.requirementRefs) &&
+    value.requirementRefs.every((item) => typeof item === "string") &&
     (value.kind === undefined ||
       value.kind === "new" ||
       value.kind === "fix") &&
@@ -834,6 +928,60 @@ function isDecision(value: unknown): value is Decision {
     (value.tokenCost === null || typeof value.tokenCost === "number") &&
     typeof value.createdAt === "string" &&
     (value.decidedAt === null || typeof value.decidedAt === "string")
+  );
+}
+
+function isStageGateStatus(value: unknown): value is StageGate["status"] {
+  return value === "pending" || value === "approved" || value === "rejected";
+}
+
+function isStageArtifactKind(value: unknown): value is StageArtifactKind {
+  return (
+    value === "prd" ||
+    value === "architecture" ||
+    value === "demo" ||
+    value === "adr" ||
+    value === "other"
+  );
+}
+
+function isStageCheckItem(value: unknown): value is StageCheckItem {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.text === "string" &&
+    typeof value.done === "boolean"
+  );
+}
+
+function isStageArtifact(value: unknown): value is StageArtifact {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    isStageArtifactKind(value.kind) &&
+    typeof value.label === "string" &&
+    typeof value.path === "string"
+  );
+}
+
+function isStageGate(value: unknown): value is StageGate {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.projectId === "string" &&
+    isProjectStage(value.stage) &&
+    isStageGateStatus(value.status) &&
+    Array.isArray(value.checklist) &&
+    value.checklist.every(isStageCheckItem) &&
+    Array.isArray(value.artifacts) &&
+    value.artifacts.every(isStageArtifact) &&
+    typeof value.note === "string" &&
+    (value.decisionId === null || typeof value.decisionId === "string") &&
+    typeof value.approvedBy === "string" &&
+    (value.approvedAt === null || typeof value.approvedAt === "string") &&
+    (value.waiverReason === null || typeof value.waiverReason === "string") &&
+    typeof value.createdAt === "string" &&
+    typeof value.updatedAt === "string"
   );
 }
 
@@ -1152,12 +1300,27 @@ function migrateState(value: unknown): StudioState {
     };
   }
   if (state.schemaVersion === 17) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 18,
       roles: state.roles.map((role) => ({
         ...role,
         executor: role.executor ?? "dsh",
+      })),
+    };
+  }
+  if (state.schemaVersion === 18) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      projects: state.projects.map((project) => ({
+        ...project,
+        stage: "development",
+      })),
+      stageGates: [],
+      tasks: state.tasks.map((task) => ({
+        ...task,
+        requirementRefs: [],
       })),
     };
   }
@@ -1178,6 +1341,7 @@ function assertState(value: unknown): asserts value is StudioState {
   }
   if (
     !Array.isArray(value.projects) ||
+    !Array.isArray(value.stageGates) ||
     !Array.isArray(value.roles) ||
     !Array.isArray(value.modules) ||
     !Array.isArray(value.tasks) ||
@@ -1194,6 +1358,9 @@ function assertState(value: unknown): asserts value is StudioState {
   }
   if (!value.projects.every(isProject)) {
     throw new Error("Studio state contains an invalid project");
+  }
+  if (!value.stageGates.every(isStageGate)) {
+    throw new Error("Studio state contains an invalid stage gate");
   }
   if (!value.roles.every(isRole)) {
     throw new Error("Studio state contains an invalid role");
@@ -1323,6 +1490,9 @@ export class StudioStore {
     return this.runExclusive(async () => {
       const state = this.requireState();
       const project = this.pickProject(state, projectId);
+      const stageGates = project === null
+        ? []
+        : state.stageGates.filter((gate) => gate.projectId === project.id);
       const roles = project === null
         ? []
         : state.roles.filter((role) => role.projectId === project.id);
@@ -1402,6 +1572,7 @@ export class StudioStore {
         projects: [...state.projects],
         activeProjectId: state.activeProjectId,
         project,
+        stageGates,
         roles,
         modules,
         tasks,
@@ -1430,6 +1601,7 @@ export class StudioStore {
           independentReview: true,
           mergeExecution: true,
           gitMerge: false,
+          stageGate: true,
         },
       };
     });
@@ -1448,6 +1620,7 @@ export class StudioStore {
         prdPath: null,
         invariantsPath: null,
         modulesPath: null,
+        stage: "discovery",
         createdAt: at,
         updatedAt: at,
       };
@@ -1505,6 +1678,200 @@ export class StudioStore {
     });
   }
 
+  async getStageGate(
+    projectId: string,
+    stage: ProjectStage,
+  ): Promise<StageGate> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const project = this.findProject(state, projectId);
+      const next = nextProjectStage(project.stage);
+      if (next === null) {
+        throw new StudioStoreError(
+          "stage_complete",
+          "项目已经进入持续开发，没有下一阶段门禁",
+          409,
+        );
+      }
+      if (stage !== next) {
+        throw new StudioStoreError(
+          "stage_gate_out_of_order",
+          `下一阶段是 ${next}，不能创建 ${stage} 门禁`,
+          409,
+        );
+      }
+      let gate = state.stageGates.find(
+        (item) => item.projectId === projectId && item.stage === stage,
+      );
+      if (gate === undefined) {
+        const at = nowIso(this.now);
+        gate = {
+          id: newId("gate"),
+          projectId,
+          stage,
+          status: "pending",
+          checklist: defaultStageChecklist(stage),
+          artifacts: [],
+          note: "",
+          decisionId: null,
+          approvedBy: "",
+          approvedAt: null,
+          waiverReason: null,
+          createdAt: at,
+          updatedAt: at,
+        };
+        state.stageGates.push(gate);
+        state.updatedAt = at;
+        await this.save();
+      }
+      return structuredClone(gate);
+    });
+  }
+
+  async updateStageGate(
+    projectId: string,
+    stage: ProjectStage,
+    input: UpdateStageGateInput,
+  ): Promise<StageGate> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const project = this.findProject(state, projectId);
+      const gate = this.findStageGate(state, project, stage);
+      if (gate.status === "approved") {
+        throw new StudioStoreError(
+          "stage_gate_locked",
+          "阶段门禁已经批准，不能再修改",
+          409,
+        );
+      }
+      if (input.checklist !== undefined) {
+        gate.checklist = normalizeStageChecklist(input.checklist);
+      }
+      if (input.artifacts !== undefined) {
+        gate.artifacts = normalizeStageArtifacts(input.artifacts);
+      }
+      if (input.note !== undefined) {
+        gate.note = optionalText(input.note, "note", 4000);
+      }
+      gate.status = "pending";
+      gate.approvedBy = "";
+      gate.approvedAt = null;
+      gate.waiverReason = null;
+      gate.updatedAt = nowIso(this.now);
+      state.updatedAt = gate.updatedAt;
+      await this.save();
+      return structuredClone(gate);
+    });
+  }
+
+  async approveStageGate(
+    projectId: string,
+    stage: ProjectStage,
+    input: ApproveStageGateInput = {},
+  ): Promise<StageGate> {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const project = this.findProject(state, projectId);
+      const gate = this.findStageGate(state, project, stage);
+      if (gate.status === "approved") {
+        throw new StudioStoreError(
+          "stage_gate_locked",
+          "阶段门禁已经批准",
+          409,
+        );
+      }
+      if (input.checklist !== undefined) {
+        gate.checklist = normalizeStageChecklist(input.checklist);
+      }
+      if (input.artifacts !== undefined) {
+        gate.artifacts = normalizeStageArtifacts(input.artifacts);
+      }
+      if (input.note !== undefined) {
+        gate.note = optionalText(input.note, "note", 4000);
+      }
+      const waiverReason = optionalText(
+        input.waiverReason,
+        "waiverReason",
+        1000,
+      );
+      const incomplete =
+        gate.checklist.length === 0 ||
+        gate.checklist.some((item) => !item.done) ||
+        gate.artifacts.length === 0;
+      if (incomplete && waiverReason === "") {
+        throw new StudioStoreError(
+          "stage_gate_not_ready",
+          "阶段门禁未完成：请完成所有检查项并至少登记一个产物，或填写 Owner 豁免理由",
+          409,
+        );
+      }
+      const at = nowIso(this.now);
+      gate.status = "approved";
+      gate.approvedBy = "Owner";
+      gate.approvedAt = at;
+      gate.waiverReason =
+        incomplete && waiverReason !== "" ? waiverReason : null;
+      gate.updatedAt = at;
+      project.stage = stage;
+      project.updatedAt = at;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "stage.approved",
+        at,
+        projectId,
+        payload: {
+          stage,
+          waiver: gate.waiverReason !== null,
+        },
+      });
+      await this.save();
+      return structuredClone(gate);
+    });
+  }
+
+  async rejectStageGate(
+    projectId: string,
+    stage: ProjectStage,
+    note: string,
+  ): Promise<StageGate> {
+    return this.runExclusive(async () => {
+      if (note.trim() === "") {
+        throw new StudioStoreError(
+          "decision_reason_required",
+          "拒绝阶段门禁必须写明理由",
+          400,
+        );
+      }
+      const reason = requiredText(note, "note", 4000);
+      const state = this.requireState();
+      const project = this.findProject(state, projectId);
+      const gate = this.findStageGate(state, project, stage);
+      if (gate.status === "approved") {
+        throw new StudioStoreError(
+          "stage_gate_locked",
+          "阶段门禁已经批准，不能再拒绝",
+          409,
+        );
+      }
+      const at = nowIso(this.now);
+      gate.status = "rejected";
+      gate.note = reason;
+      gate.approvedBy = "";
+      gate.approvedAt = null;
+      gate.waiverReason = null;
+      gate.updatedAt = at;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "stage.rejected",
+        at,
+        projectId,
+        payload: { stage, note: reason },
+      });
+      await this.save();
+      return structuredClone(gate);
+    });
+  }
+
   async selectProject(projectId: string): Promise<Project> {
     return this.runExclusive(async () => {
       const state = this.requireState();
@@ -1555,6 +1922,13 @@ export class StudioStore {
           "context_not_found",
           "任务的负责人角色或项目不存在",
           404,
+        );
+      }
+      if (project.repoPath !== null && project.stage !== "development") {
+        throw new StudioStoreError(
+          "stage_gate_required",
+          "项目尚未通过阶段门禁；完成架构/Demo 确认并进入持续开发后才能派单",
+          409,
         );
       }
       const module =
@@ -2896,6 +3270,7 @@ export class StudioStore {
         module: optionalText(input.module, "module", 120) || null,
         contractRef:
           optionalText(input.contractRef, "contractRef", 300) || null,
+        requirementRefs: textList(input.requirementRefs, "requirementRefs", 30),
         kind: input.kind === "fix" ? "fix" : "new",
         diagnosis: optionalText(input.diagnosis, "diagnosis", 4000),
         plan: optionalText(input.plan, "plan", 4000),
@@ -2978,6 +3353,13 @@ export class StudioStore {
       if (input.contractRef !== undefined) {
         task.contractRef =
           optionalText(input.contractRef, "contractRef", 300) || null;
+      }
+      if (input.requirementRefs !== undefined) {
+        task.requirementRefs = textList(
+          input.requirementRefs,
+          "requirementRefs",
+          30,
+        );
       }
       if (input.kind !== undefined) {
         task.kind = input.kind === "fix" ? "fix" : "new";
@@ -3154,6 +3536,7 @@ export class StudioStore {
       verifyCommand: "npm test",
       module: null,
       contractRef: null,
+      requirementRefs: [],
       kind: "new",
       diagnosis: "",
       plan: "",
@@ -3648,6 +4031,7 @@ export class StudioStore {
           verifyCommand: task.verifyCommand,
           module: task.module,
           contractRef: task.contractRef,
+          requirementRefs: task.requirementRefs,
           kind: "fix",
           diagnosis: "",
           plan: "",
@@ -3759,6 +4143,45 @@ export class StudioStore {
     return branch;
   }
 
+  private findProject(state: StudioState, projectId: string): Project {
+    const project = state.projects.find((item) => item.id === projectId);
+    if (project === undefined) {
+      throw new StudioStoreError("project_not_found", "项目不存在", 404);
+    }
+    return project;
+  }
+
+  private findStageGate(
+    state: StudioState,
+    project: Project,
+    stage: ProjectStage,
+  ): StageGate {
+    const gate = state.stageGates.find(
+      (item) => item.projectId === project.id && item.stage === stage,
+    );
+    if (gate !== undefined) return gate;
+    const next = nextProjectStage(project.stage);
+    if (next === null) {
+      throw new StudioStoreError(
+        "stage_complete",
+        "项目已经进入持续开发，没有下一阶段门禁",
+        409,
+      );
+    }
+    if (stage !== next) {
+      throw new StudioStoreError(
+        "stage_gate_out_of_order",
+        `下一阶段是 ${next}，不能操作 ${stage} 门禁`,
+        409,
+      );
+    }
+    throw new StudioStoreError(
+      "stage_gate_not_found",
+      "阶段门禁尚未创建，请先打开阶段门禁",
+      404,
+    );
+  }
+
   private findTask(state: StudioState, taskId: string): Task {
     const task = state.tasks.find((item) => item.id === taskId);
     if (task === undefined) {
@@ -3847,6 +4270,7 @@ export class StudioStore {
       prdPath: null,
       invariantsPath: null,
       modulesPath: null,
+      stage: "development",
       createdAt: at,
       updatedAt: at,
     };
@@ -3939,6 +4363,7 @@ export class StudioStore {
       verifyCommand: null,
       module: null,
       contractRef: null,
+      requirementRefs: [],
       kind: "new",
       diagnosis: "",
       plan: "",
@@ -4015,6 +4440,7 @@ export class StudioStore {
       updatedAt: at,
       activeProjectId: project.id,
       projects: [project],
+      stageGates: [],
       roles,
       modules: [],
       tasks,

@@ -585,7 +585,7 @@ test("exports a portable copy of the state", async () => {
   await withStore(async (store) => {
     await store.bootstrap();
     const exported = await store.exportState();
-    assert.equal(exported.schemaVersion, 18);
+    assert.equal(exported.schemaVersion, 19);
     assert.ok(exported.projects.length >= 1);
     assert.ok(exported.tasks.length >= 1);
     assert.ok(Array.isArray(exported.runs));
@@ -964,7 +964,7 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
     assert.deepEqual(data.runs, []);
     assert.deepEqual(data.decisions, []);
     const migrated = JSON.parse(await readFile(file, "utf8"));
-    assert.equal(migrated.schemaVersion, 18);
+    assert.equal(migrated.schemaVersion, 19);
     assert.equal(migrated.companyName, "AI工作室");
     assert.ok(migrated.roles.every((role) => role.executor === "dsh"));
     assert.ok(migrated.runs.every((run) => run.status !== undefined));
@@ -993,8 +993,171 @@ test("migrates a schema v1 file by adding merge proposals", async () => {
           task.originTaskId === null &&
           task.docsSynced === false &&
           task.diagnosis === "" &&
-          task.plan === "",
+          task.plan === "" &&
+          Array.isArray(task.requirementRefs),
       ),
+    );
+    assert.ok(Array.isArray(migrated.stageGates));
+    assert.ok(migrated.projects.every((project) => project.stage === "development"));
+  });
+});
+
+test("starts a new project in discovery and keeps the demo in development", async () => {
+  await withStore(async (store) => {
+    const seeded = await store.bootstrap();
+    assert.equal(seeded.project.stage, "development");
+
+    const project = await store.createProject({ name: "Discovery project" });
+    assert.equal(project.stage, "discovery");
+    const data = await store.bootstrap(project.id);
+    assert.equal(data.project.stage, "discovery");
+  });
+});
+
+test("requires a complete stage gate before entering architecture", async () => {
+  await withStore(async (store) => {
+    const project = await store.createProject({
+      name: "Gate project",
+      repoPath: "D:\\example-gate",
+    });
+    let gate = await store.getStageGate(project.id, "architecture");
+    assert.equal(gate.status, "pending");
+    assert.ok(gate.checklist.length >= 3);
+    assert.equal(gate.artifacts.length, 0);
+
+    await assert.rejects(
+      () => store.approveStageGate(project.id, "architecture"),
+      (error) =>
+        error instanceof StudioStoreError &&
+        error.code === "stage_gate_not_ready",
+    );
+
+    gate = await store.updateStageGate(project.id, "architecture", {
+      checklist: gate.checklist.map((item) => ({ ...item, done: true })),
+      artifacts: [
+        { kind: "prd", label: "PRD", path: "docs/PRD.md" },
+      ],
+      note: "PRD and scope are agreed.",
+    });
+    assert.ok(gate.checklist.every((item) => item.done));
+    assert.equal(gate.artifacts.length, 1);
+
+    const approved = await store.approveStageGate(
+      project.id,
+      "architecture",
+    );
+    assert.equal(approved.status, "approved");
+    assert.equal(approved.approvedBy, "Owner");
+    assert.ok(approved.approvedAt);
+
+    const data = await store.bootstrap(project.id);
+    assert.equal(data.project.stage, "architecture");
+    assert.ok(
+      data.stageGates.some(
+        (item) => item.stage === "architecture" && item.status === "approved",
+      ),
+    );
+  });
+});
+
+test("rejects a stage gate without a reason", async () => {
+  await withStore(async (store) => {
+    const project = await store.createProject({ name: "Reject gate" });
+    await store.getStageGate(project.id, "architecture");
+    await assert.rejects(
+      () => store.rejectStageGate(project.id, "architecture", ""),
+      (error) =>
+        error instanceof StudioStoreError && error.code === "decision_reason_required",
+    );
+    const rejected = await store.rejectStageGate(
+      project.id,
+      "architecture",
+      "PRD is not ready.",
+    );
+    assert.equal(rejected.status, "rejected");
+    const data = await store.bootstrap(project.id);
+    assert.equal(data.project.stage, "discovery");
+  });
+});
+
+test("blocks code dispatch before the development stage", async () => {
+  await withStore(async (store) => {
+    const project = await store.createProject({
+      name: "Dispatch gate",
+      repoPath: "D:\\example-dispatch",
+    });
+    const role = await store.createRole({ name: "Builder" });
+    const task = await store.createTask({
+      title: "Implement the feature",
+      acceptance: ["The command passes"],
+      ownerRoleId: role.id,
+    });
+    await store.transitionTask(task.id, "ready");
+
+    await assert.rejects(
+      () => store.getDispatchContext(task.id),
+      (error) =>
+        error instanceof StudioStoreError && error.code === "stage_gate_required",
+    );
+  });
+});
+
+test("stores requirement refs for traceability", async () => {
+  await withStore(async (store) => {
+    const task = await store.createTask({
+      title: "Traceable task",
+      acceptance: ["It is traceable"],
+      requirementRefs: ["PRD-1", "REQ-2"],
+    });
+    assert.deepEqual(task.requirementRefs, ["PRD-1", "REQ-2"]);
+
+    const updated = await store.updateTask(task.id, {
+      requirementRefs: ["PRD-3"],
+    });
+    assert.deepEqual(updated.requirementRefs, ["PRD-3"]);
+  });
+});
+
+test("allows the Owner to waive an incomplete gate with a reason", async () => {
+  await withStore(async (store) => {
+    const project = await store.createProject({ name: "Waiver gate" });
+    await store.getStageGate(project.id, "architecture");
+    const gate = await store.approveStageGate(project.id, "architecture", {
+      waiverReason: "Solo prototype; scope is small and the PRD is in the repo.",
+    });
+    assert.equal(gate.status, "approved");
+    assert.equal(gate.waiverReason, "Solo prototype; scope is small and the PRD is in the repo.");
+    const data = await store.bootstrap(project.id);
+    assert.equal(data.project.stage, "architecture");
+  });
+});
+
+test("rejects out-of-order and post-approval gate edits", async () => {
+  await withStore(async (store) => {
+    const project = await store.createProject({ name: "Ordered gate" });
+    await assert.rejects(
+      () => store.getStageGate(project.id, "prototype"),
+      (error) =>
+        error instanceof StudioStoreError &&
+        error.code === "stage_gate_out_of_order",
+    );
+
+    let gate = await store.getStageGate(project.id, "architecture");
+    gate = await store.updateStageGate(project.id, "architecture", {
+      checklist: gate.checklist.map((item) => ({ ...item, done: true })),
+      artifacts: [
+        { kind: "prd", label: "PRD", path: "docs/PRD.md" },
+      ],
+    });
+    await store.approveStageGate(project.id, "architecture");
+    await assert.rejects(
+      () =>
+        store.updateStageGate(project.id, "architecture", {
+          note: "Late edit",
+        }),
+      (error) =>
+        error instanceof StudioStoreError &&
+        error.code === "stage_gate_locked",
     );
   });
 });

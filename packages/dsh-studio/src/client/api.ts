@@ -15,6 +15,10 @@ import type {
   Module,
   Project,
   ProjectDoc,
+  ProjectStage,
+  ApproveStageGateInput,
+  StageGate,
+  UpdateStageGateInput,
   UpdateModuleInput,
   Role,
   Task,
@@ -250,6 +254,52 @@ export class StudioClient {
       { method: "PATCH", body: input },
     );
     return data.project;
+  }
+
+  async getStageGate(
+    projectId: string,
+    stage: ProjectStage,
+  ): Promise<StageGate> {
+    const data = await this.request<{ gate: StageGate }>(
+      `/projects/${encodeURIComponent(projectId)}/stage-gates/${stage}`,
+    );
+    return data.gate;
+  }
+
+  async updateStageGate(
+    projectId: string,
+    stage: ProjectStage,
+    input: UpdateStageGateInput,
+  ): Promise<StageGate> {
+    const data = await this.request<{ gate: StageGate }>(
+      `/projects/${encodeURIComponent(projectId)}/stage-gates/${stage}`,
+      { method: "PATCH", body: input },
+    );
+    return data.gate;
+  }
+
+  async approveStageGate(
+    projectId: string,
+    stage: ProjectStage,
+    input: ApproveStageGateInput = {},
+  ): Promise<StageGate> {
+    const data = await this.request<{ gate: StageGate }>(
+      `/projects/${encodeURIComponent(projectId)}/stage-gates/${stage}/approve`,
+      { method: "POST", body: input },
+    );
+    return data.gate;
+  }
+
+  async rejectStageGate(
+    projectId: string,
+    stage: ProjectStage,
+    note: string,
+  ): Promise<StageGate> {
+    const data = await this.request<{ gate: StageGate }>(
+      `/projects/${encodeURIComponent(projectId)}/stage-gates/${stage}/reject`,
+      { method: "POST", body: { note } },
+    );
+    return data.gate;
   }
 
   async createModule(input: CreateModuleInput): Promise<Module> {

@@ -36,6 +36,22 @@ module.exports = __toCommonJS(index_exports);
 var import_react = require("react");
 
 // src/shared/types.ts
+var PROJECT_STAGE_ORDER = [
+  "discovery",
+  "architecture",
+  "prototype",
+  "development"
+];
+var PROJECT_STAGE_LABELS = {
+  discovery: "\u9700\u6C42\u63A2\u7D22",
+  architecture: "\u67B6\u6784\u8BBE\u8BA1",
+  prototype: "\u539F\u578B\u9A8C\u8BC1",
+  development: "\u6301\u7EED\u5F00\u53D1"
+};
+function nextProjectStage(stage) {
+  const index = PROJECT_STAGE_ORDER.indexOf(stage);
+  return index < 0 || index === PROJECT_STAGE_ORDER.length - 1 ? null : PROJECT_STAGE_ORDER[index + 1] ?? null;
+}
 var AGENT_EXECUTOR_LABELS = {
   dsh: "DSH Agent",
   "claude-code": "Claude Code",
@@ -265,6 +281,33 @@ var StudioClient = class {
       { method: "PATCH", body: input }
     );
     return data.project;
+  }
+  async getStageGate(projectId, stage) {
+    const data = await this.request(
+      `/projects/${encodeURIComponent(projectId)}/stage-gates/${stage}`
+    );
+    return data.gate;
+  }
+  async updateStageGate(projectId, stage, input) {
+    const data = await this.request(
+      `/projects/${encodeURIComponent(projectId)}/stage-gates/${stage}`,
+      { method: "PATCH", body: input }
+    );
+    return data.gate;
+  }
+  async approveStageGate(projectId, stage, input = {}) {
+    const data = await this.request(
+      `/projects/${encodeURIComponent(projectId)}/stage-gates/${stage}/approve`,
+      { method: "POST", body: input }
+    );
+    return data.gate;
+  }
+  async rejectStageGate(projectId, stage, note) {
+    const data = await this.request(
+      `/projects/${encodeURIComponent(projectId)}/stage-gates/${stage}/reject`,
+      { method: "POST", body: { note } }
+    );
+    return data.gate;
   }
   async createModule(input) {
     const data = await this.request("/modules", {
@@ -945,6 +988,44 @@ function StudioPage() {
       "\u9879\u76EE\u6587\u6863\u8DEF\u5F84\u5DF2\u66F4\u65B0"
     );
   };
+  const loadStageGate = async (stage) => {
+    await run(
+      async () => {
+        if (client === null || data === null || data.project === null) return;
+        await client.getStageGate(data.project.id, stage);
+      },
+      "\u9636\u6BB5\u95E8\u7981\u5DF2\u51C6\u5907"
+    );
+  };
+  const saveStageGate = async (stage, input) => {
+    return run(
+      async () => {
+        if (client === null || data === null || data.project === null) return;
+        await client.updateStageGate(data.project.id, stage, input);
+      },
+      "\u9636\u6BB5\u95E8\u7981\u8349\u7A3F\u5DF2\u4FDD\u5B58"
+    );
+  };
+  const approveStageGate = async (stage, waiverReason) => {
+    return run(
+      async () => {
+        if (client === null || data === null || data.project === null) return;
+        await client.approveStageGate(data.project.id, stage, {
+          waiverReason: waiverReason.trim() || void 0
+        });
+      },
+      "\u9636\u6BB5\u5DF2\u6279\u51C6\uFF0C\u9879\u76EE\u8FDB\u5165\u4E0B\u4E00\u9636\u6BB5"
+    );
+  };
+  const rejectStageGate = async (stage, note) => {
+    return run(
+      async () => {
+        if (client === null || data === null || data.project === null) return;
+        await client.rejectStageGate(data.project.id, stage, note);
+      },
+      "\u9636\u6BB5\u95E8\u7981\u5DF2\u62D2\u7EDD"
+    );
+  };
   const readProjectDoc = async (docPath) => {
     if (client === null) return null;
     try {
@@ -1378,9 +1459,14 @@ function StudioPage() {
           MissionView,
           {
             data,
+            busy,
             onOpenTask: setSelectedTaskId,
             onNewProject: () => setModal({ kind: "project" }),
-            onGoTeam: () => setTab("team")
+            onGoTeam: () => setTab("team"),
+            onLoadStageGate: (stage) => void loadStageGate(stage),
+            onSaveStageGate: saveStageGate,
+            onApproveStageGate: approveStageGate,
+            onRejectStageGate: rejectStageGate
           }
         ) : null,
         tab === "tasks" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
@@ -2409,13 +2495,299 @@ function ModuleForm({
     }
   );
 }
+function StagePanel({
+  project,
+  gate,
+  busy,
+  onLoad,
+  onSave,
+  onApprove,
+  onReject
+}) {
+  const nextStage = nextProjectStage(project.stage);
+  const [draft, setDraft] = (0, import_react.useState)(gate);
+  const [artifactKind, setArtifactKind] = (0, import_react.useState)("prd");
+  const [artifactLabel, setArtifactLabel] = (0, import_react.useState)("");
+  const [artifactPath, setArtifactPath] = (0, import_react.useState)("");
+  const [waiverReason, setWaiverReason] = (0, import_react.useState)("");
+  const [rejectNote, setRejectNote] = (0, import_react.useState)("");
+  (0, import_react.useEffect)(() => {
+    setDraft(gate);
+  }, [gate?.id, gate?.updatedAt]);
+  const currentIndex = PROJECT_STAGE_ORDER.indexOf(project.stage);
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "studio-panel studio-stage-panel", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-panel-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconGrid, { width: 14, height: 14 }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h3", { children: "\u9636\u6BB5\u95E8\u7981 / Stage Gate" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "studio-muted", children: [
+        "\u5F53\u524D\uFF1A",
+        PROJECT_STAGE_LABELS[project.stage]
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-panel-body", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-stage-track", children: PROJECT_STAGE_ORDER.map((stage, index) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+        "div",
+        {
+          className: "studio-stage-step",
+          "data-state": index < currentIndex ? "done" : index === currentIndex ? "current" : "todo",
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-stage-index", children: index + 1 }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: PROJECT_STAGE_LABELS[stage] }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("small", { children: stage })
+            ] })
+          ]
+        },
+        stage
+      )) }),
+      nextStage === null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-stage-complete", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconCheck, { width: 16, height: 16 }),
+        "\u5DF2\u8FDB\u5165\u6301\u7EED\u5F00\u53D1\uFF1B\u65B0\u7684\u67B6\u6784\u51B3\u7B56\u4ECD\u5E94\u8D70 Decision / ADR\u3002"
+      ] }) : draft === null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-stage-empty", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("p", { children: [
+          "\u4E0B\u4E00\u9636\u6BB5\u662F ",
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("strong", { children: PROJECT_STAGE_LABELS[nextStage] }),
+          "\u3002 \u5148\u5EFA\u7ACB\u95E8\u7981\u6E05\u5355\uFF0C\u786E\u8BA4\u9700\u6C42\u6216\u67B6\u6784\u4EA7\u7269\u540E\u518D\u8FDB\u5165\u3002"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+          "button",
+          {
+            className: "studio-btn",
+            "data-variant": "primary",
+            type: "button",
+            disabled: busy,
+            onClick: () => onLoad(nextStage),
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconPlus, { width: 14, height: 14 }),
+              "\u51C6\u5907\u9636\u6BB5\u95E8\u7981"
+            ]
+          }
+        )
+      ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-stage-gate", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-stage-gate-head", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("strong", { children: [
+              "\u8FDB\u5165\uFF1A",
+              PROJECT_STAGE_LABELS[draft.stage]
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-muted", children: "Owner \u786E\u8BA4\u540E\u624D\u4F1A\u63A8\u8FDB\u9879\u76EE\u9636\u6BB5\u3002" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "span",
+            {
+              className: "studio-pill",
+              "data-tone": draft.status === "approved" ? "ok" : draft.status === "rejected" ? "p0" : "accent",
+              children: draft.status === "pending" ? "\u5F85\u786E\u8BA4" : draft.status === "approved" ? "\u5DF2\u6279\u51C6" : "\u5DF2\u62D2\u7EDD"
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-stage-checklist", children: draft.checklist.map((item) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("label", { className: "studio-stage-check", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "input",
+            {
+              type: "checkbox",
+              checked: item.done,
+              disabled: busy,
+              onChange: () => setDraft({
+                ...draft,
+                checklist: draft.checklist.map(
+                  (current) => current.id === item.id ? { ...current, done: !current.done } : current
+                )
+              })
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: item.text })
+        ] }, item.id)) }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-stage-artifacts", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-stage-subhead", children: "\u4EA7\u7269 / Artifacts" }),
+          draft.artifacts.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-hint", children: "\u81F3\u5C11\u767B\u8BB0\u4E00\u4E2A\u4EA7\u7269\uFF1B\u4E5F\u53EF\u4EE5\u586B\u5199 Owner \u8C41\u514D\u7406\u7531\u3002" }) : draft.artifacts.map((artifact) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-stage-artifact", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { className: "studio-pill", children: artifact.kind }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: artifact.label }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("code", { children: artifact.path }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "button",
+              {
+                className: "studio-icon-btn",
+                type: "button",
+                disabled: busy,
+                onClick: () => setDraft({
+                  ...draft,
+                  artifacts: draft.artifacts.filter(
+                    (current) => current.id !== artifact.id
+                  )
+                }),
+                children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconX, { width: 12, height: 12 })
+              }
+            )
+          ] }, artifact.id)),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-stage-artifact-form", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+              "select",
+              {
+                value: artifactKind,
+                disabled: busy,
+                onChange: (event) => setArtifactKind(
+                  event.target.value
+                ),
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "prd", children: "PRD" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "architecture", children: "Architecture" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "demo", children: "Demo" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "adr", children: "ADR" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "other", children: "Other" })
+                ]
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "input",
+              {
+                value: artifactLabel,
+                placeholder: "\u4EA7\u7269\u540D\u79F0",
+                disabled: busy,
+                onChange: (event) => setArtifactLabel(event.target.value)
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "input",
+              {
+                value: artifactPath,
+                placeholder: "docs/PRD.md",
+                disabled: busy,
+                onChange: (event) => setArtifactPath(event.target.value)
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "button",
+              {
+                className: "studio-btn",
+                "data-size": "sm",
+                type: "button",
+                disabled: busy || artifactLabel.trim() === "" || artifactPath.trim() === "",
+                onClick: () => {
+                  setDraft({
+                    ...draft,
+                    artifacts: [
+                      ...draft.artifacts,
+                      {
+                        id: `artifact-${String(Date.now())}`,
+                        kind: artifactKind,
+                        label: artifactLabel.trim(),
+                        path: artifactPath.trim()
+                      }
+                    ]
+                  });
+                  setArtifactLabel("");
+                  setArtifactPath("");
+                },
+                children: "\u6DFB\u52A0"
+              }
+            )
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "stage-gate-note", children: "\u95E8\u7981\u8BF4\u660E" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "textarea",
+            {
+              id: "stage-gate-note",
+              value: draft.note,
+              disabled: busy,
+              placeholder: "\u672C\u8F6E\u786E\u8BA4\u4E86\u4EC0\u4E48\u3001\u8FD8\u7559\u4E0B\u4EC0\u4E48\u98CE\u9669\u3002",
+              onChange: (event) => setDraft({ ...draft, note: event.target.value })
+            }
+          )
+        ] }),
+        draft.status === "approved" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-stage-approved", children: [
+          "\u5DF2\u7531 ",
+          draft.approvedBy,
+          " \u6279\u51C6",
+          draft.waiverReason === null ? "" : `\uFF1B\u8C41\u514D\u7406\u7531\uFF1A${draft.waiverReason}`
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field-row", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "stage-waiver", children: "Owner \u8C41\u514D\u7406\u7531\uFF08\u53EF\u4E0D\u586B\uFF09" }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                "input",
+                {
+                  id: "stage-waiver",
+                  value: waiverReason,
+                  disabled: busy,
+                  placeholder: "\u4F8B\u5982\uFF1A\u5355\u4EBA\u539F\u578B\uFF0CPRD \u5DF2\u5728\u4ED3\u5E93",
+                  onChange: (event) => setWaiverReason(event.target.value)
+                }
+              )
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "stage-reject-note", children: "\u62D2\u7EDD\u7406\u7531" }),
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                "input",
+                {
+                  id: "stage-reject-note",
+                  value: rejectNote,
+                  disabled: busy,
+                  placeholder: "\u62D2\u7EDD\u5FC5\u987B\u5199\u7406\u7531",
+                  onChange: (event) => setRejectNote(event.target.value)
+                }
+              )
+            ] })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-stage-actions", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "button",
+              {
+                className: "studio-btn",
+                type: "button",
+                disabled: busy,
+                onClick: () => void onSave(draft.stage, {
+                  checklist: draft.checklist,
+                  artifacts: draft.artifacts,
+                  note: draft.note
+                }),
+                children: "\u4FDD\u5B58\u8349\u7A3F"
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "button",
+              {
+                className: "studio-btn",
+                "data-variant": "primary",
+                type: "button",
+                disabled: busy,
+                onClick: () => void onApprove(draft.stage, waiverReason),
+                children: "\u6279\u51C6\u8FDB\u5165"
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "button",
+              {
+                className: "studio-btn",
+                "data-variant": "danger",
+                type: "button",
+                disabled: busy || rejectNote.trim() === "",
+                onClick: () => void onReject(draft.stage, rejectNote),
+                children: "\u62D2\u7EDD"
+              }
+            )
+          ] })
+        ] })
+      ] })
+    ] })
+  ] });
+}
 function MissionView({
   data,
+  busy,
   onOpenTask,
   onNewProject,
-  onGoTeam
+  onGoTeam,
+  onLoadStageGate,
+  onSaveStageGate,
+  onApproveStageGate,
+  onRejectStageGate
 }) {
   const project = data.project;
+  const nextStage = project === null ? null : nextProjectStage(project.stage);
+  const nextGate = project === null || nextStage === null ? null : data.stageGates.find((gate) => gate.stage === nextStage) ?? null;
   const review = data.tasks.filter((task) => task.status === "review");
   const blocked = data.tasks.filter((task) => task.status === "blocked");
   const ready = data.tasks.filter(
@@ -2461,6 +2833,18 @@ function MissionView({
         }
       ) })
     ] }),
+    project !== null ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+      StagePanel,
+      {
+        project,
+        gate: nextGate,
+        busy,
+        onLoad: onLoadStageGate,
+        onSave: onSaveStageGate,
+        onApprove: onApproveStageGate,
+        onReject: onRejectStageGate
+      }
+    ) : null,
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-grid-stats", children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
         StatCard,
@@ -3315,6 +3699,8 @@ function TaskDrawer({
                   /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { className: "studio-mono", children: task.module ?? "\u672A\u6307\u5B9A" }),
                   /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u5951\u7EA6" }),
                   /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { className: "studio-mono", children: task.contractRef ?? "\u672A\u6307\u5B9A" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u9700\u6C42" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dd", { className: "studio-mono", children: task.requirementRefs.length === 0 ? "\u672A\u6307\u5B9A" : task.requirementRefs.join(", ") }),
                   /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("dt", { children: "\u5931\u8D25\u6B21\u6570" }),
                   /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("dd", { children: [
                     runs.filter((run) => run.status === "failed").length,
@@ -4333,6 +4719,7 @@ function TaskForm({
   const [verifyCommand, setVerifyCommand] = (0, import_react.useState)("npm test");
   const [moduleName, setModuleName] = (0, import_react.useState)("");
   const [contractRef, setContractRef] = (0, import_react.useState)("");
+  const [requirementRefs, setRequirementRefs] = (0, import_react.useState)("");
   const [kind, setKind] = (0, import_react.useState)("new");
   const [diagnosis, setDiagnosis] = (0, import_react.useState)("");
   const [plan, setPlan] = (0, import_react.useState)("");
@@ -4369,6 +4756,7 @@ function TaskForm({
       verifyCommand: verifyCommand.trim() || null,
       module: moduleName.trim() || null,
       contractRef: contractRef.trim() || null,
+      requirementRefs: requirementRefs.split(/[\n,]/u).map((line) => line.trim()).filter(Boolean),
       kind,
       diagnosis: diagnosis.trim(),
       plan: plan.trim(),
@@ -4534,6 +4922,19 @@ function TaskForm({
             }
           ),
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-hint", children: "\u5B9E\u73B0\u8005\u53EA\u5E94\u4FEE\u6539\u8FD9\u4E2A\u5951\u7EA6\u5141\u8BB8\u7684\u8303\u56F4\uFF1B\u6539\u5951\u7EA6\u672C\u8EAB\u8981\u8D70\u67B6\u6784\u5E08/Owner\u3002" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { htmlFor: "task-requirements", children: "\u9700\u6C42\u5F15\u7528\uFF08\u53EF\u9009\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "input",
+            {
+              id: "task-requirements",
+              value: requirementRefs,
+              onChange: (event) => setRequirementRefs(event.target.value),
+              placeholder: "PRD-3.2, REQ-AUTH-01"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "studio-hint", children: "\u6307\u5411 PRD \u6761\u76EE\u6216\u9700\u6C42 ID\uFF0C\u65B9\u4FBF\u4ECE\u4EFB\u52A1\u8FFD\u6EAF\u56DE\u9700\u6C42\u3002" })
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("label", { className: "studio-check", children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
@@ -5569,6 +5970,146 @@ var studioCss = `
 
 .studio-panel-body { padding: 14px 16px; }
 
+.studio-stage-panel { margin-bottom: 12px; }
+.studio-stage-track {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.studio-stage-step {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 9px;
+  border: 1px solid var(--st-border);
+  border-radius: 8px;
+  color: var(--st-muted);
+  background: var(--st-panel-2);
+}
+.studio-stage-step[data-state="done"] {
+  color: var(--st-ok);
+  border-color: rgba(91, 214, 162, 0.22);
+  background: var(--st-ok-soft);
+}
+.studio-stage-step[data-state="current"] {
+  color: var(--st-accent);
+  border-color: rgba(127, 157, 255, 0.35);
+  background: var(--st-accent-soft);
+}
+.studio-stage-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  font-size: 10px;
+  font-weight: 700;
+}
+.studio-stage-step strong { display: block; font-size: 11px; }
+.studio-stage-step small { display: block; color: var(--st-faint); font-size: 9px; }
+.studio-stage-empty,
+.studio-stage-complete {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px dashed var(--st-border);
+  border-radius: 8px;
+  color: var(--st-muted);
+  font-size: 11px;
+}
+.studio-stage-empty { justify-content: space-between; }
+.studio-stage-empty p { margin: 0; }
+.studio-stage-gate {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+.studio-stage-gate-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.studio-stage-gate-head strong { font-size: 12px; }
+.studio-stage-checklist {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 14px;
+}
+.studio-stage-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  color: var(--st-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.studio-stage-check input { margin-top: 2px; accent-color: var(--st-accent); }
+.studio-stage-artifacts {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.studio-stage-subhead {
+  color: var(--st-muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+}
+.studio-stage-artifact {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 8px;
+  border: 1px solid var(--st-border);
+  border-radius: 7px;
+  background: var(--st-panel-2);
+  font-size: 11px;
+}
+.studio-stage-artifact code {
+  overflow: hidden;
+  color: var(--st-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.studio-stage-artifact .studio-icon-btn { margin-left: auto; }
+.studio-stage-artifact-form {
+  display: grid;
+  grid-template-columns: 110px 1fr 1.2fr auto;
+  gap: 6px;
+}
+.studio-stage-artifact-form select,
+.studio-stage-artifact-form input {
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--st-border);
+  border-radius: 6px;
+  color: var(--st-text);
+  background: var(--st-panel);
+  font: inherit;
+  font-size: 11px;
+}
+.studio-stage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.studio-stage-approved {
+  padding: 9px 11px;
+  border: 1px solid rgba(91, 214, 162, 0.22);
+  border-radius: 7px;
+  color: var(--st-ok);
+  background: var(--st-ok-soft);
+  font-size: 11px;
+}
+
 .studio-needs {
   display: flex;
   flex-direction: column;
@@ -6416,6 +6957,7 @@ var studioCss = `
   .studio-company-bottom { grid-template-columns: 1fr; }
   .studio-grid-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .studio-risk-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .studio-stage-artifact-form { grid-template-columns: 100px 1fr; }
 }
 
 @media (max-width: 860px) {
@@ -6433,6 +6975,10 @@ var studioCss = `
   .studio-field-row { grid-template-columns: 1fr; }
   .studio-title { font-size: 20px; }
   .studio-risk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .studio-stage-track { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .studio-stage-checklist { grid-template-columns: 1fr; }
+  .studio-stage-artifact-form { grid-template-columns: 1fr; }
+  .studio-stage-empty { align-items: flex-start; flex-direction: column; }
 }
 `;
 

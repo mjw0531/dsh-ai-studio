@@ -16,11 +16,14 @@ import {
   MERGE_RISK_LABELS,
   MERGE_STATUS_LABELS,
   PRIORITY_LABELS,
+  PROJECT_STAGE_LABELS,
+  PROJECT_STAGE_ORDER,
   ROLE_LOAD_LABELS,
   TASK_KIND_LABELS,
   TASK_STATUS_LABELS,
   TASK_STATUS_ORDER,
   TRANSITION_LABELS,
+  nextProjectStage,
 } from "../shared/types.js";
 import type {
   AgentReceipt,
@@ -39,6 +42,10 @@ import type {
   Module,
   Project,
   ProjectDoc,
+  ProjectStage,
+  StageArtifact,
+  StageGate,
+  UpdateStageGateInput,
   CreateMergeProposalInput,
   CreateProjectInput,
   CreateRoleInput,
@@ -589,6 +596,57 @@ export function StudioPage() {
     );
   };
 
+  const loadStageGate = async (stage: ProjectStage): Promise<void> => {
+    await run(
+      async () => {
+        if (client === null || data === null || data.project === null) return;
+        await client.getStageGate(data.project.id, stage);
+      },
+      "阶段门禁已准备",
+    );
+  };
+
+  const saveStageGate = async (
+    stage: ProjectStage,
+    input: UpdateStageGateInput,
+  ): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null || data === null || data.project === null) return;
+        await client.updateStageGate(data.project.id, stage, input);
+      },
+      "阶段门禁草稿已保存",
+    );
+  };
+
+  const approveStageGate = async (
+    stage: ProjectStage,
+    waiverReason: string,
+  ): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null || data === null || data.project === null) return;
+        await client.approveStageGate(data.project.id, stage, {
+          waiverReason: waiverReason.trim() || undefined,
+        });
+      },
+      "阶段已批准，项目进入下一阶段",
+    );
+  };
+
+  const rejectStageGate = async (
+    stage: ProjectStage,
+    note: string,
+  ): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null || data === null || data.project === null) return;
+        await client.rejectStageGate(data.project.id, stage, note);
+      },
+      "阶段门禁已拒绝",
+    );
+  };
+
   const readProjectDoc = async (
     docPath: string,
   ): Promise<ProjectDoc | null> => {
@@ -1129,9 +1187,14 @@ export function StudioPage() {
             {tab === "mission" ? (
               <MissionView
                 data={data}
+                busy={busy}
                 onOpenTask={setSelectedTaskId}
                 onNewProject={() => setModal({ kind: "project" })}
                 onGoTeam={() => setTab("team")}
+                onLoadStageGate={(stage) => void loadStageGate(stage)}
+                onSaveStageGate={saveStageGate}
+                onApproveStageGate={approveStageGate}
+                onRejectStageGate={rejectStageGate}
               />
             ) : null}
 
@@ -2339,18 +2402,357 @@ function ModuleForm({
   );
 }
 
+function StagePanel({
+  project,
+  gate,
+  busy,
+  onLoad,
+  onSave,
+  onApprove,
+  onReject,
+}: {
+  project: Project;
+  gate: StageGate | null;
+  busy: boolean;
+  onLoad: (stage: ProjectStage) => void;
+  onSave: (stage: ProjectStage, input: UpdateStageGateInput) => Promise<boolean>;
+  onApprove: (stage: ProjectStage, waiverReason: string) => Promise<boolean>;
+  onReject: (stage: ProjectStage, note: string) => Promise<boolean>;
+}) {
+  const nextStage = nextProjectStage(project.stage);
+  const [draft, setDraft] = useState<StageGate | null>(gate);
+  const [artifactKind, setArtifactKind] = useState<StageArtifact["kind"]>("prd");
+  const [artifactLabel, setArtifactLabel] = useState("");
+  const [artifactPath, setArtifactPath] = useState("");
+  const [waiverReason, setWaiverReason] = useState("");
+  const [rejectNote, setRejectNote] = useState("");
+
+  useEffect(() => {
+    setDraft(gate);
+  }, [gate?.id, gate?.updatedAt]);
+
+  const currentIndex = PROJECT_STAGE_ORDER.indexOf(project.stage);
+
+  return (
+    <section className="studio-panel studio-stage-panel">
+      <div className="studio-panel-head">
+        <IconGrid width={14} height={14} />
+        <h3>阶段门禁 / Stage Gate</h3>
+        <span className="studio-muted">
+          当前：{PROJECT_STAGE_LABELS[project.stage]}
+        </span>
+      </div>
+      <div className="studio-panel-body">
+        <div className="studio-stage-track">
+          {PROJECT_STAGE_ORDER.map((stage, index) => (
+            <div
+              key={stage}
+              className="studio-stage-step"
+              data-state={
+                index < currentIndex
+                  ? "done"
+                  : index === currentIndex
+                    ? "current"
+                    : "todo"
+              }
+            >
+              <span className="studio-stage-index">{index + 1}</span>
+              <span>
+                <strong>{PROJECT_STAGE_LABELS[stage]}</strong>
+                <small>{stage}</small>
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {nextStage === null ? (
+          <div className="studio-stage-complete">
+            <IconCheck width={16} height={16} />
+            已进入持续开发；新的架构决策仍应走 Decision / ADR。
+          </div>
+        ) : draft === null ? (
+          <div className="studio-stage-empty">
+            <p>
+              下一阶段是 <strong>{PROJECT_STAGE_LABELS[nextStage]}</strong>。
+              先建立门禁清单，确认需求或架构产物后再进入。
+            </p>
+            <button
+              className="studio-btn"
+              data-variant="primary"
+              type="button"
+              disabled={busy}
+              onClick={() => onLoad(nextStage)}
+            >
+              <IconPlus width={14} height={14} />
+              准备阶段门禁
+            </button>
+          </div>
+        ) : (
+          <div className="studio-stage-gate">
+            <div className="studio-stage-gate-head">
+              <div>
+                <strong>进入：{PROJECT_STAGE_LABELS[draft.stage]}</strong>
+                <div className="studio-muted">
+                  Owner 确认后才会推进项目阶段。
+                </div>
+              </div>
+              <span
+                className="studio-pill"
+                data-tone={
+                  draft.status === "approved"
+                    ? "ok"
+                    : draft.status === "rejected"
+                      ? "p0"
+                      : "accent"
+                }
+              >
+                {draft.status === "pending"
+                  ? "待确认"
+                  : draft.status === "approved"
+                    ? "已批准"
+                    : "已拒绝"}
+              </span>
+            </div>
+
+            <div className="studio-stage-checklist">
+              {draft.checklist.map((item) => (
+                <label key={item.id} className="studio-stage-check">
+                  <input
+                    type="checkbox"
+                    checked={item.done}
+                    disabled={busy}
+                    onChange={() =>
+                      setDraft({
+                        ...draft,
+                        checklist: draft.checklist.map((current) =>
+                          current.id === item.id
+                            ? { ...current, done: !current.done }
+                            : current,
+                        ),
+                      })
+                    }
+                  />
+                  <span>{item.text}</span>
+                </label>
+              ))}
+            </div>
+
+            <div className="studio-stage-artifacts">
+              <div className="studio-stage-subhead">产物 / Artifacts</div>
+              {draft.artifacts.length === 0 ? (
+                <div className="studio-hint">
+                  至少登记一个产物；也可以填写 Owner 豁免理由。
+                </div>
+              ) : (
+                draft.artifacts.map((artifact) => (
+                  <div key={artifact.id} className="studio-stage-artifact">
+                    <span className="studio-pill">{artifact.kind}</span>
+                    <span>{artifact.label}</span>
+                    <code>{artifact.path}</code>
+                    <button
+                      className="studio-icon-btn"
+                      type="button"
+                      disabled={busy}
+                      onClick={() =>
+                        setDraft({
+                          ...draft,
+                          artifacts: draft.artifacts.filter(
+                            (current) => current.id !== artifact.id,
+                          ),
+                        })
+                      }
+                    >
+                      <IconX width={12} height={12} />
+                    </button>
+                  </div>
+                ))
+              )}
+              <div className="studio-stage-artifact-form">
+                <select
+                  value={artifactKind}
+                  disabled={busy}
+                  onChange={(event) =>
+                    setArtifactKind(
+                      event.target.value as StageArtifact["kind"],
+                    )
+                  }
+                >
+                  <option value="prd">PRD</option>
+                  <option value="architecture">Architecture</option>
+                  <option value="demo">Demo</option>
+                  <option value="adr">ADR</option>
+                  <option value="other">Other</option>
+                </select>
+                <input
+                  value={artifactLabel}
+                  placeholder="产物名称"
+                  disabled={busy}
+                  onChange={(event) => setArtifactLabel(event.target.value)}
+                />
+                <input
+                  value={artifactPath}
+                  placeholder="docs/PRD.md"
+                  disabled={busy}
+                  onChange={(event) => setArtifactPath(event.target.value)}
+                />
+                <button
+                  className="studio-btn"
+                  data-size="sm"
+                  type="button"
+                  disabled={
+                    busy ||
+                    artifactLabel.trim() === "" ||
+                    artifactPath.trim() === ""
+                  }
+                  onClick={() => {
+                    setDraft({
+                      ...draft,
+                      artifacts: [
+                        ...draft.artifacts,
+                        {
+                          id: `artifact-${String(Date.now())}`,
+                          kind: artifactKind,
+                          label: artifactLabel.trim(),
+                          path: artifactPath.trim(),
+                        },
+                      ],
+                    });
+                    setArtifactLabel("");
+                    setArtifactPath("");
+                  }}
+                >
+                  添加
+                </button>
+              </div>
+            </div>
+
+            <div className="studio-field">
+              <label htmlFor="stage-gate-note">门禁说明</label>
+              <textarea
+                id="stage-gate-note"
+                value={draft.note}
+                disabled={busy}
+                placeholder="本轮确认了什么、还留下什么风险。"
+                onChange={(event) =>
+                  setDraft({ ...draft, note: event.target.value })
+                }
+              />
+            </div>
+
+            {draft.status === "approved" ? (
+              <div className="studio-stage-approved">
+                已由 {draft.approvedBy} 批准
+                {draft.waiverReason === null
+                  ? ""
+                  : `；豁免理由：${draft.waiverReason}`}
+              </div>
+            ) : (
+              <>
+                <div className="studio-field-row">
+                  <div className="studio-field">
+                    <label htmlFor="stage-waiver">
+                      Owner 豁免理由（可不填）
+                    </label>
+                    <input
+                      id="stage-waiver"
+                      value={waiverReason}
+                      disabled={busy}
+                      placeholder="例如：单人原型，PRD 已在仓库"
+                      onChange={(event) => setWaiverReason(event.target.value)}
+                    />
+                  </div>
+                  <div className="studio-field">
+                    <label htmlFor="stage-reject-note">拒绝理由</label>
+                    <input
+                      id="stage-reject-note"
+                      value={rejectNote}
+                      disabled={busy}
+                      placeholder="拒绝必须写理由"
+                      onChange={(event) => setRejectNote(event.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="studio-stage-actions">
+                  <button
+                    className="studio-btn"
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      void onSave(draft.stage, {
+                        checklist: draft.checklist,
+                        artifacts: draft.artifacts,
+                        note: draft.note,
+                      })
+                    }
+                  >
+                    保存草稿
+                  </button>
+                  <button
+                    className="studio-btn"
+                    data-variant="primary"
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      void onApprove(draft.stage, waiverReason)
+                    }
+                  >
+                    批准进入
+                  </button>
+                  <button
+                    className="studio-btn"
+                    data-variant="danger"
+                    type="button"
+                    disabled={busy || rejectNote.trim() === ""}
+                    onClick={() => void onReject(draft.stage, rejectNote)}
+                  >
+                    拒绝
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function MissionView({
   data,
+  busy,
   onOpenTask,
   onNewProject,
   onGoTeam,
+  onLoadStageGate,
+  onSaveStageGate,
+  onApproveStageGate,
+  onRejectStageGate,
 }: {
   data: BootstrapResponse;
+  busy: boolean;
   onOpenTask: (id: string) => void;
   onNewProject: () => void;
   onGoTeam: () => void;
+  onLoadStageGate: (stage: ProjectStage) => void;
+  onSaveStageGate: (
+    stage: ProjectStage,
+    input: UpdateStageGateInput,
+  ) => Promise<boolean>;
+  onApproveStageGate: (
+    stage: ProjectStage,
+    waiverReason: string,
+  ) => Promise<boolean>;
+  onRejectStageGate: (
+    stage: ProjectStage,
+    note: string,
+  ) => Promise<boolean>;
 }) {
   const project = data.project;
+  const nextStage = project === null ? null : nextProjectStage(project.stage);
+  const nextGate =
+    project === null || nextStage === null
+      ? null
+      : data.stageGates.find((gate) => gate.stage === nextStage) ?? null;
   const review = data.tasks.filter((task) => task.status === "review");
   const blocked = data.tasks.filter((task) => task.status === "blocked");
   const ready = data.tasks.filter(
@@ -2405,6 +2807,18 @@ function MissionView({
           )}
         </div>
       </div>
+
+      {project !== null ? (
+        <StagePanel
+          project={project}
+          gate={nextGate}
+          busy={busy}
+          onLoad={onLoadStageGate}
+          onSave={onSaveStageGate}
+          onApprove={onApproveStageGate}
+          onReject={onRejectStageGate}
+        />
+      ) : null}
 
       <div className="studio-grid-stats">
         <StatCard
@@ -3443,6 +3857,12 @@ function TaskDrawer({
               <dd className="studio-mono">{task.module ?? "未指定"}</dd>
               <dt>契约</dt>
               <dd className="studio-mono">{task.contractRef ?? "未指定"}</dd>
+              <dt>需求</dt>
+              <dd className="studio-mono">
+                {task.requirementRefs.length === 0
+                  ? "未指定"
+                  : task.requirementRefs.join(", ")}
+              </dd>
               <dt>失败次数</dt>
               <dd>
                 {runs.filter((run) => run.status === "failed").length} / 2
@@ -4700,6 +5120,7 @@ function TaskForm({
   const [verifyCommand, setVerifyCommand] = useState("npm test");
   const [moduleName, setModuleName] = useState("");
   const [contractRef, setContractRef] = useState("");
+  const [requirementRefs, setRequirementRefs] = useState("");
   const [kind, setKind] = useState<TaskKind>("new");
   const [diagnosis, setDiagnosis] = useState("");
   const [plan, setPlan] = useState("");
@@ -4743,6 +5164,10 @@ function TaskForm({
       verifyCommand: verifyCommand.trim() || null,
       module: moduleName.trim() || null,
       contractRef: contractRef.trim() || null,
+      requirementRefs: requirementRefs
+        .split(/[\n,]/u)
+        .map((line) => line.trim())
+        .filter(Boolean),
       kind,
       diagnosis: diagnosis.trim(),
       plan: plan.trim(),
@@ -4888,6 +5313,18 @@ function TaskForm({
           />
           <div className="studio-hint">
             实现者只应修改这个契约允许的范围；改契约本身要走架构师/Owner。
+          </div>
+        </div>
+        <div className="studio-field">
+          <label htmlFor="task-requirements">需求引用（可选）</label>
+          <input
+            id="task-requirements"
+            value={requirementRefs}
+            onChange={(event) => setRequirementRefs(event.target.value)}
+            placeholder="PRD-3.2, REQ-AUTH-01"
+          />
+          <div className="studio-hint">
+            指向 PRD 条目或需求 ID，方便从任务追溯回需求。
           </div>
         </div>
         <label className="studio-check">

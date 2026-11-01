@@ -1,9 +1,13 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 
-import { STUDIO_PLUGIN_VERSION } from "../shared/types.js";
+import {
+  STUDIO_PLUGIN_VERSION,
+  isProjectStage,
+} from "../shared/types.js";
 import type {
   AgentRun,
   ApiErrorBody,
+  ApproveStageGateInput,
   CompatibilityInfo,
   CreateDecisionInput,
   CreateMergeProposalInput,
@@ -18,10 +22,14 @@ import type {
   MergeProposal,
   MergeRisk,
   ProjectDoc,
+  ProjectStage,
+  StageArtifact,
+  StageCheckItem,
   TaskStatus,
   TransitionTaskInput,
   UpdateModuleInput,
   UpdateProjectInput,
+  UpdateStageGateInput,
   UpdateTaskInput,
   Verification,
 } from "../shared/types.js";
@@ -355,6 +363,7 @@ function asCreateTask(body: Record<string, unknown>): CreateTaskInput {
     module: asOptionalString(body.module, "module") ?? null,
     contractRef:
       asOptionalString(body.contractRef, "contractRef") ?? null,
+    requirementRefs: asStringArray(body.requirementRefs, "requirementRefs") ?? [],
     diagnosis: asOptionalString(body.diagnosis, "diagnosis") ?? "",
     plan: asOptionalString(body.plan, "plan") ?? "",
     kind,
@@ -424,6 +433,10 @@ function asUpdateTask(body: Record<string, unknown>): UpdateTaskInput {
         ? null
         : asOptionalString(body.contractRef, "contractRef");
   }
+  if (body.requirementRefs !== undefined) {
+    result.requirementRefs =
+      asStringArray(body.requirementRefs, "requirementRefs") ?? [];
+  }
   if (body.kind !== undefined) {
     if (body.kind !== "new" && body.kind !== "fix") {
       throw new HttpError(400, "invalid_input", "kind 无效");
@@ -471,6 +484,40 @@ function asCreateMergeProposal(
 
 function asNote(body: Record<string, unknown>): string | undefined {
   return asOptionalString(body.note, "note");
+}
+
+function asProjectStage(value: unknown): ProjectStage {
+  if (isProjectStage(value)) return value;
+  throw new HttpError(
+    400,
+    "invalid_input",
+    "stage 必须是 discovery/architecture/prototype/development",
+  );
+}
+
+function asStageGateInput(
+  body: Record<string, unknown>,
+): UpdateStageGateInput {
+  const input: UpdateStageGateInput = {};
+  if (body.checklist !== undefined) {
+    input.checklist = body.checklist as StageCheckItem[];
+  }
+  if (body.artifacts !== undefined) {
+    input.artifacts = body.artifacts as StageArtifact[];
+  }
+  if (body.note !== undefined) {
+    input.note = asOptionalString(body.note, "note");
+  }
+  return input;
+}
+
+function asApproveStageGateInput(
+  body: Record<string, unknown>,
+): ApproveStageGateInput {
+  return {
+    ...asStageGateInput(body),
+    waiverReason: asOptionalString(body.waiverReason, "waiverReason"),
+  };
 }
 
 export class StudioRouter {
@@ -673,6 +720,61 @@ export class StudioRouter {
         asUpdateProject(await readJson(req)),
       );
       sendJson(res, 200, { ok: true, project });
+      return;
+    }
+
+    const stageGate = /^\/studio-api\/projects\/([^/]+)\/stage-gates\/([^/]+)$/.exec(
+      parsed.pathname,
+    );
+    if (stageGate !== null) {
+      const projectId = decodeSegment(stageGate[1] ?? "");
+      const stage = asProjectStage(decodeSegment(stageGate[2] ?? ""));
+      if (parsed.method === "GET") {
+        const gate = await this.store.getStageGate(projectId, stage);
+        sendJson(res, 200, { ok: true, gate });
+        return;
+      }
+      this.requireMethod(parsed, ["PATCH"]);
+      assertJsonRequest(req);
+      const gate = await this.store.updateStageGate(
+        projectId,
+        stage,
+        asStageGateInput(await readJson(req)),
+      );
+      sendJson(res, 200, { ok: true, gate });
+      return;
+    }
+
+    const stageGateApprove =
+      /^\/studio-api\/projects\/([^/]+)\/stage-gates\/([^/]+)\/approve$/.exec(
+        parsed.pathname,
+      );
+    if (stageGateApprove !== null) {
+      this.requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const gate = await this.store.approveStageGate(
+        decodeSegment(stageGateApprove[1] ?? ""),
+        asProjectStage(decodeSegment(stageGateApprove[2] ?? "")),
+        asApproveStageGateInput(await readJson(req)),
+      );
+      sendJson(res, 200, { ok: true, gate });
+      return;
+    }
+
+    const stageGateReject =
+      /^\/studio-api\/projects\/([^/]+)\/stage-gates\/([^/]+)\/reject$/.exec(
+        parsed.pathname,
+      );
+    if (stageGateReject !== null) {
+      this.requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const body = await readJson(req);
+      const gate = await this.store.rejectStageGate(
+        decodeSegment(stageGateReject[1] ?? ""),
+        asProjectStage(decodeSegment(stageGateReject[2] ?? "")),
+        asNote(body) ?? "",
+      );
+      sendJson(res, 200, { ok: true, gate });
       return;
     }
 

@@ -13,8 +13,21 @@ import os from "node:os";
 import path from "node:path";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 18;
-var STUDIO_PLUGIN_VERSION = "2.5.3";
+var STUDIO_SCHEMA_VERSION = 19;
+var STUDIO_PLUGIN_VERSION = "2.6.0";
+var PROJECT_STAGE_ORDER = [
+  "discovery",
+  "architecture",
+  "prototype",
+  "development"
+];
+function isProjectStage(value) {
+  return typeof value === "string" && PROJECT_STAGE_ORDER.includes(value);
+}
+function nextProjectStage(stage) {
+  const index = PROJECT_STAGE_ORDER.indexOf(stage);
+  return index < 0 || index === PROJECT_STAGE_ORDER.length - 1 ? null : PROJECT_STAGE_ORDER[index + 1] ?? null;
+}
 var TASK_STATUS_ORDER = [
   "backlog",
   "ready",
@@ -120,6 +133,77 @@ function textList(value, field, maxItems = 20) {
     throw new StudioStoreError("invalid_input", `${field} \u5FC5\u987B\u662F\u6570\u7EC4`);
   }
   return value.slice(0, maxItems).map((item, index) => requiredText(item, `${field}[${String(index)}]`, 400));
+}
+function defaultStageChecklist(stage) {
+  const texts = {
+    architecture: [
+      "PRD \u5DF2\u8BC4\u5BA1\uFF0C\u8303\u56F4\u4E0E\u5F53\u524D\u7248\u672C\u4E00\u81F4",
+      "\u76EE\u6807\u4E0E\u975E\u76EE\u6807\u5DF2\u5199\u660E",
+      "\u9A8C\u6536\u6807\u51C6\u53EF\u89C2\u5BDF\u3001\u53EF\u9A8C\u8BC1",
+      "\u98CE\u9669\u4E0E\u672A\u51B3\u95EE\u9898\u5DF2\u8BB0\u5F55"
+    ],
+    prototype: [
+      "\u67B6\u6784\u6587\u6863\u5DF2\u5B8C\u6210\u5E76\u7ECF Owner \u786E\u8BA4",
+      "\u6A21\u5757\u8FB9\u754C\u4E0E\u5951\u7EA6\u5DF2\u5EFA\u7ACB",
+      "\u6D4B\u8BD5\u7B56\u7565\u4E0E\u9A8C\u8BC1\u547D\u4EE4\u5DF2\u786E\u5B9A",
+      "\u9AD8\u98CE\u9669\u51B3\u7B56\u5DF2\u6709 ADR \u6216 Decision"
+    ],
+    development: [
+      "Demo \u811A\u672C\u5DF2\u901A\u8FC7",
+      "Demo \u8BC1\u636E\u5DF2\u8BB0\u5F55",
+      "\u5DF2\u77E5\u9650\u5236\u548C\u6539\u8FDB\u9879\u5DF2\u5217\u51FA",
+      "\u5DF2\u51B3\u5B9A evolve \u6216 rewrite"
+    ]
+  };
+  return (texts[stage] ?? []).map(
+    (text) => ({ id: newId("check"), text, done: false })
+  );
+}
+function normalizeStageChecklist(value) {
+  if (!Array.isArray(value)) {
+    throw new StudioStoreError("invalid_input", "checklist \u5FC5\u987B\u662F\u6570\u7EC4");
+  }
+  return value.slice(0, 30).map((raw, index) => {
+    if (!isRecord(raw)) {
+      throw new StudioStoreError(
+        "invalid_input",
+        `checklist[${String(index)}] \u5FC5\u987B\u662F\u5BF9\u8C61`
+      );
+    }
+    return {
+      id: typeof raw.id === "string" && raw.id !== "" ? raw.id : newId("check"),
+      text: requiredText(raw.text, `checklist[${String(index)}].text`, 500),
+      done: raw.done === true
+    };
+  });
+}
+function normalizeStageArtifacts(value) {
+  if (!Array.isArray(value)) {
+    throw new StudioStoreError("invalid_input", "artifacts \u5FC5\u987B\u662F\u6570\u7EC4");
+  }
+  return value.slice(0, 20).map((raw, index) => {
+    if (!isRecord(raw)) {
+      throw new StudioStoreError(
+        "invalid_input",
+        `artifacts[${String(index)}] \u5FC5\u987B\u662F\u5BF9\u8C61`
+      );
+    }
+    const kind = isStageArtifactKind(raw.kind) ? raw.kind : "other";
+    return {
+      id: typeof raw.id === "string" && raw.id !== "" ? raw.id : newId("artifact"),
+      kind,
+      label: requiredText(
+        raw.label,
+        `artifacts[${String(index)}].label`,
+        160
+      ),
+      path: requiredText(
+        raw.path,
+        `artifacts[${String(index)}].path`,
+        500
+      )
+    };
+  });
 }
 function normalizeAcceptance(value, existing = []) {
   if (!Array.isArray(value)) {
@@ -529,7 +613,7 @@ function buildCompany(state, now) {
   };
 }
 function isProject(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.name === "string" && typeof value.description === "string" && (value.tokenBudget === null || typeof value.tokenBudget === "number") && (value.repoPath === null || typeof value.repoPath === "string") && (value.prdPath === null || value.prdPath === void 0 || typeof value.prdPath === "string") && (value.invariantsPath === null || value.invariantsPath === void 0 || typeof value.invariantsPath === "string") && (value.modulesPath === null || value.modulesPath === void 0 || typeof value.modulesPath === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
+  return isRecord(value) && typeof value.id === "string" && typeof value.name === "string" && typeof value.description === "string" && (value.tokenBudget === null || typeof value.tokenBudget === "number") && (value.repoPath === null || typeof value.repoPath === "string") && (value.prdPath === null || value.prdPath === void 0 || typeof value.prdPath === "string") && (value.invariantsPath === null || value.invariantsPath === void 0 || typeof value.invariantsPath === "string") && (value.modulesPath === null || value.modulesPath === void 0 || typeof value.modulesPath === "string") && isProjectStage(value.stage) && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
 }
 function isRole(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.name === "string" && typeof value.title === "string" && typeof value.mission === "string" && Array.isArray(value.responsibilities) && Array.isArray(value.nonGoals) && Array.isArray(value.decisionRights) && (value.model === null || typeof value.model === "string") && (value.executor === void 0 || value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && (value.tokenBudget === null || typeof value.tokenBudget === "number") && (value.dailyTokenBudget === null || typeof value.dailyTokenBudget === "number");
@@ -541,7 +625,7 @@ function isAgentRun(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.branchName === null || typeof value.branchName === "string") && (value.workspacePath === null || typeof value.workspacePath === "string") && (value.diffStat === null || typeof value.diffStat === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
 }
 function isTask(value) {
-  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence) && (value.verifyCommand === null || value.verifyCommand === void 0 || typeof value.verifyCommand === "string") && (value.module === null || value.module === void 0 || typeof value.module === "string") && (value.contractRef === null || value.contractRef === void 0 || typeof value.contractRef === "string") && (value.kind === void 0 || value.kind === "new" || value.kind === "fix") && (value.integration === void 0 || typeof value.integration === "boolean") && (value.originTaskId === null || value.originTaskId === void 0 || typeof value.originTaskId === "string") && (value.docsSynced === void 0 || typeof value.docsSynced === "boolean") && (value.diagnosis === void 0 || typeof value.diagnosis === "string") && (value.plan === void 0 || typeof value.plan === "string");
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence) && (value.verifyCommand === null || value.verifyCommand === void 0 || typeof value.verifyCommand === "string") && (value.module === null || value.module === void 0 || typeof value.module === "string") && (value.contractRef === null || value.contractRef === void 0 || typeof value.contractRef === "string") && Array.isArray(value.requirementRefs) && value.requirementRefs.every((item) => typeof item === "string") && (value.kind === void 0 || value.kind === "new" || value.kind === "fix") && (value.integration === void 0 || typeof value.integration === "boolean") && (value.originTaskId === null || value.originTaskId === void 0 || typeof value.originTaskId === "string") && (value.docsSynced === void 0 || typeof value.docsSynced === "boolean") && (value.diagnosis === void 0 || typeof value.diagnosis === "string") && (value.plan === void 0 || typeof value.plan === "string");
 }
 function isMergeRisk(value) {
   return value === "low" || value === "medium" || value === "high";
@@ -554,6 +638,21 @@ function isDecisionStatus(value) {
 }
 function isDecision(value) {
   return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && (value.taskId === null || typeof value.taskId === "string") && (value.runId === null || typeof value.runId === "string") && typeof value.title === "string" && typeof value.context === "string" && Array.isArray(value.options) && typeof value.recommendation === "string" && (value.reversible === void 0 || typeof value.reversible === "boolean") && (value.adrDraft === null || value.adrDraft === void 0 || typeof value.adrDraft === "string") && (value.adrPath === null || value.adrPath === void 0 || typeof value.adrPath === "string") && isDecisionStatus(value.status) && typeof value.decision === "string" && typeof value.note === "string" && typeof value.decidedBy === "string" && (value.tokenCost === null || typeof value.tokenCost === "number") && typeof value.createdAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string");
+}
+function isStageGateStatus(value) {
+  return value === "pending" || value === "approved" || value === "rejected";
+}
+function isStageArtifactKind(value) {
+  return value === "prd" || value === "architecture" || value === "demo" || value === "adr" || value === "other";
+}
+function isStageCheckItem(value) {
+  return isRecord(value) && typeof value.id === "string" && typeof value.text === "string" && typeof value.done === "boolean";
+}
+function isStageArtifact(value) {
+  return isRecord(value) && typeof value.id === "string" && isStageArtifactKind(value.kind) && typeof value.label === "string" && typeof value.path === "string";
+}
+function isStageGate(value) {
+  return isRecord(value) && typeof value.id === "string" && typeof value.projectId === "string" && isProjectStage(value.stage) && isStageGateStatus(value.status) && Array.isArray(value.checklist) && value.checklist.every(isStageCheckItem) && Array.isArray(value.artifacts) && value.artifacts.every(isStageArtifact) && typeof value.note === "string" && (value.decisionId === null || typeof value.decisionId === "string") && typeof value.approvedBy === "string" && (value.approvedAt === null || typeof value.approvedAt === "string") && (value.waiverReason === null || typeof value.waiverReason === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
 }
 function isBranchStatus(value) {
   return value === "open" || value === "review" || value === "merged" || value === "abandoned";
@@ -784,12 +883,27 @@ function migrateState(value) {
     };
   }
   if (state.schemaVersion === 17) {
-    return {
+    state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 18,
       roles: state.roles.map((role) => ({
         ...role,
         executor: role.executor ?? "dsh"
+      }))
+    };
+  }
+  if (state.schemaVersion === 18) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      projects: state.projects.map((project) => ({
+        ...project,
+        stage: "development"
+      })),
+      stageGates: [],
+      tasks: state.tasks.map((task) => ({
+        ...task,
+        requirementRefs: []
       }))
     };
   }
@@ -807,11 +921,14 @@ function assertState(value) {
   if (typeof value.companyName !== "string" || value.companyName.trim() === "") {
     throw new Error("Studio state must contain a companyName");
   }
-  if (!Array.isArray(value.projects) || !Array.isArray(value.roles) || !Array.isArray(value.modules) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.runs) || !Array.isArray(value.branches) || !Array.isArray(value.contractChanges) || !Array.isArray(value.decisions) || !Array.isArray(value.verifications) || !Array.isArray(value.reviews) || !Array.isArray(value.events)) {
+  if (!Array.isArray(value.projects) || !Array.isArray(value.stageGates) || !Array.isArray(value.roles) || !Array.isArray(value.modules) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.runs) || !Array.isArray(value.branches) || !Array.isArray(value.contractChanges) || !Array.isArray(value.decisions) || !Array.isArray(value.verifications) || !Array.isArray(value.reviews) || !Array.isArray(value.events)) {
     throw new Error("Studio state collections are missing");
   }
   if (!value.projects.every(isProject)) {
     throw new Error("Studio state contains an invalid project");
+  }
+  if (!value.stageGates.every(isStageGate)) {
+    throw new Error("Studio state contains an invalid stage gate");
   }
   if (!value.roles.every(isRole)) {
     throw new Error("Studio state contains an invalid role");
@@ -928,6 +1045,7 @@ var StudioStore = class {
     return this.runExclusive(async () => {
       const state = this.requireState();
       const project = this.pickProject(state, projectId);
+      const stageGates = project === null ? [] : state.stageGates.filter((gate) => gate.projectId === project.id);
       const roles = project === null ? [] : state.roles.filter((role) => role.projectId === project.id);
       const modules = project === null ? [] : state.modules.filter((module) => module.projectId === project.id);
       const tasks = project === null ? [] : state.tasks.filter((task) => task.projectId === project.id);
@@ -974,6 +1092,7 @@ var StudioStore = class {
         projects: [...state.projects],
         activeProjectId: state.activeProjectId,
         project,
+        stageGates,
         roles,
         modules,
         tasks,
@@ -1001,7 +1120,8 @@ var StudioStore = class {
           contractGuard: true,
           independentReview: true,
           mergeExecution: true,
-          gitMerge: false
+          gitMerge: false,
+          stageGate: true
         }
       };
     });
@@ -1019,6 +1139,7 @@ var StudioStore = class {
         prdPath: null,
         invariantsPath: null,
         modulesPath: null,
+        stage: "discovery",
         createdAt: at,
         updatedAt: at
       };
@@ -1067,6 +1188,177 @@ var StudioStore = class {
       return structuredClone(project);
     });
   }
+  async getStageGate(projectId, stage) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const project = this.findProject(state, projectId);
+      const next = nextProjectStage(project.stage);
+      if (next === null) {
+        throw new StudioStoreError(
+          "stage_complete",
+          "\u9879\u76EE\u5DF2\u7ECF\u8FDB\u5165\u6301\u7EED\u5F00\u53D1\uFF0C\u6CA1\u6709\u4E0B\u4E00\u9636\u6BB5\u95E8\u7981",
+          409
+        );
+      }
+      if (stage !== next) {
+        throw new StudioStoreError(
+          "stage_gate_out_of_order",
+          `\u4E0B\u4E00\u9636\u6BB5\u662F ${next}\uFF0C\u4E0D\u80FD\u521B\u5EFA ${stage} \u95E8\u7981`,
+          409
+        );
+      }
+      let gate = state.stageGates.find(
+        (item) => item.projectId === projectId && item.stage === stage
+      );
+      if (gate === void 0) {
+        const at = nowIso(this.now);
+        gate = {
+          id: newId("gate"),
+          projectId,
+          stage,
+          status: "pending",
+          checklist: defaultStageChecklist(stage),
+          artifacts: [],
+          note: "",
+          decisionId: null,
+          approvedBy: "",
+          approvedAt: null,
+          waiverReason: null,
+          createdAt: at,
+          updatedAt: at
+        };
+        state.stageGates.push(gate);
+        state.updatedAt = at;
+        await this.save();
+      }
+      return structuredClone(gate);
+    });
+  }
+  async updateStageGate(projectId, stage, input) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const project = this.findProject(state, projectId);
+      const gate = this.findStageGate(state, project, stage);
+      if (gate.status === "approved") {
+        throw new StudioStoreError(
+          "stage_gate_locked",
+          "\u9636\u6BB5\u95E8\u7981\u5DF2\u7ECF\u6279\u51C6\uFF0C\u4E0D\u80FD\u518D\u4FEE\u6539",
+          409
+        );
+      }
+      if (input.checklist !== void 0) {
+        gate.checklist = normalizeStageChecklist(input.checklist);
+      }
+      if (input.artifacts !== void 0) {
+        gate.artifacts = normalizeStageArtifacts(input.artifacts);
+      }
+      if (input.note !== void 0) {
+        gate.note = optionalText(input.note, "note", 4e3);
+      }
+      gate.status = "pending";
+      gate.approvedBy = "";
+      gate.approvedAt = null;
+      gate.waiverReason = null;
+      gate.updatedAt = nowIso(this.now);
+      state.updatedAt = gate.updatedAt;
+      await this.save();
+      return structuredClone(gate);
+    });
+  }
+  async approveStageGate(projectId, stage, input = {}) {
+    return this.runExclusive(async () => {
+      const state = this.requireState();
+      const project = this.findProject(state, projectId);
+      const gate = this.findStageGate(state, project, stage);
+      if (gate.status === "approved") {
+        throw new StudioStoreError(
+          "stage_gate_locked",
+          "\u9636\u6BB5\u95E8\u7981\u5DF2\u7ECF\u6279\u51C6",
+          409
+        );
+      }
+      if (input.checklist !== void 0) {
+        gate.checklist = normalizeStageChecklist(input.checklist);
+      }
+      if (input.artifacts !== void 0) {
+        gate.artifacts = normalizeStageArtifacts(input.artifacts);
+      }
+      if (input.note !== void 0) {
+        gate.note = optionalText(input.note, "note", 4e3);
+      }
+      const waiverReason = optionalText(
+        input.waiverReason,
+        "waiverReason",
+        1e3
+      );
+      const incomplete = gate.checklist.length === 0 || gate.checklist.some((item) => !item.done) || gate.artifacts.length === 0;
+      if (incomplete && waiverReason === "") {
+        throw new StudioStoreError(
+          "stage_gate_not_ready",
+          "\u9636\u6BB5\u95E8\u7981\u672A\u5B8C\u6210\uFF1A\u8BF7\u5B8C\u6210\u6240\u6709\u68C0\u67E5\u9879\u5E76\u81F3\u5C11\u767B\u8BB0\u4E00\u4E2A\u4EA7\u7269\uFF0C\u6216\u586B\u5199 Owner \u8C41\u514D\u7406\u7531",
+          409
+        );
+      }
+      const at = nowIso(this.now);
+      gate.status = "approved";
+      gate.approvedBy = "Owner";
+      gate.approvedAt = at;
+      gate.waiverReason = incomplete && waiverReason !== "" ? waiverReason : null;
+      gate.updatedAt = at;
+      project.stage = stage;
+      project.updatedAt = at;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "stage.approved",
+        at,
+        projectId,
+        payload: {
+          stage,
+          waiver: gate.waiverReason !== null
+        }
+      });
+      await this.save();
+      return structuredClone(gate);
+    });
+  }
+  async rejectStageGate(projectId, stage, note) {
+    return this.runExclusive(async () => {
+      if (note.trim() === "") {
+        throw new StudioStoreError(
+          "decision_reason_required",
+          "\u62D2\u7EDD\u9636\u6BB5\u95E8\u7981\u5FC5\u987B\u5199\u660E\u7406\u7531",
+          400
+        );
+      }
+      const reason = requiredText(note, "note", 4e3);
+      const state = this.requireState();
+      const project = this.findProject(state, projectId);
+      const gate = this.findStageGate(state, project, stage);
+      if (gate.status === "approved") {
+        throw new StudioStoreError(
+          "stage_gate_locked",
+          "\u9636\u6BB5\u95E8\u7981\u5DF2\u7ECF\u6279\u51C6\uFF0C\u4E0D\u80FD\u518D\u62D2\u7EDD",
+          409
+        );
+      }
+      const at = nowIso(this.now);
+      gate.status = "rejected";
+      gate.note = reason;
+      gate.approvedBy = "";
+      gate.approvedAt = null;
+      gate.waiverReason = null;
+      gate.updatedAt = at;
+      state.updatedAt = at;
+      this.recordEvent(state, {
+        type: "stage.rejected",
+        at,
+        projectId,
+        payload: { stage, note: reason }
+      });
+      await this.save();
+      return structuredClone(gate);
+    });
+  }
   async selectProject(projectId) {
     return this.runExclusive(async () => {
       const state = this.requireState();
@@ -1107,6 +1399,13 @@ var StudioStore = class {
           "context_not_found",
           "\u4EFB\u52A1\u7684\u8D1F\u8D23\u4EBA\u89D2\u8272\u6216\u9879\u76EE\u4E0D\u5B58\u5728",
           404
+        );
+      }
+      if (project.repoPath !== null && project.stage !== "development") {
+        throw new StudioStoreError(
+          "stage_gate_required",
+          "\u9879\u76EE\u5C1A\u672A\u901A\u8FC7\u9636\u6BB5\u95E8\u7981\uFF1B\u5B8C\u6210\u67B6\u6784/Demo \u786E\u8BA4\u5E76\u8FDB\u5165\u6301\u7EED\u5F00\u53D1\u540E\u624D\u80FD\u6D3E\u5355",
+          409
         );
       }
       const module = task.module === null ? void 0 : state.modules.find(
@@ -2238,6 +2537,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
         verifyCommand: optionalText(input.verifyCommand, "verifyCommand", 500) || null,
         module: optionalText(input.module, "module", 120) || null,
         contractRef: optionalText(input.contractRef, "contractRef", 300) || null,
+        requirementRefs: textList(input.requirementRefs, "requirementRefs", 30),
         kind: input.kind === "fix" ? "fix" : "new",
         diagnosis: optionalText(input.diagnosis, "diagnosis", 4e3),
         plan: optionalText(input.plan, "plan", 4e3),
@@ -2316,6 +2616,13 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       }
       if (input.contractRef !== void 0) {
         task.contractRef = optionalText(input.contractRef, "contractRef", 300) || null;
+      }
+      if (input.requirementRefs !== void 0) {
+        task.requirementRefs = textList(
+          input.requirementRefs,
+          "requirementRefs",
+          30
+        );
       }
       if (input.kind !== void 0) {
         task.kind = input.kind === "fix" ? "fix" : "new";
@@ -2467,6 +2774,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       verifyCommand: "npm test",
       module: null,
       contractRef: null,
+      requirementRefs: [],
       kind: "new",
       diagnosis: "",
       plan: "",
@@ -2881,6 +3189,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
           verifyCommand: task.verifyCommand,
           module: task.module,
           contractRef: task.contractRef,
+          requirementRefs: task.requirementRefs,
           kind: "fix",
           diagnosis: "",
           plan: "",
@@ -2982,6 +3291,39 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
     }
     return branch;
   }
+  findProject(state, projectId) {
+    const project = state.projects.find((item) => item.id === projectId);
+    if (project === void 0) {
+      throw new StudioStoreError("project_not_found", "\u9879\u76EE\u4E0D\u5B58\u5728", 404);
+    }
+    return project;
+  }
+  findStageGate(state, project, stage) {
+    const gate = state.stageGates.find(
+      (item) => item.projectId === project.id && item.stage === stage
+    );
+    if (gate !== void 0) return gate;
+    const next = nextProjectStage(project.stage);
+    if (next === null) {
+      throw new StudioStoreError(
+        "stage_complete",
+        "\u9879\u76EE\u5DF2\u7ECF\u8FDB\u5165\u6301\u7EED\u5F00\u53D1\uFF0C\u6CA1\u6709\u4E0B\u4E00\u9636\u6BB5\u95E8\u7981",
+        409
+      );
+    }
+    if (stage !== next) {
+      throw new StudioStoreError(
+        "stage_gate_out_of_order",
+        `\u4E0B\u4E00\u9636\u6BB5\u662F ${next}\uFF0C\u4E0D\u80FD\u64CD\u4F5C ${stage} \u95E8\u7981`,
+        409
+      );
+    }
+    throw new StudioStoreError(
+      "stage_gate_not_found",
+      "\u9636\u6BB5\u95E8\u7981\u5C1A\u672A\u521B\u5EFA\uFF0C\u8BF7\u5148\u6253\u5F00\u9636\u6BB5\u95E8\u7981",
+      404
+    );
+  }
   findTask(state, taskId) {
     const task = state.tasks.find((item) => item.id === taskId);
     if (task === void 0) {
@@ -3047,6 +3389,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       prdPath: null,
       invariantsPath: null,
       modulesPath: null,
+      stage: "development",
       createdAt: at,
       updatedAt: at
     };
@@ -3119,6 +3462,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       verifyCommand: null,
       module: null,
       contractRef: null,
+      requirementRefs: [],
       kind: "new",
       diagnosis: "",
       plan: "",
@@ -3195,6 +3539,7 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       updatedAt: at,
       activeProjectId: project.id,
       projects: [project],
+      stageGates: [],
       roles,
       modules: [],
       tasks,

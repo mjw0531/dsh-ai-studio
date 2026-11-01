@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 18;
-export const STUDIO_PLUGIN_VERSION = "2.5.3";
+export const STUDIO_SCHEMA_VERSION = 19;
+export const STUDIO_PLUGIN_VERSION = "2.6.0";
 
 export type TaskStatus =
   | "backlog"
@@ -18,6 +18,86 @@ export type TaskStatus =
 export type TaskPriority = "P0" | "P1" | "P2";
 export type TaskKind = "new" | "fix";
 
+export type ProjectStage =
+  | "discovery"
+  | "architecture"
+  | "prototype"
+  | "development";
+
+export const PROJECT_STAGE_ORDER: ProjectStage[] = [
+  "discovery",
+  "architecture",
+  "prototype",
+  "development",
+];
+
+export const PROJECT_STAGE_LABELS: Record<ProjectStage, string> = {
+  discovery: "需求探索",
+  architecture: "架构设计",
+  prototype: "原型验证",
+  development: "持续开发",
+};
+
+export function isProjectStage(value: unknown): value is ProjectStage {
+  return (
+    typeof value === "string" &&
+    (PROJECT_STAGE_ORDER as string[]).includes(value)
+  );
+}
+
+export function nextProjectStage(stage: ProjectStage): ProjectStage | null {
+  const index = PROJECT_STAGE_ORDER.indexOf(stage);
+  return index < 0 || index === PROJECT_STAGE_ORDER.length - 1
+    ? null
+    : (PROJECT_STAGE_ORDER[index + 1] ?? null);
+}
+
+export type StageGateStatus = "pending" | "approved" | "rejected";
+export type StageArtifactKind = "prd" | "architecture" | "demo" | "adr" | "other";
+
+export interface StageCheckItem {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
+export interface StageArtifact {
+  id: string;
+  kind: StageArtifactKind;
+  label: string;
+  path: string;
+}
+
+/**
+ * A gate approves entry into `stage`. The project's current stage stays put
+ * until the Owner approves the gate.
+ */
+export interface StageGate {
+  id: string;
+  projectId: string;
+  stage: ProjectStage;
+  status: StageGateStatus;
+  checklist: StageCheckItem[];
+  artifacts: StageArtifact[];
+  note: string;
+  decisionId: string | null;
+  approvedBy: string;
+  approvedAt: string | null;
+  waiverReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpdateStageGateInput {
+  checklist?: StageCheckItem[];
+  artifacts?: StageArtifact[];
+  note?: string;
+}
+
+export interface ApproveStageGateInput extends UpdateStageGateInput {
+  waiverReason?: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -27,6 +107,7 @@ export interface Project {
   prdPath: string | null;
   invariantsPath: string | null;
   modulesPath: string | null;
+  stage: ProjectStage;
   createdAt: string;
   updatedAt: string;
 }
@@ -101,6 +182,7 @@ export interface Task {
   verifyCommand: string | null;
   module: string | null;
   contractRef: string | null;
+  requirementRefs: string[];
   kind: TaskKind;
   diagnosis: string;
   plan: string;
@@ -293,6 +375,7 @@ export interface StudioState {
   updatedAt: string;
   activeProjectId: string | null;
   projects: Project[];
+  stageGates: StageGate[];
   roles: Role[];
   modules: Module[];
   tasks: Task[];
@@ -421,6 +504,7 @@ export interface BootstrapResponse {
   projects: Project[];
   activeProjectId: string | null;
   project: Project | null;
+  stageGates: StageGate[];
   roles: Role[];
   modules: Module[];
   tasks: Task[];
@@ -449,6 +533,7 @@ export interface BootstrapResponse {
     independentReview: boolean;
     mergeExecution: boolean;
     gitMerge: boolean;
+    stageGate: boolean;
   };
 }
 
@@ -641,6 +726,7 @@ export interface CreateTaskInput {
   verifyCommand?: string | null;
   module?: string | null;
   contractRef?: string | null;
+  requirementRefs?: string[];
   kind?: TaskKind;
   diagnosis?: string;
   plan?: string;
@@ -664,6 +750,7 @@ export interface UpdateTaskInput {
   verifyCommand?: string | null;
   module?: string | null;
   contractRef?: string | null;
+  requirementRefs?: string[];
   kind?: TaskKind;
   diagnosis?: string;
   plan?: string;
