@@ -4097,9 +4097,18 @@ function ProviderProfilesPanel({
             current?.runCount ?? 0,
             " \u6210\u529F \xB7",
             " ",
+            Math.round((current?.failureRate ?? 0) * 100),
+            "% \u5931\u8D25 \xB7",
+            " ",
             (current?.tokens ?? 0).toLocaleString(),
             " tokens"
           ] }),
+          current?.suggestedProfileId ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { className: "studio-pill", "data-tone": "warn", children: [
+            "\u5EFA\u8BAE\u5207\u6362\uFF1A",
+            profiles.find(
+              (item) => item.id === current.suggestedProfileId
+            )?.name ?? current.suggestedProfileId
+          ] }) : null,
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
             "button",
             {

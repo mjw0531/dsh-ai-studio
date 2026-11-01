@@ -4138,8 +4138,17 @@ function ProviderProfilesPanel({
                 <span className="studio-muted">
                   {current?.state ?? "unknown"} · {current?.successCount ?? 0}/
                   {current?.runCount ?? 0} 成功 ·{" "}
+                  {Math.round((current?.failureRate ?? 0) * 100)}% 失败 ·{" "}
                   {(current?.tokens ?? 0).toLocaleString()} tokens
                 </span>
+                {current?.suggestedProfileId ? (
+                  <span className="studio-pill" data-tone="warn">
+                    建议切换：
+                    {profiles.find(
+                      (item) => item.id === current.suggestedProfileId,
+                    )?.name ?? current.suggestedProfileId}
+                  </span>
+                ) : null}
                 <button
                   className="studio-btn"
                   data-size="sm"

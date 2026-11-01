@@ -5,7 +5,7 @@
  */
 
 export const STUDIO_SCHEMA_VERSION = 22;
-export const STUDIO_PLUGIN_VERSION = "2.11.0";
+export const STUDIO_PLUGIN_VERSION = "2.12.0";
 
 export type TaskStatus =
   | "backlog"
@@ -257,11 +257,36 @@ export type UpdateProviderProfileInput = Partial<CreateProviderProfileInput>;
 
 export type ProviderHealthState = "healthy" | "degraded" | "unknown";
 
+export type ProviderFailureReason =
+  | "receipt"
+  | "timeout"
+  | "provider"
+  | "task"
+  | "unknown";
+
+export interface ProviderFailureCount {
+  reason: ProviderFailureReason;
+  count: number;
+}
+
+export interface ProviderRecentRun {
+  id: string;
+  status: "succeeded" | "failed" | "running" | "queued";
+  model: string | null;
+  startedAt: string;
+  endedAt: string | null;
+  errorPreview: string | null;
+}
+
 export interface ProviderProfileHealth {
   profileId: string;
   runCount: number;
   successCount: number;
   failCount: number;
+  failureRate: number;
+  failuresByReason: ProviderFailureCount[];
+  recentRuns: ProviderRecentRun[];
+  suggestedProfileId: string | null;
   tokens: number;
   lastRunAt: string | null;
   lastError: string | null;

@@ -2,7 +2,7 @@
 
 一套构建在 **DeepSeek Harness（DSH）** 之上的多角色 AI Studio：把「一个聊天窗口」变成一间**有工作室仪表盘、Agent 派单、token 预算、决策台、支线/契约冲突、worktree 代码执行、项目、角色、任务、验收、合并治理**的工作室。
 
-> 当前状态：**v2.11.0 可运行**。已完成工作室级 Owner Dashboard、Agent 派单与结构化回执、角色模型/token 预算、DSH token 计量、决策台、支线/契约冲突自动升级、git worktree 代码执行与自动提交、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、ADR 草稿与落盘、人工触发 Git merge 与合并后回归、合并失败升级与回滚、改修票诊断/计划门禁、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、Claude Code / Codex CLI 执行器、项目包导出、数据导出/导入恢复、项目/角色/任务/验收/证据持久化、合并治理，并在 DSH `0.2.1-rc.2` 和真实外部仓库上完成派单→验证→评审→merge→回归的 dogfood。
+> 当前状态：**v2.12.0 可运行**。已完成工作室级 Owner Dashboard、Agent 派单与结构化回执、角色模型/token 预算、DSH token 计量、决策台、支线/契约冲突自动升级、git worktree 代码执行与自动提交、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、ADR 草稿与落盘、人工触发 Git merge 与合并后回归、合并失败升级与回滚、改修票诊断/计划门禁、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、Claude Code / Codex CLI 执行器、项目包导出、数据导出/导入恢复、项目/角色/任务/验收/证据持久化、合并治理，并在 DSH `0.2.1-rc.2` 和真实外部仓库上完成派单→验证→评审→merge→回归的 dogfood。
 
 ## 现在能做什么
 
@@ -41,6 +41,7 @@
 - **2.9 原型 Demo 门禁**：从原型验证进入持续开发前，必须登记 `demo` 产物（路径、URL 或 playtest 记录），或写 Owner 豁免理由。
 - **2.10 Provider Profiles**：角色可以绑定命名执行配置（DSH / Claude Code / Codex + provider + model），派单、独立评审和 Workshop 共用同一解析。
 - **2.11 Provider 健康度**：按 Profile 聚合成功/失败、token、最近错误；运行失败会把状态标为 `degraded`，不自动切换。
+- **2.12 Provider 诊断**：显示失败率、失败原因分布、最近 5 次运行；对 `degraded` Profile 给出备用建议，不自动切换。
 - **Agent 分析派单**：Task Room 把任务派给负责人角色，Agent 返回结构化回执；回执缺 `summary`/`evidence` 时任务退回可开始，不能进入验收。
 - **薪资与预算**：角色配置模型、单任务/每日 token 预算；项目配置总 token 预算。
 - **独立工作台页面**：DSH 侧栏点击「工作台」，进入公司仪表盘，不占用聊天会话。
@@ -205,8 +206,9 @@ dsh --profile web --no-open --port 0
 - **v2.8.1**：Workshop AI 独立评审，每个参与角色独立调用 DSH Agent；汇总和 Owner 决策仍由人确认，不自动合并。
 - **v2.9.0**：原型 Demo 门禁；从原型验证进入持续开发前，必须登记 `demo` 产物，或写 Owner 豁免理由。
 - **v2.10.0**：Provider Profiles；角色可以绑定命名执行配置（executor/provider/model），派单与 Workshop 共用同一解析。
-- **v2.11.0（当前）**：Provider 健康度；按绑定的 Profile 聚合运行次数、成功/失败、token、最近错误和健康状态。
-- **下一步 v2.12（规划）**：Provider 健康检查 / 备用 Profile 建议，或 Prototype 自动 Demo 运行。
+- **v2.11.0**：Provider 健康度；按绑定的 Profile 聚合运行次数、成功/失败、token、最近错误和健康状态。
+- **v2.12.0（当前）**：Provider 诊断补全；失败率、失败原因分布、最近运行、备用 Profile 建议，仍由 Owner 手动切换。
+- **下一步 v2.13（规划）**：Prototype 自动 Demo 运行，或实时 Provider 探测。
 - **v1.0**：用工作台完成一个完整垂直切片，再抽象为可复用插件。
 
 升级、备份与兼容性见 [兼容性与安装](docs/04-兼容性与安装.md)。

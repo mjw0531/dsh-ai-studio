@@ -14,7 +14,7 @@ import path from "node:path";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 22;
-var STUDIO_PLUGIN_VERSION = "2.11.0";
+var STUDIO_PLUGIN_VERSION = "2.12.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -309,11 +309,21 @@ function latestIso(values) {
   }
   return latest;
 }
+function providerFailureReason(error) {
+  const value = (error ?? "").toLowerCase();
+  if (value === "") return "unknown";
+  if (/receipt|回执|evidence|summary/.test(value)) return "receipt";
+  if (/timeout|超时|timed out/.test(value)) return "timeout";
+  if (/provider|模型|model|api key|auth|unauthorized|rate limit|quota|配额/.test(value)) {
+    return "provider";
+  }
+  return "task";
+}
 function buildProviderHealth(state, projectId) {
   const profiles = state.providerProfiles.filter(
     (profile) => profile.projectId === projectId
   );
-  return profiles.map((profile) => {
+  const health = profiles.map((profile) => {
     const roleIds = new Set(
       state.roles.filter(
         (role) => role.projectId === projectId && role.providerProfileId === profile.id
@@ -332,17 +342,42 @@ function buildProviderHealth(state, projectId) {
     const failCount = runs.filter((run) => run.status === "failed").length;
     const last = runs[runs.length - 1];
     const lastError = last?.status === "failed" && last.error !== null ? last.error : [...runs].reverse().find((run) => run.error !== null)?.error ?? null;
+    const failures = /* @__PURE__ */ new Map();
+    for (const run of runs) {
+      if (run.status !== "failed") continue;
+      const reason = providerFailureReason(run.error);
+      failures.set(reason, (failures.get(reason) ?? 0) + 1);
+    }
     return {
       profileId: profile.id,
       runCount: runs.length,
       successCount,
       failCount,
+      failureRate: runs.length === 0 ? 0 : Math.round(failCount / runs.length * 100) / 100,
+      failuresByReason: [...failures.entries()].map(([reason, count]) => ({ reason, count })).sort((left, right) => right.count - left.count),
+      recentRuns: runs.slice(-5).map((run) => ({
+        id: run.id,
+        status: run.status,
+        model: run.model,
+        startedAt: run.startedAt,
+        endedAt: run.endedAt,
+        errorPreview: run.error === null ? null : run.error.slice(0, 160)
+      })),
+      suggestedProfileId: null,
       tokens: runs.reduce((sum, run) => sum + (run.tokens ?? 0), 0),
       lastRunAt: last === void 0 ? null : last.endedAt ?? last.startedAt,
       lastError,
       state: runs.length === 0 ? "unknown" : last?.status === "failed" ? "degraded" : "healthy"
     };
   });
+  for (const current of health) {
+    if (current.state !== "degraded") continue;
+    const candidate = health.find(
+      (item) => item.profileId !== current.profileId && item.state === "healthy" && item.runCount > 0
+    );
+    current.suggestedProfileId = candidate?.profileId ?? null;
+  }
+  return health;
 }
 function buildCompany(state, now) {
   const projects = [];

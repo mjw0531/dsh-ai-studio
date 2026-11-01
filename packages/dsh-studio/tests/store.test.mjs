@@ -1447,5 +1447,49 @@ test("aggregates provider health from bound role runs", async () => {
     assert.equal(health.failCount, 1);
     assert.equal(health.tokens, 42);
     assert.equal(health.state, "degraded");
+    assert.equal(health.failureRate, 1);
+    assert.ok(
+      health.failuresByReason.some(
+        (item) => item.reason === "receipt" && item.count === 1,
+      ),
+    );
+
+    const backup = await store.createProviderProfile({
+      name: "Backup profile",
+      model: "deepseek-pro",
+    });
+    const backupRole = await store.createRole({
+      name: "Backup role",
+      providerProfileId: backup.id,
+    });
+    const backupTask = await store.createTask({
+      title: "Backup run",
+      ownerRoleId: backupRole.id,
+      reviewerRoleId: backupRole.id,
+      acceptance: ["Run is recorded"],
+    });
+    const backupRun = await store.beginRun(backupTask.id, "smoke prompt");
+    await store.completeRun(backupRun.id, {
+      output: "ok",
+      receipt: {
+        summary: "ok",
+        evidence: ["test passed"],
+        artifacts: [],
+        decisions: [],
+        contractDeltas: [],
+        rejectedOptions: [],
+        blockers: [],
+      },
+      tokens: 7,
+    });
+    const after = await store.bootstrap();
+    const degraded = after.providerHealth.find(
+      (item) => item.profileId === profile.id,
+    );
+    const healthy = after.providerHealth.find(
+      (item) => item.profileId === backup.id,
+    );
+    assert.equal(healthy?.state, "healthy");
+    assert.equal(degraded?.suggestedProfileId, backup.id);
   });
 });

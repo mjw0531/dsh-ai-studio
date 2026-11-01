@@ -399,6 +399,19 @@ function latestIso(values: Array<string | null | undefined>): string | null {
  * the aggregate numbers the Owner Dashboard needs. It is derived from the same
  * durable state, so it never becomes a second source of truth.
  */
+function providerFailureReason(
+  error: string | null,
+): ProviderProfileHealth["failuresByReason"][number]["reason"] {
+  const value = (error ?? "").toLowerCase();
+  if (value === "") return "unknown";
+  if (/receipt|回执|evidence|summary/.test(value)) return "receipt";
+  if (/timeout|超时|timed out/.test(value)) return "timeout";
+  if (/provider|模型|model|api key|auth|unauthorized|rate limit|quota|配额/.test(value)) {
+    return "provider";
+  }
+  return "task";
+}
+
 function buildProviderHealth(
   state: StudioState,
   projectId: string,
@@ -406,7 +419,7 @@ function buildProviderHealth(
   const profiles = state.providerProfiles.filter(
     (profile) => profile.projectId === projectId,
   );
-  return profiles.map((profile) => {
+  const health = profiles.map((profile) => {
     const roleIds = new Set(
       state.roles
         .filter(
@@ -438,11 +451,37 @@ function buildProviderHealth(
         ? last.error
         : ([...runs].reverse().find((run) => run.error !== null)?.error ??
           null);
+    const failures = new Map<
+      ProviderProfileHealth["failuresByReason"][number]["reason"],
+      number
+    >();
+    for (const run of runs) {
+      if (run.status !== "failed") continue;
+      const reason = providerFailureReason(run.error);
+      failures.set(reason, (failures.get(reason) ?? 0) + 1);
+    }
     return {
       profileId: profile.id,
       runCount: runs.length,
       successCount,
       failCount,
+      failureRate:
+        runs.length === 0
+          ? 0
+          : Math.round((failCount / runs.length) * 100) / 100,
+      failuresByReason: [...failures.entries()]
+        .map(([reason, count]) => ({ reason, count }))
+        .sort((left, right) => right.count - left.count),
+      recentRuns: runs.slice(-5).map((run) => ({
+        id: run.id,
+        status: run.status,
+        model: run.model,
+        startedAt: run.startedAt,
+        endedAt: run.endedAt,
+        errorPreview:
+          run.error === null ? null : run.error.slice(0, 160),
+      })),
+      suggestedProfileId: null as string | null,
       tokens: runs.reduce((sum, run) => sum + (run.tokens ?? 0), 0),
       lastRunAt:
         last === undefined ? null : (last.endedAt ?? last.startedAt),
@@ -453,8 +492,20 @@ function buildProviderHealth(
           : last?.status === "failed"
             ? "degraded"
             : "healthy",
-    };
+    } satisfies ProviderProfileHealth;
   });
+
+  for (const current of health) {
+    if (current.state !== "degraded") continue;
+    const candidate = health.find(
+      (item) =>
+        item.profileId !== current.profileId &&
+        item.state === "healthy" &&
+        item.runCount > 0,
+    );
+    current.suggestedProfileId = candidate?.profileId ?? null;
+  }
+  return health;
 }
 
 function buildCompany(state: StudioState, now: Date): CompanySummary {
