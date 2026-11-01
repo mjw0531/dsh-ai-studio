@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 26;
-var STUDIO_PLUGIN_VERSION = "3.1.0";
+var STUDIO_PLUGIN_VERSION = "3.1.1";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -3019,6 +3019,635 @@ async function recordVerification(ctx, taskId, input) {
   });
 }
 
+// src/host/store/runs.ts
+async function beginRun(ctx, taskId, prompt, workspace, execution) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const task = findTask(state, taskId);
+    if (task.status !== "backlog" && task.status !== "ready") {
+      throw new StudioStoreError(
+        "task_not_dispatchable",
+        "\u53EA\u6709\u5F85\u89C4\u5212\u6216\u53EF\u5F00\u59CB\u7684\u4EFB\u52A1\u53EF\u4EE5\u6D3E\u5355",
+        409
+      );
+    }
+    if (task.ownerRoleId === null) {
+      throw new StudioStoreError(
+        "owner_required",
+        "\u4EFB\u52A1\u6CA1\u6709\u8D1F\u8D23\u4EBA\u89D2\u8272\uFF0C\u4E0D\u80FD\u6D3E\u5355",
+        409
+      );
+    }
+    const role = state.roles.find((item) => item.id === task.ownerRoleId);
+    const project = state.projects.find(
+      (item) => item.id === task.projectId
+    );
+    if (role === void 0 || project === void 0) {
+      throw new StudioStoreError(
+        "context_not_found",
+        "\u4EFB\u52A1\u7684\u8D1F\u8D23\u4EBA\u89D2\u8272\u6216\u9879\u76EE\u4E0D\u5B58\u5728",
+        404
+      );
+    }
+    const projectSpent = state.runs.filter((run4) => run4.projectId === project.id).reduce((sum, run4) => sum + (run4.tokens ?? 0), 0);
+    if (project.tokenBudget !== null && projectSpent >= project.tokenBudget) {
+      throw new StudioStoreError(
+        "budget_exceeded",
+        `\u9879\u76EE token \u9884\u7B97\u5DF2\u7528\u5C3D\uFF08${String(projectSpent)} / ${String(
+          project.tokenBudget
+        )}\uFF09`,
+        409
+      );
+    }
+    const roleSpent = state.runs.filter((run4) => run4.roleId === role.id).reduce((sum, run4) => sum + (run4.tokens ?? 0), 0);
+    if (role.tokenBudget !== null && roleSpent >= role.tokenBudget) {
+      throw new StudioStoreError(
+        "budget_exceeded",
+        `\u89D2\u8272 token \u9884\u7B97\u5DF2\u7528\u5C3D\uFF08${String(roleSpent)} / ${String(
+          role.tokenBudget
+        )}\uFF09`,
+        409
+      );
+    }
+    const today = ctx.now().slice(0, 10);
+    const dailySpent = state.runs.filter(
+      (run4) => run4.roleId === role.id && run4.startedAt.slice(0, 10) === today
+    ).reduce((sum, run4) => sum + (run4.tokens ?? 0), 0);
+    if (role.dailyTokenBudget !== null && dailySpent >= role.dailyTokenBudget) {
+      throw new StudioStoreError(
+        "budget_exceeded",
+        `\u89D2\u8272\u4ECA\u65E5 token \u9884\u7B97\u5DF2\u7528\u5C3D\uFF08${String(dailySpent)} / ${String(
+          role.dailyTokenBudget
+        )}\uFF09`,
+        409
+      );
+    }
+    const at = ctx.now();
+    if (workspace !== void 0) {
+      task.branch = workspace.branch;
+    }
+    const branch = ensureBranch(ctx, state, task, at);
+    const run3 = {
+      id: newId2("run"),
+      projectId: task.projectId,
+      taskId: task.id,
+      roleId: role.id,
+      providerProfileId: execution?.providerProfileId ?? role.providerProfileId,
+      executor: execution?.executor ?? role.executor ?? "dsh",
+      provider: execution?.provider ?? null,
+      branchId: branch.id,
+      branchName: workspace?.branch ?? null,
+      workspacePath: workspace?.path ?? null,
+      diffStat: null,
+      sessionId: null,
+      status: "queued",
+      model: execution?.model ?? role.model,
+      prompt,
+      output: "",
+      receipt: null,
+      tokens: null,
+      budgetWarning: null,
+      error: null,
+      startedAt: at,
+      endedAt: null
+    };
+    state.runs.push(run3);
+    task.status = "running";
+    task.updatedAt = at;
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "agent.dispatched",
+      at,
+      projectId: task.projectId,
+      taskId: task.id,
+      payload: {
+        runId: run3.id,
+        roleId: role.id,
+        model: role.model
+      }
+    });
+    await ctx.save();
+    return structuredClone(run3);
+  });
+}
+async function attachRunSession(ctx, runId, sessionId, model) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const run3 = state.runs.find((item) => item.id === runId);
+    if (run3 === void 0) return;
+    run3.sessionId = sessionId;
+    if (model !== void 0) run3.model = model;
+    run3.status = "running";
+    await ctx.save();
+  });
+}
+async function completeRun(ctx, runId, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const run3 = state.runs.find((item) => item.id === runId);
+    if (run3 === void 0) {
+      throw new StudioStoreError("run_not_found", "Agent Run \u4E0D\u5B58\u5728", 404);
+    }
+    const at = ctx.now();
+    const task = state.tasks.find((item) => item.id === run3.taskId);
+    const project = state.projects.find(
+      (item) => item.id === run3.projectId
+    );
+    const role = state.roles.find((item) => item.id === run3.roleId);
+    const receiptComplete = input.receipt !== null && typeof input.receipt.summary === "string" && input.receipt.summary.trim() !== "" && Array.isArray(input.receipt.evidence) && input.receipt.evidence.length > 0;
+    if (!receiptComplete) {
+      run3.status = "failed";
+      run3.output = input.output.slice(0, 3e4);
+      run3.receipt = input.receipt;
+      run3.tokens = input.tokens;
+      run3.error = "\u56DE\u6267\u4E0D\u5B8C\u6574\uFF1A\u5FC5\u987B\u5305\u542B\u975E\u7A7A summary \u548C\u81F3\u5C11\u4E00\u6761 evidence\uFF0C\u4EFB\u52A1\u4E0D\u80FD\u8FDB\u5165 review";
+      run3.endedAt = at;
+      if (task !== void 0 && task.status === "running") {
+        task.status = "ready";
+        task.updatedAt = at;
+      }
+      if (task !== void 0) {
+        escalateRepeatedFailure(
+          ctx,
+          state,
+          task,
+          at,
+          run3.error,
+          run3
+        );
+      }
+      state.updatedAt = at;
+      ctx.recordEvent(state, {
+        type: "agent.failed",
+        at,
+        projectId: run3.projectId,
+        taskId: run3.taskId,
+        payload: {
+          runId: run3.id,
+          error: run3.error,
+          tokens: run3.tokens
+        }
+      });
+      await ctx.save();
+      return structuredClone(run3);
+    }
+    const spentProject = state.runs.filter(
+      (item) => item.projectId === run3.projectId && item.id !== run3.id
+    ).reduce((sum, item) => sum + (item.tokens ?? 0), 0);
+    const spentRole = state.runs.filter(
+      (item) => item.roleId === run3.roleId && item.id !== run3.id
+    ).reduce((sum, item) => sum + (item.tokens ?? 0), 0);
+    const warnings = [];
+    if (project !== void 0 && project.tokenBudget !== null && input.tokens !== null && spentProject + input.tokens > project.tokenBudget) {
+      warnings.push(
+        `\u9879\u76EE token \u9884\u7B97\u8D85\u51FA\uFF1A${String(spentProject + input.tokens)} / ${String(
+          project.tokenBudget
+        )}`
+      );
+    }
+    if (role !== void 0 && role.tokenBudget !== null && input.tokens !== null && spentRole + input.tokens > role.tokenBudget) {
+      warnings.push(
+        `\u89D2\u8272 token \u9884\u7B97\u8D85\u51FA\uFF1A${String(spentRole + input.tokens)} / ${String(
+          role.tokenBudget
+        )}`
+      );
+    }
+    run3.status = "succeeded";
+    run3.output = input.output.slice(0, 3e4);
+    run3.receipt = input.receipt;
+    run3.tokens = input.tokens;
+    run3.diffStat = input.diffStat ?? null;
+    run3.budgetWarning = warnings.length === 0 ? null : warnings.join("\uFF1B");
+    run3.endedAt = at;
+    if (task !== void 0) {
+      if (input.receipt !== null) {
+        const existing = new Set(task.evidence.map((item) => item.text));
+        for (const text2 of input.receipt.evidence.slice(0, 10)) {
+          if (existing.has(text2)) continue;
+          task.evidence.push({
+            id: newId2("ev"),
+            text: text2,
+            createdAt: at
+          });
+        }
+        if (task.status === "running") task.status = "review";
+      }
+      task.updatedAt = at;
+    }
+    if (input.receipt !== null) {
+      let branch = run3.branchId === null ? void 0 : state.branches.find((item) => item.id === run3.branchId);
+      if (branch === void 0 && task !== void 0) {
+        branch = ensureBranch(ctx, state, task, at);
+        run3.branchId = branch.id;
+      }
+      if (branch !== void 0) {
+        branch.status = "review";
+        branch.updatedAt = at;
+        for (const delta of input.receipt.contractDeltas) {
+          const contract = delta.contract.trim();
+          const change = delta.change.trim();
+          if (contract === "" || change === "") continue;
+          if (!branch.contractKeys.includes(contract)) {
+            branch.contractKeys.push(contract);
+          }
+          const conflict = state.contractChanges.find(
+            (item) => item.projectId === run3.projectId && item.contract === contract && item.branchId !== branch.id && item.change !== change
+          );
+          if (!state.contractChanges.some(
+            (item) => item.branchId === branch.id && item.contract === contract && item.change === change
+          )) {
+            state.contractChanges.push({
+              id: newId2("contract"),
+              projectId: run3.projectId,
+              branchId: branch.id,
+              taskId: run3.taskId,
+              runId: run3.id,
+              contract,
+              change,
+              createdAt: at
+            });
+            ctx.recordEvent(state, {
+              type: "contract.changed",
+              at,
+              projectId: run3.projectId,
+              taskId: run3.taskId,
+              payload: {
+                branchId: branch.id,
+                contract,
+                change,
+                runId: run3.id
+              }
+            });
+          }
+          if (conflict === void 0) continue;
+          const title = `\u5951\u7EA6\u51B2\u7A81\uFF1A${contract.slice(0, 160)}`;
+          if (state.decisions.some(
+            (item) => item.runId === run3.id && item.title === title
+          )) {
+            continue;
+          }
+          const otherBranch = state.branches.find(
+            (item) => item.id === conflict.branchId
+          );
+          const decision = {
+            id: newId2("dec"),
+            projectId: run3.projectId,
+            taskId: run3.taskId,
+            runId: run3.id,
+            title,
+            context: `${branch.name}: ${change}
+${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
+            options: [
+              {
+                label: `\u91C7\u7528 ${branch.name} \u7684\u53D8\u66F4`,
+                tradeoff: change
+              },
+              {
+                label: `\u91C7\u7528 ${otherBranch?.name ?? "\u53E6\u4E00\u652F\u7EBF"} \u7684\u53D8\u66F4`,
+                tradeoff: conflict.change
+              }
+            ],
+            recommendation: "\u540C\u4E00\u5951\u7EA6\u51FA\u73B0\u4E24\u6761\u4E0D\u540C\u53D8\u66F4\u3002\u8BF7\u7531 Owner/Architect \u88C1\u51B3\uFF1B\u5728\u88C1\u51B3\u524D\u4E0D\u8981\u5408\u5E76\u4EFB\u610F\u4E00\u6761\u652F\u7EBF\u3002",
+            reversible: true,
+            adrDraft: null,
+            adrPath: null,
+            status: "pending",
+            decision: "",
+            note: "",
+            decidedBy: "",
+            tokenCost: input.tokens,
+            createdAt: at,
+            decidedAt: null
+          };
+          state.decisions.push(decision);
+          ctx.recordEvent(state, {
+            type: "decision.escalated",
+            at,
+            projectId: run3.projectId,
+            taskId: run3.taskId,
+            payload: {
+              decisionId: decision.id,
+              contract,
+              branchId: branch.id,
+              otherBranchId: conflict.branchId,
+              runId: run3.id
+            }
+          });
+        }
+      }
+    }
+    if (input.receipt !== null) {
+      for (const proposed of input.receipt.decisions) {
+        if (proposed.scope !== "project") continue;
+        if (state.decisions.some(
+          (item) => item.runId === run3.id && item.title === proposed.title
+        )) {
+          continue;
+        }
+        const decision = {
+          id: newId2("dec"),
+          projectId: run3.projectId,
+          taskId: run3.taskId,
+          runId: run3.id,
+          title: proposed.title,
+          context: proposed.rationale,
+          options: [],
+          recommendation: proposed.rationale,
+          reversible: true,
+          adrDraft: null,
+          adrPath: null,
+          status: "pending",
+          decision: "",
+          note: "",
+          decidedBy: "",
+          tokenCost: input.tokens,
+          createdAt: at,
+          decidedAt: null
+        };
+        state.decisions.push(decision);
+        ctx.recordEvent(state, {
+          type: "decision.proposed",
+          at,
+          projectId: run3.projectId,
+          taskId: run3.taskId,
+          payload: {
+            decisionId: decision.id,
+            runId: run3.id,
+            title: decision.title
+          }
+        });
+      }
+    }
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "agent.completed",
+      at,
+      projectId: run3.projectId,
+      taskId: run3.taskId,
+      payload: {
+        runId: run3.id,
+        tokens: run3.tokens,
+        receipt: input.receipt !== null,
+        budgetWarning: run3.budgetWarning
+      }
+    });
+    await ctx.save();
+    return structuredClone(run3);
+  });
+}
+async function failRun(ctx, runId, error) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const run3 = state.runs.find((item) => item.id === runId);
+    if (run3 === void 0) {
+      throw new StudioStoreError("run_not_found", "Agent Run \u4E0D\u5B58\u5728", 404);
+    }
+    const at = ctx.now();
+    run3.status = "failed";
+    run3.error = error.slice(0, 4e3);
+    run3.endedAt = at;
+    const task = state.tasks.find((item) => item.id === run3.taskId);
+    if (task !== void 0 && task.status === "running") {
+      task.status = "ready";
+      task.updatedAt = at;
+    }
+    if (task !== void 0) {
+      escalateRepeatedFailure(ctx, state, task, at, run3.error, run3);
+    }
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "agent.failed",
+      at,
+      projectId: run3.projectId,
+      taskId: run3.taskId,
+      payload: { runId: run3.id, error: run3.error }
+    });
+    await ctx.save();
+    return structuredClone(run3);
+  });
+}
+async function enforceContractScope(ctx, taskId, runId, changedFiles) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const task = findTask(state, taskId);
+    const module = task.module === null ? void 0 : state.modules.find(
+      (item) => item.projectId === task.projectId && item.name === task.module
+    );
+    if (module === void 0) return [];
+    const normalize = (value) => value.replaceAll("\\", "/").replace(/^\.\//, "").toLowerCase();
+    const contract = normalize(module.contractPath ?? "");
+    const forbidden = module.forbiddenPaths.map(normalize).filter(Boolean);
+    const allowed = module.allowedPaths.map(normalize).filter(Boolean);
+    const violations = changedFiles.map(normalize).filter((file) => {
+      if (file === "") return false;
+      if (contract !== "" && file === contract) return true;
+      if (forbidden.some(
+        (path8) => file === path8 || file.startsWith(`${path8}/`)
+      )) {
+        return true;
+      }
+      if (allowed.length > 0 && (file.startsWith("src/") || file.startsWith("test/")) && !allowed.some(
+        (path8) => file === path8 || file.startsWith(`${path8}/`)
+      )) {
+        return true;
+      }
+      return false;
+    });
+    if (violations.length === 0) return [];
+    const at = ctx.now();
+    task.status = "blocked";
+    task.updatedAt = at;
+    const title = `\u5951\u7EA6\u8D8A\u754C\uFF1A${task.title.slice(0, 160)}`;
+    if (!state.decisions.some(
+      (item) => item.taskId === task.id && item.title === title
+    )) {
+      const run3 = state.runs.find((item) => item.id === runId);
+      state.decisions.push({
+        id: newId2("dec"),
+        projectId: task.projectId,
+        taskId: task.id,
+        runId,
+        title,
+        context: `\u6A21\u5757\u300C${module.name}\u300D\u7684\u5951\u7EA6/\u7981\u6B62\u8DEF\u5F84\u88AB\u4FEE\u6539\uFF1A${violations.join("\u3001")}`,
+        options: [
+          {
+            label: "\u9000\u56DE Architect \u4FEE\u8BA2\u5951\u7EA6",
+            tradeoff: "\u5148\u786E\u8BA4\u5951\u7EA6\u8FB9\u754C\u662F\u5426\u53D8\u5316\uFF0C\u518D\u91CD\u5F00 ticket"
+          },
+          {
+            label: "\u64A4\u9500\u8D8A\u754C\u6539\u52A8",
+            tradeoff: "\u4FDD\u7559\u73B0\u6709\u5951\u7EA6\uFF0C\u8981\u6C42 Agent \u53EA\u6539\u5141\u8BB8\u8DEF\u5F84"
+          }
+        ],
+        recommendation: "\u5B9E\u73B0\u8005\u4E0D\u80FD\u76F4\u63A5\u6539\u5951\u7EA6\u6216\u7981\u6B62\u8DEF\u5F84\uFF1B\u9700\u8981\u5951\u7EA6\u53D8\u66F4\u65F6\uFF0C\u5E94\u7531 Architect/Owner \u5148\u66F4\u65B0\u5951\u7EA6\uFF0C\u518D\u91CD\u65B0\u6D3E\u5355\u3002",
+        reversible: true,
+        adrDraft: null,
+        adrPath: null,
+        status: "pending",
+        decision: "",
+        note: "",
+        decidedBy: "",
+        tokenCost: run3?.tokens ?? null,
+        createdAt: at,
+        decidedAt: null
+      });
+    }
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "contract.violated",
+      at,
+      projectId: task.projectId,
+      taskId: task.id,
+      payload: { runId, module: module.name, violations }
+    });
+    await ctx.save();
+    return violations;
+  });
+}
+function escalateRepeatedFailure(ctx, state, task, at, reason, run3) {
+  const failures = state.runs.filter(
+    (item) => item.taskId === task.id && item.status === "failed"
+  ).length;
+  if (failures < 2 || task.status === "done") return;
+  task.status = "blocked";
+  task.updatedAt = at;
+  const hasResplit = state.tasks.some(
+    (item) => item.originTaskId === task.id
+  );
+  if (!hasResplit) {
+    const architect = state.roles.find(
+      (role) => role.projectId === task.projectId && (role.id === "role-architect" || role.title.includes("\u67B6\u6784"))
+    ) ?? state.roles.find((role) => role.id === task.ownerRoleId);
+    if (architect !== void 0) {
+      const resplit = {
+        id: newId2("task"),
+        projectId: task.projectId,
+        title: `\u91CD\u62C6\uFF1A${task.title}`.slice(0, 160),
+        goal: `\u539F\u4EFB\u52A1\u8FDE\u7EED\u5931\u8D25 ${String(failures)} \u6B21\u3002\u5148\u8BCA\u65AD\u6839\u56E0\uFF0C\u91CD\u62C6\u4EFB\u52A1/\u5951\u7EA6\uFF0C\u4EA7\u51FA\u53EF\u6267\u884C\u7684\u65B0 ticket \u4E0E\u9A8C\u6536\u6807\u51C6\uFF1B\u4E0D\u8981\u76F4\u63A5\u5199\u4E1A\u52A1\u4EE3\u7801\u3002\u6700\u540E\u4E00\u6B21\u5931\u8D25\uFF1A${reason}`,
+        status: "backlog",
+        priority: task.priority,
+        ownerRoleId: architect.id,
+        reviewerRoleId: task.reviewerRoleId,
+        acceptance: [
+          {
+            id: newId2("acc"),
+            text: "\u7ED9\u51FA\u91CD\u62C6\u540E\u7684\u4EFB\u52A1/\u5951\u7EA6",
+            done: false
+          },
+          {
+            id: newId2("acc"),
+            text: "\u6807\u660E\u53EF\u6267\u884C ticket \u4E0E\u9A8C\u6536\u6807\u51C6",
+            done: false
+          }
+        ],
+        evidence: [],
+        branch: null,
+        verifyCommand: task.verifyCommand,
+        module: task.module,
+        contractRef: task.contractRef,
+        requirementRefs: task.requirementRefs,
+        kind: "fix",
+        diagnosis: "",
+        plan: "",
+        integration: false,
+        originTaskId: task.id,
+        docsSynced: false,
+        createdAt: at,
+        updatedAt: at
+      };
+      state.tasks.push(resplit);
+      ctx.recordEvent(state, {
+        type: "task.resplit",
+        at,
+        projectId: task.projectId,
+        taskId: resplit.id,
+        payload: {
+          originTaskId: task.id,
+          ownerRoleId: architect.id
+        }
+      });
+    }
+  }
+  const title = `\u8FDE\u7EED\u5931\u8D25\uFF1A${task.title.slice(0, 160)}`;
+  if (state.decisions.some(
+    (item) => item.taskId === task.id && item.title === title
+  )) {
+    return;
+  }
+  const decision = {
+    id: newId2("dec"),
+    projectId: task.projectId,
+    taskId: task.id,
+    runId: run3.id,
+    title,
+    context: `${String(failures)} \u6B21\u5931\u8D25\uFF1B\u6700\u540E\u4E00\u6B21\uFF1A${reason}`,
+    options: [
+      {
+        label: "\u9000\u56DE Architect \u91CD\u62C6\u4EFB\u52A1/\u5951\u7EA6",
+        tradeoff: "\u505C\u6B62\u539F\u5730\u91CD\u8BD5\uFF0C\u5148\u4FEE\u4EFB\u52A1\u5B9A\u4E49\u6216\u5951\u7EA6"
+      },
+      {
+        label: "\u7EE7\u7EED\u91CD\u8BD5",
+        tradeoff: "\u4FDD\u7559\u5F53\u524D\u4EFB\u52A1\uFF0C\u4F46\u9700\u8981\u65B0\u7684\u8BC1\u636E"
+      }
+    ],
+    recommendation: "\u540C\u4E00\u4EFB\u52A1\u8FDE\u7EED\u5931\u8D25 2 \u6B21\uFF0C\u6309\u5DE5\u4F5C\u6D41\u5E94\u9000\u56DE\u67B6\u6784\u5E08\u91CD\u62C6\uFF0C\u4E0D\u5141\u8BB8\u7B2C\u4E09\u6B21\u539F\u5730\u91CD\u8BD5\u3002",
+    reversible: true,
+    adrDraft: null,
+    adrPath: null,
+    status: "pending",
+    decision: "",
+    note: "",
+    decidedBy: "",
+    tokenCost: run3.tokens,
+    createdAt: at,
+    decidedAt: null
+  };
+  state.decisions.push(decision);
+  ctx.recordEvent(state, {
+    type: "decision.escalated",
+    at,
+    projectId: task.projectId,
+    taskId: task.id,
+    payload: {
+      decisionId: decision.id,
+      failures,
+      runId: run3.id
+    }
+  });
+}
+function ensureBranch(ctx, state, task, at) {
+  const name2 = task.branch ?? `task/${task.id}`;
+  if (task.branch === null) task.branch = name2;
+  let branch = state.branches.find(
+    (item) => item.projectId === task.projectId && item.name === name2
+  );
+  if (branch === void 0) {
+    branch = {
+      id: `branch-${task.id}`,
+      projectId: task.projectId,
+      taskId: task.id,
+      name: name2,
+      goal: task.goal,
+      roleId: task.ownerRoleId,
+      contractKeys: [],
+      status: "open",
+      createdAt: at,
+      updatedAt: at
+    };
+    state.branches.push(branch);
+  } else {
+    branch.taskId = task.id;
+    branch.goal = task.goal;
+    branch.roleId = task.ownerRoleId;
+    if (branch.status === "abandoned" || branch.status === "merged") {
+      branch.status = "open";
+    }
+    branch.updatedAt = at;
+  }
+  return branch;
+}
+
 // src/host/store.ts
 function defaultStudioDataDir() {
   const home = process.env.DSH_HOME?.trim();
@@ -3925,492 +4554,19 @@ var StudioStore = class {
     return getTaskVerificationContext(this.context, taskId);
   }
   async beginRun(taskId, prompt, workspace, execution) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const task = findTask(state, taskId);
-      if (task.status !== "backlog" && task.status !== "ready") {
-        throw new StudioStoreError(
-          "task_not_dispatchable",
-          "\u53EA\u6709\u5F85\u89C4\u5212\u6216\u53EF\u5F00\u59CB\u7684\u4EFB\u52A1\u53EF\u4EE5\u6D3E\u5355",
-          409
-        );
-      }
-      if (task.ownerRoleId === null) {
-        throw new StudioStoreError(
-          "owner_required",
-          "\u4EFB\u52A1\u6CA1\u6709\u8D1F\u8D23\u4EBA\u89D2\u8272\uFF0C\u4E0D\u80FD\u6D3E\u5355",
-          409
-        );
-      }
-      const role = state.roles.find((item) => item.id === task.ownerRoleId);
-      const project = state.projects.find(
-        (item) => item.id === task.projectId
-      );
-      if (role === void 0 || project === void 0) {
-        throw new StudioStoreError(
-          "context_not_found",
-          "\u4EFB\u52A1\u7684\u8D1F\u8D23\u4EBA\u89D2\u8272\u6216\u9879\u76EE\u4E0D\u5B58\u5728",
-          404
-        );
-      }
-      const projectSpent = state.runs.filter((run4) => run4.projectId === project.id).reduce((sum, run4) => sum + (run4.tokens ?? 0), 0);
-      if (project.tokenBudget !== null && projectSpent >= project.tokenBudget) {
-        throw new StudioStoreError(
-          "budget_exceeded",
-          `\u9879\u76EE token \u9884\u7B97\u5DF2\u7528\u5C3D\uFF08${String(projectSpent)} / ${String(
-            project.tokenBudget
-          )}\uFF09`,
-          409
-        );
-      }
-      const roleSpent = state.runs.filter((run4) => run4.roleId === role.id).reduce((sum, run4) => sum + (run4.tokens ?? 0), 0);
-      if (role.tokenBudget !== null && roleSpent >= role.tokenBudget) {
-        throw new StudioStoreError(
-          "budget_exceeded",
-          `\u89D2\u8272 token \u9884\u7B97\u5DF2\u7528\u5C3D\uFF08${String(roleSpent)} / ${String(
-            role.tokenBudget
-          )}\uFF09`,
-          409
-        );
-      }
-      const today = nowIso2(this.now).slice(0, 10);
-      const dailySpent = state.runs.filter(
-        (run4) => run4.roleId === role.id && run4.startedAt.slice(0, 10) === today
-      ).reduce((sum, run4) => sum + (run4.tokens ?? 0), 0);
-      if (role.dailyTokenBudget !== null && dailySpent >= role.dailyTokenBudget) {
-        throw new StudioStoreError(
-          "budget_exceeded",
-          `\u89D2\u8272\u4ECA\u65E5 token \u9884\u7B97\u5DF2\u7528\u5C3D\uFF08${String(dailySpent)} / ${String(
-            role.dailyTokenBudget
-          )}\uFF09`,
-          409
-        );
-      }
-      const at = nowIso2(this.now);
-      if (workspace !== void 0) {
-        task.branch = workspace.branch;
-      }
-      const branch = this.ensureBranch(state, task, at);
-      const run3 = {
-        id: newId3("run"),
-        projectId: task.projectId,
-        taskId: task.id,
-        roleId: role.id,
-        providerProfileId: execution?.providerProfileId ?? role.providerProfileId,
-        executor: execution?.executor ?? role.executor ?? "dsh",
-        provider: execution?.provider ?? null,
-        branchId: branch.id,
-        branchName: workspace?.branch ?? null,
-        workspacePath: workspace?.path ?? null,
-        diffStat: null,
-        sessionId: null,
-        status: "queued",
-        model: execution?.model ?? role.model,
-        prompt,
-        output: "",
-        receipt: null,
-        tokens: null,
-        budgetWarning: null,
-        error: null,
-        startedAt: at,
-        endedAt: null
-      };
-      state.runs.push(run3);
-      task.status = "running";
-      task.updatedAt = at;
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "agent.dispatched",
-        at,
-        projectId: task.projectId,
-        taskId: task.id,
-        payload: {
-          runId: run3.id,
-          roleId: role.id,
-          model: role.model
-        }
-      });
-      await this.save();
-      return structuredClone(run3);
-    });
+    return beginRun(this.context, taskId, prompt, workspace, execution);
   }
   async attachRunSession(runId, sessionId, model) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const run3 = state.runs.find((item) => item.id === runId);
-      if (run3 === void 0) return;
-      run3.sessionId = sessionId;
-      if (model !== void 0) run3.model = model;
-      run3.status = "running";
-      await this.save();
-    });
+    return attachRunSession(this.context, runId, sessionId, model);
   }
   async completeRun(runId, input) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const run3 = state.runs.find((item) => item.id === runId);
-      if (run3 === void 0) {
-        throw new StudioStoreError("run_not_found", "Agent Run \u4E0D\u5B58\u5728", 404);
-      }
-      const at = nowIso2(this.now);
-      const task = state.tasks.find((item) => item.id === run3.taskId);
-      const project = state.projects.find(
-        (item) => item.id === run3.projectId
-      );
-      const role = state.roles.find((item) => item.id === run3.roleId);
-      const receiptComplete = input.receipt !== null && typeof input.receipt.summary === "string" && input.receipt.summary.trim() !== "" && Array.isArray(input.receipt.evidence) && input.receipt.evidence.length > 0;
-      if (!receiptComplete) {
-        run3.status = "failed";
-        run3.output = input.output.slice(0, 3e4);
-        run3.receipt = input.receipt;
-        run3.tokens = input.tokens;
-        run3.error = "\u56DE\u6267\u4E0D\u5B8C\u6574\uFF1A\u5FC5\u987B\u5305\u542B\u975E\u7A7A summary \u548C\u81F3\u5C11\u4E00\u6761 evidence\uFF0C\u4EFB\u52A1\u4E0D\u80FD\u8FDB\u5165 review";
-        run3.endedAt = at;
-        if (task !== void 0 && task.status === "running") {
-          task.status = "ready";
-          task.updatedAt = at;
-        }
-        if (task !== void 0) {
-          this.escalateRepeatedFailure(
-            state,
-            task,
-            at,
-            run3.error,
-            run3
-          );
-        }
-        state.updatedAt = at;
-        this.recordEvent(state, {
-          type: "agent.failed",
-          at,
-          projectId: run3.projectId,
-          taskId: run3.taskId,
-          payload: {
-            runId: run3.id,
-            error: run3.error,
-            tokens: run3.tokens
-          }
-        });
-        await this.save();
-        return structuredClone(run3);
-      }
-      const spentProject = state.runs.filter(
-        (item) => item.projectId === run3.projectId && item.id !== run3.id
-      ).reduce((sum, item) => sum + (item.tokens ?? 0), 0);
-      const spentRole = state.runs.filter(
-        (item) => item.roleId === run3.roleId && item.id !== run3.id
-      ).reduce((sum, item) => sum + (item.tokens ?? 0), 0);
-      const warnings = [];
-      if (project !== void 0 && project.tokenBudget !== null && input.tokens !== null && spentProject + input.tokens > project.tokenBudget) {
-        warnings.push(
-          `\u9879\u76EE token \u9884\u7B97\u8D85\u51FA\uFF1A${String(spentProject + input.tokens)} / ${String(
-            project.tokenBudget
-          )}`
-        );
-      }
-      if (role !== void 0 && role.tokenBudget !== null && input.tokens !== null && spentRole + input.tokens > role.tokenBudget) {
-        warnings.push(
-          `\u89D2\u8272 token \u9884\u7B97\u8D85\u51FA\uFF1A${String(spentRole + input.tokens)} / ${String(
-            role.tokenBudget
-          )}`
-        );
-      }
-      run3.status = "succeeded";
-      run3.output = input.output.slice(0, 3e4);
-      run3.receipt = input.receipt;
-      run3.tokens = input.tokens;
-      run3.diffStat = input.diffStat ?? null;
-      run3.budgetWarning = warnings.length === 0 ? null : warnings.join("\uFF1B");
-      run3.endedAt = at;
-      if (task !== void 0) {
-        if (input.receipt !== null) {
-          const existing = new Set(task.evidence.map((item) => item.text));
-          for (const text2 of input.receipt.evidence.slice(0, 10)) {
-            if (existing.has(text2)) continue;
-            task.evidence.push({
-              id: newId3("ev"),
-              text: text2,
-              createdAt: at
-            });
-          }
-          if (task.status === "running") task.status = "review";
-        }
-        task.updatedAt = at;
-      }
-      if (input.receipt !== null) {
-        let branch = run3.branchId === null ? void 0 : state.branches.find((item) => item.id === run3.branchId);
-        if (branch === void 0 && task !== void 0) {
-          branch = this.ensureBranch(state, task, at);
-          run3.branchId = branch.id;
-        }
-        if (branch !== void 0) {
-          branch.status = "review";
-          branch.updatedAt = at;
-          for (const delta of input.receipt.contractDeltas) {
-            const contract = delta.contract.trim();
-            const change = delta.change.trim();
-            if (contract === "" || change === "") continue;
-            if (!branch.contractKeys.includes(contract)) {
-              branch.contractKeys.push(contract);
-            }
-            const conflict = state.contractChanges.find(
-              (item) => item.projectId === run3.projectId && item.contract === contract && item.branchId !== branch.id && item.change !== change
-            );
-            if (!state.contractChanges.some(
-              (item) => item.branchId === branch.id && item.contract === contract && item.change === change
-            )) {
-              state.contractChanges.push({
-                id: newId3("contract"),
-                projectId: run3.projectId,
-                branchId: branch.id,
-                taskId: run3.taskId,
-                runId: run3.id,
-                contract,
-                change,
-                createdAt: at
-              });
-              this.recordEvent(state, {
-                type: "contract.changed",
-                at,
-                projectId: run3.projectId,
-                taskId: run3.taskId,
-                payload: {
-                  branchId: branch.id,
-                  contract,
-                  change,
-                  runId: run3.id
-                }
-              });
-            }
-            if (conflict === void 0) continue;
-            const title = `\u5951\u7EA6\u51B2\u7A81\uFF1A${contract.slice(0, 160)}`;
-            if (state.decisions.some(
-              (item) => item.runId === run3.id && item.title === title
-            )) {
-              continue;
-            }
-            const otherBranch = state.branches.find(
-              (item) => item.id === conflict.branchId
-            );
-            const decision = {
-              id: newId3("dec"),
-              projectId: run3.projectId,
-              taskId: run3.taskId,
-              runId: run3.id,
-              title,
-              context: `${branch.name}: ${change}
-${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
-              options: [
-                {
-                  label: `\u91C7\u7528 ${branch.name} \u7684\u53D8\u66F4`,
-                  tradeoff: change
-                },
-                {
-                  label: `\u91C7\u7528 ${otherBranch?.name ?? "\u53E6\u4E00\u652F\u7EBF"} \u7684\u53D8\u66F4`,
-                  tradeoff: conflict.change
-                }
-              ],
-              recommendation: "\u540C\u4E00\u5951\u7EA6\u51FA\u73B0\u4E24\u6761\u4E0D\u540C\u53D8\u66F4\u3002\u8BF7\u7531 Owner/Architect \u88C1\u51B3\uFF1B\u5728\u88C1\u51B3\u524D\u4E0D\u8981\u5408\u5E76\u4EFB\u610F\u4E00\u6761\u652F\u7EBF\u3002",
-              reversible: true,
-              adrDraft: null,
-              adrPath: null,
-              status: "pending",
-              decision: "",
-              note: "",
-              decidedBy: "",
-              tokenCost: input.tokens,
-              createdAt: at,
-              decidedAt: null
-            };
-            state.decisions.push(decision);
-            this.recordEvent(state, {
-              type: "decision.escalated",
-              at,
-              projectId: run3.projectId,
-              taskId: run3.taskId,
-              payload: {
-                decisionId: decision.id,
-                contract,
-                branchId: branch.id,
-                otherBranchId: conflict.branchId,
-                runId: run3.id
-              }
-            });
-          }
-        }
-      }
-      if (input.receipt !== null) {
-        for (const proposed of input.receipt.decisions) {
-          if (proposed.scope !== "project") continue;
-          if (state.decisions.some(
-            (item) => item.runId === run3.id && item.title === proposed.title
-          )) {
-            continue;
-          }
-          const decision = {
-            id: newId3("dec"),
-            projectId: run3.projectId,
-            taskId: run3.taskId,
-            runId: run3.id,
-            title: proposed.title,
-            context: proposed.rationale,
-            options: [],
-            recommendation: proposed.rationale,
-            reversible: true,
-            adrDraft: null,
-            adrPath: null,
-            status: "pending",
-            decision: "",
-            note: "",
-            decidedBy: "",
-            tokenCost: input.tokens,
-            createdAt: at,
-            decidedAt: null
-          };
-          state.decisions.push(decision);
-          this.recordEvent(state, {
-            type: "decision.proposed",
-            at,
-            projectId: run3.projectId,
-            taskId: run3.taskId,
-            payload: {
-              decisionId: decision.id,
-              runId: run3.id,
-              title: decision.title
-            }
-          });
-        }
-      }
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "agent.completed",
-        at,
-        projectId: run3.projectId,
-        taskId: run3.taskId,
-        payload: {
-          runId: run3.id,
-          tokens: run3.tokens,
-          receipt: input.receipt !== null,
-          budgetWarning: run3.budgetWarning
-        }
-      });
-      await this.save();
-      return structuredClone(run3);
-    });
+    return completeRun(this.context, runId, input);
   }
   async failRun(runId, error) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const run3 = state.runs.find((item) => item.id === runId);
-      if (run3 === void 0) {
-        throw new StudioStoreError("run_not_found", "Agent Run \u4E0D\u5B58\u5728", 404);
-      }
-      const at = nowIso2(this.now);
-      run3.status = "failed";
-      run3.error = error.slice(0, 4e3);
-      run3.endedAt = at;
-      const task = state.tasks.find((item) => item.id === run3.taskId);
-      if (task !== void 0 && task.status === "running") {
-        task.status = "ready";
-        task.updatedAt = at;
-      }
-      if (task !== void 0) {
-        this.escalateRepeatedFailure(state, task, at, run3.error, run3);
-      }
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "agent.failed",
-        at,
-        projectId: run3.projectId,
-        taskId: run3.taskId,
-        payload: { runId: run3.id, error: run3.error }
-      });
-      await this.save();
-      return structuredClone(run3);
-    });
+    return failRun(this.context, runId, error);
   }
-  /**
-   * Enforces the module contract boundary after a code run. Changing the
-   * contract file or a forbidden path blocks the task and escalates a decision;
-   * it never silently rewrites the Agent's worktree.
-   */
   async enforceContractScope(taskId, runId, changedFiles) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const task = findTask(state, taskId);
-      const module = task.module === null ? void 0 : state.modules.find(
-        (item) => item.projectId === task.projectId && item.name === task.module
-      );
-      if (module === void 0) return [];
-      const normalize = (value) => value.replaceAll("\\", "/").replace(/^\.\//, "").toLowerCase();
-      const contract = normalize(module.contractPath ?? "");
-      const forbidden = module.forbiddenPaths.map(normalize).filter(Boolean);
-      const allowed = module.allowedPaths.map(normalize).filter(Boolean);
-      const violations = changedFiles.map(normalize).filter((file) => {
-        if (file === "") return false;
-        if (contract !== "" && file === contract) return true;
-        if (forbidden.some(
-          (path8) => file === path8 || file.startsWith(`${path8}/`)
-        )) {
-          return true;
-        }
-        if (allowed.length > 0 && (file.startsWith("src/") || file.startsWith("test/")) && !allowed.some(
-          (path8) => file === path8 || file.startsWith(`${path8}/`)
-        )) {
-          return true;
-        }
-        return false;
-      });
-      if (violations.length === 0) return [];
-      const at = nowIso2(this.now);
-      task.status = "blocked";
-      task.updatedAt = at;
-      const title = `\u5951\u7EA6\u8D8A\u754C\uFF1A${task.title.slice(0, 160)}`;
-      if (!state.decisions.some(
-        (item) => item.taskId === task.id && item.title === title
-      )) {
-        const run3 = state.runs.find((item) => item.id === runId);
-        state.decisions.push({
-          id: newId3("dec"),
-          projectId: task.projectId,
-          taskId: task.id,
-          runId,
-          title,
-          context: `\u6A21\u5757\u300C${module.name}\u300D\u7684\u5951\u7EA6/\u7981\u6B62\u8DEF\u5F84\u88AB\u4FEE\u6539\uFF1A${violations.join("\u3001")}`,
-          options: [
-            {
-              label: "\u9000\u56DE Architect \u4FEE\u8BA2\u5951\u7EA6",
-              tradeoff: "\u5148\u786E\u8BA4\u5951\u7EA6\u8FB9\u754C\u662F\u5426\u53D8\u5316\uFF0C\u518D\u91CD\u5F00 ticket"
-            },
-            {
-              label: "\u64A4\u9500\u8D8A\u754C\u6539\u52A8",
-              tradeoff: "\u4FDD\u7559\u73B0\u6709\u5951\u7EA6\uFF0C\u8981\u6C42 Agent \u53EA\u6539\u5141\u8BB8\u8DEF\u5F84"
-            }
-          ],
-          recommendation: "\u5B9E\u73B0\u8005\u4E0D\u80FD\u76F4\u63A5\u6539\u5951\u7EA6\u6216\u7981\u6B62\u8DEF\u5F84\uFF1B\u9700\u8981\u5951\u7EA6\u53D8\u66F4\u65F6\uFF0C\u5E94\u7531 Architect/Owner \u5148\u66F4\u65B0\u5951\u7EA6\uFF0C\u518D\u91CD\u65B0\u6D3E\u5355\u3002",
-          reversible: true,
-          adrDraft: null,
-          adrPath: null,
-          status: "pending",
-          decision: "",
-          note: "",
-          decidedBy: "",
-          tokenCost: run3?.tokens ?? null,
-          createdAt: at,
-          decidedAt: null
-        });
-      }
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "contract.violated",
-        at,
-        projectId: task.projectId,
-        taskId: task.id,
-        payload: { runId, module: module.name, violations }
-      });
-      await this.save();
-      return violations;
-    });
+    return enforceContractScope(this.context, taskId, runId, changedFiles);
   }
   async recordVerification(taskId, input) {
     return recordVerification(this.context, taskId, input);
@@ -4994,149 +5150,6 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
       );
     }
     return this.state;
-  }
-  escalateRepeatedFailure(state, task, at, reason, run3) {
-    const failures = state.runs.filter(
-      (item) => item.taskId === task.id && item.status === "failed"
-    ).length;
-    if (failures < 2 || task.status === "done") return;
-    task.status = "blocked";
-    task.updatedAt = at;
-    const hasResplit = state.tasks.some(
-      (item) => item.originTaskId === task.id
-    );
-    if (!hasResplit) {
-      const architect = state.roles.find(
-        (role) => role.projectId === task.projectId && (role.id === "role-architect" || role.title.includes("\u67B6\u6784"))
-      ) ?? state.roles.find((role) => role.id === task.ownerRoleId);
-      if (architect !== void 0) {
-        const resplit = {
-          id: newId3("task"),
-          projectId: task.projectId,
-          title: `\u91CD\u62C6\uFF1A${task.title}`.slice(0, 160),
-          goal: `\u539F\u4EFB\u52A1\u8FDE\u7EED\u5931\u8D25 ${String(failures)} \u6B21\u3002\u5148\u8BCA\u65AD\u6839\u56E0\uFF0C\u91CD\u62C6\u4EFB\u52A1/\u5951\u7EA6\uFF0C\u4EA7\u51FA\u53EF\u6267\u884C\u7684\u65B0 ticket \u4E0E\u9A8C\u6536\u6807\u51C6\uFF1B\u4E0D\u8981\u76F4\u63A5\u5199\u4E1A\u52A1\u4EE3\u7801\u3002\u6700\u540E\u4E00\u6B21\u5931\u8D25\uFF1A${reason}`,
-          status: "backlog",
-          priority: task.priority,
-          ownerRoleId: architect.id,
-          reviewerRoleId: task.reviewerRoleId,
-          acceptance: [
-            {
-              id: newId3("acc"),
-              text: "\u7ED9\u51FA\u91CD\u62C6\u540E\u7684\u4EFB\u52A1/\u5951\u7EA6",
-              done: false
-            },
-            {
-              id: newId3("acc"),
-              text: "\u6807\u660E\u53EF\u6267\u884C ticket \u4E0E\u9A8C\u6536\u6807\u51C6",
-              done: false
-            }
-          ],
-          evidence: [],
-          branch: null,
-          verifyCommand: task.verifyCommand,
-          module: task.module,
-          contractRef: task.contractRef,
-          requirementRefs: task.requirementRefs,
-          kind: "fix",
-          diagnosis: "",
-          plan: "",
-          integration: false,
-          originTaskId: task.id,
-          docsSynced: false,
-          createdAt: at,
-          updatedAt: at
-        };
-        state.tasks.push(resplit);
-        this.recordEvent(state, {
-          type: "task.resplit",
-          at,
-          projectId: task.projectId,
-          taskId: resplit.id,
-          payload: {
-            originTaskId: task.id,
-            ownerRoleId: architect.id
-          }
-        });
-      }
-    }
-    const title = `\u8FDE\u7EED\u5931\u8D25\uFF1A${task.title.slice(0, 160)}`;
-    if (state.decisions.some(
-      (item) => item.taskId === task.id && item.title === title
-    )) {
-      return;
-    }
-    const decision = {
-      id: newId3("dec"),
-      projectId: task.projectId,
-      taskId: task.id,
-      runId: run3.id,
-      title,
-      context: `${String(failures)} \u6B21\u5931\u8D25\uFF1B\u6700\u540E\u4E00\u6B21\uFF1A${reason}`,
-      options: [
-        {
-          label: "\u9000\u56DE Architect \u91CD\u62C6\u4EFB\u52A1/\u5951\u7EA6",
-          tradeoff: "\u505C\u6B62\u539F\u5730\u91CD\u8BD5\uFF0C\u5148\u4FEE\u4EFB\u52A1\u5B9A\u4E49\u6216\u5951\u7EA6"
-        },
-        {
-          label: "\u7EE7\u7EED\u91CD\u8BD5",
-          tradeoff: "\u4FDD\u7559\u5F53\u524D\u4EFB\u52A1\uFF0C\u4F46\u9700\u8981\u65B0\u7684\u8BC1\u636E"
-        }
-      ],
-      recommendation: "\u540C\u4E00\u4EFB\u52A1\u8FDE\u7EED\u5931\u8D25 2 \u6B21\uFF0C\u6309\u5DE5\u4F5C\u6D41\u5E94\u9000\u56DE\u67B6\u6784\u5E08\u91CD\u62C6\uFF0C\u4E0D\u5141\u8BB8\u7B2C\u4E09\u6B21\u539F\u5730\u91CD\u8BD5\u3002",
-      reversible: true,
-      adrDraft: null,
-      adrPath: null,
-      status: "pending",
-      decision: "",
-      note: "",
-      decidedBy: "",
-      tokenCost: run3.tokens,
-      createdAt: at,
-      decidedAt: null
-    };
-    state.decisions.push(decision);
-    this.recordEvent(state, {
-      type: "decision.escalated",
-      at,
-      projectId: task.projectId,
-      taskId: task.id,
-      payload: {
-        decisionId: decision.id,
-        failures,
-        runId: run3.id
-      }
-    });
-  }
-  ensureBranch(state, task, at) {
-    const name2 = task.branch ?? `task/${task.id}`;
-    if (task.branch === null) task.branch = name2;
-    let branch = state.branches.find(
-      (item) => item.projectId === task.projectId && item.name === name2
-    );
-    if (branch === void 0) {
-      branch = {
-        id: `branch-${task.id}`,
-        projectId: task.projectId,
-        taskId: task.id,
-        name: name2,
-        goal: task.goal,
-        roleId: task.ownerRoleId,
-        contractKeys: [],
-        status: "open",
-        createdAt: at,
-        updatedAt: at
-      };
-      state.branches.push(branch);
-    } else {
-      branch.taskId = task.id;
-      branch.goal = task.goal;
-      branch.roleId = task.ownerRoleId;
-      if (branch.status === "abandoned" || branch.status === "merged") {
-        branch.status = "open";
-      }
-      branch.updatedAt = at;
-    }
-    return branch;
   }
   recordEvent(state, input) {
     const event = {
