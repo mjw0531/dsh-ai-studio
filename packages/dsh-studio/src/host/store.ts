@@ -172,6 +172,16 @@ import {
   failRun as failRunImpl,
 } from "./store/runs.js";
 import {
+  addWorkshopNote as addWorkshopNoteImpl,
+  createPrototypeDemo as createPrototypeDemoImpl,
+  createWorkshop as createWorkshopImpl,
+  decideWorkshop as decideWorkshopImpl,
+  getWorkshopContext as getWorkshopContextImpl,
+  setWorkshopAiSummary as setWorkshopAiSummaryImpl,
+  synthesizeWorkshop as synthesizeWorkshopImpl,
+  updatePrototypeDemo as updatePrototypeDemoImpl,
+} from "./store/workshops.js";
+import {
   defaultStageChecklist,
   defaultTriggerRules,
   isRecord,
@@ -842,358 +852,53 @@ export class StudioStore {
     roles: Role[];
     providerProfiles: ProviderProfile[];
   }> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const workshop = findWorkshop(state, workshopId);
-      const project = findProject(state, workshop.projectId);
-      const roles = state.roles.filter(
-        (role) =>
-          role.projectId === workshop.projectId &&
-          workshop.participantRoleIds.includes(role.id),
-      );
-      const providerProfiles = state.providerProfiles.filter(
-        (profile) =>
-          profile.projectId === workshop.projectId &&
-          roles.some((role) => role.providerProfileId === profile.id),
-      );
-      return {
-        workshop: structuredClone(workshop),
-        project: structuredClone(project),
-        roles: structuredClone(roles),
-        providerProfiles: structuredClone(providerProfiles),
-      };
-    });
+    return getWorkshopContextImpl(this.context, workshopId);
   }
 
   async createPrototypeDemo(
     input: CreatePrototypeDemoInput,
     projectId?: string,
   ): Promise<PrototypeDemo> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const project = pickProject(state, projectId);
-      if (project === null) {
-        throw new StudioStoreError("project_required", "请先创建一个项目");
-      }
-      if (!isPrototypeDemoResult(input.result)) {
-        throw new StudioStoreError(
-          "invalid_input",
-          "Demo 结果必须是 passed 或 failed",
-        );
-      }
-      const at = nowIso(this.now);
-      const demo: PrototypeDemo = {
-        id: newId("demo"),
-        projectId: project.id,
-        title: requiredText(input.title, "title", 200),
-        entry: optionalText(input.entry, "entry", 1000),
-        startCommand: optionalText(input.startCommand, "startCommand", 1000),
-        steps: optionalText(input.steps, "steps", 8000),
-        result: input.result,
-        screenshotPath: optionalText(
-          input.screenshotPath,
-          "screenshotPath",
-          1000,
-        ),
-        notes: optionalText(input.notes, "notes", 4000),
-        recordedBy: "Owner",
-        createdAt: at,
-        updatedAt: at,
-      };
-      state.prototypeDemos.push(demo);
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "prototype.demo_recorded",
-        at,
-        projectId: project.id,
-        payload: { demoId: demo.id, result: demo.result },
-      });
-      await this.save();
-      return structuredClone(demo);
-    });
+    return createPrototypeDemoImpl(this.context, input, projectId);
   }
 
   async updatePrototypeDemo(
     demoId: string,
     input: UpdatePrototypeDemoInput,
   ): Promise<PrototypeDemo> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const demo = state.prototypeDemos.find((item) => item.id === demoId);
-      if (demo === undefined) {
-        throw new StudioStoreError("demo_not_found", "Demo 记录不存在", 404);
-      }
-      if (input.title !== undefined) {
-        demo.title = requiredText(input.title, "title", 200);
-      }
-      if (input.entry !== undefined) {
-        demo.entry = optionalText(input.entry, "entry", 1000);
-      }
-      if (input.startCommand !== undefined) {
-        demo.startCommand = optionalText(
-          input.startCommand,
-          "startCommand",
-          1000,
-        );
-      }
-      if (input.steps !== undefined) {
-        demo.steps = optionalText(input.steps, "steps", 8000);
-      }
-      if (input.result !== undefined) {
-        if (!isPrototypeDemoResult(input.result)) {
-          throw new StudioStoreError(
-            "invalid_input",
-            "Demo 结果必须是 passed 或 failed",
-          );
-        }
-        demo.result = input.result;
-      }
-      if (input.screenshotPath !== undefined) {
-        demo.screenshotPath = optionalText(
-          input.screenshotPath,
-          "screenshotPath",
-          1000,
-        );
-      }
-      if (input.notes !== undefined) {
-        demo.notes = optionalText(input.notes, "notes", 4000);
-      }
-      demo.updatedAt = nowIso(this.now);
-      state.updatedAt = demo.updatedAt;
-      this.recordEvent(state, {
-        type: "prototype.demo_updated",
-        at: demo.updatedAt,
-        projectId: demo.projectId,
-        payload: { demoId: demo.id, result: demo.result },
-      });
-      await this.save();
-      return structuredClone(demo);
-    });
+    return updatePrototypeDemoImpl(this.context, demoId, input);
   }
 
   async createWorkshop(input: CreateWorkshopInput): Promise<Workshop> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const project = pickProject(state, undefined);
-      if (project === null) {
-        throw new StudioStoreError("project_required", "请先创建一个项目");
-      }
-      const roles = state.roles.filter((role) => role.projectId === project.id);
-      const requested = Array.isArray(input.participantRoleIds)
-        ? input.participantRoleIds
-        : [];
-      const participants = (
-        requested.length === 0 ? roles.map((role) => role.id) : requested
-      ).filter((roleId) =>
-        roles.some((role) => role.id === roleId),
-      );
-      if (participants.length === 0) {
-        throw new StudioStoreError(
-          "participant_required",
-          "研讨会至少需要一个参与角色",
-        );
-      }
-      const at = nowIso(this.now);
-      const workshop: Workshop = {
-        id: newId("workshop"),
-        projectId: project.id,
-        title: requiredText(input.title, "title", 200),
-        topic: optionalText(input.topic, "topic", 4000),
-        stage: isProjectStage(input.stage) ? input.stage : project.stage,
-        status: "collecting",
-        participantRoleIds: participants,
-        notes: [],
-        aiSummary: null,
-        synthesis: "",
-        decision: "",
-        decidedBy: "",
-        decidedAt: null,
-        createdAt: at,
-        updatedAt: at,
-      };
-      state.workshops.push(workshop);
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "workshop.created",
-        at,
-        projectId: project.id,
-        payload: { workshopId: workshop.id, participants },
-      });
-      await this.save();
-      return structuredClone(workshop);
-    });
+    return createWorkshopImpl(this.context, input);
   }
 
   async addWorkshopNote(
     workshopId: string,
     input: AddWorkshopNoteInput,
   ): Promise<Workshop> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const workshop = findWorkshop(state, workshopId);
-      if (workshop.status === "decided" || workshop.status === "cancelled") {
-        throw new StudioStoreError(
-          "workshop_closed",
-          "已结束的研讨会不能再添加意见",
-          409,
-        );
-      }
-      const roleId = requiredText(input.roleId, "roleId", 120);
-      const role = state.roles.find(
-        (item) =>
-          item.id === roleId && item.projectId === workshop.projectId,
-      );
-      if (
-        role === undefined ||
-        !workshop.participantRoleIds.includes(roleId)
-      ) {
-        throw new StudioStoreError(
-          "participant_required",
-          "该角色不是本次研讨会的参与者",
-          409,
-        );
-      }
-      const at = nowIso(this.now);
-      const note: WorkshopNote = {
-        id: newId("note"),
-        roleId,
-        roleName: role.name,
-        summary: requiredText(input.summary, "summary", 8000),
-        objections: textList(input.objections, "objections", 20),
-        risks: textList(input.risks, "risks", 20),
-        recommendation: optionalText(
-          input.recommendation,
-          "recommendation",
-          4000,
-        ),
-        createdAt: at,
-      };
-      const existing = workshop.notes.find((item) => item.roleId === roleId);
-      if (existing === undefined) {
-        workshop.notes.push(note);
-      } else {
-        workshop.notes = workshop.notes.map((item) =>
-          item.roleId === roleId ? { ...note, id: item.id } : item,
-        );
-      }
-      workshop.status = "collecting";
-      workshop.updatedAt = at;
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "workshop.note",
-        at,
-        projectId: workshop.projectId,
-        payload: { workshopId, roleId },
-      });
-      await this.save();
-      return structuredClone(workshop);
-    });
+    return addWorkshopNoteImpl(this.context, workshopId, input);
   }
 
   async setWorkshopAiSummary(
     workshopId: string,
     summary: WorkshopAiSummary,
   ): Promise<Workshop> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const workshop = findWorkshop(state, workshopId);
-      if (workshop.notes.length === 0) {
-        throw new StudioStoreError(
-          "workshop_empty",
-          "至少需要一条参与者意见才能生成汇总",
-          409,
-        );
-      }
-      const at = nowIso(this.now);
-      workshop.aiSummary = {
-        consensus: textList(summary.consensus, "consensus", 20),
-        disagreements: textList(
-          summary.disagreements,
-          "disagreements",
-          20,
-        ),
-        openQuestions: textList(
-          summary.openQuestions,
-          "openQuestions",
-          20,
-        ),
-        candidates: textList(summary.candidates, "candidates", 20),
-        generatedAt: summary.generatedAt || at,
-        model: summary.model,
-      };
-      workshop.updatedAt = at;
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "workshop.ai_summary",
-        at,
-        projectId: workshop.projectId,
-        payload: { workshopId },
-      });
-      await this.save();
-      return structuredClone(workshop);
-    });
+    return setWorkshopAiSummaryImpl(this.context, workshopId, summary);
   }
 
   async synthesizeWorkshop(
     workshopId: string,
     synthesis: string,
   ): Promise<Workshop> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const workshop = findWorkshop(state, workshopId);
-      if (workshop.notes.length === 0) {
-        throw new StudioStoreError(
-          "workshop_empty",
-          "至少需要一条参与者意见才能汇总",
-          409,
-        );
-      }
-      const at = nowIso(this.now);
-      workshop.synthesis = requiredText(synthesis, "synthesis", 12000);
-      workshop.status = "synthesized";
-      workshop.updatedAt = at;
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "workshop.synthesized",
-        at,
-        projectId: workshop.projectId,
-        payload: { workshopId },
-      });
-      await this.save();
-      return structuredClone(workshop);
-    });
+    return synthesizeWorkshopImpl(this.context, workshopId, synthesis);
   }
 
   async decideWorkshop(
     workshopId: string,
     decision: string,
   ): Promise<Workshop> {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const workshop = findWorkshop(state, workshopId);
-      if (workshop.synthesis.trim() === "") {
-        throw new StudioStoreError(
-          "workshop_synthesis_required",
-          "先汇总参与者意见，再记录 Owner 决策",
-          409,
-        );
-      }
-      const at = nowIso(this.now);
-      workshop.decision = requiredText(decision, "decision", 12000);
-      workshop.status = "decided";
-      workshop.decidedBy = "Owner";
-      workshop.decidedAt = at;
-      workshop.updatedAt = at;
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "workshop.decided",
-        at,
-        projectId: workshop.projectId,
-        payload: { workshopId },
-      });
-      await this.save();
-      return structuredClone(workshop);
-    });
+    return decideWorkshopImpl(this.context, workshopId, decision);
   }
 
   async selectProject(projectId: string): Promise<Project> {

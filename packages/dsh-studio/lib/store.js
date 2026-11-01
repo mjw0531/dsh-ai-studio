@@ -14,7 +14,7 @@ import path from "node:path";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 26;
-var STUDIO_PLUGIN_VERSION = "3.1.1";
+var STUDIO_PLUGIN_VERSION = "3.1.2";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -3537,6 +3537,325 @@ function ensureBranch(ctx, state, task, at) {
   return branch;
 }
 
+// src/host/store/workshops.ts
+async function getWorkshopContext(ctx, workshopId) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const workshop = findWorkshop(state, workshopId);
+    const project = findProject(state, workshop.projectId);
+    const roles = state.roles.filter(
+      (role) => role.projectId === workshop.projectId && workshop.participantRoleIds.includes(role.id)
+    );
+    const providerProfiles = state.providerProfiles.filter(
+      (profile) => profile.projectId === workshop.projectId && roles.some((role) => role.providerProfileId === profile.id)
+    );
+    return {
+      workshop: structuredClone(workshop),
+      project: structuredClone(project),
+      roles: structuredClone(roles),
+      providerProfiles: structuredClone(providerProfiles)
+    };
+  });
+}
+async function createPrototypeDemo(ctx, input, projectId) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const project = pickProject(state, projectId);
+    if (project === null) {
+      throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
+    }
+    if (!isPrototypeDemoResult(input.result)) {
+      throw new StudioStoreError(
+        "invalid_input",
+        "Demo \u7ED3\u679C\u5FC5\u987B\u662F passed \u6216 failed"
+      );
+    }
+    const at = ctx.now();
+    const demo = {
+      id: newId2("demo"),
+      projectId: project.id,
+      title: requiredText(input.title, "title", 200),
+      entry: optionalText(input.entry, "entry", 1e3),
+      startCommand: optionalText(input.startCommand, "startCommand", 1e3),
+      steps: optionalText(input.steps, "steps", 8e3),
+      result: input.result,
+      screenshotPath: optionalText(
+        input.screenshotPath,
+        "screenshotPath",
+        1e3
+      ),
+      notes: optionalText(input.notes, "notes", 4e3),
+      recordedBy: "Owner",
+      createdAt: at,
+      updatedAt: at
+    };
+    state.prototypeDemos.push(demo);
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "prototype.demo_recorded",
+      at,
+      projectId: project.id,
+      payload: { demoId: demo.id, result: demo.result }
+    });
+    await ctx.save();
+    return structuredClone(demo);
+  });
+}
+async function updatePrototypeDemo(ctx, demoId, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const demo = state.prototypeDemos.find((item) => item.id === demoId);
+    if (demo === void 0) {
+      throw new StudioStoreError("demo_not_found", "Demo \u8BB0\u5F55\u4E0D\u5B58\u5728", 404);
+    }
+    if (input.title !== void 0) {
+      demo.title = requiredText(input.title, "title", 200);
+    }
+    if (input.entry !== void 0) {
+      demo.entry = optionalText(input.entry, "entry", 1e3);
+    }
+    if (input.startCommand !== void 0) {
+      demo.startCommand = optionalText(
+        input.startCommand,
+        "startCommand",
+        1e3
+      );
+    }
+    if (input.steps !== void 0) {
+      demo.steps = optionalText(input.steps, "steps", 8e3);
+    }
+    if (input.result !== void 0) {
+      if (!isPrototypeDemoResult(input.result)) {
+        throw new StudioStoreError(
+          "invalid_input",
+          "Demo \u7ED3\u679C\u5FC5\u987B\u662F passed \u6216 failed"
+        );
+      }
+      demo.result = input.result;
+    }
+    if (input.screenshotPath !== void 0) {
+      demo.screenshotPath = optionalText(
+        input.screenshotPath,
+        "screenshotPath",
+        1e3
+      );
+    }
+    if (input.notes !== void 0) {
+      demo.notes = optionalText(input.notes, "notes", 4e3);
+    }
+    demo.updatedAt = ctx.now();
+    state.updatedAt = demo.updatedAt;
+    ctx.recordEvent(state, {
+      type: "prototype.demo_updated",
+      at: demo.updatedAt,
+      projectId: demo.projectId,
+      payload: { demoId: demo.id, result: demo.result }
+    });
+    await ctx.save();
+    return structuredClone(demo);
+  });
+}
+async function createWorkshop(ctx, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const project = pickProject(state, void 0);
+    if (project === null) {
+      throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
+    }
+    const roles = state.roles.filter((role) => role.projectId === project.id);
+    const requested = Array.isArray(input.participantRoleIds) ? input.participantRoleIds : [];
+    const participants = (requested.length === 0 ? roles.map((role) => role.id) : requested).filter(
+      (roleId) => roles.some((role) => role.id === roleId)
+    );
+    if (participants.length === 0) {
+      throw new StudioStoreError(
+        "participant_required",
+        "\u7814\u8BA8\u4F1A\u81F3\u5C11\u9700\u8981\u4E00\u4E2A\u53C2\u4E0E\u89D2\u8272"
+      );
+    }
+    const at = ctx.now();
+    const workshop = {
+      id: newId2("workshop"),
+      projectId: project.id,
+      title: requiredText(input.title, "title", 200),
+      topic: optionalText(input.topic, "topic", 4e3),
+      stage: isProjectStage(input.stage) ? input.stage : project.stage,
+      status: "collecting",
+      participantRoleIds: participants,
+      notes: [],
+      aiSummary: null,
+      synthesis: "",
+      decision: "",
+      decidedBy: "",
+      decidedAt: null,
+      createdAt: at,
+      updatedAt: at
+    };
+    state.workshops.push(workshop);
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "workshop.created",
+      at,
+      projectId: project.id,
+      payload: { workshopId: workshop.id, participants }
+    });
+    await ctx.save();
+    return structuredClone(workshop);
+  });
+}
+async function addWorkshopNote(ctx, workshopId, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const workshop = findWorkshop(state, workshopId);
+    if (workshop.status === "decided" || workshop.status === "cancelled") {
+      throw new StudioStoreError(
+        "workshop_closed",
+        "\u5DF2\u7ED3\u675F\u7684\u7814\u8BA8\u4F1A\u4E0D\u80FD\u518D\u6DFB\u52A0\u610F\u89C1",
+        409
+      );
+    }
+    const roleId = requiredText(input.roleId, "roleId", 120);
+    const role = state.roles.find(
+      (item) => item.id === roleId && item.projectId === workshop.projectId
+    );
+    if (role === void 0 || !workshop.participantRoleIds.includes(roleId)) {
+      throw new StudioStoreError(
+        "participant_required",
+        "\u8BE5\u89D2\u8272\u4E0D\u662F\u672C\u6B21\u7814\u8BA8\u4F1A\u7684\u53C2\u4E0E\u8005",
+        409
+      );
+    }
+    const at = ctx.now();
+    const note = {
+      id: newId2("note"),
+      roleId,
+      roleName: role.name,
+      summary: requiredText(input.summary, "summary", 8e3),
+      objections: textList(input.objections, "objections", 20),
+      risks: textList(input.risks, "risks", 20),
+      recommendation: optionalText(
+        input.recommendation,
+        "recommendation",
+        4e3
+      ),
+      createdAt: at
+    };
+    const existing = workshop.notes.find((item) => item.roleId === roleId);
+    if (existing === void 0) {
+      workshop.notes.push(note);
+    } else {
+      workshop.notes = workshop.notes.map(
+        (item) => item.roleId === roleId ? { ...note, id: item.id } : item
+      );
+    }
+    workshop.status = "collecting";
+    workshop.updatedAt = at;
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "workshop.note",
+      at,
+      projectId: workshop.projectId,
+      payload: { workshopId, roleId }
+    });
+    await ctx.save();
+    return structuredClone(workshop);
+  });
+}
+async function setWorkshopAiSummary(ctx, workshopId, summary) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const workshop = findWorkshop(state, workshopId);
+    if (workshop.notes.length === 0) {
+      throw new StudioStoreError(
+        "workshop_empty",
+        "\u81F3\u5C11\u9700\u8981\u4E00\u6761\u53C2\u4E0E\u8005\u610F\u89C1\u624D\u80FD\u751F\u6210\u6C47\u603B",
+        409
+      );
+    }
+    const at = ctx.now();
+    workshop.aiSummary = {
+      consensus: textList(summary.consensus, "consensus", 20),
+      disagreements: textList(
+        summary.disagreements,
+        "disagreements",
+        20
+      ),
+      openQuestions: textList(
+        summary.openQuestions,
+        "openQuestions",
+        20
+      ),
+      candidates: textList(summary.candidates, "candidates", 20),
+      generatedAt: summary.generatedAt || at,
+      model: summary.model
+    };
+    workshop.updatedAt = at;
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "workshop.ai_summary",
+      at,
+      projectId: workshop.projectId,
+      payload: { workshopId }
+    });
+    await ctx.save();
+    return structuredClone(workshop);
+  });
+}
+async function synthesizeWorkshop(ctx, workshopId, synthesis) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const workshop = findWorkshop(state, workshopId);
+    if (workshop.notes.length === 0) {
+      throw new StudioStoreError(
+        "workshop_empty",
+        "\u81F3\u5C11\u9700\u8981\u4E00\u6761\u53C2\u4E0E\u8005\u610F\u89C1\u624D\u80FD\u6C47\u603B",
+        409
+      );
+    }
+    const at = ctx.now();
+    workshop.synthesis = requiredText(synthesis, "synthesis", 12e3);
+    workshop.status = "synthesized";
+    workshop.updatedAt = at;
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "workshop.synthesized",
+      at,
+      projectId: workshop.projectId,
+      payload: { workshopId }
+    });
+    await ctx.save();
+    return structuredClone(workshop);
+  });
+}
+async function decideWorkshop(ctx, workshopId, decision) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const workshop = findWorkshop(state, workshopId);
+    if (workshop.synthesis.trim() === "") {
+      throw new StudioStoreError(
+        "workshop_synthesis_required",
+        "\u5148\u6C47\u603B\u53C2\u4E0E\u8005\u610F\u89C1\uFF0C\u518D\u8BB0\u5F55 Owner \u51B3\u7B56",
+        409
+      );
+    }
+    const at = ctx.now();
+    workshop.decision = requiredText(decision, "decision", 12e3);
+    workshop.status = "decided";
+    workshop.decidedBy = "Owner";
+    workshop.decidedAt = at;
+    workshop.updatedAt = at;
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "workshop.decided",
+      at,
+      projectId: workshop.projectId,
+      payload: { workshopId }
+    });
+    await ctx.save();
+    return structuredClone(workshop);
+  });
+}
+
 // src/host/store.ts
 function defaultStudioDataDir() {
   const home = process.env.DSH_HOME?.trim();
@@ -4053,321 +4372,28 @@ var StudioStore = class {
     return ignoreTrigger(this.context, triggerId, note);
   }
   async getWorkshopContext(workshopId) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const workshop = findWorkshop(state, workshopId);
-      const project = findProject(state, workshop.projectId);
-      const roles = state.roles.filter(
-        (role) => role.projectId === workshop.projectId && workshop.participantRoleIds.includes(role.id)
-      );
-      const providerProfiles = state.providerProfiles.filter(
-        (profile) => profile.projectId === workshop.projectId && roles.some((role) => role.providerProfileId === profile.id)
-      );
-      return {
-        workshop: structuredClone(workshop),
-        project: structuredClone(project),
-        roles: structuredClone(roles),
-        providerProfiles: structuredClone(providerProfiles)
-      };
-    });
+    return getWorkshopContext(this.context, workshopId);
   }
   async createPrototypeDemo(input, projectId) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const project = pickProject(state, projectId);
-      if (project === null) {
-        throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
-      }
-      if (!isPrototypeDemoResult(input.result)) {
-        throw new StudioStoreError(
-          "invalid_input",
-          "Demo \u7ED3\u679C\u5FC5\u987B\u662F passed \u6216 failed"
-        );
-      }
-      const at = nowIso2(this.now);
-      const demo = {
-        id: newId3("demo"),
-        projectId: project.id,
-        title: requiredText(input.title, "title", 200),
-        entry: optionalText(input.entry, "entry", 1e3),
-        startCommand: optionalText(input.startCommand, "startCommand", 1e3),
-        steps: optionalText(input.steps, "steps", 8e3),
-        result: input.result,
-        screenshotPath: optionalText(
-          input.screenshotPath,
-          "screenshotPath",
-          1e3
-        ),
-        notes: optionalText(input.notes, "notes", 4e3),
-        recordedBy: "Owner",
-        createdAt: at,
-        updatedAt: at
-      };
-      state.prototypeDemos.push(demo);
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "prototype.demo_recorded",
-        at,
-        projectId: project.id,
-        payload: { demoId: demo.id, result: demo.result }
-      });
-      await this.save();
-      return structuredClone(demo);
-    });
+    return createPrototypeDemo(this.context, input, projectId);
   }
   async updatePrototypeDemo(demoId, input) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const demo = state.prototypeDemos.find((item) => item.id === demoId);
-      if (demo === void 0) {
-        throw new StudioStoreError("demo_not_found", "Demo \u8BB0\u5F55\u4E0D\u5B58\u5728", 404);
-      }
-      if (input.title !== void 0) {
-        demo.title = requiredText(input.title, "title", 200);
-      }
-      if (input.entry !== void 0) {
-        demo.entry = optionalText(input.entry, "entry", 1e3);
-      }
-      if (input.startCommand !== void 0) {
-        demo.startCommand = optionalText(
-          input.startCommand,
-          "startCommand",
-          1e3
-        );
-      }
-      if (input.steps !== void 0) {
-        demo.steps = optionalText(input.steps, "steps", 8e3);
-      }
-      if (input.result !== void 0) {
-        if (!isPrototypeDemoResult(input.result)) {
-          throw new StudioStoreError(
-            "invalid_input",
-            "Demo \u7ED3\u679C\u5FC5\u987B\u662F passed \u6216 failed"
-          );
-        }
-        demo.result = input.result;
-      }
-      if (input.screenshotPath !== void 0) {
-        demo.screenshotPath = optionalText(
-          input.screenshotPath,
-          "screenshotPath",
-          1e3
-        );
-      }
-      if (input.notes !== void 0) {
-        demo.notes = optionalText(input.notes, "notes", 4e3);
-      }
-      demo.updatedAt = nowIso2(this.now);
-      state.updatedAt = demo.updatedAt;
-      this.recordEvent(state, {
-        type: "prototype.demo_updated",
-        at: demo.updatedAt,
-        projectId: demo.projectId,
-        payload: { demoId: demo.id, result: demo.result }
-      });
-      await this.save();
-      return structuredClone(demo);
-    });
+    return updatePrototypeDemo(this.context, demoId, input);
   }
   async createWorkshop(input) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const project = pickProject(state, void 0);
-      if (project === null) {
-        throw new StudioStoreError("project_required", "\u8BF7\u5148\u521B\u5EFA\u4E00\u4E2A\u9879\u76EE");
-      }
-      const roles = state.roles.filter((role) => role.projectId === project.id);
-      const requested = Array.isArray(input.participantRoleIds) ? input.participantRoleIds : [];
-      const participants = (requested.length === 0 ? roles.map((role) => role.id) : requested).filter(
-        (roleId) => roles.some((role) => role.id === roleId)
-      );
-      if (participants.length === 0) {
-        throw new StudioStoreError(
-          "participant_required",
-          "\u7814\u8BA8\u4F1A\u81F3\u5C11\u9700\u8981\u4E00\u4E2A\u53C2\u4E0E\u89D2\u8272"
-        );
-      }
-      const at = nowIso2(this.now);
-      const workshop = {
-        id: newId3("workshop"),
-        projectId: project.id,
-        title: requiredText(input.title, "title", 200),
-        topic: optionalText(input.topic, "topic", 4e3),
-        stage: isProjectStage(input.stage) ? input.stage : project.stage,
-        status: "collecting",
-        participantRoleIds: participants,
-        notes: [],
-        aiSummary: null,
-        synthesis: "",
-        decision: "",
-        decidedBy: "",
-        decidedAt: null,
-        createdAt: at,
-        updatedAt: at
-      };
-      state.workshops.push(workshop);
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "workshop.created",
-        at,
-        projectId: project.id,
-        payload: { workshopId: workshop.id, participants }
-      });
-      await this.save();
-      return structuredClone(workshop);
-    });
+    return createWorkshop(this.context, input);
   }
   async addWorkshopNote(workshopId, input) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const workshop = findWorkshop(state, workshopId);
-      if (workshop.status === "decided" || workshop.status === "cancelled") {
-        throw new StudioStoreError(
-          "workshop_closed",
-          "\u5DF2\u7ED3\u675F\u7684\u7814\u8BA8\u4F1A\u4E0D\u80FD\u518D\u6DFB\u52A0\u610F\u89C1",
-          409
-        );
-      }
-      const roleId = requiredText(input.roleId, "roleId", 120);
-      const role = state.roles.find(
-        (item) => item.id === roleId && item.projectId === workshop.projectId
-      );
-      if (role === void 0 || !workshop.participantRoleIds.includes(roleId)) {
-        throw new StudioStoreError(
-          "participant_required",
-          "\u8BE5\u89D2\u8272\u4E0D\u662F\u672C\u6B21\u7814\u8BA8\u4F1A\u7684\u53C2\u4E0E\u8005",
-          409
-        );
-      }
-      const at = nowIso2(this.now);
-      const note = {
-        id: newId3("note"),
-        roleId,
-        roleName: role.name,
-        summary: requiredText(input.summary, "summary", 8e3),
-        objections: textList(input.objections, "objections", 20),
-        risks: textList(input.risks, "risks", 20),
-        recommendation: optionalText(
-          input.recommendation,
-          "recommendation",
-          4e3
-        ),
-        createdAt: at
-      };
-      const existing = workshop.notes.find((item) => item.roleId === roleId);
-      if (existing === void 0) {
-        workshop.notes.push(note);
-      } else {
-        workshop.notes = workshop.notes.map(
-          (item) => item.roleId === roleId ? { ...note, id: item.id } : item
-        );
-      }
-      workshop.status = "collecting";
-      workshop.updatedAt = at;
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "workshop.note",
-        at,
-        projectId: workshop.projectId,
-        payload: { workshopId, roleId }
-      });
-      await this.save();
-      return structuredClone(workshop);
-    });
+    return addWorkshopNote(this.context, workshopId, input);
   }
   async setWorkshopAiSummary(workshopId, summary) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const workshop = findWorkshop(state, workshopId);
-      if (workshop.notes.length === 0) {
-        throw new StudioStoreError(
-          "workshop_empty",
-          "\u81F3\u5C11\u9700\u8981\u4E00\u6761\u53C2\u4E0E\u8005\u610F\u89C1\u624D\u80FD\u751F\u6210\u6C47\u603B",
-          409
-        );
-      }
-      const at = nowIso2(this.now);
-      workshop.aiSummary = {
-        consensus: textList(summary.consensus, "consensus", 20),
-        disagreements: textList(
-          summary.disagreements,
-          "disagreements",
-          20
-        ),
-        openQuestions: textList(
-          summary.openQuestions,
-          "openQuestions",
-          20
-        ),
-        candidates: textList(summary.candidates, "candidates", 20),
-        generatedAt: summary.generatedAt || at,
-        model: summary.model
-      };
-      workshop.updatedAt = at;
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "workshop.ai_summary",
-        at,
-        projectId: workshop.projectId,
-        payload: { workshopId }
-      });
-      await this.save();
-      return structuredClone(workshop);
-    });
+    return setWorkshopAiSummary(this.context, workshopId, summary);
   }
   async synthesizeWorkshop(workshopId, synthesis) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const workshop = findWorkshop(state, workshopId);
-      if (workshop.notes.length === 0) {
-        throw new StudioStoreError(
-          "workshop_empty",
-          "\u81F3\u5C11\u9700\u8981\u4E00\u6761\u53C2\u4E0E\u8005\u610F\u89C1\u624D\u80FD\u6C47\u603B",
-          409
-        );
-      }
-      const at = nowIso2(this.now);
-      workshop.synthesis = requiredText(synthesis, "synthesis", 12e3);
-      workshop.status = "synthesized";
-      workshop.updatedAt = at;
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "workshop.synthesized",
-        at,
-        projectId: workshop.projectId,
-        payload: { workshopId }
-      });
-      await this.save();
-      return structuredClone(workshop);
-    });
+    return synthesizeWorkshop(this.context, workshopId, synthesis);
   }
   async decideWorkshop(workshopId, decision) {
-    return this.runExclusive(async () => {
-      const state = this.requireState();
-      const workshop = findWorkshop(state, workshopId);
-      if (workshop.synthesis.trim() === "") {
-        throw new StudioStoreError(
-          "workshop_synthesis_required",
-          "\u5148\u6C47\u603B\u53C2\u4E0E\u8005\u610F\u89C1\uFF0C\u518D\u8BB0\u5F55 Owner \u51B3\u7B56",
-          409
-        );
-      }
-      const at = nowIso2(this.now);
-      workshop.decision = requiredText(decision, "decision", 12e3);
-      workshop.status = "decided";
-      workshop.decidedBy = "Owner";
-      workshop.decidedAt = at;
-      workshop.updatedAt = at;
-      state.updatedAt = at;
-      this.recordEvent(state, {
-        type: "workshop.decided",
-        at,
-        projectId: workshop.projectId,
-        payload: { workshopId }
-      });
-      await this.save();
-      return structuredClone(workshop);
-    });
+    return decideWorkshop(this.context, workshopId, decision);
   }
   async selectProject(projectId) {
     return this.runExclusive(async () => {
