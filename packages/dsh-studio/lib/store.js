@@ -14,7 +14,7 @@ import path from "node:path";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 26;
-var STUDIO_PLUGIN_VERSION = "3.1.8";
+var STUDIO_PLUGIN_VERSION = "3.2.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",

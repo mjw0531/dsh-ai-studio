@@ -642,6 +642,608 @@ var StudioClient = class {
   }
 };
 
+// src/client/studio-actions.ts
+function createStudioActions({
+  client,
+  data,
+  load,
+  run,
+  setModal,
+  setToast,
+  setError
+}) {
+  const project = data?.project ?? null;
+  const createTask = async (input) => {
+    const ok = await run(
+      async () => {
+        if (client === null) return;
+        await client.createTask(input);
+      },
+      "\u4EFB\u52A1\u5DF2\u521B\u5EFA"
+    );
+    if (ok) setModal(null);
+  };
+  const createRole = async (input) => {
+    const ok = await run(
+      async () => {
+        if (client === null) return;
+        await client.createRole(input);
+      },
+      "\u89D2\u8272\u5DF2\u521B\u5EFA"
+    );
+    if (ok) setModal(null);
+  };
+  const updateRoleExecutor = async (roleId, executor) => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.updateRole(roleId, { executor });
+      },
+      "\u6267\u884C\u5668\u5DF2\u66F4\u65B0"
+    );
+  };
+  const updateRoleProvider = async (roleId, providerProfileId) => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.updateRole(roleId, { providerProfileId });
+      },
+      "Provider Profile \u5DF2\u66F4\u65B0"
+    );
+  };
+  const createProviderProfile = async (input) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.createProviderProfile(input);
+      },
+      "Provider Profile \u5DF2\u521B\u5EFA"
+    );
+  };
+  const updateProviderProfile = async (profileId, input) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.updateProviderProfile(profileId, input);
+      },
+      "Provider Profile \u5DF2\u66F4\u65B0"
+    );
+  };
+  const deleteProviderProfile = async (profileId) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.deleteProviderProfile(profileId);
+      },
+      "Provider Profile \u5DF2\u5220\u9664"
+    );
+  };
+  const probeProviderProfile = async (profileId) => {
+    if (client === null) throw new Error("\u63D2\u4EF6\u5C1A\u672A\u8FDE\u63A5");
+    return client.probeProviderProfile(profileId);
+  };
+  const reassignProviderProfile = async (fromProfileId, toProfileId) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.reassignProviderProfile(fromProfileId, toProfileId);
+      },
+      "\u89D2\u8272\u5DF2\u6539\u7ED1\u5230\u5907\u7528 Profile"
+    );
+  };
+  const createProject = async (input) => {
+    const ok = await run(
+      async () => {
+        if (client === null) return;
+        await client.createProject(input);
+      },
+      "\u9879\u76EE\u5DF2\u521B\u5EFA"
+    );
+    if (ok) setModal(null);
+  };
+  const createProjectFromTemplate = async (input) => {
+    const ok = await run(
+      async () => {
+        if (client === null) return;
+        await client.createProjectFromTemplate(input);
+      },
+      "\u9879\u76EE\u5DF2\u4ECE\u6A21\u677F\u521B\u5EFA"
+    );
+    if (ok) setModal(null);
+  };
+  const updateProjectRepo = async (repoPath) => {
+    const ok = await run(
+      async () => {
+        if (client === null || data === null || data.project === null) return;
+        await client.updateProject(data.project.id, {
+          repoPath: repoPath.trim() || null
+        });
+      },
+      "\u9879\u76EE\u4ED3\u5E93\u5DF2\u66F4\u65B0"
+    );
+    if (ok) setModal(null);
+  };
+  const updateProjectDocs = async (docs) => {
+    return run(
+      async () => {
+        if (client === null || data === null || data.project === null) return;
+        await client.updateProject(data.project.id, docs);
+      },
+      "\u9879\u76EE\u6587\u6863\u8DEF\u5F84\u5DF2\u66F4\u65B0"
+    );
+  };
+  const loadStageGate = async (stage) => {
+    await run(
+      async () => {
+        if (client === null || data === null || data.project === null) return;
+        await client.getStageGate(data.project.id, stage);
+      },
+      "\u9636\u6BB5\u95E8\u7981\u5DF2\u51C6\u5907"
+    );
+  };
+  const saveStageGate = async (stage, input) => {
+    return run(
+      async () => {
+        if (client === null || data === null || data.project === null) return;
+        await client.updateStageGate(data.project.id, stage, input);
+      },
+      "\u9636\u6BB5\u95E8\u7981\u8349\u7A3F\u5DF2\u4FDD\u5B58"
+    );
+  };
+  const approveStageGate = async (stage, waiverReason) => {
+    return run(
+      async () => {
+        if (client === null || data === null || data.project === null) return;
+        await client.approveStageGate(data.project.id, stage, {
+          waiverReason: waiverReason.trim() || void 0
+        });
+      },
+      "\u9636\u6BB5\u5DF2\u6279\u51C6\uFF0C\u9879\u76EE\u8FDB\u5165\u4E0B\u4E00\u9636\u6BB5"
+    );
+  };
+  const rejectStageGate = async (stage, note) => {
+    return run(
+      async () => {
+        if (client === null || data === null || data.project === null) return;
+        await client.rejectStageGate(data.project.id, stage, note);
+      },
+      "\u9636\u6BB5\u95E8\u7981\u5DF2\u62D2\u7EDD"
+    );
+  };
+  const ingestTrigger = async (input) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.ingestTrigger(input);
+      },
+      "\u4E8B\u4EF6\u5DF2\u8FDB\u5165\u6536\u4EF6\u7BB1"
+    );
+  };
+  const acceptTrigger = async (trigger) => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.acceptTrigger(trigger.id, {
+          acceptance: ["\u4EBA\u5DE5\u786E\u8BA4\u89E6\u53D1\u5185\u5BB9\u4E0E\u9A8C\u6536\u6807\u51C6"]
+        });
+      },
+      "\u89E6\u53D1\u4E8B\u4EF6\u5DF2\u8F6C\u4E3A\u4EFB\u52A1"
+    );
+  };
+  const ignoreTrigger = async (trigger) => {
+    const note = window.prompt("\u5FFD\u7565\u7406\u7531\uFF08\u53EF\u9009\uFF09\uFF1A", "");
+    if (note === null) return;
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.ignoreTrigger(trigger.id, note);
+      },
+      "\u89E6\u53D1\u4E8B\u4EF6\u5DF2\u5FFD\u7565"
+    );
+  };
+  const updateTriggerRules = async (projectId, input) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.updateTriggerRules(projectId, input);
+      },
+      "Webhook \u89C4\u5219\u5DF2\u66F4\u65B0"
+    );
+  };
+  const createPrototypeDemo = async (input) => {
+    return run(
+      async () => {
+        if (client === null || data?.project === null || data?.project === void 0) return;
+        await client.createPrototypeDemo(data.project.id, input);
+      },
+      "Demo \u8BB0\u5F55\u5DF2\u4FDD\u5B58"
+    );
+  };
+  const updatePrototypeDemo = async (demoId, input) => {
+    return run(
+      async () => {
+        if (client === null || data?.project === null || data?.project === void 0) return;
+        await client.updatePrototypeDemo(data.project.id, demoId, input);
+      },
+      "Demo \u8BB0\u5F55\u5DF2\u66F4\u65B0"
+    );
+  };
+  const createWorkshop = async (input) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.createWorkshop(input);
+      },
+      "\u7814\u8BA8\u4F1A\u5DF2\u521B\u5EFA"
+    );
+  };
+  const addWorkshopNote = async (workshopId, input) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.addWorkshopNote(workshopId, input);
+      },
+      "\u7814\u8BA8\u4F1A\u610F\u89C1\u5DF2\u8BB0\u5F55"
+    );
+  };
+  const synthesizeWorkshop = async (workshopId, synthesis) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.synthesizeWorkshop(workshopId, synthesis);
+      },
+      "\u7814\u8BA8\u4F1A\u5DF2\u6C47\u603B"
+    );
+  };
+  const decideWorkshop = async (workshopId, decision) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.decideWorkshop(workshopId, decision);
+      },
+      "Owner \u51B3\u7B56\u5DF2\u8BB0\u5F55"
+    );
+  };
+  const runWorkshop = async (workshopId) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.runWorkshop(workshopId);
+      },
+      "AI \u72EC\u7ACB\u8BC4\u5BA1\u5DF2\u5B8C\u6210"
+    );
+  };
+  const summarizeWorkshopAi = async (workshopId) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.summarizeWorkshop(workshopId);
+      },
+      "AI \u6C47\u603B\u8349\u7A3F\u5DF2\u751F\u6210"
+    );
+  };
+  const readProjectDoc = async (docPath) => {
+    if (client === null) return null;
+    try {
+      return await client.readProjectDoc(docPath);
+    } catch (error) {
+      setToast({
+        kind: "error",
+        text: error instanceof StudioClientError ? error.message : "\u6587\u6863\u8BFB\u53D6\u5931\u8D25"
+      });
+      return null;
+    }
+  };
+  const createModule = async (input) => {
+    const ok = await run(
+      async () => {
+        if (client === null) return;
+        await client.createModule(input);
+      },
+      "\u6A21\u5757\u5DF2\u521B\u5EFA"
+    );
+    if (ok) setModal(null);
+    return ok;
+  };
+  const transitionTask = async (task, status) => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.transitionTask(task.id, status);
+      },
+      status === "done" ? "\u4EFB\u52A1\u5DF2\u9A8C\u6536\u5B8C\u6210" : `\u4EFB\u52A1\u5DF2\u5207\u6362\u5230\u300C${TASK_STATUS_LABELS[status]}\u300D`
+    );
+  };
+  const toggleAcceptance = async (task, acceptanceId) => {
+    const acceptance = task.acceptance.map(
+      (item) => item.id === acceptanceId ? { ...item, done: !item.done } : item
+    );
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.updateTask(task.id, { acceptance });
+      },
+      "\u9A8C\u6536\u9879\u5DF2\u66F4\u65B0"
+    );
+  };
+  const toggleDocsSynced = async (task) => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.updateTask(task.id, {
+          docsSynced: !task.docsSynced
+        });
+      },
+      task.docsSynced ? "\u5DF2\u53D6\u6D88\u6587\u6863\u540C\u6B65\u6807\u8BB0" : "\u5DF2\u6807\u8BB0\u6587\u6863\u540C\u6B65"
+    );
+  };
+  const addEvidence = async (task, text) => {
+    const evidence = [
+      ...task.evidence,
+      {
+        id: "",
+        text,
+        createdAt: (/* @__PURE__ */ new Date()).toISOString()
+      }
+    ];
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.updateTask(task.id, { evidence });
+      },
+      "\u8BC1\u636E\u5DF2\u8BB0\u5F55"
+    );
+  };
+  const dispatchTask = async (task) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.dispatchTask(task.id);
+      },
+      "\u5DF2\u6D3E\u5355\uFF0CAgent \u5F00\u59CB\u5206\u6790\uFF1B\u5B8C\u6210\u540E\u4F1A\u81EA\u52A8\u5237\u56DE\u6267"
+    );
+  };
+  const verifyTask = async (task, command) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.verifyTask(task.id, command);
+      },
+      "\u9A8C\u8BC1\u547D\u4EE4\u5DF2\u6267\u884C"
+    );
+  };
+  const reviewTask = async (task) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.reviewTask(task.id);
+      },
+      "\u72EC\u7ACB\u8BC4\u5BA1\u5DF2\u5B8C\u6210"
+    );
+  };
+  const createDecision = async (input) => {
+    const ok = await run(
+      async () => {
+        if (client === null) return;
+        await client.createDecision(input);
+      },
+      "\u51B3\u7B56\u5DF2\u8FDB\u5165\u51B3\u7B56\u53F0"
+    );
+    if (ok) setModal(null);
+    return ok;
+  };
+  const decideDecision = async (decision, input) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.decideDecision(decision.id, input);
+      },
+      input.status === "approved" ? "\u51B3\u7B56\u5DF2\u6279\u51C6" : "\u51B3\u7B56\u5DF2\u62D2\u7EDD"
+    );
+  };
+  const createMerge = async (task, input) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.createMergeProposal(task.id, input);
+      },
+      "\u5408\u5E76\u63D0\u6848\u5DF2\u63D0\u4EA4"
+    );
+  };
+  const approveMerge = async (proposal, note) => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.approveMergeProposal(proposal.id, note);
+      },
+      "\u5408\u5E76\u63D0\u6848\u5DF2\u6279\u51C6"
+    );
+  };
+  const rejectMerge = async (proposal, note) => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.rejectMergeProposal(proposal.id, note);
+      },
+      "\u5408\u5E76\u63D0\u6848\u5DF2\u6253\u56DE"
+    );
+  };
+  const completeMerge = async (proposal, mergeCommit) => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.completeMergeProposal(proposal.id, mergeCommit);
+      },
+      "\u5DF2\u8BB0\u5F55\u5408\u5E76\u5B8C\u6210"
+    );
+  };
+  const executeMerge = async (proposal) => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.executeMerge(proposal.id);
+      },
+      "Git \u5408\u5E76\u5B8C\u6210\uFF0C\u5DF2\u8BB0\u5F55 merge commit"
+    );
+  };
+  const rollbackMerge = async (proposal) => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.rollbackMerge(proposal.id);
+      },
+      "\u5DF2\u56DE\u6EDA\u5408\u5E76\u5E76\u8BB0\u5F55 revert commit"
+    );
+  };
+  const exportData = async () => {
+    if (client === null) return;
+    const data2 = await client.exportState();
+    const blob = new Blob([JSON.stringify(data2, null, 2)], {
+      type: "application/json"
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `studio-backup-${data2.exportedAt.slice(0, 19).replace(/[:T]/g, "-")}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+  const importData = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (file === void 0 || client === null) return;
+    let parsed;
+    try {
+      parsed = JSON.parse(await file.text());
+    } catch {
+      setError("\u5BFC\u5165\u5931\u8D25\uFF1A\u6587\u4EF6\u4E0D\u662F\u5408\u6CD5 JSON");
+      return;
+    }
+    const envelope = typeof parsed === "object" && parsed !== null && "state" in parsed ? parsed.state : parsed;
+    if (!window.confirm(
+      "\u5BFC\u5165\u4F1A\u8986\u76D6\u5F53\u524D Studio \u6570\u636E\uFF1BHost \u4F1A\u5148\u628A\u539F\u6587\u4EF6\u5907\u4EFD\u5230 studio.json.pre-import-*\u3002\u786E\u5B9A\u7EE7\u7EED\u5417\uFF1F"
+    )) {
+      return;
+    }
+    await run(
+      async () => {
+        await client.importState(envelope);
+        await load(void 0, true);
+      },
+      "\u6570\u636E\u5DF2\u5BFC\u5165\uFF1B\u539F\u6587\u4EF6\u5DF2\u5907\u4EFD"
+    );
+  };
+  const exportBundle = async () => {
+    if (client === null || data?.project === null || data?.project === void 0)
+      return;
+    const { filename, blob } = await client.exportProjectBundle(
+      data.project.id
+    );
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+  const importBundle = async () => {
+    if (client === null) return;
+    const archivePath = window.prompt(
+      "\u8F93\u5165\u9879\u76EE\u5305 tar.gz \u7684\u7EDD\u5BF9\u8DEF\u5F84\uFF1A",
+      ""
+    );
+    if (archivePath === null || archivePath.trim() === "") return;
+    const targetPath = window.prompt(
+      "\u8F93\u5165\u65B0\u4ED3\u5E93\u76EE\u5F55\uFF08\u5FC5\u987B\u4E3A\u7A7A\u6216\u4E0D\u5B58\u5728\uFF09\uFF1A",
+      ""
+    );
+    if (targetPath === null || targetPath.trim() === "") return;
+    await run(
+      async () => {
+        await client.importProjectBundle(
+          archivePath.trim(),
+          targetPath.trim()
+        );
+        await load(void 0, true);
+      },
+      "\u9879\u76EE\u5305\u5DF2\u5BFC\u5165\u5E76\u91CD\u7ED1\u4ED3\u5E93"
+    );
+  };
+  const saveCompany = async (name2) => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.updateCompanyName(name2);
+        await load(void 0, true);
+      },
+      "\u5DE5\u4F5C\u5BA4\u540D\u79F0\u5DF2\u66F4\u65B0"
+    );
+  };
+  const writeAdr = async (decision) => {
+    await run(
+      async () => {
+        if (client === null) return;
+        await client.writeAdr(decision.id);
+      },
+      "ADR \u5DF2\u5199\u5165 docs/adr"
+    );
+  };
+  return {
+    createTask,
+    createRole,
+    updateRoleExecutor,
+    updateRoleProvider,
+    createProviderProfile,
+    updateProviderProfile,
+    deleteProviderProfile,
+    probeProviderProfile,
+    reassignProviderProfile,
+    createProject,
+    createProjectFromTemplate,
+    updateProjectRepo,
+    updateProjectDocs,
+    loadStageGate,
+    saveStageGate,
+    approveStageGate,
+    rejectStageGate,
+    ingestTrigger,
+    acceptTrigger,
+    ignoreTrigger,
+    updateTriggerRules,
+    createPrototypeDemo,
+    updatePrototypeDemo,
+    createWorkshop,
+    addWorkshopNote,
+    synthesizeWorkshop,
+    decideWorkshop,
+    runWorkshop,
+    summarizeWorkshopAi,
+    readProjectDoc,
+    createModule,
+    transitionTask,
+    toggleAcceptance,
+    toggleDocsSynced,
+    addEvidence,
+    dispatchTask,
+    verifyTask,
+    reviewTask,
+    createDecision,
+    decideDecision,
+    createMerge,
+    approveMerge,
+    rejectMerge,
+    completeMerge,
+    executeMerge,
+    rollbackMerge,
+    exportData,
+    importData,
+    exportBundle,
+    importBundle,
+    saveCompany,
+    writeAdr
+  };
+}
+
 // src/client/lib/format.ts
 function errorText(error) {
   if (error instanceof StudioClientError) return error.message;
@@ -6433,541 +7035,69 @@ function StudioPage() {
   const reviewCount = data.tasks.filter((task) => task.status === "review").length;
   const mergeCount = data.stats.mergeReview + data.stats.mergeApproved;
   const selectedMerge = selectedTask === null ? null : latestMergeForTask(data.mergeProposals, selectedTask.id);
-  const createTask = async (input) => {
-    const ok = await run(
-      async () => {
-        if (client === null) return;
-        await client.createTask(input);
-      },
-      "\u4EFB\u52A1\u5DF2\u521B\u5EFA"
-    );
-    if (ok) setModal(null);
-  };
-  const createRole = async (input) => {
-    const ok = await run(
-      async () => {
-        if (client === null) return;
-        await client.createRole(input);
-      },
-      "\u89D2\u8272\u5DF2\u521B\u5EFA"
-    );
-    if (ok) setModal(null);
-  };
-  const updateRoleExecutor = async (roleId, executor) => {
-    await run(
-      async () => {
-        if (client === null) return;
-        await client.updateRole(roleId, { executor });
-      },
-      "\u6267\u884C\u5668\u5DF2\u66F4\u65B0"
-    );
-  };
-  const updateRoleProvider = async (roleId, providerProfileId) => {
-    await run(
-      async () => {
-        if (client === null) return;
-        await client.updateRole(roleId, { providerProfileId });
-      },
-      "Provider Profile \u5DF2\u66F4\u65B0"
-    );
-  };
-  const createProviderProfile = async (input) => {
-    return run(
-      async () => {
-        if (client === null) return;
-        await client.createProviderProfile(input);
-      },
-      "Provider Profile \u5DF2\u521B\u5EFA"
-    );
-  };
-  const updateProviderProfile = async (profileId, input) => {
-    return run(
-      async () => {
-        if (client === null) return;
-        await client.updateProviderProfile(profileId, input);
-      },
-      "Provider Profile \u5DF2\u66F4\u65B0"
-    );
-  };
-  const deleteProviderProfile = async (profileId) => {
-    return run(
-      async () => {
-        if (client === null) return;
-        await client.deleteProviderProfile(profileId);
-      },
-      "Provider Profile \u5DF2\u5220\u9664"
-    );
-  };
-  const probeProviderProfile = async (profileId) => {
-    if (client === null) throw new Error("\u63D2\u4EF6\u5C1A\u672A\u8FDE\u63A5");
-    return client.probeProviderProfile(profileId);
-  };
-  const reassignProviderProfile = async (fromProfileId, toProfileId) => {
-    return run(
-      async () => {
-        if (client === null) return;
-        await client.reassignProviderProfile(fromProfileId, toProfileId);
-      },
-      "\u89D2\u8272\u5DF2\u6539\u7ED1\u5230\u5907\u7528 Profile"
-    );
-  };
-  const createProject = async (input) => {
-    const ok = await run(
-      async () => {
-        if (client === null) return;
-        await client.createProject(input);
-      },
-      "\u9879\u76EE\u5DF2\u521B\u5EFA"
-    );
-    if (ok) setModal(null);
-  };
-  const createProjectFromTemplate = async (input) => {
-    const ok = await run(
-      async () => {
-        if (client === null) return;
-        await client.createProjectFromTemplate(input);
-      },
-      "\u9879\u76EE\u5DF2\u4ECE\u6A21\u677F\u521B\u5EFA"
-    );
-    if (ok) setModal(null);
-  };
-  const updateProjectRepo = async (repoPath) => {
-    const ok = await run(
-      async () => {
-        if (client === null || data === null || data.project === null) return;
-        await client.updateProject(data.project.id, {
-          repoPath: repoPath.trim() || null
-        });
-      },
-      "\u9879\u76EE\u4ED3\u5E93\u5DF2\u66F4\u65B0"
-    );
-    if (ok) setModal(null);
-  };
-  const updateProjectDocs = async (docs) => {
-    return run(
-      async () => {
-        if (client === null || data === null || data.project === null) return;
-        await client.updateProject(data.project.id, docs);
-      },
-      "\u9879\u76EE\u6587\u6863\u8DEF\u5F84\u5DF2\u66F4\u65B0"
-    );
-  };
-  const loadStageGate = async (stage) => {
-    await run(
-      async () => {
-        if (client === null || data === null || data.project === null) return;
-        await client.getStageGate(data.project.id, stage);
-      },
-      "\u9636\u6BB5\u95E8\u7981\u5DF2\u51C6\u5907"
-    );
-  };
-  const saveStageGate = async (stage, input) => {
-    return run(
-      async () => {
-        if (client === null || data === null || data.project === null) return;
-        await client.updateStageGate(data.project.id, stage, input);
-      },
-      "\u9636\u6BB5\u95E8\u7981\u8349\u7A3F\u5DF2\u4FDD\u5B58"
-    );
-  };
-  const approveStageGate = async (stage, waiverReason) => {
-    return run(
-      async () => {
-        if (client === null || data === null || data.project === null) return;
-        await client.approveStageGate(data.project.id, stage, {
-          waiverReason: waiverReason.trim() || void 0
-        });
-      },
-      "\u9636\u6BB5\u5DF2\u6279\u51C6\uFF0C\u9879\u76EE\u8FDB\u5165\u4E0B\u4E00\u9636\u6BB5"
-    );
-  };
-  const rejectStageGate = async (stage, note) => {
-    return run(
-      async () => {
-        if (client === null || data === null || data.project === null) return;
-        await client.rejectStageGate(data.project.id, stage, note);
-      },
-      "\u9636\u6BB5\u95E8\u7981\u5DF2\u62D2\u7EDD"
-    );
-  };
-  const ingestTrigger = async (input) => {
-    return run(
-      async () => {
-        if (client === null) return;
-        await client.ingestTrigger(input);
-      },
-      "\u4E8B\u4EF6\u5DF2\u8FDB\u5165\u6536\u4EF6\u7BB1"
-    );
-  };
-  const acceptTrigger = async (trigger) => {
-    await run(
-      async () => {
-        if (client === null) return;
-        await client.acceptTrigger(trigger.id, {
-          acceptance: ["\u4EBA\u5DE5\u786E\u8BA4\u89E6\u53D1\u5185\u5BB9\u4E0E\u9A8C\u6536\u6807\u51C6"]
-        });
-      },
-      "\u89E6\u53D1\u4E8B\u4EF6\u5DF2\u8F6C\u4E3A\u4EFB\u52A1"
-    );
-  };
-  const ignoreTrigger = async (trigger) => {
-    const note = window.prompt("\u5FFD\u7565\u7406\u7531\uFF08\u53EF\u9009\uFF09\uFF1A", "");
-    if (note === null) return;
-    await run(
-      async () => {
-        if (client === null) return;
-        await client.ignoreTrigger(trigger.id, note);
-      },
-      "\u89E6\u53D1\u4E8B\u4EF6\u5DF2\u5FFD\u7565"
-    );
-  };
-  const updateTriggerRules = async (projectId, input) => {
-    return run(
-      async () => {
-        if (client === null) return;
-        await client.updateTriggerRules(projectId, input);
-      },
-      "Webhook \u89C4\u5219\u5DF2\u66F4\u65B0"
-    );
-  };
-  const createPrototypeDemo = async (input) => {
-    return run(
-      async () => {
-        if (client === null || data.project === null) return;
-        await client.createPrototypeDemo(data.project.id, input);
-      },
-      "Demo \u8BB0\u5F55\u5DF2\u4FDD\u5B58"
-    );
-  };
-  const updatePrototypeDemo = async (demoId, input) => {
-    return run(
-      async () => {
-        if (client === null || data.project === null) return;
-        await client.updatePrototypeDemo(data.project.id, demoId, input);
-      },
-      "Demo \u8BB0\u5F55\u5DF2\u66F4\u65B0"
-    );
-  };
-  const createWorkshop = async (input) => {
-    return run(
-      async () => {
-        if (client === null) return;
-        await client.createWorkshop(input);
-      },
-      "\u7814\u8BA8\u4F1A\u5DF2\u521B\u5EFA"
-    );
-  };
-  const addWorkshopNote = async (workshopId, input) => {
-    return run(
-      async () => {
-        if (client === null) return;
-        await client.addWorkshopNote(workshopId, input);
-      },
-      "\u7814\u8BA8\u4F1A\u610F\u89C1\u5DF2\u8BB0\u5F55"
-    );
-  };
-  const synthesizeWorkshop = async (workshopId, synthesis) => {
-    return run(
-      async () => {
-        if (client === null) return;
-        await client.synthesizeWorkshop(workshopId, synthesis);
-      },
-      "\u7814\u8BA8\u4F1A\u5DF2\u6C47\u603B"
-    );
-  };
-  const decideWorkshop = async (workshopId, decision) => {
-    return run(
-      async () => {
-        if (client === null) return;
-        await client.decideWorkshop(workshopId, decision);
-      },
-      "Owner \u51B3\u7B56\u5DF2\u8BB0\u5F55"
-    );
-  };
-  const runWorkshop = async (workshopId) => {
-    return run(
-      async () => {
-        if (client === null) return;
-        await client.runWorkshop(workshopId);
-      },
-      "AI \u72EC\u7ACB\u8BC4\u5BA1\u5DF2\u5B8C\u6210"
-    );
-  };
-  const summarizeWorkshopAi = async (workshopId) => {
-    return run(
-      async () => {
-        if (client === null) return;
-        await client.summarizeWorkshop(workshopId);
-      },
-      "AI \u6C47\u603B\u8349\u7A3F\u5DF2\u751F\u6210"
-    );
-  };
-  const readProjectDoc = async (docPath) => {
-    if (client === null) return null;
-    try {
-      return await client.readProjectDoc(docPath);
-    } catch (error2) {
-      setToast({
-        kind: "error",
-        text: error2 instanceof StudioClientError ? error2.message : "\u6587\u6863\u8BFB\u53D6\u5931\u8D25"
-      });
-      return null;
-    }
-  };
-  const createModule = async (input) => {
-    const ok = await run(
-      async () => {
-        if (client === null) return;
-        await client.createModule(input);
-      },
-      "\u6A21\u5757\u5DF2\u521B\u5EFA"
-    );
-    if (ok) setModal(null);
-    return ok;
-  };
-  const transitionTask = async (task, status) => {
-    await run(
-      async () => {
-        if (client === null) return;
-        await client.transitionTask(task.id, status);
-      },
-      status === "done" ? "\u4EFB\u52A1\u5DF2\u9A8C\u6536\u5B8C\u6210" : `\u4EFB\u52A1\u5DF2\u5207\u6362\u5230\u300C${TASK_STATUS_LABELS[status]}\u300D`
-    );
-  };
-  const toggleAcceptance = async (task, acceptanceId) => {
-    const acceptance = task.acceptance.map(
-      (item) => item.id === acceptanceId ? { ...item, done: !item.done } : item
-    );
-    await run(
-      async () => {
-        if (client === null) return;
-        await client.updateTask(task.id, { acceptance });
-      },
-      "\u9A8C\u6536\u9879\u5DF2\u66F4\u65B0"
-    );
-  };
-  const toggleDocsSynced = async (task) => {
-    await run(
-      async () => {
-        if (client === null) return;
-        await client.updateTask(task.id, {
-          docsSynced: !task.docsSynced
-        });
-      },
-      task.docsSynced ? "\u5DF2\u53D6\u6D88\u6587\u6863\u540C\u6B65\u6807\u8BB0" : "\u5DF2\u6807\u8BB0\u6587\u6863\u540C\u6B65"
-    );
-  };
-  const addEvidence = async (task, text) => {
-    const evidence = [
-      ...task.evidence,
-      {
-        id: "",
-        text,
-        createdAt: (/* @__PURE__ */ new Date()).toISOString()
-      }
-    ];
-    return run(
-      async () => {
-        if (client === null) return;
-        await client.updateTask(task.id, { evidence });
-      },
-      "\u8BC1\u636E\u5DF2\u8BB0\u5F55"
-    );
-  };
-  const dispatchTask = async (task) => {
-    return run(
-      async () => {
-        if (client === null) return;
-        await client.dispatchTask(task.id);
-      },
-      "\u5DF2\u6D3E\u5355\uFF0CAgent \u5F00\u59CB\u5206\u6790\uFF1B\u5B8C\u6210\u540E\u4F1A\u81EA\u52A8\u5237\u56DE\u6267"
-    );
-  };
-  const verifyTask = async (task, command) => {
-    return run(
-      async () => {
-        if (client === null) return;
-        await client.verifyTask(task.id, command);
-      },
-      "\u9A8C\u8BC1\u547D\u4EE4\u5DF2\u6267\u884C"
-    );
-  };
-  const reviewTask = async (task) => {
-    return run(
-      async () => {
-        if (client === null) return;
-        await client.reviewTask(task.id);
-      },
-      "\u72EC\u7ACB\u8BC4\u5BA1\u5DF2\u5B8C\u6210"
-    );
-  };
-  const createDecision = async (input) => {
-    const ok = await run(
-      async () => {
-        if (client === null) return;
-        await client.createDecision(input);
-      },
-      "\u51B3\u7B56\u5DF2\u8FDB\u5165\u51B3\u7B56\u53F0"
-    );
-    if (ok) setModal(null);
-    return ok;
-  };
-  const decideDecision = async (decision, input) => {
-    return run(
-      async () => {
-        if (client === null) return;
-        await client.decideDecision(decision.id, input);
-      },
-      input.status === "approved" ? "\u51B3\u7B56\u5DF2\u6279\u51C6" : "\u51B3\u7B56\u5DF2\u62D2\u7EDD"
-    );
-  };
-  const createMerge = async (task, input) => {
-    return run(
-      async () => {
-        if (client === null) return;
-        await client.createMergeProposal(task.id, input);
-      },
-      "\u5408\u5E76\u63D0\u6848\u5DF2\u63D0\u4EA4"
-    );
-  };
-  const approveMerge = async (proposal, note) => {
-    await run(
-      async () => {
-        if (client === null) return;
-        await client.approveMergeProposal(proposal.id, note);
-      },
-      "\u5408\u5E76\u63D0\u6848\u5DF2\u6279\u51C6"
-    );
-  };
-  const rejectMerge = async (proposal, note) => {
-    await run(
-      async () => {
-        if (client === null) return;
-        await client.rejectMergeProposal(proposal.id, note);
-      },
-      "\u5408\u5E76\u63D0\u6848\u5DF2\u6253\u56DE"
-    );
-  };
-  const completeMerge = async (proposal, mergeCommit) => {
-    await run(
-      async () => {
-        if (client === null) return;
-        await client.completeMergeProposal(proposal.id, mergeCommit);
-      },
-      "\u5DF2\u8BB0\u5F55\u5408\u5E76\u5B8C\u6210"
-    );
-  };
-  const executeMerge = async (proposal) => {
-    await run(
-      async () => {
-        if (client === null) return;
-        await client.executeMerge(proposal.id);
-      },
-      "Git \u5408\u5E76\u5B8C\u6210\uFF0C\u5DF2\u8BB0\u5F55 merge commit"
-    );
-  };
-  const rollbackMerge = async (proposal) => {
-    await run(
-      async () => {
-        if (client === null) return;
-        await client.rollbackMerge(proposal.id);
-      },
-      "\u5DF2\u56DE\u6EDA\u5408\u5E76\u5E76\u8BB0\u5F55 revert commit"
-    );
-  };
-  const exportData = async () => {
-    if (client === null) return;
-    const data2 = await client.exportState();
-    const blob = new Blob([JSON.stringify(data2, null, 2)], {
-      type: "application/json"
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `studio-backup-${data2.exportedAt.slice(0, 19).replace(/[:T]/g, "-")}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-  const importData = async (event) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (file === void 0 || client === null) return;
-    let parsed;
-    try {
-      parsed = JSON.parse(await file.text());
-    } catch {
-      setError("\u5BFC\u5165\u5931\u8D25\uFF1A\u6587\u4EF6\u4E0D\u662F\u5408\u6CD5 JSON");
-      return;
-    }
-    const envelope = typeof parsed === "object" && parsed !== null && "state" in parsed ? parsed.state : parsed;
-    if (!window.confirm(
-      "\u5BFC\u5165\u4F1A\u8986\u76D6\u5F53\u524D Studio \u6570\u636E\uFF1BHost \u4F1A\u5148\u628A\u539F\u6587\u4EF6\u5907\u4EFD\u5230 studio.json.pre-import-*\u3002\u786E\u5B9A\u7EE7\u7EED\u5417\uFF1F"
-    )) {
-      return;
-    }
-    await run(
-      async () => {
-        await client.importState(envelope);
-        await load(void 0, true);
-      },
-      "\u6570\u636E\u5DF2\u5BFC\u5165\uFF1B\u539F\u6587\u4EF6\u5DF2\u5907\u4EFD"
-    );
-  };
-  const exportBundle = async () => {
-    if (client === null || data?.project === null || data?.project === void 0)
-      return;
-    const { filename, blob } = await client.exportProjectBundle(
-      data.project.id
-    );
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-  const importBundle = async () => {
-    if (client === null) return;
-    const archivePath = window.prompt(
-      "\u8F93\u5165\u9879\u76EE\u5305 tar.gz \u7684\u7EDD\u5BF9\u8DEF\u5F84\uFF1A",
-      ""
-    );
-    if (archivePath === null || archivePath.trim() === "") return;
-    const targetPath = window.prompt(
-      "\u8F93\u5165\u65B0\u4ED3\u5E93\u76EE\u5F55\uFF08\u5FC5\u987B\u4E3A\u7A7A\u6216\u4E0D\u5B58\u5728\uFF09\uFF1A",
-      ""
-    );
-    if (targetPath === null || targetPath.trim() === "") return;
-    await run(
-      async () => {
-        await client.importProjectBundle(
-          archivePath.trim(),
-          targetPath.trim()
-        );
-        await load(void 0, true);
-      },
-      "\u9879\u76EE\u5305\u5DF2\u5BFC\u5165\u5E76\u91CD\u7ED1\u4ED3\u5E93"
-    );
-  };
-  const saveCompany = async (name2) => {
-    await run(
-      async () => {
-        if (client === null) return;
-        await client.updateCompanyName(name2);
-        await load(void 0, true);
-      },
-      "\u5DE5\u4F5C\u5BA4\u540D\u79F0\u5DF2\u66F4\u65B0"
-    );
-  };
-  const writeAdr = async (decision) => {
-    await run(
-      async () => {
-        if (client === null) return;
-        await client.writeAdr(decision.id);
-      },
-      "ADR \u5DF2\u5199\u5165 docs/adr"
-    );
-  };
+  const actions = createStudioActions({
+    client,
+    data,
+    load,
+    run,
+    setModal,
+    setToast,
+    setError
+  });
+  const {
+    createTask,
+    createRole,
+    updateRoleExecutor,
+    updateRoleProvider,
+    createProviderProfile,
+    updateProviderProfile,
+    deleteProviderProfile,
+    probeProviderProfile,
+    reassignProviderProfile,
+    createProject,
+    createProjectFromTemplate,
+    updateProjectRepo,
+    updateProjectDocs,
+    loadStageGate,
+    saveStageGate,
+    approveStageGate,
+    rejectStageGate,
+    ingestTrigger,
+    acceptTrigger,
+    ignoreTrigger,
+    updateTriggerRules,
+    createPrototypeDemo,
+    updatePrototypeDemo,
+    createWorkshop,
+    addWorkshopNote,
+    synthesizeWorkshop,
+    decideWorkshop,
+    runWorkshop,
+    summarizeWorkshopAi,
+    readProjectDoc,
+    createModule,
+    transitionTask,
+    toggleAcceptance,
+    toggleDocsSynced,
+    addEvidence,
+    dispatchTask,
+    verifyTask,
+    reviewTask,
+    createDecision,
+    decideDecision,
+    createMerge,
+    approveMerge,
+    rejectMerge,
+    completeMerge,
+    executeMerge,
+    rollbackMerge,
+    exportData,
+    importData,
+    exportBundle,
+    importBundle,
+    saveCompany,
+    writeAdr
+  } = actions;
   return /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-root", "data-theme": theme, children: [
     /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("header", { className: "studio-header", children: [
       /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-brand", children: [
