@@ -40,7 +40,7 @@ import type {
 import { allAccepted, formatDate, roleName } from "../lib/format.js";
 import { StatCard, StatusPill } from "../components/ui.js";
 import { TaskBoard } from "../components/TaskBoard.js";
-import { ModalShell } from "../components/Forms.js";
+import { ModalShell } from "../components/ModalShell.js";
 import { RecentEvents } from "../components/RecentEvents.js";
 import { TriggerInbox } from "../features/TriggerInbox.js";
 import { StagePanel } from "../features/StagePanel.js";

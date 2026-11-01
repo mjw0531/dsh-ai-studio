@@ -117,14 +117,11 @@ import {
   MissingHost,
 } from "./components/States.js";
 import { TaskDrawer } from "./components/TaskDrawer.js";
-import {
-  DecisionForm,
-  ModalShell,
-  ProjectForm,
-  RepoForm,
-  RoleForm,
-  TaskForm,
-} from "./components/Forms.js";
+import { ModalShell } from "./components/ModalShell.js";
+import { DecisionForm } from "./forms/DecisionForm.js";
+import { ProjectForm, RepoForm } from "./forms/ProjectForms.js";
+import { RoleForm } from "./forms/RoleForm.js";
+import { TaskForm } from "./forms/TaskForm.js";
 import {
   IconAlert,
   IconBuilding,

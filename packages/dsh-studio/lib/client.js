@@ -33,7 +33,7 @@ __export(index_exports, {
 module.exports = __toCommonJS(index_exports);
 
 // src/client/StudioPage.tsx
-var import_react17 = require("react");
+var import_react20 = require("react");
 
 // src/shared/types.ts
 var PROJECT_STAGE_ORDER = [
@@ -2150,7 +2150,7 @@ function BranchPanel({
 }
 
 // src/client/views/MissionView.tsx
-var import_react10 = require("react");
+var import_react9 = require("react");
 
 // src/client/components/TaskBoard.tsx
 var import_jsx_runtime7 = require("react/jsx-runtime");
@@ -2229,8 +2229,7 @@ function TaskCard({
   );
 }
 
-// src/client/components/Forms.tsx
-var import_react5 = require("react");
+// src/client/components/ModalShell.tsx
 var import_jsx_runtime8 = require("react/jsx-runtime");
 function ModalShell({
   title,
@@ -2281,830 +2280,6 @@ function ModalShell({
     }
   );
 }
-function TaskForm({
-  roles,
-  busy,
-  onCancel,
-  onSubmit
-}) {
-  const [title, setTitle] = (0, import_react5.useState)("");
-  const [goal, setGoal] = (0, import_react5.useState)("");
-  const [priority, setPriority] = (0, import_react5.useState)("P1");
-  const [ownerRoleId, setOwnerRoleId] = (0, import_react5.useState)(roles[0]?.id ?? "");
-  const [reviewerRoleId, setReviewerRoleId] = (0, import_react5.useState)(
-    roles[1]?.id ?? roles[0]?.id ?? ""
-  );
-  const [acceptanceText, setAcceptanceText] = (0, import_react5.useState)("");
-  const [branch, setBranch] = (0, import_react5.useState)("");
-  const [verifyCommand, setVerifyCommand] = (0, import_react5.useState)("npm test");
-  const [moduleName, setModuleName] = (0, import_react5.useState)("");
-  const [contractRef, setContractRef] = (0, import_react5.useState)("");
-  const [requirementRefs, setRequirementRefs] = (0, import_react5.useState)("");
-  const [kind, setKind] = (0, import_react5.useState)("new");
-  const [diagnosis, setDiagnosis] = (0, import_react5.useState)("");
-  const [plan, setPlan] = (0, import_react5.useState)("");
-  const [integration, setIntegration] = (0, import_react5.useState)(false);
-  const [localError, setLocalError] = (0, import_react5.useState)(null);
-  const submit = (event) => {
-    event.preventDefault();
-    const acceptance = acceptanceText.split("\n").map((line) => line.trim()).filter(Boolean);
-    if (title.trim() === "") {
-      setLocalError("\u8BF7\u586B\u5199\u4EFB\u52A1\u6807\u9898");
-      return;
-    }
-    if (acceptance.length === 0) {
-      setLocalError("\u81F3\u5C11\u5199\u4E00\u6761\u53EF\u9A8C\u8BC1\u7684\u9A8C\u6536\u6807\u51C6");
-      return;
-    }
-    if (ownerRoleId === reviewerRoleId) {
-      setLocalError("\u8D1F\u8D23\u4EBA\u548C\u9A8C\u6536\u4EBA\u6700\u597D\u662F\u4E0D\u540C\u89D2\u8272");
-      return;
-    }
-    if (kind === "fix" && (diagnosis.trim() === "" || plan.trim() === "")) {
-      setLocalError("\u6539\u4FEE\u7968\u5FC5\u987B\u5199\u8BCA\u65AD\u548C\u4FEE\u6539\u8BA1\u5212");
-      return;
-    }
-    setLocalError(null);
-    onSubmit({
-      title: title.trim(),
-      goal: goal.trim(),
-      priority,
-      ownerRoleId: ownerRoleId || null,
-      reviewerRoleId: reviewerRoleId || null,
-      acceptance,
-      branch: branch.trim() || null,
-      verifyCommand: verifyCommand.trim() || null,
-      module: moduleName.trim() || null,
-      contractRef: contractRef.trim() || null,
-      requirementRefs: requirementRefs.split(/[\n,]/u).map((line) => line.trim()).filter(Boolean),
-      kind,
-      diagnosis: diagnosis.trim(),
-      plan: plan.trim(),
-      integration
-    });
-  };
-  return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-    ModalShell,
-    {
-      title: "\u65B0\u5EFA\u4EFB\u52A1",
-      subtitle: "\u4EFB\u52A1\u4E00\u5F00\u59CB\u5C31\u8981\u6709\u9A8C\u6536\u6807\u51C6\uFF1B\u5B8C\u6210\u7531\u8BC1\u636E\u548C\u72EC\u7ACB\u9A8C\u6536\u51B3\u5B9A\u3002",
-      onClose: onCancel,
-      footer: /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-modal-foot", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("button", { className: "studio-btn", type: "button", onClick: onCancel, disabled: busy, children: "\u53D6\u6D88" }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-          "button",
-          {
-            className: "studio-btn",
-            "data-variant": "primary",
-            type: "submit",
-            form: "studio-task-form",
-            disabled: busy,
-            children: busy ? "\u521B\u5EFA\u4E2D\u2026" : "\u521B\u5EFA\u4EFB\u52A1"
-          }
-        )
-      ] }),
-      children: /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("form", { id: "studio-task-form", className: "studio-modal-body", onSubmit: submit, children: [
-        localError !== null ? /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "studio-alert", children: localError }) : null,
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "task-title", children: "\u6807\u9898" }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-            "input",
-            {
-              id: "task-title",
-              value: title,
-              onChange: (event) => setTitle(event.target.value),
-              placeholder: "\u4F8B\u5982\uFF1A\u5B9E\u73B0\u6280\u80FD\u51B7\u5374\u4E0E\u65BD\u6CD5\u524D\u6447",
-              autoFocus: true
-            }
-          )
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "task-goal", children: "\u76EE\u6807" }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-            "textarea",
-            {
-              id: "task-goal",
-              value: goal,
-              onChange: (event) => setGoal(event.target.value),
-              placeholder: "\u8FD9\u4E2A\u4EFB\u52A1\u8981\u89E3\u51B3\u4EC0\u4E48\u95EE\u9898\uFF1F\u4EA4\u4ED8\u4EC0\u4E48\uFF1F"
-            }
-          )
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field-row", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "task-priority", children: "\u4F18\u5148\u7EA7" }),
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
-              "select",
-              {
-                id: "task-priority",
-                value: priority,
-                onChange: (event) => setPriority(event.target.value),
-                children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("option", { value: "P0", children: PRIORITY_LABELS.P0 }),
-                  /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("option", { value: "P1", children: PRIORITY_LABELS.P1 }),
-                  /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("option", { value: "P2", children: PRIORITY_LABELS.P2 })
-                ]
-              }
-            )
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "task-branch", children: "\u5206\u652F\uFF08\u53EF\u9009\uFF09" }),
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-              "input",
-              {
-                id: "task-branch",
-                value: branch,
-                onChange: (event) => setBranch(event.target.value),
-                placeholder: "task/003-ability"
-              }
-            )
-          ] })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "task-verify", children: "\u9A8C\u8BC1\u547D\u4EE4\uFF08\u53EF\u9009\uFF09" }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-            "input",
-            {
-              id: "task-verify",
-              value: verifyCommand,
-              onChange: (event) => setVerifyCommand(event.target.value),
-              placeholder: "npm test"
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "studio-hint", children: "\u7531 Studio Host \u5728 worktree \u5185\u72EC\u7ACB\u6267\u884C\uFF1B\u901A\u8FC7\u4F1A\u5199 evidence\uFF0C\u4F46\u4E0D\u81EA\u52A8\u901A\u8FC7\u9A8C\u6536\u3002" })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field-row", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "task-kind", children: "\u7968\u7C7B\u578B" }),
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
-              "select",
-              {
-                id: "task-kind",
-                value: kind,
-                onChange: (event) => setKind(event.target.value),
-                children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("option", { value: "new", children: TASK_KIND_LABELS.new }),
-                  /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("option", { value: "fix", children: TASK_KIND_LABELS.fix })
-                ]
-              }
-            )
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "task-module", children: "\u6A21\u5757" }),
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-              "input",
-              {
-                id: "task-module",
-                value: moduleName,
-                onChange: (event) => setModuleName(event.target.value),
-                placeholder: "combat / input / replay"
-              }
-            )
-          ] })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field-row", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "task-diagnosis", children: "\u8BCA\u65AD\uFF08\u6539\u4FEE\u7968\u5FC5\u586B\uFF09" }),
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-              "textarea",
-              {
-                id: "task-diagnosis",
-                value: diagnosis,
-                onChange: (event) => setDiagnosis(event.target.value),
-                rows: 3,
-                placeholder: "\u73B0\u8C61\u3001\u590D\u73B0\u6B65\u9AA4\u3001\u521D\u6B65\u6839\u56E0"
-              }
-            )
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "task-plan", children: "\u4FEE\u6539\u8BA1\u5212\uFF08\u6539\u4FEE\u7968\u5FC5\u586B\uFF09" }),
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-              "textarea",
-              {
-                id: "task-plan",
-                value: plan,
-                onChange: (event) => setPlan(event.target.value),
-                rows: 3,
-                placeholder: "\u8981\u6539\u54EA\u4E9B\u6587\u4EF6\u3001\u600E\u4E48\u9A8C\u8BC1\u3001\u98CE\u9669"
-              }
-            )
-          ] })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "task-contract", children: "\u5951\u7EA6\u5F15\u7528" }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-            "input",
-            {
-              id: "task-contract",
-              value: contractRef,
-              onChange: (event) => setContractRef(event.target.value),
-              placeholder: "docs/contracts/replay-v1.md"
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "studio-hint", children: "\u5B9E\u73B0\u8005\u53EA\u5E94\u4FEE\u6539\u8FD9\u4E2A\u5951\u7EA6\u5141\u8BB8\u7684\u8303\u56F4\uFF1B\u6539\u5951\u7EA6\u672C\u8EAB\u8981\u8D70\u67B6\u6784\u5E08/Owner\u3002" })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "task-requirements", children: "\u9700\u6C42\u5F15\u7528\uFF08\u53EF\u9009\uFF09" }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-            "input",
-            {
-              id: "task-requirements",
-              value: requirementRefs,
-              onChange: (event) => setRequirementRefs(event.target.value),
-              placeholder: "PRD-3.2, REQ-AUTH-01"
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "studio-hint", children: "\u6307\u5411 PRD \u6761\u76EE\u6216\u9700\u6C42 ID\uFF0C\u65B9\u4FBF\u4ECE\u4EFB\u52A1\u8FFD\u6EAF\u56DE\u9700\u6C42\u3002" })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("label", { className: "studio-check", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-            "input",
-            {
-              type: "checkbox",
-              checked: integration,
-              onChange: (event) => setIntegration(event.target.checked)
-            }
-          ),
-          "\u96C6\u6210 / playtest ticket\uFF08\u6253\u5305\u53EF\u73A9 + \u4EBA\u73A9 10 \u5206\u949F\uFF09"
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field-row", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "task-owner", children: "\u8D1F\u8D23\u4EBA" }),
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-              "select",
-              {
-                id: "task-owner",
-                value: ownerRoleId,
-                onChange: (event) => setOwnerRoleId(event.target.value),
-                children: roles.map((role) => /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("option", { value: role.id, children: [
-                  role.name,
-                  role.title ? ` \xB7 ${role.title}` : ""
-                ] }, role.id))
-              }
-            )
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "task-reviewer", children: "\u9A8C\u6536\u4EBA" }),
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-              "select",
-              {
-                id: "task-reviewer",
-                value: reviewerRoleId,
-                onChange: (event) => setReviewerRoleId(event.target.value),
-                children: roles.map((role) => /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("option", { value: role.id, children: [
-                  role.name,
-                  role.title ? ` \xB7 ${role.title}` : ""
-                ] }, role.id))
-              }
-            )
-          ] })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "task-acceptance", children: "\u9A8C\u6536\u6807\u51C6\uFF08\u6BCF\u884C\u4E00\u6761\uFF09" }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-            "textarea",
-            {
-              id: "task-acceptance",
-              value: acceptanceText,
-              onChange: (event) => setAcceptanceText(event.target.value),
-              placeholder: "\u51B7\u5374\u6309 tick \u8BA1\u7B97\n\u524D\u6447\u53EF\u88AB\u63A7\u5236\u6253\u65AD\n\u5355\u6D4B\u8986\u76D6\u8FB9\u754C",
-              style: { minHeight: 96 }
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "studio-hint", children: "Agent \u4E0D\u80FD\u81EA\u5DF1\u628A\u4EFB\u52A1\u63A8\u5230\u201C\u5DF2\u5B8C\u6210\u201D\uFF1B\u5FC5\u987B\u7531\u9A8C\u6536\u4EBA\u52FE\u5B8C\u6240\u6709\u6807\u51C6\u3002" })
-        ] })
-      ] })
-    }
-  );
-}
-function RoleForm({
-  busy,
-  profiles,
-  onCancel,
-  onSubmit
-}) {
-  const [name2, setName] = (0, import_react5.useState)("");
-  const [title, setTitle] = (0, import_react5.useState)("");
-  const [mission, setMission] = (0, import_react5.useState)("");
-  const [responsibilities, setResponsibilities] = (0, import_react5.useState)("");
-  const [providerProfileId, setProviderProfileId] = (0, import_react5.useState)("");
-  const [model, setModel] = (0, import_react5.useState)("");
-  const [executor, setExecutor] = (0, import_react5.useState)("dsh");
-  const [tokenBudget, setTokenBudget] = (0, import_react5.useState)("");
-  const [dailyTokenBudget, setDailyTokenBudget] = (0, import_react5.useState)("");
-  const [localError, setLocalError] = (0, import_react5.useState)(null);
-  const submit = (event) => {
-    event.preventDefault();
-    if (name2.trim() === "") {
-      setLocalError("\u8BF7\u586B\u5199\u89D2\u8272\u540D");
-      return;
-    }
-    const parseBudget = (value, field) => {
-      if (value.trim() === "") return null;
-      const number = Number(value);
-      if (!Number.isSafeInteger(number) || number < 0) {
-        throw new Error(`${field} \u5FC5\u987B\u662F\u975E\u8D1F\u6574\u6570`);
-      }
-      return number === 0 ? null : number;
-    };
-    let budgets;
-    try {
-      budgets = {
-        tokenBudget: parseBudget(tokenBudget, "\u5355\u4EFB\u52A1 token \u9884\u7B97"),
-        dailyTokenBudget: parseBudget(dailyTokenBudget, "\u6BCF\u65E5 token \u9884\u7B97")
-      };
-    } catch (error) {
-      setLocalError(error instanceof Error ? error.message : String(error));
-      return;
-    }
-    setLocalError(null);
-    onSubmit({
-      name: name2.trim(),
-      title: title.trim(),
-      mission: mission.trim(),
-      responsibilities: responsibilities.split("\n").map((line) => line.trim()).filter(Boolean),
-      providerProfileId: providerProfileId || null,
-      model: model.trim() || null,
-      executor,
-      tokenBudget: budgets.tokenBudget,
-      dailyTokenBudget: budgets.dailyTokenBudget
-    });
-  };
-  return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-    ModalShell,
-    {
-      title: "\u65B0\u589E\u89D2\u8272",
-      subtitle: "\u89D2\u8272\u662F\u804C\u8D23\u5951\u7EA6\uFF0C\u4E0D\u662F\u4EBA\u8BBE\u3002\u5148\u5199\u6E05\u695A\u4F7F\u547D\u3001\u804C\u8D23\u548C\u8FB9\u754C\u3002",
-      onClose: onCancel,
-      footer: /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-modal-foot", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("button", { className: "studio-btn", type: "button", onClick: onCancel, disabled: busy, children: "\u53D6\u6D88" }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-          "button",
-          {
-            className: "studio-btn",
-            "data-variant": "primary",
-            type: "submit",
-            form: "studio-role-form",
-            disabled: busy,
-            children: busy ? "\u521B\u5EFA\u4E2D\u2026" : "\u521B\u5EFA\u89D2\u8272"
-          }
-        )
-      ] }),
-      children: /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("form", { id: "studio-role-form", className: "studio-modal-body", onSubmit: submit, children: [
-        localError !== null ? /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "studio-alert", children: localError }) : null,
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field-row", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "role-name", children: "\u89D2\u8272\u540D" }),
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-              "input",
-              {
-                id: "role-name",
-                value: name2,
-                onChange: (event) => setName(event.target.value),
-                placeholder: "Builder",
-                autoFocus: true
-              }
-            )
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "role-title", children: "\u804C\u4F4D" }),
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-              "input",
-              {
-                id: "role-title",
-                value: title,
-                onChange: (event) => setTitle(event.target.value),
-                placeholder: "Gameplay \u5DE5\u7A0B\u5E08"
-              }
-            )
-          ] })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "role-mission", children: "\u4F7F\u547D" }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-            "textarea",
-            {
-              id: "role-mission",
-              value: mission,
-              onChange: (event) => setMission(event.target.value),
-              placeholder: "\u8FD9\u4E2A\u89D2\u8272\u4E3A\u4EC0\u4E48\u5B58\u5728\uFF1F"
-            }
-          )
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "role-responsibilities", children: "\u804C\u8D23\uFF08\u6BCF\u884C\u4E00\u6761\uFF09" }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-            "textarea",
-            {
-              id: "role-responsibilities",
-              value: responsibilities,
-              onChange: (event) => setResponsibilities(event.target.value),
-              placeholder: "\u5B9E\u73B0\u6280\u80FD/\u79FB\u52A8/\u51B7\u5374\n\u8865\u5355\u6D4B\n\u7EF4\u62A4\u6784\u5EFA"
-            }
-          )
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "role-provider", children: "Provider Profile" }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
-            "select",
-            {
-              id: "role-provider",
-              value: providerProfileId,
-              onChange: (event) => setProviderProfileId(event.target.value),
-              children: [
-                /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("option", { value: "", children: "\u81EA\u5B9A\u4E49 / \u90E8\u7F72\u9ED8\u8BA4" }),
-                profiles.map((profile) => /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("option", { value: profile.id, children: profile.name }, profile.id))
-              ]
-            }
-          )
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "role-executor", children: "\u6267\u884C\u5668" }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
-            "select",
-            {
-              id: "role-executor",
-              value: executor,
-              onChange: (event) => setExecutor(event.target.value),
-              children: [
-                /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("option", { value: "dsh", children: AGENT_EXECUTOR_LABELS.dsh }),
-                /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("option", { value: "claude-code", children: AGENT_EXECUTOR_LABELS["claude-code"] }),
-                /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("option", { value: "codex", children: AGENT_EXECUTOR_LABELS.codex })
-              ]
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "studio-hint", children: "DSH \u8D70\u5185\u7F6E\u6A21\u578B\u8DEF\u7531\uFF1BClaude Code / Codex \u8D70\u672C\u673A headless CLI\uFF0C\u9700\u8981\u5148\u767B\u5F55\u5BF9\u5E94\u5DE5\u5177\u3002" })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "role-model", children: "\u6A21\u578B\uFF08\u53EF\u9009\uFF09" }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-            "input",
-            {
-              id: "role-model",
-              value: model,
-              onChange: (event) => setModel(event.target.value),
-              placeholder: "\u7559\u7A7A\u7EE7\u627F\u9ED8\u8BA4\u6A21\u578B\uFF0C\u4F8B\u5982 deepseek-flash"
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "studio-hint", children: "\u201C\u85AA\u8D44\u201D\u914D\u7F6E\uFF1A\u67B6\u6784\u5E08\u53EF\u4EE5\u7528\u66F4\u5F3A/\u66F4\u8D35\u7684\u6A21\u578B\uFF0C\u5B9E\u73B0\u8005\u7528\u66F4\u4FBF\u5B9C\u7684\u6A21\u578B\u3002" })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field-row", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "role-budget", children: "\u5355\u6B21\u4EFB\u52A1 token \u9884\u7B97" }),
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-              "input",
-              {
-                id: "role-budget",
-                inputMode: "numeric",
-                value: tokenBudget,
-                onChange: (event) => setTokenBudget(event.target.value),
-                placeholder: "\u7559\u7A7A = \u7EE7\u627F\u9879\u76EE\u9884\u7B97"
-              }
-            )
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "role-daily-budget", children: "\u6BCF\u65E5 token \u9884\u7B97" }),
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-              "input",
-              {
-                id: "role-daily-budget",
-                inputMode: "numeric",
-                value: dailyTokenBudget,
-                onChange: (event) => setDailyTokenBudget(event.target.value),
-                placeholder: "\u7559\u7A7A = \u4E0D\u9650\u5236"
-              }
-            )
-          ] })
-        ] })
-      ] })
-    }
-  );
-}
-function ProjectForm({
-  busy,
-  onCancel,
-  onSubmit,
-  onSubmitTemplate
-}) {
-  const [template, setTemplate] = (0, import_react5.useState)(
-    "blank"
-  );
-  const [name2, setName] = (0, import_react5.useState)("");
-  const [description, setDescription] = (0, import_react5.useState)("");
-  const [tokenBudget, setTokenBudget] = (0, import_react5.useState)("");
-  const [repoPath, setRepoPath] = (0, import_react5.useState)("");
-  const [localError, setLocalError] = (0, import_react5.useState)(null);
-  const submit = (event) => {
-    event.preventDefault();
-    if (name2.trim() === "") {
-      setLocalError("\u8BF7\u586B\u5199\u9879\u76EE\u540D");
-      return;
-    }
-    let budget = null;
-    if (tokenBudget.trim() !== "") {
-      const number = Number(tokenBudget);
-      if (!Number.isSafeInteger(number) || number < 0) {
-        setLocalError("token \u9884\u7B97\u5FC5\u987B\u662F\u975E\u8D1F\u6574\u6570");
-        return;
-      }
-      budget = number === 0 ? null : number;
-    }
-    setLocalError(null);
-    if (template !== "blank") {
-      onSubmitTemplate({
-        template,
-        name: name2.trim(),
-        description: description.trim(),
-        repoPath: repoPath.trim() || null
-      });
-      return;
-    }
-    onSubmit({
-      name: name2.trim(),
-      description: description.trim(),
-      tokenBudget: budget,
-      repoPath: repoPath.trim() || null
-    });
-  };
-  return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-    ModalShell,
-    {
-      title: "\u65B0\u5EFA\u9879\u76EE",
-      subtitle: "\u9879\u76EE\u662F\u4EFB\u52A1\u3001\u89D2\u8272\u548C\u4E8B\u5B9E\u7684\u8FB9\u754C\u3002",
-      onClose: onCancel,
-      footer: /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-modal-foot", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("button", { className: "studio-btn", type: "button", onClick: onCancel, disabled: busy, children: "\u53D6\u6D88" }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-          "button",
-          {
-            className: "studio-btn",
-            "data-variant": "primary",
-            type: "submit",
-            form: "studio-project-form",
-            disabled: busy,
-            children: busy ? "\u521B\u5EFA\u4E2D\u2026" : "\u521B\u5EFA\u9879\u76EE"
-          }
-        )
-      ] }),
-      children: /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("form", { id: "studio-project-form", className: "studio-modal-body", onSubmit: submit, children: [
-        localError !== null ? /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "studio-alert", children: localError }) : null,
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "project-template", children: "\u6A21\u677F" }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
-            "select",
-            {
-              id: "project-template",
-              value: template,
-              disabled: busy,
-              onChange: (event) => setTemplate(
-                event.target.value
-              ),
-              children: [
-                /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("option", { value: "blank", children: "\u7A7A\u767D\u9879\u76EE" }),
-                /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("option", { value: "web", children: "Web \u5E94\u7528\uFF08\u542B Lead/Builder/Verifier\uFF09" }),
-                /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("option", { value: "game", children: "\u6E38\u620F\u539F\u578B\uFF08\u542B Lead/Architect/Builder/Verifier\uFF09" }),
-                /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("option", { value: "tool", children: "CLI \u5DE5\u5177\uFF08\u542B Lead/Builder/Verifier\uFF09" })
-              ]
-            }
-          ),
-          template !== "blank" ? /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "studio-hint", children: "\u4F1A\u81EA\u52A8\u521B\u5EFA\u89D2\u8272\u548C\u9996\u6279\u4EFB\u52A1\uFF1BrepoPath \u53EF\u4EE5\u7A0D\u540E\u7ED1\u5B9A\u3002" }) : null
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "project-name", children: "\u9879\u76EE\u540D" }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-            "input",
-            {
-              id: "project-name",
-              value: name2,
-              onChange: (event) => setName(event.target.value),
-              placeholder: "\u4F8B\u5982\uFF1A\u5B98\u7F51\u6539\u7248 / \u5DE5\u5177\u94FE\u5347\u7EA7 / \u6570\u636E\u770B\u677F",
-              autoFocus: true
-            }
-          )
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "project-description", children: "\u4E00\u53E5\u8BDD\u63CF\u8FF0" }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-            "textarea",
-            {
-              id: "project-description",
-              value: description,
-              onChange: (event) => setDescription(event.target.value),
-              placeholder: "\u8FD9\u4E2A\u9879\u76EE\u8981\u9A8C\u8BC1\u4EC0\u4E48\uFF1F"
-            }
-          )
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "project-budget", children: "\u9879\u76EE token \u9884\u7B97\uFF08\u53EF\u9009\uFF09" }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-            "input",
-            {
-              id: "project-budget",
-              inputMode: "numeric",
-              value: tokenBudget,
-              onChange: (event) => setTokenBudget(event.target.value),
-              placeholder: "\u7559\u7A7A = \u4E0D\u9650\u5236\uFF1B\u4F8B\u5982 200000"
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "studio-hint", children: "\u8FD9\u662F\u516C\u53F8\u7ED9\u8BE5\u9879\u76EE\u7684 token \u4E0A\u9650\uFF1B\u5B9E\u9645\u6D88\u8017\u6765\u81EA DSH token meter\u3002" })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "project-repo", children: "\u4EE3\u7801\u4ED3\u5E93\uFF08\u53EF\u9009\uFF09" }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-            "input",
-            {
-              id: "project-repo",
-              value: repoPath,
-              onChange: (event) => setRepoPath(event.target.value),
-              placeholder: "\u4F8B\u5982 D:\\projects\\my-app"
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "studio-hint", children: "\u7ED1\u5B9A git \u4ED3\u5E93\u540E\uFF0C\u6D3E\u5355\u4F1A\u4E3A\u6BCF\u4E2A\u4EFB\u52A1\u521B\u5EFA\u72EC\u7ACB worktree \u548C\u5206\u652F\uFF1B\u4E0D\u7ED1\u5B9A\u5219\u53EA\u505A\u5206\u6790\u3002" })
-        ] })
-      ] })
-    }
-  );
-}
-function RepoForm({
-  initial,
-  busy,
-  onCancel,
-  onSubmit
-}) {
-  const [repoPath, setRepoPath] = (0, import_react5.useState)(initial);
-  return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-    ModalShell,
-    {
-      title: "\u7ED1\u5B9A\u4EE3\u7801\u4ED3\u5E93",
-      subtitle: "\u5FC5\u987B\u662F\u672C\u673A git \u4ED3\u5E93\u6839\u76EE\u5F55\u3002\u7ED1\u5B9A\u540E\u6D3E\u5355\u4F1A\u5728 .worktrees/<taskId> \u521B\u5EFA\u72EC\u7ACB\u5DE5\u4F5C\u533A\u3002",
-      onClose: onCancel,
-      footer: /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-modal-foot", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("button", { className: "studio-btn", type: "button", onClick: onCancel, disabled: busy, children: "\u53D6\u6D88" }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-          "button",
-          {
-            className: "studio-btn",
-            "data-variant": "primary",
-            type: "submit",
-            form: "studio-repo-form",
-            disabled: busy,
-            children: busy ? "\u4FDD\u5B58\u4E2D\u2026" : "\u4FDD\u5B58"
-          }
-        )
-      ] }),
-      children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-        "form",
-        {
-          id: "studio-repo-form",
-          className: "studio-modal-body",
-          onSubmit: (event) => {
-            event.preventDefault();
-            onSubmit(repoPath);
-          },
-          children: /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "repo-path", children: "\u4ED3\u5E93\u6839\u76EE\u5F55" }),
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-              "input",
-              {
-                id: "repo-path",
-                value: repoPath,
-                onChange: (event) => setRepoPath(event.target.value),
-                placeholder: "\u4F8B\u5982 D:\\projects\\my-app",
-                autoFocus: true
-              }
-            ),
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "studio-hint", children: "\u7559\u7A7A = \u89E3\u7ED1\uFF0C\u6D3E\u5355\u56DE\u5230\u53EA\u8BFB\u5206\u6790\u6A21\u5F0F\u3002Studio \u4E0D\u4F1A\u81EA\u52A8 push \u6216\u5408\u5E76\u3002" })
-          ] })
-        }
-      )
-    }
-  );
-}
-function DecisionForm({
-  tasks,
-  busy,
-  onCancel,
-  onSubmit
-}) {
-  const [title, setTitle] = (0, import_react5.useState)("");
-  const [context, setContext] = (0, import_react5.useState)("");
-  const [recommendation, setRecommendation] = (0, import_react5.useState)("");
-  const [taskId, setTaskId] = (0, import_react5.useState)("");
-  const [reversible, setReversible] = (0, import_react5.useState)(true);
-  const [localError, setLocalError] = (0, import_react5.useState)(null);
-  const submit = (event) => {
-    event.preventDefault();
-    if (title.trim() === "") {
-      setLocalError("\u8BF7\u586B\u5199\u51B3\u7B56\u6807\u9898");
-      return;
-    }
-    setLocalError(null);
-    onSubmit({
-      title: title.trim(),
-      context: context.trim(),
-      recommendation: recommendation.trim(),
-      taskId: taskId === "" ? null : taskId,
-      reversible
-    });
-  };
-  return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-    ModalShell,
-    {
-      title: "\u63D0\u51FA\u51B3\u7B56",
-      subtitle: "\u628A\u9700\u8981 Owner \u62CD\u677F\u7684\u4E8B\u9879\u653E\u8FDB\u51B3\u7B56\u53F0\uFF1BAgent \u7684\u9879\u76EE\u7EA7\u5EFA\u8BAE\u4E5F\u4F1A\u81EA\u52A8\u51FA\u73B0\u5728\u8FD9\u91CC\u3002",
-      onClose: onCancel,
-      footer: /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-modal-foot", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-          "button",
-          {
-            className: "studio-btn",
-            type: "button",
-            onClick: onCancel,
-            disabled: busy,
-            children: "\u53D6\u6D88"
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-          "button",
-          {
-            className: "studio-btn",
-            "data-variant": "primary",
-            type: "submit",
-            form: "studio-decision-form",
-            disabled: busy,
-            children: busy ? "\u63D0\u4EA4\u4E2D\u2026" : "\u653E\u5165\u51B3\u7B56\u53F0"
-          }
-        )
-      ] }),
-      children: /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("form", { id: "studio-decision-form", className: "studio-modal-body", onSubmit: submit, children: [
-        localError !== null ? /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className: "studio-alert", children: localError }) : null,
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "decision-title", children: "\u51B3\u7B56\u6807\u9898" }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-            "input",
-            {
-              id: "decision-title",
-              value: title,
-              onChange: (event) => setTitle(event.target.value),
-              placeholder: "\u4F8B\u5982\uFF1A\u662F\u5426\u628A replay \u6821\u9A8C\u7EB3\u5165\u5408\u5E76\u95E8\u7981\uFF1F",
-              autoFocus: true
-            }
-          )
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "decision-context", children: "\u80CC\u666F\u4E0E\u51B2\u7A81" }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-            "textarea",
-            {
-              id: "decision-context",
-              value: context,
-              onChange: (event) => setContext(event.target.value),
-              placeholder: "\u5199\u6E05\u695A\u53CC\u65B9\u76EE\u6807\u3001\u51B2\u7A81\u70B9\u3001\u5DF2\u5C1D\u8BD5\u7684\u65B9\u6848\u3002"
-            }
-          )
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "decision-recommendation", children: "\u5EFA\u8BAE\uFF08\u53EF\u9009\uFF09" }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-            "textarea",
-            {
-              id: "decision-recommendation",
-              value: recommendation,
-              onChange: (event) => setRecommendation(event.target.value),
-              placeholder: "Architect/Owner \u7684\u5EFA\u8BAE\uFF1B\u6CA1\u6709\u5C31\u7559\u7A7A\u3002"
-            }
-          )
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("label", { htmlFor: "decision-task", children: "\u5173\u8054\u4EFB\u52A1\uFF08\u53EF\u9009\uFF09" }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
-            "select",
-            {
-              id: "decision-task",
-              value: taskId,
-              onChange: (event) => setTaskId(event.target.value),
-              children: [
-                /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("option", { value: "", children: "\u9879\u76EE\u7EA7\uFF0C\u4E0D\u7ED1\u5B9A\u4EFB\u52A1" }),
-                tasks.map((task) => /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("option", { value: task.id, children: task.title }, task.id))
-              ]
-            }
-          )
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("label", { className: "studio-check", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-            "input",
-            {
-              type: "checkbox",
-              checked: !reversible,
-              onChange: (event) => setReversible(!event.target.checked)
-            }
-          ),
-          "\u4E0D\u53EF\u9006\u51B3\u7B56\uFF08\u6279\u51C6\u65F6\u5FC5\u987B\u5199\u660E\u7ED3\u8BBA\u548C\u7406\u7531\uFF09"
-        ] })
-      ] })
-    }
-  );
-}
 
 // src/client/components/RecentEvents.tsx
 var import_jsx_runtime9 = require("react/jsx-runtime");
@@ -3130,7 +2305,7 @@ function RecentEvents({ events }) {
 }
 
 // src/client/features/TriggerInbox.tsx
-var import_react6 = require("react");
+var import_react5 = require("react");
 var import_jsx_runtime10 = require("react/jsx-runtime");
 function TriggerInbox({
   project,
@@ -3141,26 +2316,26 @@ function TriggerInbox({
   onIgnore,
   onSaveRules
 }) {
-  const [source, setSource] = (0, import_react6.useState)("manual");
-  const [title, setTitle] = (0, import_react6.useState)("");
-  const [body, setBody] = (0, import_react6.useState)("");
-  const [threadKey, setThreadKey] = (0, import_react6.useState)("");
-  const [rulesEnabled, setRulesEnabled] = (0, import_react6.useState)(
+  const [source, setSource] = (0, import_react5.useState)("manual");
+  const [title, setTitle] = (0, import_react5.useState)("");
+  const [body, setBody] = (0, import_react5.useState)("");
+  const [threadKey, setThreadKey] = (0, import_react5.useState)("");
+  const [rulesEnabled, setRulesEnabled] = (0, import_react5.useState)(
     project.triggerRules.enabled
   );
-  const [ruleSources, setRuleSources] = (0, import_react6.useState)(
+  const [ruleSources, setRuleSources] = (0, import_react5.useState)(
     project.triggerRules.sources
   );
-  const [ruleRepos, setRuleRepos] = (0, import_react6.useState)(
+  const [ruleRepos, setRuleRepos] = (0, import_react5.useState)(
     project.triggerRules.repos.join("\n")
   );
-  const [ruleLabels, setRuleLabels] = (0, import_react6.useState)(
+  const [ruleLabels, setRuleLabels] = (0, import_react5.useState)(
     project.triggerRules.labels.join("\n")
   );
-  const [ruleAuthors, setRuleAuthors] = (0, import_react6.useState)(
+  const [ruleAuthors, setRuleAuthors] = (0, import_react5.useState)(
     project.triggerRules.authors.join("\n")
   );
-  const [ruleMention, setRuleMention] = (0, import_react6.useState)(
+  const [ruleMention, setRuleMention] = (0, import_react5.useState)(
     project.triggerRules.mention
   );
   const pending = triggers.filter((trigger) => trigger.status === "pending");
@@ -3397,7 +2572,7 @@ function TriggerInbox({
 }
 
 // src/client/features/StagePanel.tsx
-var import_react7 = require("react");
+var import_react6 = require("react");
 var import_jsx_runtime11 = require("react/jsx-runtime");
 function StagePanel({
   project,
@@ -3409,13 +2584,13 @@ function StagePanel({
   onReject
 }) {
   const nextStage = nextProjectStage(project.stage);
-  const [draft, setDraft] = (0, import_react7.useState)(gate);
-  const [artifactKind, setArtifactKind] = (0, import_react7.useState)("prd");
-  const [artifactLabel, setArtifactLabel] = (0, import_react7.useState)("");
-  const [artifactPath, setArtifactPath] = (0, import_react7.useState)("");
-  const [waiverReason, setWaiverReason] = (0, import_react7.useState)("");
-  const [rejectNote, setRejectNote] = (0, import_react7.useState)("");
-  (0, import_react7.useEffect)(() => {
+  const [draft, setDraft] = (0, import_react6.useState)(gate);
+  const [artifactKind, setArtifactKind] = (0, import_react6.useState)("prd");
+  const [artifactLabel, setArtifactLabel] = (0, import_react6.useState)("");
+  const [artifactPath, setArtifactPath] = (0, import_react6.useState)("");
+  const [waiverReason, setWaiverReason] = (0, import_react6.useState)("");
+  const [rejectNote, setRejectNote] = (0, import_react6.useState)("");
+  (0, import_react6.useEffect)(() => {
     setDraft(gate);
   }, [gate?.id, gate?.updatedAt]);
   const currentIndex = PROJECT_STAGE_ORDER.indexOf(project.stage);
@@ -3685,7 +2860,7 @@ function StagePanel({
 }
 
 // src/client/features/WorkshopPanel.tsx
-var import_react8 = require("react");
+var import_react7 = require("react");
 var import_jsx_runtime12 = require("react/jsx-runtime");
 function WorkshopPanel({
   project,
@@ -3703,20 +2878,20 @@ function WorkshopPanel({
     (workshop) => workshop.status === "collecting" || workshop.status === "synthesized"
   ) ?? null;
   const latest = workshops[0] ?? null;
-  const [title, setTitle] = (0, import_react8.useState)("");
-  const [topic, setTopic] = (0, import_react8.useState)("");
-  const [stage, setStage] = (0, import_react8.useState)(project.stage);
-  const [participants, setParticipants] = (0, import_react8.useState)(
+  const [title, setTitle] = (0, import_react7.useState)("");
+  const [topic, setTopic] = (0, import_react7.useState)("");
+  const [stage, setStage] = (0, import_react7.useState)(project.stage);
+  const [participants, setParticipants] = (0, import_react7.useState)(
     roles.map((role) => role.id)
   );
-  const [roleId, setRoleId] = (0, import_react8.useState)(active?.participantRoleIds[0] ?? "");
-  const [summary, setSummary] = (0, import_react8.useState)("");
-  const [objections, setObjections] = (0, import_react8.useState)("");
-  const [risks, setRisks] = (0, import_react8.useState)("");
-  const [recommendation, setRecommendation] = (0, import_react8.useState)("");
-  const [synthesis, setSynthesis] = (0, import_react8.useState)(active?.synthesis ?? "");
-  const [decision, setDecision] = (0, import_react8.useState)(active?.decision ?? "");
-  (0, import_react8.useEffect)(() => {
+  const [roleId, setRoleId] = (0, import_react7.useState)(active?.participantRoleIds[0] ?? "");
+  const [summary, setSummary] = (0, import_react7.useState)("");
+  const [objections, setObjections] = (0, import_react7.useState)("");
+  const [risks, setRisks] = (0, import_react7.useState)("");
+  const [recommendation, setRecommendation] = (0, import_react7.useState)("");
+  const [synthesis, setSynthesis] = (0, import_react7.useState)(active?.synthesis ?? "");
+  const [decision, setDecision] = (0, import_react7.useState)(active?.decision ?? "");
+  (0, import_react7.useEffect)(() => {
     setRoleId(active?.participantRoleIds[0] ?? "");
     setSynthesis(active?.synthesis ?? "");
     setDecision(active?.decision ?? "");
@@ -4043,7 +3218,7 @@ function WorkshopPanel({
 }
 
 // src/client/features/PrototypeDemoPanel.tsx
-var import_react9 = require("react");
+var import_react8 = require("react");
 var import_jsx_runtime13 = require("react/jsx-runtime");
 function PrototypeDemoPanel({
   project,
@@ -4052,13 +3227,13 @@ function PrototypeDemoPanel({
   onCreate,
   onUpdate
 }) {
-  const [title, setTitle] = (0, import_react9.useState)("");
-  const [entry, setEntry] = (0, import_react9.useState)("");
-  const [startCommand, setStartCommand] = (0, import_react9.useState)("");
-  const [steps, setSteps] = (0, import_react9.useState)("");
-  const [result, setResult] = (0, import_react9.useState)("passed");
-  const [screenshotPath, setScreenshotPath] = (0, import_react9.useState)("");
-  const [notes, setNotes] = (0, import_react9.useState)("");
+  const [title, setTitle] = (0, import_react8.useState)("");
+  const [entry, setEntry] = (0, import_react8.useState)("");
+  const [startCommand, setStartCommand] = (0, import_react8.useState)("");
+  const [steps, setSteps] = (0, import_react8.useState)("");
+  const [result, setResult] = (0, import_react8.useState)("passed");
+  const [screenshotPath, setScreenshotPath] = (0, import_react8.useState)("");
+  const [notes, setNotes] = (0, import_react8.useState)("");
   return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("section", { className: "studio-panel studio-demo-panel", children: [
     /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "studio-panel-head", children: [
       /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(IconSpark, { width: 14, height: 14 }),
@@ -4249,14 +3424,14 @@ function ModuleForm({
   onCancel,
   onSubmit
 }) {
-  const [name2, setName] = (0, import_react10.useState)("");
-  const [responsibility, setResponsibility] = (0, import_react10.useState)("");
-  const [contractPath, setContractPath] = (0, import_react10.useState)("");
-  const [contractText, setContractText] = (0, import_react10.useState)("");
-  const [allowedPaths, setAllowedPaths] = (0, import_react10.useState)("");
-  const [forbiddenPaths, setForbiddenPaths] = (0, import_react10.useState)("");
-  const [dependsOn, setDependsOn] = (0, import_react10.useState)("");
-  const [localError, setLocalError] = (0, import_react10.useState)(null);
+  const [name2, setName] = (0, import_react9.useState)("");
+  const [responsibility, setResponsibility] = (0, import_react9.useState)("");
+  const [contractPath, setContractPath] = (0, import_react9.useState)("");
+  const [contractText, setContractText] = (0, import_react9.useState)("");
+  const [allowedPaths, setAllowedPaths] = (0, import_react9.useState)("");
+  const [forbiddenPaths, setForbiddenPaths] = (0, import_react9.useState)("");
+  const [dependsOn, setDependsOn] = (0, import_react9.useState)("");
+  const [localError, setLocalError] = (0, import_react9.useState)(null);
   const submit = (event) => {
     event.preventDefault();
     if (name2.trim() === "") {
@@ -4693,13 +3868,13 @@ function MissionView({
 }
 
 // src/client/views/TasksView.tsx
-var import_react11 = require("react");
+var import_react10 = require("react");
 var import_jsx_runtime15 = require("react/jsx-runtime");
 function TasksView({
   data,
   onOpenTask
 }) {
-  const [filter, setFilter] = (0, import_react11.useState)("all");
+  const [filter, setFilter] = (0, import_react10.useState)("all");
   const tasks = filter === "all" ? data.tasks : data.tasks.filter((task) => task.status === filter);
   return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(import_jsx_runtime15.Fragment, { children: [
     /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className: "studio-page-head", children: /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { children: [
@@ -4759,7 +3934,7 @@ function TasksView({
 }
 
 // src/client/views/MergeView.tsx
-var import_react12 = require("react");
+var import_react11 = require("react");
 var import_jsx_runtime16 = require("react/jsx-runtime");
 function MergeView({
   data,
@@ -4838,8 +4013,8 @@ function MergeProposalCard({
   onReject,
   onComplete
 }) {
-  const [note, setNote] = (0, import_react12.useState)("");
-  const [commit, setCommit] = (0, import_react12.useState)("");
+  const [note, setNote] = (0, import_react11.useState)("");
+  const [commit, setCommit] = (0, import_react11.useState)("");
   return /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("article", { className: "studio-merge-card", "data-status": proposal.status, children: [
     /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("div", { className: "studio-merge-top", children: [
       /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(MergePill, { proposal }),
@@ -4949,7 +4124,7 @@ function MergeProposalCard({
 }
 
 // src/client/views/SettingsView.tsx
-var import_react13 = require("react");
+var import_react12 = require("react");
 var import_jsx_runtime17 = require("react/jsx-runtime");
 function SettingsView({
   boot,
@@ -4963,9 +4138,9 @@ function SettingsView({
   onBundle,
   onImportBundle
 }) {
-  const [companyName, setCompanyName] = (0, import_react13.useState)(data.company.name);
-  const [savingCompany, setSavingCompany] = (0, import_react13.useState)(false);
-  (0, import_react13.useEffect)(() => {
+  const [companyName, setCompanyName] = (0, import_react12.useState)(data.company.name);
+  const [savingCompany, setSavingCompany] = (0, import_react12.useState)(false);
+  (0, import_react12.useEffect)(() => {
     setCompanyName(data.company.name);
   }, [data.company.name]);
   return /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(import_jsx_runtime17.Fragment, { children: [
@@ -5269,10 +4444,10 @@ function MissingHost({
 }
 
 // src/client/components/TaskDrawer.tsx
-var import_react16 = require("react");
+var import_react15 = require("react");
 
 // src/client/components/TaskMergePanel.tsx
-var import_react14 = require("react");
+var import_react13 = require("react");
 var import_jsx_runtime19 = require("react/jsx-runtime");
 function TaskMergePanel({
   task,
@@ -5288,14 +4463,14 @@ function TaskMergePanel({
   onExecute,
   onRollback
 }) {
-  const [summary, setSummary] = (0, import_react14.useState)("");
-  const [branch, setBranch] = (0, import_react14.useState)(task.branch ?? "");
-  const [base, setBase] = (0, import_react14.useState)("main");
-  const [risk, setRisk] = (0, import_react14.useState)("medium");
-  const [rollback, setRollback] = (0, import_react14.useState)("");
-  const [reviewNote, setReviewNote] = (0, import_react14.useState)("");
-  const [mergeCommit, setMergeCommit] = (0, import_react14.useState)("");
-  const [localError, setLocalError] = (0, import_react14.useState)(null);
+  const [summary, setSummary] = (0, import_react13.useState)("");
+  const [branch, setBranch] = (0, import_react13.useState)(task.branch ?? "");
+  const [base, setBase] = (0, import_react13.useState)("main");
+  const [risk, setRisk] = (0, import_react13.useState)("medium");
+  const [rollback, setRollback] = (0, import_react13.useState)("");
+  const [reviewNote, setReviewNote] = (0, import_react13.useState)("");
+  const [mergeCommit, setMergeCommit] = (0, import_react13.useState)("");
+  const [localError, setLocalError] = (0, import_react13.useState)(null);
   const complete = allAccepted(task);
   const hasEvidence = task.evidence.length > 0;
   const reviewable = task.status === "done";
@@ -5620,7 +4795,7 @@ function TaskMergePanel({
 }
 
 // src/client/components/TaskRunPanels.tsx
-var import_react15 = require("react");
+var import_react14 = require("react");
 var import_jsx_runtime20 = require("react/jsx-runtime");
 function TaskReviewPanel({
   task,
@@ -5693,7 +4868,7 @@ function TaskVerificationPanel({
   busy,
   onVerify
 }) {
-  const [command, setCommand] = (0, import_react15.useState)(
+  const [command, setCommand] = (0, import_react14.useState)(
     task.verifyCommand ?? "npm test"
   );
   const latest = verifications[0] ?? null;
@@ -5894,7 +5069,7 @@ function TaskDrawer({
   onExecuteMerge,
   onRollbackMerge
 }) {
-  const [evidenceText, setEvidenceText] = (0, import_react16.useState)("");
+  const [evidenceText, setEvidenceText] = (0, import_react15.useState)("");
   const done = acceptanceDone(task);
   const total = task.acceptance.length;
   const complete = allAccepted(task);
@@ -6181,8 +5356,848 @@ function TaskDrawer({
   );
 }
 
-// src/client/StudioPage.tsx
+// src/client/forms/DecisionForm.tsx
+var import_react16 = require("react");
 var import_jsx_runtime22 = require("react/jsx-runtime");
+function DecisionForm({
+  tasks,
+  busy,
+  onCancel,
+  onSubmit
+}) {
+  const [title, setTitle] = (0, import_react16.useState)("");
+  const [context, setContext] = (0, import_react16.useState)("");
+  const [recommendation, setRecommendation] = (0, import_react16.useState)("");
+  const [taskId, setTaskId] = (0, import_react16.useState)("");
+  const [reversible, setReversible] = (0, import_react16.useState)(true);
+  const [localError, setLocalError] = (0, import_react16.useState)(null);
+  const submit = (event) => {
+    event.preventDefault();
+    if (title.trim() === "") {
+      setLocalError("\u8BF7\u586B\u5199\u51B3\u7B56\u6807\u9898");
+      return;
+    }
+    setLocalError(null);
+    onSubmit({
+      title: title.trim(),
+      context: context.trim(),
+      recommendation: recommendation.trim(),
+      taskId: taskId === "" ? null : taskId,
+      reversible
+    });
+  };
+  return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+    ModalShell,
+    {
+      title: "\u63D0\u51FA\u51B3\u7B56",
+      subtitle: "\u628A\u9700\u8981 Owner \u62CD\u677F\u7684\u4E8B\u9879\u653E\u8FDB\u51B3\u7B56\u53F0\uFF1BAgent \u7684\u9879\u76EE\u7EA7\u5EFA\u8BAE\u4E5F\u4F1A\u81EA\u52A8\u51FA\u73B0\u5728\u8FD9\u91CC\u3002",
+      onClose: onCancel,
+      footer: /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-modal-foot", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+          "button",
+          {
+            className: "studio-btn",
+            type: "button",
+            onClick: onCancel,
+            disabled: busy,
+            children: "\u53D6\u6D88"
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+          "button",
+          {
+            className: "studio-btn",
+            "data-variant": "primary",
+            type: "submit",
+            form: "studio-decision-form",
+            disabled: busy,
+            children: busy ? "\u63D0\u4EA4\u4E2D\u2026" : "\u653E\u5165\u51B3\u7B56\u53F0"
+          }
+        )
+      ] }),
+      children: /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("form", { id: "studio-decision-form", className: "studio-modal-body", onSubmit: submit, children: [
+        localError !== null ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "studio-alert", children: localError }) : null,
+        /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("label", { htmlFor: "decision-title", children: "\u51B3\u7B56\u6807\u9898" }),
+          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+            "input",
+            {
+              id: "decision-title",
+              value: title,
+              onChange: (event) => setTitle(event.target.value),
+              placeholder: "\u4F8B\u5982\uFF1A\u662F\u5426\u628A replay \u6821\u9A8C\u7EB3\u5165\u5408\u5E76\u95E8\u7981\uFF1F",
+              autoFocus: true
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("label", { htmlFor: "decision-context", children: "\u80CC\u666F\u4E0E\u51B2\u7A81" }),
+          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+            "textarea",
+            {
+              id: "decision-context",
+              value: context,
+              onChange: (event) => setContext(event.target.value),
+              placeholder: "\u5199\u6E05\u695A\u53CC\u65B9\u76EE\u6807\u3001\u51B2\u7A81\u70B9\u3001\u5DF2\u5C1D\u8BD5\u7684\u65B9\u6848\u3002"
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("label", { htmlFor: "decision-recommendation", children: "\u5EFA\u8BAE\uFF08\u53EF\u9009\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+            "textarea",
+            {
+              id: "decision-recommendation",
+              value: recommendation,
+              onChange: (event) => setRecommendation(event.target.value),
+              placeholder: "Architect/Owner \u7684\u5EFA\u8BAE\uFF1B\u6CA1\u6709\u5C31\u7559\u7A7A\u3002"
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("label", { htmlFor: "decision-task", children: "\u5173\u8054\u4EFB\u52A1\uFF08\u53EF\u9009\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
+            "select",
+            {
+              id: "decision-task",
+              value: taskId,
+              onChange: (event) => setTaskId(event.target.value),
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("option", { value: "", children: "\u9879\u76EE\u7EA7\uFF0C\u4E0D\u7ED1\u5B9A\u4EFB\u52A1" }),
+                tasks.map((task) => /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("option", { value: task.id, children: task.title }, task.id))
+              ]
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("label", { className: "studio-check", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+            "input",
+            {
+              type: "checkbox",
+              checked: !reversible,
+              onChange: (event) => setReversible(!event.target.checked)
+            }
+          ),
+          "\u4E0D\u53EF\u9006\u51B3\u7B56\uFF08\u6279\u51C6\u65F6\u5FC5\u987B\u5199\u660E\u7ED3\u8BBA\u548C\u7406\u7531\uFF09"
+        ] })
+      ] })
+    }
+  );
+}
+
+// src/client/forms/ProjectForms.tsx
+var import_react17 = require("react");
+var import_jsx_runtime23 = require("react/jsx-runtime");
+function ProjectForm({
+  busy,
+  onCancel,
+  onSubmit,
+  onSubmitTemplate
+}) {
+  const [template, setTemplate] = (0, import_react17.useState)(
+    "blank"
+  );
+  const [name2, setName] = (0, import_react17.useState)("");
+  const [description, setDescription] = (0, import_react17.useState)("");
+  const [tokenBudget, setTokenBudget] = (0, import_react17.useState)("");
+  const [repoPath, setRepoPath] = (0, import_react17.useState)("");
+  const [localError, setLocalError] = (0, import_react17.useState)(null);
+  const submit = (event) => {
+    event.preventDefault();
+    if (name2.trim() === "") {
+      setLocalError("\u8BF7\u586B\u5199\u9879\u76EE\u540D");
+      return;
+    }
+    let budget = null;
+    if (tokenBudget.trim() !== "") {
+      const number = Number(tokenBudget);
+      if (!Number.isSafeInteger(number) || number < 0) {
+        setLocalError("token \u9884\u7B97\u5FC5\u987B\u662F\u975E\u8D1F\u6574\u6570");
+        return;
+      }
+      budget = number === 0 ? null : number;
+    }
+    setLocalError(null);
+    if (template !== "blank") {
+      onSubmitTemplate({
+        template,
+        name: name2.trim(),
+        description: description.trim(),
+        repoPath: repoPath.trim() || null
+      });
+      return;
+    }
+    onSubmit({
+      name: name2.trim(),
+      description: description.trim(),
+      tokenBudget: budget,
+      repoPath: repoPath.trim() || null
+    });
+  };
+  return /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
+    ModalShell,
+    {
+      title: "\u65B0\u5EFA\u9879\u76EE",
+      subtitle: "\u9879\u76EE\u662F\u4EFB\u52A1\u3001\u89D2\u8272\u548C\u4E8B\u5B9E\u7684\u8FB9\u754C\u3002",
+      onClose: onCancel,
+      footer: /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "studio-modal-foot", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("button", { className: "studio-btn", type: "button", onClick: onCancel, disabled: busy, children: "\u53D6\u6D88" }),
+        /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
+          "button",
+          {
+            className: "studio-btn",
+            "data-variant": "primary",
+            type: "submit",
+            form: "studio-project-form",
+            disabled: busy,
+            children: busy ? "\u521B\u5EFA\u4E2D\u2026" : "\u521B\u5EFA\u9879\u76EE"
+          }
+        )
+      ] }),
+      children: /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("form", { id: "studio-project-form", className: "studio-modal-body", onSubmit: submit, children: [
+        localError !== null ? /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { className: "studio-alert", children: localError }) : null,
+        /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("label", { htmlFor: "project-template", children: "\u6A21\u677F" }),
+          /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)(
+            "select",
+            {
+              id: "project-template",
+              value: template,
+              disabled: busy,
+              onChange: (event) => setTemplate(
+                event.target.value
+              ),
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("option", { value: "blank", children: "\u7A7A\u767D\u9879\u76EE" }),
+                /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("option", { value: "web", children: "Web \u5E94\u7528\uFF08\u542B Lead/Builder/Verifier\uFF09" }),
+                /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("option", { value: "game", children: "\u6E38\u620F\u539F\u578B\uFF08\u542B Lead/Architect/Builder/Verifier\uFF09" }),
+                /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("option", { value: "tool", children: "CLI \u5DE5\u5177\uFF08\u542B Lead/Builder/Verifier\uFF09" })
+              ]
+            }
+          ),
+          template !== "blank" ? /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { className: "studio-hint", children: "\u4F1A\u81EA\u52A8\u521B\u5EFA\u89D2\u8272\u548C\u9996\u6279\u4EFB\u52A1\uFF1BrepoPath \u53EF\u4EE5\u7A0D\u540E\u7ED1\u5B9A\u3002" }) : null
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("label", { htmlFor: "project-name", children: "\u9879\u76EE\u540D" }),
+          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
+            "input",
+            {
+              id: "project-name",
+              value: name2,
+              onChange: (event) => setName(event.target.value),
+              placeholder: "\u4F8B\u5982\uFF1A\u5B98\u7F51\u6539\u7248 / \u5DE5\u5177\u94FE\u5347\u7EA7 / \u6570\u636E\u770B\u677F",
+              autoFocus: true
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("label", { htmlFor: "project-description", children: "\u4E00\u53E5\u8BDD\u63CF\u8FF0" }),
+          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
+            "textarea",
+            {
+              id: "project-description",
+              value: description,
+              onChange: (event) => setDescription(event.target.value),
+              placeholder: "\u8FD9\u4E2A\u9879\u76EE\u8981\u9A8C\u8BC1\u4EC0\u4E48\uFF1F"
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("label", { htmlFor: "project-budget", children: "\u9879\u76EE token \u9884\u7B97\uFF08\u53EF\u9009\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
+            "input",
+            {
+              id: "project-budget",
+              inputMode: "numeric",
+              value: tokenBudget,
+              onChange: (event) => setTokenBudget(event.target.value),
+              placeholder: "\u7559\u7A7A = \u4E0D\u9650\u5236\uFF1B\u4F8B\u5982 200000"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { className: "studio-hint", children: "\u8FD9\u662F\u516C\u53F8\u7ED9\u8BE5\u9879\u76EE\u7684 token \u4E0A\u9650\uFF1B\u5B9E\u9645\u6D88\u8017\u6765\u81EA DSH token meter\u3002" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("label", { htmlFor: "project-repo", children: "\u4EE3\u7801\u4ED3\u5E93\uFF08\u53EF\u9009\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
+            "input",
+            {
+              id: "project-repo",
+              value: repoPath,
+              onChange: (event) => setRepoPath(event.target.value),
+              placeholder: "\u4F8B\u5982 D:\\projects\\my-app"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { className: "studio-hint", children: "\u7ED1\u5B9A git \u4ED3\u5E93\u540E\uFF0C\u6D3E\u5355\u4F1A\u4E3A\u6BCF\u4E2A\u4EFB\u52A1\u521B\u5EFA\u72EC\u7ACB worktree \u548C\u5206\u652F\uFF1B\u4E0D\u7ED1\u5B9A\u5219\u53EA\u505A\u5206\u6790\u3002" })
+        ] })
+      ] })
+    }
+  );
+}
+function RepoForm({
+  initial,
+  busy,
+  onCancel,
+  onSubmit
+}) {
+  const [repoPath, setRepoPath] = (0, import_react17.useState)(initial);
+  return /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
+    ModalShell,
+    {
+      title: "\u7ED1\u5B9A\u4EE3\u7801\u4ED3\u5E93",
+      subtitle: "\u5FC5\u987B\u662F\u672C\u673A git \u4ED3\u5E93\u6839\u76EE\u5F55\u3002\u7ED1\u5B9A\u540E\u6D3E\u5355\u4F1A\u5728 .worktrees/<taskId> \u521B\u5EFA\u72EC\u7ACB\u5DE5\u4F5C\u533A\u3002",
+      onClose: onCancel,
+      footer: /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "studio-modal-foot", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("button", { className: "studio-btn", type: "button", onClick: onCancel, disabled: busy, children: "\u53D6\u6D88" }),
+        /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
+          "button",
+          {
+            className: "studio-btn",
+            "data-variant": "primary",
+            type: "submit",
+            form: "studio-repo-form",
+            disabled: busy,
+            children: busy ? "\u4FDD\u5B58\u4E2D\u2026" : "\u4FDD\u5B58"
+          }
+        )
+      ] }),
+      children: /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
+        "form",
+        {
+          id: "studio-repo-form",
+          className: "studio-modal-body",
+          onSubmit: (event) => {
+            event.preventDefault();
+            onSubmit(repoPath);
+          },
+          children: /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("label", { htmlFor: "repo-path", children: "\u4ED3\u5E93\u6839\u76EE\u5F55" }),
+            /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
+              "input",
+              {
+                id: "repo-path",
+                value: repoPath,
+                onChange: (event) => setRepoPath(event.target.value),
+                placeholder: "\u4F8B\u5982 D:\\projects\\my-app",
+                autoFocus: true
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { className: "studio-hint", children: "\u7559\u7A7A = \u89E3\u7ED1\uFF0C\u6D3E\u5355\u56DE\u5230\u53EA\u8BFB\u5206\u6790\u6A21\u5F0F\u3002Studio \u4E0D\u4F1A\u81EA\u52A8 push \u6216\u5408\u5E76\u3002" })
+          ] })
+        }
+      )
+    }
+  );
+}
+
+// src/client/forms/RoleForm.tsx
+var import_react18 = require("react");
+var import_jsx_runtime24 = require("react/jsx-runtime");
+function RoleForm({
+  busy,
+  profiles,
+  onCancel,
+  onSubmit
+}) {
+  const [name2, setName] = (0, import_react18.useState)("");
+  const [title, setTitle] = (0, import_react18.useState)("");
+  const [mission, setMission] = (0, import_react18.useState)("");
+  const [responsibilities, setResponsibilities] = (0, import_react18.useState)("");
+  const [providerProfileId, setProviderProfileId] = (0, import_react18.useState)("");
+  const [model, setModel] = (0, import_react18.useState)("");
+  const [executor, setExecutor] = (0, import_react18.useState)("dsh");
+  const [tokenBudget, setTokenBudget] = (0, import_react18.useState)("");
+  const [dailyTokenBudget, setDailyTokenBudget] = (0, import_react18.useState)("");
+  const [localError, setLocalError] = (0, import_react18.useState)(null);
+  const submit = (event) => {
+    event.preventDefault();
+    if (name2.trim() === "") {
+      setLocalError("\u8BF7\u586B\u5199\u89D2\u8272\u540D");
+      return;
+    }
+    const parseBudget = (value, field) => {
+      if (value.trim() === "") return null;
+      const number = Number(value);
+      if (!Number.isSafeInteger(number) || number < 0) {
+        throw new Error(`${field} \u5FC5\u987B\u662F\u975E\u8D1F\u6574\u6570`);
+      }
+      return number === 0 ? null : number;
+    };
+    let budgets;
+    try {
+      budgets = {
+        tokenBudget: parseBudget(tokenBudget, "\u5355\u4EFB\u52A1 token \u9884\u7B97"),
+        dailyTokenBudget: parseBudget(dailyTokenBudget, "\u6BCF\u65E5 token \u9884\u7B97")
+      };
+    } catch (error) {
+      setLocalError(error instanceof Error ? error.message : String(error));
+      return;
+    }
+    setLocalError(null);
+    onSubmit({
+      name: name2.trim(),
+      title: title.trim(),
+      mission: mission.trim(),
+      responsibilities: responsibilities.split("\n").map((line) => line.trim()).filter(Boolean),
+      providerProfileId: providerProfileId || null,
+      model: model.trim() || null,
+      executor,
+      tokenBudget: budgets.tokenBudget,
+      dailyTokenBudget: budgets.dailyTokenBudget
+    });
+  };
+  return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+    ModalShell,
+    {
+      title: "\u65B0\u589E\u89D2\u8272",
+      subtitle: "\u89D2\u8272\u662F\u804C\u8D23\u5951\u7EA6\uFF0C\u4E0D\u662F\u4EBA\u8BBE\u3002\u5148\u5199\u6E05\u695A\u4F7F\u547D\u3001\u804C\u8D23\u548C\u8FB9\u754C\u3002",
+      onClose: onCancel,
+      footer: /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-modal-foot", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("button", { className: "studio-btn", type: "button", onClick: onCancel, disabled: busy, children: "\u53D6\u6D88" }),
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+          "button",
+          {
+            className: "studio-btn",
+            "data-variant": "primary",
+            type: "submit",
+            form: "studio-role-form",
+            disabled: busy,
+            children: busy ? "\u521B\u5EFA\u4E2D\u2026" : "\u521B\u5EFA\u89D2\u8272"
+          }
+        )
+      ] }),
+      children: /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("form", { id: "studio-role-form", className: "studio-modal-body", onSubmit: submit, children: [
+        localError !== null ? /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "studio-alert", children: localError }) : null,
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "role-name", children: "\u89D2\u8272\u540D" }),
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+              "input",
+              {
+                id: "role-name",
+                value: name2,
+                onChange: (event) => setName(event.target.value),
+                placeholder: "Builder",
+                autoFocus: true
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "role-title", children: "\u804C\u4F4D" }),
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+              "input",
+              {
+                id: "role-title",
+                value: title,
+                onChange: (event) => setTitle(event.target.value),
+                placeholder: "Gameplay \u5DE5\u7A0B\u5E08"
+              }
+            )
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "role-mission", children: "\u4F7F\u547D" }),
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+            "textarea",
+            {
+              id: "role-mission",
+              value: mission,
+              onChange: (event) => setMission(event.target.value),
+              placeholder: "\u8FD9\u4E2A\u89D2\u8272\u4E3A\u4EC0\u4E48\u5B58\u5728\uFF1F"
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "role-responsibilities", children: "\u804C\u8D23\uFF08\u6BCF\u884C\u4E00\u6761\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+            "textarea",
+            {
+              id: "role-responsibilities",
+              value: responsibilities,
+              onChange: (event) => setResponsibilities(event.target.value),
+              placeholder: "\u5B9E\u73B0\u6280\u80FD/\u79FB\u52A8/\u51B7\u5374\n\u8865\u5355\u6D4B\n\u7EF4\u62A4\u6784\u5EFA"
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "role-provider", children: "Provider Profile" }),
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(
+            "select",
+            {
+              id: "role-provider",
+              value: providerProfileId,
+              onChange: (event) => setProviderProfileId(event.target.value),
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("option", { value: "", children: "\u81EA\u5B9A\u4E49 / \u90E8\u7F72\u9ED8\u8BA4" }),
+                profiles.map((profile) => /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("option", { value: profile.id, children: profile.name }, profile.id))
+              ]
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "role-executor", children: "\u6267\u884C\u5668" }),
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(
+            "select",
+            {
+              id: "role-executor",
+              value: executor,
+              onChange: (event) => setExecutor(event.target.value),
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("option", { value: "dsh", children: AGENT_EXECUTOR_LABELS.dsh }),
+                /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("option", { value: "claude-code", children: AGENT_EXECUTOR_LABELS["claude-code"] }),
+                /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("option", { value: "codex", children: AGENT_EXECUTOR_LABELS.codex })
+              ]
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "studio-hint", children: "DSH \u8D70\u5185\u7F6E\u6A21\u578B\u8DEF\u7531\uFF1BClaude Code / Codex \u8D70\u672C\u673A headless CLI\uFF0C\u9700\u8981\u5148\u767B\u5F55\u5BF9\u5E94\u5DE5\u5177\u3002" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "role-model", children: "\u6A21\u578B\uFF08\u53EF\u9009\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+            "input",
+            {
+              id: "role-model",
+              value: model,
+              onChange: (event) => setModel(event.target.value),
+              placeholder: "\u7559\u7A7A\u7EE7\u627F\u9ED8\u8BA4\u6A21\u578B\uFF0C\u4F8B\u5982 deepseek-flash"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "studio-hint", children: "\u201C\u85AA\u8D44\u201D\u914D\u7F6E\uFF1A\u67B6\u6784\u5E08\u53EF\u4EE5\u7528\u66F4\u5F3A/\u66F4\u8D35\u7684\u6A21\u578B\uFF0C\u5B9E\u73B0\u8005\u7528\u66F4\u4FBF\u5B9C\u7684\u6A21\u578B\u3002" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "role-budget", children: "\u5355\u6B21\u4EFB\u52A1 token \u9884\u7B97" }),
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+              "input",
+              {
+                id: "role-budget",
+                inputMode: "numeric",
+                value: tokenBudget,
+                onChange: (event) => setTokenBudget(event.target.value),
+                placeholder: "\u7559\u7A7A = \u7EE7\u627F\u9879\u76EE\u9884\u7B97"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "role-daily-budget", children: "\u6BCF\u65E5 token \u9884\u7B97" }),
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+              "input",
+              {
+                id: "role-daily-budget",
+                inputMode: "numeric",
+                value: dailyTokenBudget,
+                onChange: (event) => setDailyTokenBudget(event.target.value),
+                placeholder: "\u7559\u7A7A = \u4E0D\u9650\u5236"
+              }
+            )
+          ] })
+        ] })
+      ] })
+    }
+  );
+}
+
+// src/client/forms/TaskForm.tsx
+var import_react19 = require("react");
+var import_jsx_runtime25 = require("react/jsx-runtime");
+function TaskForm({
+  roles,
+  busy,
+  onCancel,
+  onSubmit
+}) {
+  const [title, setTitle] = (0, import_react19.useState)("");
+  const [goal, setGoal] = (0, import_react19.useState)("");
+  const [priority, setPriority] = (0, import_react19.useState)("P1");
+  const [ownerRoleId, setOwnerRoleId] = (0, import_react19.useState)(roles[0]?.id ?? "");
+  const [reviewerRoleId, setReviewerRoleId] = (0, import_react19.useState)(
+    roles[1]?.id ?? roles[0]?.id ?? ""
+  );
+  const [acceptanceText, setAcceptanceText] = (0, import_react19.useState)("");
+  const [branch, setBranch] = (0, import_react19.useState)("");
+  const [verifyCommand, setVerifyCommand] = (0, import_react19.useState)("npm test");
+  const [moduleName, setModuleName] = (0, import_react19.useState)("");
+  const [contractRef, setContractRef] = (0, import_react19.useState)("");
+  const [requirementRefs, setRequirementRefs] = (0, import_react19.useState)("");
+  const [kind, setKind] = (0, import_react19.useState)("new");
+  const [diagnosis, setDiagnosis] = (0, import_react19.useState)("");
+  const [plan, setPlan] = (0, import_react19.useState)("");
+  const [integration, setIntegration] = (0, import_react19.useState)(false);
+  const [localError, setLocalError] = (0, import_react19.useState)(null);
+  const submit = (event) => {
+    event.preventDefault();
+    const acceptance = acceptanceText.split("\n").map((line) => line.trim()).filter(Boolean);
+    if (title.trim() === "") {
+      setLocalError("\u8BF7\u586B\u5199\u4EFB\u52A1\u6807\u9898");
+      return;
+    }
+    if (acceptance.length === 0) {
+      setLocalError("\u81F3\u5C11\u5199\u4E00\u6761\u53EF\u9A8C\u8BC1\u7684\u9A8C\u6536\u6807\u51C6");
+      return;
+    }
+    if (ownerRoleId === reviewerRoleId) {
+      setLocalError("\u8D1F\u8D23\u4EBA\u548C\u9A8C\u6536\u4EBA\u6700\u597D\u662F\u4E0D\u540C\u89D2\u8272");
+      return;
+    }
+    if (kind === "fix" && (diagnosis.trim() === "" || plan.trim() === "")) {
+      setLocalError("\u6539\u4FEE\u7968\u5FC5\u987B\u5199\u8BCA\u65AD\u548C\u4FEE\u6539\u8BA1\u5212");
+      return;
+    }
+    setLocalError(null);
+    onSubmit({
+      title: title.trim(),
+      goal: goal.trim(),
+      priority,
+      ownerRoleId: ownerRoleId || null,
+      reviewerRoleId: reviewerRoleId || null,
+      acceptance,
+      branch: branch.trim() || null,
+      verifyCommand: verifyCommand.trim() || null,
+      module: moduleName.trim() || null,
+      contractRef: contractRef.trim() || null,
+      requirementRefs: requirementRefs.split(/[\n,]/u).map((line) => line.trim()).filter(Boolean),
+      kind,
+      diagnosis: diagnosis.trim(),
+      plan: plan.trim(),
+      integration
+    });
+  };
+  return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+    ModalShell,
+    {
+      title: "\u65B0\u5EFA\u4EFB\u52A1",
+      subtitle: "\u4EFB\u52A1\u4E00\u5F00\u59CB\u5C31\u8981\u6709\u9A8C\u6536\u6807\u51C6\uFF1B\u5B8C\u6210\u7531\u8BC1\u636E\u548C\u72EC\u7ACB\u9A8C\u6536\u51B3\u5B9A\u3002",
+      onClose: onCancel,
+      footer: /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-modal-foot", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("button", { className: "studio-btn", type: "button", onClick: onCancel, disabled: busy, children: "\u53D6\u6D88" }),
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+          "button",
+          {
+            className: "studio-btn",
+            "data-variant": "primary",
+            type: "submit",
+            form: "studio-task-form",
+            disabled: busy,
+            children: busy ? "\u521B\u5EFA\u4E2D\u2026" : "\u521B\u5EFA\u4EFB\u52A1"
+          }
+        )
+      ] }),
+      children: /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("form", { id: "studio-task-form", className: "studio-modal-body", onSubmit: submit, children: [
+        localError !== null ? /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "studio-alert", children: localError }) : null,
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-title", children: "\u6807\u9898" }),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+            "input",
+            {
+              id: "task-title",
+              value: title,
+              onChange: (event) => setTitle(event.target.value),
+              placeholder: "\u4F8B\u5982\uFF1A\u5B9E\u73B0\u6280\u80FD\u51B7\u5374\u4E0E\u65BD\u6CD5\u524D\u6447",
+              autoFocus: true
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-goal", children: "\u76EE\u6807" }),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+            "textarea",
+            {
+              id: "task-goal",
+              value: goal,
+              onChange: (event) => setGoal(event.target.value),
+              placeholder: "\u8FD9\u4E2A\u4EFB\u52A1\u8981\u89E3\u51B3\u4EC0\u4E48\u95EE\u9898\uFF1F\u4EA4\u4ED8\u4EC0\u4E48\uFF1F"
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-priority", children: "\u4F18\u5148\u7EA7" }),
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)(
+              "select",
+              {
+                id: "task-priority",
+                value: priority,
+                onChange: (event) => setPriority(event.target.value),
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("option", { value: "P0", children: PRIORITY_LABELS.P0 }),
+                  /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("option", { value: "P1", children: PRIORITY_LABELS.P1 }),
+                  /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("option", { value: "P2", children: PRIORITY_LABELS.P2 })
+                ]
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-branch", children: "\u5206\u652F\uFF08\u53EF\u9009\uFF09" }),
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+              "input",
+              {
+                id: "task-branch",
+                value: branch,
+                onChange: (event) => setBranch(event.target.value),
+                placeholder: "task/003-ability"
+              }
+            )
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-verify", children: "\u9A8C\u8BC1\u547D\u4EE4\uFF08\u53EF\u9009\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+            "input",
+            {
+              id: "task-verify",
+              value: verifyCommand,
+              onChange: (event) => setVerifyCommand(event.target.value),
+              placeholder: "npm test"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "studio-hint", children: "\u7531 Studio Host \u5728 worktree \u5185\u72EC\u7ACB\u6267\u884C\uFF1B\u901A\u8FC7\u4F1A\u5199 evidence\uFF0C\u4F46\u4E0D\u81EA\u52A8\u901A\u8FC7\u9A8C\u6536\u3002" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-kind", children: "\u7968\u7C7B\u578B" }),
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)(
+              "select",
+              {
+                id: "task-kind",
+                value: kind,
+                onChange: (event) => setKind(event.target.value),
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("option", { value: "new", children: TASK_KIND_LABELS.new }),
+                  /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("option", { value: "fix", children: TASK_KIND_LABELS.fix })
+                ]
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-module", children: "\u6A21\u5757" }),
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+              "input",
+              {
+                id: "task-module",
+                value: moduleName,
+                onChange: (event) => setModuleName(event.target.value),
+                placeholder: "combat / input / replay"
+              }
+            )
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-diagnosis", children: "\u8BCA\u65AD\uFF08\u6539\u4FEE\u7968\u5FC5\u586B\uFF09" }),
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+              "textarea",
+              {
+                id: "task-diagnosis",
+                value: diagnosis,
+                onChange: (event) => setDiagnosis(event.target.value),
+                rows: 3,
+                placeholder: "\u73B0\u8C61\u3001\u590D\u73B0\u6B65\u9AA4\u3001\u521D\u6B65\u6839\u56E0"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-plan", children: "\u4FEE\u6539\u8BA1\u5212\uFF08\u6539\u4FEE\u7968\u5FC5\u586B\uFF09" }),
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+              "textarea",
+              {
+                id: "task-plan",
+                value: plan,
+                onChange: (event) => setPlan(event.target.value),
+                rows: 3,
+                placeholder: "\u8981\u6539\u54EA\u4E9B\u6587\u4EF6\u3001\u600E\u4E48\u9A8C\u8BC1\u3001\u98CE\u9669"
+              }
+            )
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-contract", children: "\u5951\u7EA6\u5F15\u7528" }),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+            "input",
+            {
+              id: "task-contract",
+              value: contractRef,
+              onChange: (event) => setContractRef(event.target.value),
+              placeholder: "docs/contracts/replay-v1.md"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "studio-hint", children: "\u5B9E\u73B0\u8005\u53EA\u5E94\u4FEE\u6539\u8FD9\u4E2A\u5951\u7EA6\u5141\u8BB8\u7684\u8303\u56F4\uFF1B\u6539\u5951\u7EA6\u672C\u8EAB\u8981\u8D70\u67B6\u6784\u5E08/Owner\u3002" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-requirements", children: "\u9700\u6C42\u5F15\u7528\uFF08\u53EF\u9009\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+            "input",
+            {
+              id: "task-requirements",
+              value: requirementRefs,
+              onChange: (event) => setRequirementRefs(event.target.value),
+              placeholder: "PRD-3.2, REQ-AUTH-01"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "studio-hint", children: "\u6307\u5411 PRD \u6761\u76EE\u6216\u9700\u6C42 ID\uFF0C\u65B9\u4FBF\u4ECE\u4EFB\u52A1\u8FFD\u6EAF\u56DE\u9700\u6C42\u3002" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("label", { className: "studio-check", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+            "input",
+            {
+              type: "checkbox",
+              checked: integration,
+              onChange: (event) => setIntegration(event.target.checked)
+            }
+          ),
+          "\u96C6\u6210 / playtest ticket\uFF08\u6253\u5305\u53EF\u73A9 + \u4EBA\u73A9 10 \u5206\u949F\uFF09"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-owner", children: "\u8D1F\u8D23\u4EBA" }),
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+              "select",
+              {
+                id: "task-owner",
+                value: ownerRoleId,
+                onChange: (event) => setOwnerRoleId(event.target.value),
+                children: roles.map((role) => /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("option", { value: role.id, children: [
+                  role.name,
+                  role.title ? ` \xB7 ${role.title}` : ""
+                ] }, role.id))
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-reviewer", children: "\u9A8C\u6536\u4EBA" }),
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+              "select",
+              {
+                id: "task-reviewer",
+                value: reviewerRoleId,
+                onChange: (event) => setReviewerRoleId(event.target.value),
+                children: roles.map((role) => /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("option", { value: role.id, children: [
+                  role.name,
+                  role.title ? ` \xB7 ${role.title}` : ""
+                ] }, role.id))
+              }
+            )
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-acceptance", children: "\u9A8C\u6536\u6807\u51C6\uFF08\u6BCF\u884C\u4E00\u6761\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+            "textarea",
+            {
+              id: "task-acceptance",
+              value: acceptanceText,
+              onChange: (event) => setAcceptanceText(event.target.value),
+              placeholder: "\u51B7\u5374\u6309 tick \u8BA1\u7B97\n\u524D\u6447\u53EF\u88AB\u63A7\u5236\u6253\u65AD\n\u5355\u6D4B\u8986\u76D6\u8FB9\u754C",
+              style: { minHeight: 96 }
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "studio-hint", children: "Agent \u4E0D\u80FD\u81EA\u5DF1\u628A\u4EFB\u52A1\u63A8\u5230\u201C\u5DF2\u5B8C\u6210\u201D\uFF1B\u5FC5\u987B\u7531\u9A8C\u6536\u4EBA\u52FE\u5B8C\u6240\u6709\u6807\u51C6\u3002" })
+        ] })
+      ] })
+    }
+  );
+}
+
+// src/client/StudioPage.tsx
+var import_jsx_runtime26 = require("react/jsx-runtime");
 var NAV_ITEMS = [
   { id: "company", label: "\u516C\u53F8", caption: "Owner Dashboard" },
   { id: "boardroom", label: "\u51B3\u7B56\u53F0", caption: "Decision Desk" },
@@ -6213,44 +6228,44 @@ function readStoredTaskId() {
   }
 }
 function StudioPage() {
-  const initialBoot = (0, import_react17.useMemo)(() => readStudioBoot(), []);
-  const [boot, setBoot] = (0, import_react17.useState)(initialBoot);
-  const [bootError, setBootError] = (0, import_react17.useState)(null);
-  const [bootChecked, setBootChecked] = (0, import_react17.useState)(initialBoot !== null);
-  const client = (0, import_react17.useMemo)(
+  const initialBoot = (0, import_react20.useMemo)(() => readStudioBoot(), []);
+  const [boot, setBoot] = (0, import_react20.useState)(initialBoot);
+  const [bootError, setBootError] = (0, import_react20.useState)(null);
+  const [bootChecked, setBootChecked] = (0, import_react20.useState)(initialBoot !== null);
+  const client = (0, import_react20.useMemo)(
     () => boot === null ? null : new StudioClient(boot),
     [boot]
   );
-  const [data, setData] = (0, import_react17.useState)(null);
-  const [loading, setLoading] = (0, import_react17.useState)(true);
-  const [busy, setBusy] = (0, import_react17.useState)(false);
-  const [error, setError] = (0, import_react17.useState)(null);
-  const [tab, setTab] = (0, import_react17.useState)(readStoredTab);
-  const [selectedTaskId, setSelectedTaskId] = (0, import_react17.useState)(
+  const [data, setData] = (0, import_react20.useState)(null);
+  const [loading, setLoading] = (0, import_react20.useState)(true);
+  const [busy, setBusy] = (0, import_react20.useState)(false);
+  const [error, setError] = (0, import_react20.useState)(null);
+  const [tab, setTab] = (0, import_react20.useState)(readStoredTab);
+  const [selectedTaskId, setSelectedTaskId] = (0, import_react20.useState)(
     readStoredTaskId
   );
-  const [modal, setModal] = (0, import_react17.useState)(null);
-  const [toast, setToast] = (0, import_react17.useState)(null);
-  const [theme, setTheme] = (0, import_react17.useState)(() => {
+  const [modal, setModal] = (0, import_react20.useState)(null);
+  const [toast, setToast] = (0, import_react20.useState)(null);
+  const [theme, setTheme] = (0, import_react20.useState)(() => {
     try {
       return localStorage.getItem("studio.theme") === "light" ? "light" : "dark";
     } catch {
       return "dark";
     }
   });
-  (0, import_react17.useEffect)(() => {
+  (0, import_react20.useEffect)(() => {
     try {
       localStorage.setItem("studio.theme", theme);
     } catch {
     }
   }, [theme]);
-  (0, import_react17.useEffect)(() => {
+  (0, import_react20.useEffect)(() => {
     try {
       localStorage.setItem(STUDIO_TAB_KEY, tab);
     } catch {
     }
   }, [tab]);
-  (0, import_react17.useEffect)(() => {
+  (0, import_react20.useEffect)(() => {
     try {
       if (selectedTaskId === null) {
         localStorage.removeItem(STUDIO_TASK_KEY);
@@ -6260,13 +6275,13 @@ function StudioPage() {
     } catch {
     }
   }, [selectedTaskId]);
-  (0, import_react17.useEffect)(() => {
+  (0, import_react20.useEffect)(() => {
     if (data === null || selectedTaskId === null) return;
     if (!data.tasks.some((task) => task.id === selectedTaskId)) {
       setSelectedTaskId(null);
     }
   }, [data, selectedTaskId]);
-  (0, import_react17.useEffect)(() => {
+  (0, import_react20.useEffect)(() => {
     if (boot !== null || bootChecked) return;
     let cancelled = false;
     void resolveStudioBoot().then((result) => {
@@ -6279,7 +6294,7 @@ function StudioPage() {
       cancelled = true;
     };
   }, [boot, bootChecked]);
-  const load = (0, import_react17.useCallback)(
+  const load = (0, import_react20.useCallback)(
     async (projectId, silent = false) => {
       if (client === null) return;
       if (!silent) setLoading(true);
@@ -6301,19 +6316,19 @@ function StudioPage() {
     },
     [client]
   );
-  (0, import_react17.useEffect)(() => {
+  (0, import_react20.useEffect)(() => {
     if (client === null) {
       setLoading(false);
       return;
     }
     void load();
   }, [client, load]);
-  (0, import_react17.useEffect)(() => {
+  (0, import_react20.useEffect)(() => {
     if (toast === null) return;
     const timer = window.setTimeout(() => setToast(null), 4200);
     return () => window.clearTimeout(timer);
   }, [toast]);
-  (0, import_react17.useEffect)(() => {
+  (0, import_react20.useEffect)(() => {
     const onKey = (event) => {
       if (event.key !== "Escape") return;
       if (selectedTaskId !== null) setSelectedTaskId(null);
@@ -6322,7 +6337,7 @@ function StudioPage() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [selectedTaskId, modal]);
-  const run = (0, import_react17.useCallback)(
+  const run = (0, import_react20.useCallback)(
     async (action, successMessage) => {
       if (client === null) return false;
       setBusy(true);
@@ -6340,7 +6355,7 @@ function StudioPage() {
     },
     [client, load]
   );
-  const selectProject = (0, import_react17.useCallback)(
+  const selectProject = (0, import_react20.useCallback)(
     async (projectId) => {
       if (client === null) return false;
       setBusy(true);
@@ -6357,7 +6372,7 @@ function StudioPage() {
     },
     [client, load]
   );
-  const openCompanyProject = (0, import_react17.useCallback)(
+  const openCompanyProject = (0, import_react20.useCallback)(
     async (projectId) => {
       if (projectId !== data?.activeProjectId) {
         const ok = await selectProject(projectId);
@@ -6367,7 +6382,7 @@ function StudioPage() {
     },
     [data?.activeProjectId, selectProject]
   );
-  const openCompanyNeed = (0, import_react17.useCallback)(
+  const openCompanyNeed = (0, import_react20.useCallback)(
     async (need) => {
       if (need.projectId !== data?.activeProjectId) {
         const ok = await selectProject(need.projectId);
@@ -6382,7 +6397,7 @@ function StudioPage() {
     },
     [data?.activeProjectId, selectProject]
   );
-  (0, import_react17.useEffect)(() => {
+  (0, import_react20.useEffect)(() => {
     if (data === null || !data.runs.some(
       (run2) => run2.status === "running" || run2.status === "queued"
     )) {
@@ -6394,9 +6409,9 @@ function StudioPage() {
     return () => window.clearInterval(timer);
   }, [data?.runs, load]);
   const selectedTask = data?.tasks.find((task) => task.id === selectedTaskId) ?? null;
-  if (!bootChecked) return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(LoadingState, {});
+  if (!bootChecked) return /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(LoadingState, {});
   if (boot === null) {
-    return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
       MissingHost,
       {
         error: bootError,
@@ -6405,8 +6420,8 @@ function StudioPage() {
     );
   }
   if (data === null) {
-    if (error === null || loading) return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(LoadingState, {});
-    return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+    if (error === null || loading) return /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(LoadingState, {});
+    return /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
       ErrorState,
       {
         message: error,
@@ -6953,16 +6968,16 @@ function StudioPage() {
       "ADR \u5DF2\u5199\u5165 docs/adr"
     );
   };
-  return /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-root", "data-theme": theme, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("header", { className: "studio-header", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-brand", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "studio-mark", children: "S" }),
-        /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "studio-brand-name", children: data.company.name }),
-          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "studio-brand-sub", children: "AI Studio" })
+  return /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-root", "data-theme": theme, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("header", { className: "studio-header", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-brand", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "studio-mark", children: "S" }),
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "studio-brand-name", children: data.company.name }),
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "studio-brand-sub", children: "AI Studio" })
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "studio-project-picker", children: data.projects.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { className: "studio-muted", children: "\u8FD8\u6CA1\u6709\u9879\u76EE" }) : /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+      /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "studio-project-picker", children: data.projects.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("span", { className: "studio-muted", children: "\u8FD8\u6CA1\u6709\u9879\u76EE" }) : /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
         "select",
         {
           className: "studio-select",
@@ -6970,16 +6985,16 @@ function StudioPage() {
           onChange: (event) => void selectProject(event.target.value),
           disabled: busy,
           "aria-label": "\u5207\u6362\u9879\u76EE",
-          children: data.projects.map((item) => /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("option", { value: item.id, children: item.name }, item.id))
+          children: data.projects.map((item) => /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("option", { value: item.id, children: item.name }, item.id))
         }
       ) }),
-      /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-header-actions", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("span", { className: "studio-status", title: "Host \u4E0E\u9875\u9762\u5DF2\u8FDE\u63A5", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { className: "studio-status-dot" }),
+      /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-header-actions", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("span", { className: "studio-status", title: "Host \u4E0E\u9875\u9762\u5DF2\u8FDE\u63A5", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("span", { className: "studio-status-dot" }),
           "\u672C\u5730 \xB7 v",
           boot.pluginVersion
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
           "button",
           {
             className: "studio-btn",
@@ -6990,7 +7005,7 @@ function StudioPage() {
             children: "\u5BFC\u51FA"
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
           "input",
           {
             id: "studio-import-file",
@@ -7000,7 +7015,7 @@ function StudioPage() {
             onChange: (event) => void importData(event)
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
           "button",
           {
             className: "studio-btn",
@@ -7011,7 +7026,7 @@ function StudioPage() {
             children: "\u5BFC\u5165"
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
           "button",
           {
             className: "studio-btn",
@@ -7020,10 +7035,10 @@ function StudioPage() {
             onClick: () => setTheme((current) => current === "dark" ? "light" : "dark"),
             title: theme === "dark" ? "\u5207\u6362\u5230\u6D45\u8272" : "\u5207\u6362\u5230\u6DF1\u8272",
             "aria-label": "\u5207\u6362\u4E3B\u9898",
-            children: theme === "dark" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(IconSun, { width: 15, height: 15 }) : /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(IconMoon, { width: 15, height: 15 })
+            children: theme === "dark" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(IconSun, { width: 15, height: 15 }) : /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(IconMoon, { width: 15, height: 15 })
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)(
           "button",
           {
             className: "studio-btn",
@@ -7033,17 +7048,17 @@ function StudioPage() {
             disabled: project === null || data.roles.length === 0,
             title: project === null ? "\u8BF7\u5148\u521B\u5EFA\u9879\u76EE" : data.roles.length === 0 ? "\u8BF7\u5148\u521B\u5EFA\u81F3\u5C11\u4E00\u4E2A\u89D2\u8272" : "\u65B0\u5EFA\u4EFB\u52A1",
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(IconPlus, { width: 14, height: 14 }),
+              /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(IconPlus, { width: 14, height: 14 }),
               "\u65B0\u5EFA\u4EFB\u52A1"
             ]
           }
         )
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-body", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("nav", { className: "studio-nav", "aria-label": "Studio \u5BFC\u822A", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "studio-nav-label", children: "Workspace" }),
-        NAV_ITEMS.map((item) => /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
+    /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-body", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("nav", { className: "studio-nav", "aria-label": "Studio \u5BFC\u822A", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "studio-nav-label", children: "Workspace" }),
+        NAV_ITEMS.map((item) => /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)(
           "button",
           {
             type: "button",
@@ -7051,15 +7066,15 @@ function StudioPage() {
             "data-active": tab === item.id,
             onClick: () => setTab(item.id),
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(NavIcon, { tab: item.id }),
-              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { children: item.label }),
-              item.id === "company" && data.company.needs.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { className: "studio-nav-count", children: data.company.needs.length }) : item.id === "boardroom" && data.company.totals.pendingDecisions > 0 ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { className: "studio-nav-count", children: data.company.totals.pendingDecisions }) : item.id === "mission" && reviewCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { className: "studio-nav-count", children: reviewCount }) : item.id === "tasks" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { className: "studio-nav-count", children: data.stats.total }) : item.id === "merges" && mergeCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { className: "studio-nav-count", children: mergeCount }) : item.id === "team" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { className: "studio-nav-count", children: data.roles.length }) : null
+              /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(NavIcon, { tab: item.id }),
+              /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("span", { children: item.label }),
+              item.id === "company" && data.company.needs.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("span", { className: "studio-nav-count", children: data.company.needs.length }) : item.id === "boardroom" && data.company.totals.pendingDecisions > 0 ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("span", { className: "studio-nav-count", children: data.company.totals.pendingDecisions }) : item.id === "mission" && reviewCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("span", { className: "studio-nav-count", children: reviewCount }) : item.id === "tasks" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("span", { className: "studio-nav-count", children: data.stats.total }) : item.id === "merges" && mergeCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("span", { className: "studio-nav-count", children: mergeCount }) : item.id === "team" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("span", { className: "studio-nav-count", children: data.roles.length }) : null
             ]
           },
           item.id
         )),
-        /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-nav-footer", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("strong", { children: tab === "company" ? "\u8D5B\u535A\u516C\u53F8" : project?.name ?? "\u672A\u9009\u62E9\u9879\u76EE" }),
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-nav-footer", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("strong", { children: tab === "company" ? "\u8D5B\u535A\u516C\u53F8" : project?.name ?? "\u672A\u9009\u62E9\u9879\u76EE" }),
           tab === "company" ? `${String(data.company.totals.projects)} \u4E2A\u9879\u76EE \xB7 ${String(
             data.company.totals.openTasks
           )} \u4E2A\u672A\u5B8C\u6210` : `${String(data.stats.total)} \u4E2A\u4EFB\u52A1 \xB7 ${String(
@@ -7067,10 +7082,10 @@ function StudioPage() {
           )} \u4E2A\u89D2\u8272`
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("main", { className: "studio-main", children: /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-main-inner", children: [
-        error !== null ? /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-alert", "data-tone": "warn", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("main", { className: "studio-main", children: /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-main-inner", children: [
+        error !== null ? /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-alert", "data-tone": "warn", children: [
           error,
-          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
             "button",
             {
               type: "button",
@@ -7082,8 +7097,8 @@ function StudioPage() {
             }
           )
         ] }) : null,
-        data.app.warning !== null && data.app.warning !== void 0 ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "studio-alert", "data-tone": "warn", children: data.app.warning }) : null,
-        tab === "company" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+        data.app.warning !== null && data.app.warning !== void 0 ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "studio-alert", "data-tone": "warn", children: data.app.warning }) : null,
+        tab === "company" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
           CompanyView,
           {
             data,
@@ -7093,7 +7108,7 @@ function StudioPage() {
             onNewProject: () => setModal({ kind: "project" })
           }
         ) : null,
-        tab === "boardroom" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+        tab === "boardroom" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
           BoardroomView,
           {
             decisions: data.decisions,
@@ -7105,7 +7120,7 @@ function StudioPage() {
             onWriteAdr: writeAdr
           }
         ) : null,
-        tab === "knowledge" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+        tab === "knowledge" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
           KnowledgeView,
           {
             project: data.project,
@@ -7116,7 +7131,7 @@ function StudioPage() {
             onNewModule: () => setModal({ kind: "module" })
           }
         ) : null,
-        tab === "mission" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+        tab === "mission" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
           MissionView,
           {
             data,
@@ -7142,14 +7157,14 @@ function StudioPage() {
             onSummarizeWorkshop: summarizeWorkshopAi
           }
         ) : null,
-        tab === "tasks" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+        tab === "tasks" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
           TasksView,
           {
             data,
             onOpenTask: setSelectedTaskId
           }
         ) : null,
-        tab === "merges" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+        tab === "merges" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
           MergeView,
           {
             data,
@@ -7160,7 +7175,7 @@ function StudioPage() {
             onComplete: (proposal, commit) => void completeMerge(proposal, commit)
           }
         ) : null,
-        tab === "team" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+        tab === "team" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
           TeamView,
           {
             data,
@@ -7175,7 +7190,7 @@ function StudioPage() {
             onProbeProvider: probeProviderProfile
           }
         ) : null,
-        tab === "settings" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+        tab === "settings" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
           SettingsView,
           {
             boot,
@@ -7192,7 +7207,7 @@ function StudioPage() {
         ) : null
       ] }) })
     ] }),
-    selectedTask !== null ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+    selectedTask !== null ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
       TaskDrawer,
       {
         task: selectedTask,
@@ -7240,7 +7255,7 @@ function StudioPage() {
       },
       selectedTask.id
     ) : null,
-    modal?.kind === "task" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+    modal?.kind === "task" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
       TaskForm,
       {
         roles: data.roles,
@@ -7249,7 +7264,7 @@ function StudioPage() {
         onSubmit: (input) => void createTask(input)
       }
     ) : null,
-    modal?.kind === "role" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+    modal?.kind === "role" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
       RoleForm,
       {
         busy,
@@ -7258,7 +7273,7 @@ function StudioPage() {
         onSubmit: (input) => void createRole(input)
       }
     ) : null,
-    modal?.kind === "project" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+    modal?.kind === "project" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
       ProjectForm,
       {
         busy,
@@ -7267,7 +7282,7 @@ function StudioPage() {
         onSubmitTemplate: (input) => void createProjectFromTemplate(input)
       }
     ) : null,
-    modal?.kind === "repo" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+    modal?.kind === "repo" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
       RepoForm,
       {
         initial: data.project?.repoPath ?? "",
@@ -7276,7 +7291,7 @@ function StudioPage() {
         onSubmit: (repoPath) => void updateProjectRepo(repoPath)
       }
     ) : null,
-    modal?.kind === "module" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+    modal?.kind === "module" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
       ModuleForm,
       {
         busy,
@@ -7284,7 +7299,7 @@ function StudioPage() {
         onSubmit: (input) => void createModule(input)
       }
     ) : null,
-    modal?.kind === "decision" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+    modal?.kind === "decision" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
       DecisionForm,
       {
         tasks: data.tasks,
@@ -7293,8 +7308,8 @@ function StudioPage() {
         onSubmit: (input) => void createDecision(input)
       }
     ) : null,
-    toast !== null ? /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-toast", "data-kind": toast.kind, role: "status", children: [
-      toast.kind === "ok" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(IconCheck, { width: 14, height: 14 }) : /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(IconAlert, { width: 14, height: 14 }),
+    toast !== null ? /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-toast", "data-kind": toast.kind, role: "status", children: [
+      toast.kind === "ok" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(IconCheck, { width: 14, height: 14 }) : /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(IconAlert, { width: 14, height: 14 }),
       toast.text
     ] }) : null
   ] });
@@ -8995,11 +9010,11 @@ var studioCss = `
 `;
 
 // src/client/index.tsx
-var import_jsx_runtime23 = require("react/jsx-runtime");
+var import_jsx_runtime27 = require("react/jsx-runtime");
 var name = "dsh-studio-client";
 var inject = ["slots", "layout"];
 function StudioIcon() {
-  return /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(
     "svg",
     {
       width: "16",
@@ -9012,8 +9027,8 @@ function StudioIcon() {
       strokeLinejoin: "round",
       "aria-hidden": "true",
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("path", { d: "M4 7.5 12 3l8 4.5v9L12 21l-8-4.5Z" }),
-        /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("path", { d: "M8 10.5v4M12 8.5v7M16 10.5v4" })
+        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("path", { d: "M4 7.5 12 3l8 4.5v9L12 21l-8-4.5Z" }),
+        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("path", { d: "M8 10.5v4M12 8.5v7M16 10.5v4" })
       ]
     }
   );
