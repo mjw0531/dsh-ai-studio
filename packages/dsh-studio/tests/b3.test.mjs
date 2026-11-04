@@ -65,6 +65,20 @@ test("freezes PRD and architecture versions with drift detection", async () => {
       checklist: [{ id: "x", text: "边界", done: true }],
     });
     assert.equal(arch.kind, "architecture");
+    const request = store.createFreezeChangeRequest(project.id, {
+      freezeId: prd.id,
+      title: "加入 2v2",
+      reason: "测试范围扩大",
+      impact: "架构需增加房间",
+    });
+    assert.equal(request.status, "pending");
+    const decided = store.decideFreezeChangeRequest(
+      project.id,
+      request.id,
+      "accepted",
+    );
+    assert.equal(decided.status, "accepted");
+
     const decision = store.createRequirementDecision(project.id, {
       title: "采用垂直切片",
       source: "AI 架构师",

@@ -2,7 +2,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_PLUGIN_VERSION = "3.9.0";
+var STUDIO_PLUGIN_VERSION = "3.10.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -421,6 +421,14 @@ function asRequirementDecision(body) {
     status,
     rationale: asOptionalString(body.rationale, "rationale") ?? "",
     freezeId: body.freezeId === null || body.freezeId === void 0 ? null : asOptionalString(body.freezeId, "freezeId") ?? null
+  };
+}
+function asCreateFreezeChangeRequest(body) {
+  return {
+    freezeId: asString(body.freezeId, "freezeId"),
+    title: asString(body.title, "title"),
+    reason: asString(body.reason, "reason"),
+    impact: asOptionalString(body.impact, "impact") ?? ""
   };
 }
 function asUpdateTask(body) {
@@ -906,6 +914,47 @@ var StudioRouter = class {
         asRequirementDecision(await readJson(req))
       );
       sendJson(res, 201, { ok: true, decision });
+      return;
+    }
+    const freezeChangeMatch = /^\/studio-api\/projects\/([^/]+)\/freeze-change-requests$/.exec(
+      parsed.pathname
+    );
+    if (freezeChangeMatch !== null) {
+      const projectId = decodeSegment(freezeChangeMatch[1] ?? "");
+      this.requireMethod(parsed, ["GET", "POST"]);
+      if (parsed.method === "GET") {
+        sendJson(res, 200, {
+          ok: true,
+          requests: this.store.listFreezeChangeRequests(projectId)
+        });
+        return;
+      }
+      assertJsonRequest(req);
+      const request = this.store.createFreezeChangeRequest(
+        projectId,
+        asCreateFreezeChangeRequest(await readJson(req))
+      );
+      sendJson(res, 201, { ok: true, request });
+      return;
+    }
+    const freezeChangeDecideMatch = /^\/studio-api\/projects\/([^/]+)\/freeze-change-requests\/([^/]+)\/decide$/.exec(
+      parsed.pathname
+    );
+    if (freezeChangeDecideMatch !== null) {
+      const projectId = decodeSegment(freezeChangeDecideMatch[1] ?? "");
+      const requestId = decodeSegment(freezeChangeDecideMatch[2] ?? "");
+      this.requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const body = await readJson(req);
+      if (body.status !== "accepted" && body.status !== "rejected") {
+        throw new HttpError(400, "invalid_input", "status \u65E0\u6548");
+      }
+      const request = this.store.decideFreezeChangeRequest(
+        projectId,
+        requestId,
+        body.status
+      );
+      sendJson(res, 200, { ok: true, request });
       return;
     }
     const projectMatch = /^\/studio-api\/projects\/([^/]+)$/.exec(parsed.pathname);

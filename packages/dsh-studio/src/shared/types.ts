@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 32;
-export const STUDIO_PLUGIN_VERSION = "3.9.0";
+export const STUDIO_SCHEMA_VERSION = 33;
+export const STUDIO_PLUGIN_VERSION = "3.10.0";
 
 export type TaskStatus =
   | "backlog"
@@ -156,6 +156,27 @@ export interface CreateRequirementDecisionInput {
   status?: RequirementDecisionStatus;
   rationale?: string;
   freezeId?: string | null;
+}
+
+export type FreezeChangeRequestStatus = "pending" | "accepted" | "rejected";
+
+export interface FreezeChangeRequest {
+  id: string;
+  projectId: string;
+  freezeId: string;
+  title: string;
+  reason: string;
+  impact: string;
+  status: FreezeChangeRequestStatus;
+  createdAt: string;
+  decidedAt: string | null;
+}
+
+export interface CreateFreezeChangeRequestInput {
+  freezeId: string;
+  title: string;
+  reason: string;
+  impact?: string;
 }
 
 export type TriggerSource = "manual" | "github" | "ci" | "im" | "email";
@@ -705,6 +726,7 @@ export interface StudioState {
   stageGates: StageGate[];
   freezes: ProjectFreeze[];
   requirementDecisions: RequirementDecision[];
+  freezeChangeRequests: FreezeChangeRequest[];
   triggers: Trigger[];
   threads: Thread[];
   workshops: Workshop[];
@@ -729,6 +751,7 @@ export interface ProjectSlice {
   stageGates: StageGate[];
   freezes: ProjectFreeze[];
   requirementDecisions: RequirementDecision[];
+  freezeChangeRequests: FreezeChangeRequest[];
   triggers: Trigger[];
   threads: Thread[];
   workshops: Workshop[];
@@ -892,6 +915,7 @@ export interface BootstrapResponse {
   stageGates: StageGate[];
   freezes: ProjectFreeze[];
   requirementDecisions: RequirementDecision[];
+  freezeChangeRequests: FreezeChangeRequest[];
   triggers: Trigger[];
   threads: Thread[];
   workshops: Workshop[];

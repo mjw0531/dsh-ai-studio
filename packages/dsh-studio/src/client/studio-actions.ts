@@ -10,6 +10,7 @@ import type {
   CreateDecisionInput,
   CreateMergeProposalInput,
   CreateModuleInput,
+  CreateFreezeChangeRequestInput,
   CreateProjectFreezeInput,
   CreateProjectFromTemplateInput,
   CreateProjectInput,
@@ -201,6 +202,33 @@ export function createStudioActions({
         await client.createRequirementDecision(project.id, input);
       },
       "需求决策已记录",
+    );
+  };
+
+  const createFreezeChangeRequest = async (
+    input: CreateFreezeChangeRequestInput,
+  ): Promise<boolean> => {
+    if (project === null) return false;
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.createFreezeChangeRequest(project.id, input);
+      },
+      "变更单已创建",
+    );
+  };
+
+  const decideFreezeChangeRequest = async (
+    requestId: string,
+    status: "accepted" | "rejected",
+  ): Promise<boolean> => {
+    if (project === null) return false;
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.decideFreezeChangeRequest(project.id, requestId, status);
+      },
+      status === "accepted" ? "变更单已接受" : "变更单已拒绝",
     );
   };
 
@@ -794,6 +822,8 @@ export function createStudioActions({
 
   return {
     createFreeze,
+    createFreezeChangeRequest,
+    decideFreezeChangeRequest,
     createRequirementDecision,
     createTask,
     createRole,

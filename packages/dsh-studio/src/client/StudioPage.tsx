@@ -433,6 +433,8 @@ export function StudioPage() {
   });
   const {
     createFreeze,
+    createFreezeChangeRequest,
+    decideFreezeChangeRequest,
     createRequirementDecision,
     createTask,
     createRole,
@@ -704,6 +706,8 @@ export function StudioPage() {
                 onApproveStageGate={approveStageGate}
                 onRejectStageGate={rejectStageGate}
                 onCreateFreeze={createFreeze}
+                onFreezeChangeRequest={createFreezeChangeRequest}
+                onDecideFreezeChangeRequest={decideFreezeChangeRequest}
                 onCreateRequirementDecision={createRequirementDecision}
                 onIngestTrigger={ingestTrigger}
                 onAcceptTrigger={(trigger) => void acceptTrigger(trigger)}

@@ -2,8 +2,10 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 
 import type {
+  CreateFreezeChangeRequestInput,
   CreateProjectFreezeInput,
   CreateRequirementDecisionInput,
+  FreezeChangeRequest,
   FreezeKind,
   Project,
   ProjectFreeze,
@@ -41,15 +43,26 @@ export function FreezePanel({
   project,
   freezes,
   decisions,
+  changeRequests,
   busy,
   onCreateFreeze,
+  onCreateChangeRequest,
+  onDecideChangeRequest,
   onCreateDecision,
 }: {
   project: Project;
   freezes: ProjectFreeze[];
   decisions: RequirementDecision[];
+  changeRequests: FreezeChangeRequest[];
   busy: boolean;
   onCreateFreeze: (input: CreateProjectFreezeInput) => Promise<boolean>;
+  onCreateChangeRequest: (
+    input: CreateFreezeChangeRequestInput,
+  ) => Promise<boolean>;
+  onDecideChangeRequest: (
+    requestId: string,
+    status: "accepted" | "rejected",
+  ) => Promise<boolean>;
   onCreateDecision: (input: CreateRequirementDecisionInput) => Promise<boolean>;
 }) {
   const [kind, setKind] = useState<FreezeKind>("prd");
@@ -69,6 +82,10 @@ export function FreezePanel({
   const [status, setStatus] = useState<"accepted" | "rejected" | "pending">(
     "pending",
   );
+  const [crTitle, setCrTitle] = useState("");
+  const [crReason, setCrReason] = useState("");
+  const [crImpact, setCrImpact] = useState("");
+  const [crFreezeId, setCrFreezeId] = useState("");
 
   const changeKind = (next: FreezeKind): void => {
     setKind(next);
@@ -117,6 +134,26 @@ export function FreezePanel({
     if (ok) {
       setTitle("");
       setRecommendation("");
+    }
+  };
+
+  const requestChange = async (event: FormEvent): Promise<void> => {
+    event.preventDefault();
+    const target = crFreezeId || freezes[0]?.id;
+    if (target === undefined || crTitle.trim() === "" || crReason.trim() === "") {
+      setError("变更单必须选择冻结版本并填写标题、原因");
+      return;
+    }
+    const ok = await onCreateChangeRequest({
+      freezeId: target,
+      title: crTitle.trim(),
+      reason: crReason.trim(),
+      impact: crImpact.trim(),
+    });
+    if (ok) {
+      setCrTitle("");
+      setCrReason("");
+      setCrImpact("");
     }
   };
 
@@ -238,6 +275,89 @@ export function FreezePanel({
           {error !== null ? <div className="studio-alert">{error}</div> : null}
           <button className="studio-btn studio-btn-primary" disabled={busy}>
             冻结 {kind === "prd" ? "PRD" : "架构"} {version}
+          </button>
+        </form>
+
+        <div className="studio-section-label">冻结变更单</div>
+        <div className="studio-freeze-list">
+          {changeRequests.map((request) => (
+            <div className="studio-freeze-row" key={request.id}>
+              <span className="studio-pill" data-tone="accent">
+                {request.status}
+              </span>
+              <span>{request.title}</span>
+              <span className="studio-faint">{request.reason.slice(0, 80)}</span>
+              {request.status === "pending" ? (
+                <>
+                  <button
+                    className="studio-btn"
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      void onDecideChangeRequest(request.id, "accepted")
+                    }
+                  >
+                    接受
+                  </button>
+                  <button
+                    className="studio-btn"
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      void onDecideChangeRequest(request.id, "rejected")
+                    }
+                  >
+                    拒绝
+                  </button>
+                </>
+              ) : null}
+            </div>
+          ))}
+        </div>
+        <form
+          className="studio-form"
+          onSubmit={(event) => void requestChange(event)}
+        >
+          <div className="studio-field">
+            <label htmlFor="cr-freeze">关联冻结版本</label>
+            <select
+              id="cr-freeze"
+              value={crFreezeId}
+              onChange={(event) => setCrFreezeId(event.target.value)}
+            >
+              {freezes.map((freeze) => (
+                <option key={freeze.id} value={freeze.id}>
+                  {freeze.kind === "prd" ? "PRD" : "架构"} {freeze.version}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="studio-field">
+            <label htmlFor="cr-title">变更标题</label>
+            <input
+              id="cr-title"
+              value={crTitle}
+              onChange={(event) => setCrTitle(event.target.value)}
+            />
+          </div>
+          <div className="studio-field">
+            <label htmlFor="cr-reason">变更原因</label>
+            <textarea
+              id="cr-reason"
+              value={crReason}
+              onChange={(event) => setCrReason(event.target.value)}
+            />
+          </div>
+          <div className="studio-field">
+            <label htmlFor="cr-impact">影响范围</label>
+            <input
+              id="cr-impact"
+              value={crImpact}
+              onChange={(event) => setCrImpact(event.target.value)}
+            />
+          </div>
+          <button className="studio-btn" disabled={busy || freezes.length === 0}>
+            创建冻结变更单
           </button>
         </form>
 

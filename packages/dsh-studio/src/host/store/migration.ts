@@ -401,13 +401,20 @@ export function migrateState(value: unknown): StudioState {
   if (state.schemaVersion === 31) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 32,
       freezes: [],
       requirementDecisions: [],
       stageGates: state.stageGates.map((gate) => ({
         ...gate,
         freezeId: null,
       })),
+    };
+  }
+  if (state.schemaVersion === 32) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      freezeChangeRequests: [],
     };
   }
   return state;

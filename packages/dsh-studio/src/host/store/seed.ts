@@ -209,6 +209,7 @@ export function createSeedState(now: () => Date): StudioState {
       stageGates: [],
       freezes: [],
       requirementDecisions: [],
+      freezeChangeRequests: [],
       triggers: [],
       threads: [],
       workshops: [],

@@ -392,6 +392,23 @@ function isRequirementDecision(value: unknown): value is import("../../shared/ty
   );
 }
 
+function isFreezeChangeRequest(value: unknown): value is import("../../shared/types.js").FreezeChangeRequest {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.projectId === "string" &&
+    typeof value.freezeId === "string" &&
+    typeof value.title === "string" &&
+    typeof value.reason === "string" &&
+    typeof value.impact === "string" &&
+    (value.status === "pending" ||
+      value.status === "accepted" ||
+      value.status === "rejected") &&
+    typeof value.createdAt === "string" &&
+    (value.decidedAt === null || typeof value.decidedAt === "string")
+  );
+}
+
 function isStageGateStatus(value: unknown): value is StageGate["status"] {
   return value === "pending" || value === "approved" || value === "rejected";
 }
@@ -671,6 +688,7 @@ export function assertState(value: unknown): asserts value is StudioState {
     !Array.isArray(value.stageGates) ||
     !Array.isArray(value.freezes) ||
     !Array.isArray(value.requirementDecisions) ||
+    !Array.isArray(value.freezeChangeRequests) ||
     !Array.isArray(value.triggers) ||
     !Array.isArray(value.threads) ||
     !Array.isArray(value.workshops) ||
@@ -698,6 +716,9 @@ export function assertState(value: unknown): asserts value is StudioState {
   }
   if (!value.requirementDecisions.every(isRequirementDecision)) {
     throw new Error("Studio state contains an invalid requirement decision");
+  }
+  if (!value.freezeChangeRequests.every(isFreezeChangeRequest)) {
+    throw new Error("Studio state contains an invalid freeze change request");
   }
   if (!value.stageGates.every(isStageGate)) {
     throw new Error("Studio state contains an invalid stage gate");

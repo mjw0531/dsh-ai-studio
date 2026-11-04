@@ -314,6 +314,26 @@ var StudioClient = class {
     );
     return data.decision;
   }
+  async listFreezeChangeRequests(projectId) {
+    const data = await this.request(
+      `/projects/${encodeURIComponent(projectId)}/freeze-change-requests`
+    );
+    return data.requests;
+  }
+  async createFreezeChangeRequest(projectId, input) {
+    const data = await this.request(
+      `/projects/${encodeURIComponent(projectId)}/freeze-change-requests`,
+      { method: "POST", body: input }
+    );
+    return data.request;
+  }
+  async decideFreezeChangeRequest(projectId, requestId, status) {
+    const data = await this.request(
+      `/projects/${encodeURIComponent(projectId)}/freeze-change-requests/${encodeURIComponent(requestId)}/decide`,
+      { method: "POST", body: { status } }
+    );
+    return data.request;
+  }
   async createProjectFromTemplate(input) {
     const data = await this.request(
       "/projects/from-template",
@@ -776,6 +796,26 @@ function createStudioActions({
         await client.createRequirementDecision(project.id, input);
       },
       "\u9700\u6C42\u51B3\u7B56\u5DF2\u8BB0\u5F55"
+    );
+  };
+  const createFreezeChangeRequest = async (input) => {
+    if (project === null) return false;
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.createFreezeChangeRequest(project.id, input);
+      },
+      "\u53D8\u66F4\u5355\u5DF2\u521B\u5EFA"
+    );
+  };
+  const decideFreezeChangeRequest = async (requestId, status) => {
+    if (project === null) return false;
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.decideFreezeChangeRequest(project.id, requestId, status);
+      },
+      status === "accepted" ? "\u53D8\u66F4\u5355\u5DF2\u63A5\u53D7" : "\u53D8\u66F4\u5355\u5DF2\u62D2\u7EDD"
     );
   };
   const createProject = async (input) => {
@@ -1241,6 +1281,8 @@ function createStudioActions({
   };
   return {
     createFreeze,
+    createFreezeChangeRequest,
+    decideFreezeChangeRequest,
     createRequirementDecision,
     createTask,
     createRole,
@@ -3520,8 +3562,11 @@ function FreezePanel({
   project,
   freezes,
   decisions,
+  changeRequests,
   busy,
   onCreateFreeze,
+  onCreateChangeRequest,
+  onDecideChangeRequest,
   onCreateDecision
 }) {
   const [kind, setKind] = (0, import_react7.useState)("prd");
@@ -3541,6 +3586,10 @@ function FreezePanel({
   const [status, setStatus] = (0, import_react7.useState)(
     "pending"
   );
+  const [crTitle, setCrTitle] = (0, import_react7.useState)("");
+  const [crReason, setCrReason] = (0, import_react7.useState)("");
+  const [crImpact, setCrImpact] = (0, import_react7.useState)("");
+  const [crFreezeId, setCrFreezeId] = (0, import_react7.useState)("");
   const changeKind = (next) => {
     setKind(next);
     setChecklist(checks(next));
@@ -3580,6 +3629,25 @@ function FreezePanel({
     if (ok) {
       setTitle("");
       setRecommendation("");
+    }
+  };
+  const requestChange = async (event) => {
+    event.preventDefault();
+    const target = crFreezeId || freezes[0]?.id;
+    if (target === void 0 || crTitle.trim() === "" || crReason.trim() === "") {
+      setError("\u53D8\u66F4\u5355\u5FC5\u987B\u9009\u62E9\u51BB\u7ED3\u7248\u672C\u5E76\u586B\u5199\u6807\u9898\u3001\u539F\u56E0");
+      return;
+    }
+    const ok = await onCreateChangeRequest({
+      freezeId: target,
+      title: crTitle.trim(),
+      reason: crReason.trim(),
+      impact: crImpact.trim()
+    });
+    if (ok) {
+      setCrTitle("");
+      setCrReason("");
+      setCrImpact("");
     }
   };
   return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("section", { className: "studio-panel", children: [
@@ -3712,6 +3780,93 @@ function FreezePanel({
           version
         ] })
       ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "studio-section-label", children: "\u51BB\u7ED3\u53D8\u66F4\u5355" }),
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "studio-freeze-list", children: changeRequests.map((request) => /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-freeze-row", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "studio-pill", "data-tone": "accent", children: request.status }),
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { children: request.title }),
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "studio-faint", children: request.reason.slice(0, 80) }),
+        request.status === "pending" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+            "button",
+            {
+              className: "studio-btn",
+              type: "button",
+              disabled: busy,
+              onClick: () => void onDecideChangeRequest(request.id, "accepted"),
+              children: "\u63A5\u53D7"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+            "button",
+            {
+              className: "studio-btn",
+              type: "button",
+              disabled: busy,
+              onClick: () => void onDecideChangeRequest(request.id, "rejected"),
+              children: "\u62D2\u7EDD"
+            }
+          )
+        ] }) : null
+      ] }, request.id)) }),
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
+        "form",
+        {
+          className: "studio-form",
+          onSubmit: (event) => void requestChange(event),
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-field", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("label", { htmlFor: "cr-freeze", children: "\u5173\u8054\u51BB\u7ED3\u7248\u672C" }),
+              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+                "select",
+                {
+                  id: "cr-freeze",
+                  value: crFreezeId,
+                  onChange: (event) => setCrFreezeId(event.target.value),
+                  children: freezes.map((freeze) => /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("option", { value: freeze.id, children: [
+                    freeze.kind === "prd" ? "PRD" : "\u67B6\u6784",
+                    " ",
+                    freeze.version
+                  ] }, freeze.id))
+                }
+              )
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-field", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("label", { htmlFor: "cr-title", children: "\u53D8\u66F4\u6807\u9898" }),
+              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+                "input",
+                {
+                  id: "cr-title",
+                  value: crTitle,
+                  onChange: (event) => setCrTitle(event.target.value)
+                }
+              )
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-field", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("label", { htmlFor: "cr-reason", children: "\u53D8\u66F4\u539F\u56E0" }),
+              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+                "textarea",
+                {
+                  id: "cr-reason",
+                  value: crReason,
+                  onChange: (event) => setCrReason(event.target.value)
+                }
+              )
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-field", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("label", { htmlFor: "cr-impact", children: "\u5F71\u54CD\u8303\u56F4" }),
+              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+                "input",
+                {
+                  id: "cr-impact",
+                  value: crImpact,
+                  onChange: (event) => setCrImpact(event.target.value)
+                }
+              )
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("button", { className: "studio-btn", disabled: busy || freezes.length === 0, children: "\u521B\u5EFA\u51BB\u7ED3\u53D8\u66F4\u5355" })
+          ]
+        }
+      ),
       /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "studio-section-label", children: "\u9700\u6C42\u51B3\u7B56\u8BB0\u5F55" }),
       /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "studio-freeze-list", children: decisions.map((decision) => /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "studio-freeze-row", children: [
         /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "studio-pill", "data-tone": "accent", children: decision.status }),
@@ -4512,6 +4667,8 @@ function MissionView({
   onApproveStageGate,
   onRejectStageGate,
   onCreateFreeze,
+  onFreezeChangeRequest,
+  onDecideFreezeChangeRequest,
   onCreateRequirementDecision,
   onIngestTrigger,
   onAcceptTrigger,
@@ -4593,8 +4750,11 @@ function MissionView({
           project,
           freezes: data.freezes,
           decisions: data.requirementDecisions,
+          changeRequests: data.freezeChangeRequests,
           busy,
           onCreateFreeze,
+          onCreateChangeRequest: onFreezeChangeRequest,
+          onDecideChangeRequest: onDecideFreezeChangeRequest,
           onCreateDecision: onCreateRequirementDecision
         }
       )
@@ -7453,6 +7613,8 @@ function StudioPage() {
   });
   const {
     createFreeze,
+    createFreezeChangeRequest,
+    decideFreezeChangeRequest,
     createRequirementDecision,
     createTask,
     createRole,
@@ -7683,6 +7845,8 @@ function StudioPage() {
             onApproveStageGate: approveStageGate,
             onRejectStageGate: rejectStageGate,
             onCreateFreeze: createFreeze,
+            onFreezeChangeRequest: createFreezeChangeRequest,
+            onDecideFreezeChangeRequest: decideFreezeChangeRequest,
             onCreateRequirementDecision: createRequirementDecision,
             onIngestTrigger: ingestTrigger,
             onAcceptTrigger: (trigger) => void acceptTrigger(trigger),

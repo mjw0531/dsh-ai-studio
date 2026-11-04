@@ -2,8 +2,8 @@
 import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 32;
-var STUDIO_PLUGIN_VERSION = "3.9.0";
+var STUDIO_SCHEMA_VERSION = 33;
+var STUDIO_PLUGIN_VERSION = "3.10.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -550,13 +550,20 @@ function migrateState(value) {
   if (state.schemaVersion === 31) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 32,
       freezes: [],
       requirementDecisions: [],
       stageGates: state.stageGates.map((gate) => ({
         ...gate,
         freezeId: null
       }))
+    };
+  }
+  if (state.schemaVersion === 32) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      freezeChangeRequests: []
     };
   }
   return state;
@@ -610,6 +617,9 @@ function isProjectFreeze(value) {
 }
 function isRequirementDecision(value) {
   return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && (value.freezeId === null || typeof value.freezeId === "string") && typeof value.title === "string" && typeof value.source === "string" && typeof value.recommendation === "string" && (value.status === "accepted" || value.status === "rejected" || value.status === "pending") && typeof value.rationale === "string" && typeof value.createdAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string");
+}
+function isFreezeChangeRequest(value) {
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.freezeId === "string" && typeof value.title === "string" && typeof value.reason === "string" && typeof value.impact === "string" && (value.status === "pending" || value.status === "accepted" || value.status === "rejected") && typeof value.createdAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string");
 }
 function isStageGateStatus(value) {
   return value === "pending" || value === "approved" || value === "rejected";
@@ -680,7 +690,7 @@ function assertState(value) {
   if (typeof value.companyName !== "string" || value.companyName.trim() === "") {
     throw new Error("Studio state must contain a companyName");
   }
-  if (!Array.isArray(value.projects) || !Array.isArray(value.stageGates) || !Array.isArray(value.freezes) || !Array.isArray(value.requirementDecisions) || !Array.isArray(value.triggers) || !Array.isArray(value.threads) || !Array.isArray(value.workshops) || !Array.isArray(value.providerProfiles) || !Array.isArray(value.prototypeDemos) || !Array.isArray(value.roles) || !Array.isArray(value.modules) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.runs) || !Array.isArray(value.branches) || !Array.isArray(value.contractChanges) || !Array.isArray(value.decisions) || !Array.isArray(value.verifications) || !Array.isArray(value.reviews) || !Array.isArray(value.events)) {
+  if (!Array.isArray(value.projects) || !Array.isArray(value.stageGates) || !Array.isArray(value.freezes) || !Array.isArray(value.requirementDecisions) || !Array.isArray(value.freezeChangeRequests) || !Array.isArray(value.triggers) || !Array.isArray(value.threads) || !Array.isArray(value.workshops) || !Array.isArray(value.providerProfiles) || !Array.isArray(value.prototypeDemos) || !Array.isArray(value.roles) || !Array.isArray(value.modules) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.runs) || !Array.isArray(value.branches) || !Array.isArray(value.contractChanges) || !Array.isArray(value.decisions) || !Array.isArray(value.verifications) || !Array.isArray(value.reviews) || !Array.isArray(value.events)) {
     throw new Error("Studio state collections are missing");
   }
   if (!value.projects.every(isProject)) {
@@ -691,6 +701,9 @@ function assertState(value) {
   }
   if (!value.requirementDecisions.every(isRequirementDecision)) {
     throw new Error("Studio state contains an invalid requirement decision");
+  }
+  if (!value.freezeChangeRequests.every(isFreezeChangeRequest)) {
+    throw new Error("Studio state contains an invalid freeze change request");
   }
   if (!value.stageGates.every(isStageGate)) {
     throw new Error("Studio state contains an invalid stage gate");
@@ -1632,6 +1645,7 @@ function createSeedState(now) {
     stageGates: [],
     freezes: [],
     requirementDecisions: [],
+    freezeChangeRequests: [],
     triggers: [],
     threads: [],
     workshops: [],
@@ -4684,6 +4698,67 @@ function createRequirementDecision(ctx, projectId, input) {
   });
   return decision;
 }
+function createFreezeChangeRequest(ctx, projectId, input) {
+  const state = ctx.requireState();
+  findProject(state, projectId);
+  const freeze = state.freezes.find(
+    (item) => item.id === input.freezeId && item.projectId === projectId
+  );
+  if (freeze === void 0) {
+    throw new StudioStoreError("freeze_not_found", "\u51BB\u7ED3\u7248\u672C\u4E0D\u5B58\u5728", 404);
+  }
+  const at = ctx.now();
+  const request = {
+    id: newId("fcr"),
+    projectId,
+    freezeId: freeze.id,
+    title: requiredText(input.title, "title", 200),
+    reason: requiredText(input.reason, "reason", 4e3),
+    impact: input.impact?.trim() ?? "",
+    status: "pending",
+    createdAt: at,
+    decidedAt: null
+  };
+  state.freezeChangeRequests.push(request);
+  state.updatedAt = at;
+  ctx.recordEvent(state, {
+    type: "freeze.change_requested",
+    at,
+    projectId,
+    payload: { requestId: request.id, freezeId: freeze.id, version: freeze.version }
+  });
+  return structuredClone(request);
+}
+function decideFreezeChangeRequest(ctx, projectId, requestId, status) {
+  const state = ctx.requireState();
+  findProject(state, projectId);
+  const request = state.freezeChangeRequests.find(
+    (item) => item.id === requestId && item.projectId === projectId
+  );
+  if (request === void 0) {
+    throw new StudioStoreError("change_request_not_found", "\u53D8\u66F4\u5355\u4E0D\u5B58\u5728", 404);
+  }
+  if (request.status !== "pending") {
+    throw new StudioStoreError(
+      "change_request_decided",
+      "\u53D8\u66F4\u5355\u5DF2\u7ECF\u5904\u7406",
+      409
+    );
+  }
+  request.status = status;
+  request.decidedAt = ctx.now();
+  state.updatedAt = request.decidedAt;
+  ctx.recordEvent(state, {
+    type: "freeze.change_decided",
+    at: request.decidedAt,
+    projectId,
+    payload: { requestId: request.id, status }
+  });
+  return structuredClone(request);
+}
+function listFreezeChangeRequests(state, projectId) {
+  return state.freezeChangeRequests.filter((request) => request.projectId === projectId).map((request) => structuredClone(request));
+}
 
 // src/host/store/projects.ts
 async function createProject(ctx, input) {
@@ -5294,6 +5369,7 @@ async function importProjectSlice(ctx, slice, repoPath) {
     state.stageGates.push(...slice.stageGates);
     state.freezes.push(...slice.freezes);
     state.requirementDecisions.push(...slice.requirementDecisions);
+    state.freezeChangeRequests.push(...slice.freezeChangeRequests);
     state.triggers.push(...slice.triggers);
     state.threads.push(...slice.threads);
     state.workshops.push(...slice.workshops);
@@ -5441,6 +5517,9 @@ var StudioStore = class {
       const requirementDecisions = project === null ? [] : state.requirementDecisions.filter(
         (decision) => decision.projectId === project.id
       );
+      const freezeChangeRequests = project === null ? [] : state.freezeChangeRequests.filter(
+        (request) => request.projectId === project.id
+      );
       const triggers = project === null ? [] : state.triggers.filter((trigger) => trigger.projectId === project.id).sort(
         (left, right) => right.createdAt.localeCompare(left.createdAt)
       );
@@ -5504,6 +5583,7 @@ var StudioStore = class {
         stageGates,
         freezes,
         requirementDecisions,
+        freezeChangeRequests,
         triggers,
         threads,
         workshops,
@@ -5565,6 +5645,20 @@ var StudioStore = class {
   }
   listRequirementDecisions(projectId) {
     return listRequirementDecisions(this.requireState(), projectId);
+  }
+  createFreezeChangeRequest(projectId, input) {
+    return createFreezeChangeRequest(this.context, projectId, input);
+  }
+  decideFreezeChangeRequest(projectId, requestId, status) {
+    return decideFreezeChangeRequest(
+      this.context,
+      projectId,
+      requestId,
+      status
+    );
+  }
+  listFreezeChangeRequests(projectId) {
+    return listFreezeChangeRequests(this.requireState(), projectId);
   }
   async importProjectSlice(slice, repoPath) {
     return importProjectSlice(this.context, slice, repoPath);
@@ -5943,6 +6037,7 @@ function sliceForProject(state, projectId) {
     stageGates: byProject(state.stageGates),
     freezes: byProject(state.freezes),
     requirementDecisions: byProject(state.requirementDecisions),
+    freezeChangeRequests: byProject(state.freezeChangeRequests),
     triggers: byProject(state.triggers),
     threads: byProject(state.threads),
     workshops: byProject(state.workshops),
@@ -7669,6 +7764,14 @@ function asRequirementDecision(body) {
     freezeId: body.freezeId === null || body.freezeId === void 0 ? null : asOptionalString(body.freezeId, "freezeId") ?? null
   };
 }
+function asCreateFreezeChangeRequest(body) {
+  return {
+    freezeId: asString(body.freezeId, "freezeId"),
+    title: asString(body.title, "title"),
+    reason: asString(body.reason, "reason"),
+    impact: asOptionalString(body.impact, "impact") ?? ""
+  };
+}
 function asUpdateTask(body) {
   const result = {};
   if (body.title !== void 0) result.title = asString(body.title, "title");
@@ -8152,6 +8255,47 @@ var StudioRouter = class {
         asRequirementDecision(await readJson(req))
       );
       sendJson(res, 201, { ok: true, decision });
+      return;
+    }
+    const freezeChangeMatch = /^\/studio-api\/projects\/([^/]+)\/freeze-change-requests$/.exec(
+      parsed.pathname
+    );
+    if (freezeChangeMatch !== null) {
+      const projectId = decodeSegment(freezeChangeMatch[1] ?? "");
+      this.requireMethod(parsed, ["GET", "POST"]);
+      if (parsed.method === "GET") {
+        sendJson(res, 200, {
+          ok: true,
+          requests: this.store.listFreezeChangeRequests(projectId)
+        });
+        return;
+      }
+      assertJsonRequest(req);
+      const request = this.store.createFreezeChangeRequest(
+        projectId,
+        asCreateFreezeChangeRequest(await readJson(req))
+      );
+      sendJson(res, 201, { ok: true, request });
+      return;
+    }
+    const freezeChangeDecideMatch = /^\/studio-api\/projects\/([^/]+)\/freeze-change-requests\/([^/]+)\/decide$/.exec(
+      parsed.pathname
+    );
+    if (freezeChangeDecideMatch !== null) {
+      const projectId = decodeSegment(freezeChangeDecideMatch[1] ?? "");
+      const requestId = decodeSegment(freezeChangeDecideMatch[2] ?? "");
+      this.requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const body = await readJson(req);
+      if (body.status !== "accepted" && body.status !== "rejected") {
+        throw new HttpError(400, "invalid_input", "status \u65E0\u6548");
+      }
+      const request = this.store.decideFreezeChangeRequest(
+        projectId,
+        requestId,
+        body.status
+      );
+      sendJson(res, 200, { ok: true, request });
       return;
     }
     const projectMatch = /^\/studio-api\/projects\/([^/]+)$/.exec(parsed.pathname);

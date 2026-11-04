@@ -6,11 +6,13 @@ import type {
   DecideDecisionInput,
   Decision,
   CreateMergeProposalInput,
+  CreateFreezeChangeRequestInput,
   CreateProjectFreezeInput,
   CreateProjectFromTemplateInput,
   CreateProjectInput,
   CreateRequirementDecisionInput,
   CreateRoleInput,
+  FreezeChangeRequest,
   ProjectFreeze,
   RequirementDecision,
   CreateTaskInput,
@@ -301,6 +303,38 @@ export class StudioClient {
       { method: "POST", body: input },
     );
     return data.decision;
+  }
+
+  async listFreezeChangeRequests(
+    projectId: string,
+  ): Promise<FreezeChangeRequest[]> {
+    const data = await this.request<{ requests: FreezeChangeRequest[] }>(
+      `/projects/${encodeURIComponent(projectId)}/freeze-change-requests`,
+    );
+    return data.requests;
+  }
+
+  async createFreezeChangeRequest(
+    projectId: string,
+    input: CreateFreezeChangeRequestInput,
+  ): Promise<FreezeChangeRequest> {
+    const data = await this.request<{ request: FreezeChangeRequest }>(
+      `/projects/${encodeURIComponent(projectId)}/freeze-change-requests`,
+      { method: "POST", body: input },
+    );
+    return data.request;
+  }
+
+  async decideFreezeChangeRequest(
+    projectId: string,
+    requestId: string,
+    status: "accepted" | "rejected",
+  ): Promise<FreezeChangeRequest> {
+    const data = await this.request<{ request: FreezeChangeRequest }>(
+      `/projects/${encodeURIComponent(projectId)}/freeze-change-requests/${encodeURIComponent(requestId)}/decide`,
+      { method: "POST", body: { status } },
+    );
+    return data.request;
   }
 
   async createProjectFromTemplate(

@@ -40,9 +40,11 @@ import type {
   ContractChange,
   CreateDecisionInput,
   CreateModuleInput,
+  CreateFreezeChangeRequestInput,
   CreateProjectFreezeInput,
   CreateRequirementDecisionInput,
   DecideDecisionInput,
+  FreezeChangeRequest,
   FreezeKind,
   ProjectFreeze,
   RequirementDecision,
@@ -217,6 +219,9 @@ import { importProjectSlice as importProjectSliceImpl } from "./store/import.js"
 import {
   assertFreezeCurrent as assertFreezeCurrentImpl,
   createFreeze as createFreezeImpl,
+  createFreezeChangeRequest as createFreezeChangeRequestImpl,
+  decideFreezeChangeRequest as decideFreezeChangeRequestImpl,
+  listFreezeChangeRequests as listFreezeChangeRequestsImpl,
   createRequirementDecision as createRequirementDecisionImpl,
   listFreezes as listFreezesImpl,
   listRequirementDecisions as listRequirementDecisionsImpl,
@@ -384,6 +389,11 @@ export class StudioStore {
         : state.requirementDecisions.filter(
             (decision) => decision.projectId === project.id,
           );
+      const freezeChangeRequests = project === null
+        ? []
+        : state.freezeChangeRequests.filter(
+            (request) => request.projectId === project.id,
+          );
       const triggers = project === null
         ? []
         : state.triggers
@@ -498,6 +508,7 @@ export class StudioStore {
         stageGates,
         freezes,
         requirementDecisions,
+        freezeChangeRequests,
         triggers,
         threads,
         workshops,
@@ -573,6 +584,30 @@ export class StudioStore {
 
   listRequirementDecisions(projectId: string): RequirementDecision[] {
     return listRequirementDecisionsImpl(this.requireState(), projectId);
+  }
+
+  createFreezeChangeRequest(
+    projectId: string,
+    input: CreateFreezeChangeRequestInput,
+  ): FreezeChangeRequest {
+    return createFreezeChangeRequestImpl(this.context, projectId, input);
+  }
+
+  decideFreezeChangeRequest(
+    projectId: string,
+    requestId: string,
+    status: "accepted" | "rejected",
+  ): FreezeChangeRequest {
+    return decideFreezeChangeRequestImpl(
+      this.context,
+      projectId,
+      requestId,
+      status,
+    );
+  }
+
+  listFreezeChangeRequests(projectId: string): FreezeChangeRequest[] {
+    return listFreezeChangeRequestsImpl(this.requireState(), projectId);
   }
 
   async importProjectSlice(

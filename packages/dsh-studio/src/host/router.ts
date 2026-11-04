@@ -24,11 +24,13 @@ import type {
   CreateDecisionInput,
   CreateMergeProposalInput,
   CreateModuleInput,
+  CreateFreezeChangeRequestInput,
   CreateProjectFreezeInput,
   CreateProjectFromTemplateInput,
   CreateProjectInput,
   CreateRequirementDecisionInput,
   CreateRoleInput,
+  FreezeChangeRequest,
   FreezeKind,
   ProjectFreeze,
   RequirementDecision,
@@ -622,6 +624,17 @@ function asRequirementDecision(
       body.freezeId === null || body.freezeId === undefined
         ? null
         : asOptionalString(body.freezeId, "freezeId") ?? null,
+  };
+}
+
+function asCreateFreezeChangeRequest(
+  body: Record<string, unknown>,
+): CreateFreezeChangeRequestInput {
+  return {
+    freezeId: asString(body.freezeId, "freezeId"),
+    title: asString(body.title, "title"),
+    reason: asString(body.reason, "reason"),
+    impact: asOptionalString(body.impact, "impact") ?? "",
   };
 }
 
@@ -1227,6 +1240,51 @@ export class StudioRouter {
         asRequirementDecision(await readJson(req)),
       );
       sendJson(res, 201, { ok: true, decision });
+      return;
+    }
+
+    const freezeChangeMatch =
+      /^\/studio-api\/projects\/([^/]+)\/freeze-change-requests$/.exec(
+        parsed.pathname,
+      );
+    if (freezeChangeMatch !== null) {
+      const projectId = decodeSegment(freezeChangeMatch[1] ?? "");
+      this.requireMethod(parsed, ["GET", "POST"]);
+      if (parsed.method === "GET") {
+        sendJson(res, 200, {
+          ok: true,
+          requests: this.store.listFreezeChangeRequests(projectId),
+        });
+        return;
+      }
+      assertJsonRequest(req);
+      const request = this.store.createFreezeChangeRequest(
+        projectId,
+        asCreateFreezeChangeRequest(await readJson(req)),
+      );
+      sendJson(res, 201, { ok: true, request });
+      return;
+    }
+
+    const freezeChangeDecideMatch =
+      /^\/studio-api\/projects\/([^/]+)\/freeze-change-requests\/([^/]+)\/decide$/.exec(
+        parsed.pathname,
+      );
+    if (freezeChangeDecideMatch !== null) {
+      const projectId = decodeSegment(freezeChangeDecideMatch[1] ?? "");
+      const requestId = decodeSegment(freezeChangeDecideMatch[2] ?? "");
+      this.requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const body = await readJson(req);
+      if (body.status !== "accepted" && body.status !== "rejected") {
+        throw new HttpError(400, "invalid_input", "status 无效");
+      }
+      const request = this.store.decideFreezeChangeRequest(
+        projectId,
+        requestId,
+        body.status,
+      );
+      sendJson(res, 200, { ok: true, request });
       return;
     }
 

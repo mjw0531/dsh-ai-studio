@@ -85,6 +85,7 @@ export async function importProjectSlice(
     state.stageGates.push(...slice.stageGates);
     state.freezes.push(...slice.freezes);
     state.requirementDecisions.push(...slice.requirementDecisions);
+    state.freezeChangeRequests.push(...slice.freezeChangeRequests);
     state.triggers.push(...slice.triggers);
     state.threads.push(...slice.threads);
     state.workshops.push(...slice.workshops);

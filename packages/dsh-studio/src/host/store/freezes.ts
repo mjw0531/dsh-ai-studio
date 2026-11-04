@@ -3,8 +3,10 @@ import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
 import type {
+  CreateFreezeChangeRequestInput,
   CreateProjectFreezeInput,
   CreateRequirementDecisionInput,
+  FreezeChangeRequest,
   FreezeKind,
   ProjectFreeze,
   RequirementDecision,
@@ -284,4 +286,82 @@ export function createRequirementDecision(
     payload: { decisionId: decision.id, status, source: decision.source },
   });
   return decision;
+}
+
+export function createFreezeChangeRequest(
+  ctx: StoreContext,
+  projectId: string,
+  input: CreateFreezeChangeRequestInput,
+): FreezeChangeRequest {
+  const state = ctx.requireState();
+  findProject(state, projectId);
+  const freeze = state.freezes.find(
+    (item) => item.id === input.freezeId && item.projectId === projectId,
+  );
+  if (freeze === undefined) {
+    throw new StudioStoreError("freeze_not_found", "冻结版本不存在", 404);
+  }
+  const at = ctx.now();
+  const request: FreezeChangeRequest = {
+    id: newId("fcr"),
+    projectId,
+    freezeId: freeze.id,
+    title: requiredText(input.title, "title", 200),
+    reason: requiredText(input.reason, "reason", 4000),
+    impact: input.impact?.trim() ?? "",
+    status: "pending",
+    createdAt: at,
+    decidedAt: null,
+  };
+  state.freezeChangeRequests.push(request);
+  state.updatedAt = at;
+  ctx.recordEvent(state, {
+    type: "freeze.change_requested",
+    at,
+    projectId,
+    payload: { requestId: request.id, freezeId: freeze.id, version: freeze.version },
+  });
+  return structuredClone(request);
+}
+
+export function decideFreezeChangeRequest(
+  ctx: StoreContext,
+  projectId: string,
+  requestId: string,
+  status: "accepted" | "rejected",
+): FreezeChangeRequest {
+  const state = ctx.requireState();
+  findProject(state, projectId);
+  const request = state.freezeChangeRequests.find(
+    (item) => item.id === requestId && item.projectId === projectId,
+  );
+  if (request === undefined) {
+    throw new StudioStoreError("change_request_not_found", "变更单不存在", 404);
+  }
+  if (request.status !== "pending") {
+    throw new StudioStoreError(
+      "change_request_decided",
+      "变更单已经处理",
+      409,
+    );
+  }
+  request.status = status;
+  request.decidedAt = ctx.now();
+  state.updatedAt = request.decidedAt;
+  ctx.recordEvent(state, {
+    type: "freeze.change_decided",
+    at: request.decidedAt,
+    projectId,
+    payload: { requestId: request.id, status },
+  });
+  return structuredClone(request);
+}
+
+export function listFreezeChangeRequests(
+  state: StudioState,
+  projectId: string,
+): FreezeChangeRequest[] {
+  return state.freezeChangeRequests
+    .filter((request) => request.projectId === projectId)
+    .map((request) => structuredClone(request));
 }

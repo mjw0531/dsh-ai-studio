@@ -20,8 +20,10 @@ import type {
   CreateModuleInput,
   CreatePrototypeDemoInput,
   CreateProviderProfileInput,
+  CreateFreezeChangeRequestInput,
   CreateProjectFreezeInput,
   CreateRequirementDecisionInput,
+  FreezeChangeRequest,
   CreateTriggerInput,
   CreateWorkshopInput,
   Module,
@@ -247,6 +249,8 @@ export function MissionView({
   onApproveStageGate,
   onRejectStageGate,
   onCreateFreeze,
+  onFreezeChangeRequest,
+  onDecideFreezeChangeRequest,
   onCreateRequirementDecision,
   onIngestTrigger,
   onAcceptTrigger,
@@ -280,6 +284,13 @@ export function MissionView({
     note: string,
   ) => Promise<boolean>;
   onCreateFreeze: (input: CreateProjectFreezeInput) => Promise<boolean>;
+  onFreezeChangeRequest: (
+    input: CreateFreezeChangeRequestInput,
+  ) => Promise<boolean>;
+  onDecideFreezeChangeRequest: (
+    requestId: string,
+    status: "accepted" | "rejected",
+  ) => Promise<boolean>;
   onCreateRequirementDecision: (
     input: CreateRequirementDecisionInput,
   ) => Promise<boolean>;
@@ -389,8 +400,11 @@ export function MissionView({
             project={project}
             freezes={data.freezes}
             decisions={data.requirementDecisions}
+            changeRequests={data.freezeChangeRequests}
             busy={busy}
             onCreateFreeze={onCreateFreeze}
+            onCreateChangeRequest={onFreezeChangeRequest}
+            onDecideChangeRequest={onDecideFreezeChangeRequest}
             onCreateDecision={onCreateRequirementDecision}
           />
         </>
