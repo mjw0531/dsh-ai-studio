@@ -1,6 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
-
 import {
   STUDIO_PLUGIN_VERSION,
   isProjectStage,
@@ -56,820 +55,31 @@ import type {
 } from "../shared/types.js";
 import { StudioStore, StudioStoreError } from "./store.js";
 
-const MAX_BODY_BYTES = 1024 * 1024;
-const API_PREFIX = "/studio-api";
-
-interface ConnectionLike {
-  admit(request: Request): { peer?: unknown; rejection?: number };
-}
-
-interface StudioRouterOptions {
-  store: StudioStore;
-  token: string;
-  dshVersion: string;
-  compatibility: CompatibilityInfo;
-  connection: ConnectionLike;
-  bootNonce: string;
-  getBootPayload: () => unknown;
-  dispatchTask: (taskId: string) => Promise<AgentRun>;
-  verifyTask: (taskId: string) => Promise<Verification>;
-  reviewTask: (taskId: string) => Promise<IndependentReview>;
-  executeMerge: (proposalId: string) => Promise<MergeProposal>;
-  rollbackMerge: (proposalId: string) => Promise<MergeProposal>;
-  writeAdr: (decisionId: string) => Promise<Decision>;
-  exportProjectBundle: (
-    projectId: string,
-  ) => Promise<{ filename: string; bytes: Buffer }>;
-  importProjectBundle: (
-    archivePath: string,
-    targetPath: string,
-  ) => Promise<{ projectId: string; repoPath: string }>;
-  readProjectDoc: (path: string) => Promise<ProjectDoc>;
-  runWorkshop: (workshopId: string) => Promise<Workshop>;
-  summarizeWorkshop: (workshopId: string) => Promise<Workshop>;
-  probeProviderProfile: (profileId: string) => Promise<ProviderProbeResult>;
-}
-
-interface ParsedRequest {
-  method: string;
-  pathname: string;
-  url: URL;
-}
-
-class HttpError extends Error {
-  readonly status: number;
-  readonly code: string;
-
-  constructor(status: number, code: string, message: string) {
-    super(message);
-    this.name = "HttpError";
-    this.status = status;
-    this.code = code;
-  }
-}
-
-function setSecurityHeaders(res: ServerResponse): void {
-  res.setHeader("Cache-Control", "no-store");
-  res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("Referrer-Policy", "no-referrer");
-}
-
-function sendJson(res: ServerResponse, status: number, value: unknown): void {
-  const body = `${JSON.stringify(value)}\n`;
-  setSecurityHeaders(res);
-  res.writeHead(status, {
-    "Content-Type": "application/json; charset=utf-8",
-    "Content-Length": Buffer.byteLength(body).toString(),
-  });
-  res.end(body);
-}
-
-function sendError(
-  res: ServerResponse,
-  status: number,
-  code: string,
-  message: string,
-): void {
-  const body: ApiErrorBody = { error: { code, message } };
-  sendJson(res, status, body);
-}
-
-function requestOf(req: IncomingMessage): Request {
-  const headers = new Headers();
-  for (const [name, value] of Object.entries(req.headers)) {
-    if (value === undefined) continue;
-    headers.set(name, Array.isArray(value) ? value.join(", ") : value);
-  }
-  const host = req.headers.host ?? "127.0.0.1";
-  return new Request(`http://${host}${req.url ?? "/"}`, {
-    method: "GET",
-    headers,
-  });
-}
-
-function assertJsonRequest(req: IncomingMessage): void {
-  const contentType = req.headers["content-type"];
-  if (
-    typeof contentType === "string" &&
-    !contentType.toLowerCase().includes("application/json")
-  ) {
-    throw new HttpError(
-      415,
-      "unsupported_media_type",
-      "请求体必须是 application/json",
-    );
-  }
-}
-
-async function readRawBody(req: IncomingMessage): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  let total = 0;
-  for await (const chunk of req) {
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    total += buffer.byteLength;
-    if (total > MAX_BODY_BYTES) {
-      throw new HttpError(413, "payload_too_large", "请求体超过 1 MB 限制");
-    }
-    chunks.push(buffer);
-  }
-  return Buffer.concat(chunks);
-}
-
-function verifyWebhookSignature(
-  secret: string,
-  raw: Buffer,
-  signature: string,
-): boolean {
-  const provided = signature.replace(/^sha256=/u, "").trim();
-  if (provided === "") return false;
-  const expected = createHmac("sha256", secret).update(raw).digest("hex");
-  if (provided.length !== expected.length) return false;
-  return timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
-}
-
-async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
-  const chunks: Buffer[] = [];
-  let total = 0;
-  for await (const chunk of req) {
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    total += buffer.byteLength;
-    if (total > MAX_BODY_BYTES) {
-      throw new HttpError(413, "payload_too_large", "请求体超过 1 MB 限制");
-    }
-    chunks.push(buffer);
-  }
-  if (total === 0) return {};
-  const text = Buffer.concat(chunks).toString("utf8");
-  try {
-    const parsed: unknown = JSON.parse(text);
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-      throw new Error("not an object");
-    }
-    return parsed as Record<string, unknown>;
-  } catch {
-    throw new HttpError(400, "invalid_json", "请求体不是合法的 JSON 对象");
-  }
-}
-
-function decodeSegment(value: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    throw new HttpError(400, "invalid_path", "路径参数编码无效");
-  }
-}
-
-function asString(value: unknown, field: string): string {
-  if (typeof value !== "string" || value.trim() === "") {
-    throw new HttpError(400, "invalid_input", `${field} 必须是非空字符串`);
-  }
-  return value;
-}
-
-function asOptionalString(value: unknown, field: string): string | undefined {
-  if (value === undefined || value === null) return undefined;
-  if (typeof value !== "string") {
-    throw new HttpError(
-      400,
-      "invalid_input",
-      `${field} 必须是字符串；留空请省略或传 null`,
-    );
-  }
-  return value.trim() === "" ? undefined : value;
-}
-
-function asStringArray(value: unknown, field: string): string[] | undefined {
-  if (value === undefined || value === null) return undefined;
-  if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) {
-    throw new HttpError(
-      400,
-      "invalid_input",
-      `${field} 必须是字符串数组；留空请省略或传 null`,
-    );
-  }
-  return value;
-}
-
-function asOptionalTimeout(value: unknown, field: string): number | null | undefined {
-  if (value === undefined || value === null) return undefined;
-  if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) {
-    throw new HttpError(400, "invalid_input", `${field} 必须是正整数秒`);
-  }
-  return value;
-}
-
-function asRiskTier(value: unknown): "trivial" | "normal" | "critical" | undefined {
-  if (value === undefined || value === null) return undefined;
-  if (value === "trivial" || value === "normal" || value === "critical") return value;
-  throw new HttpError(400, "invalid_input", "riskTier 必须是 trivial/normal/critical");
-}
-
-function asTaskStatus(value: unknown): TaskStatus {
-  if (typeof value !== "string") {
-    throw new HttpError(400, "invalid_input", "status 必须是字符串");
-  }
-  return value as TaskStatus;
-}
-
-function asOptionalBudget(
-  value: unknown,
-  field: string,
-): number | null | undefined {
-  if (value === undefined) return undefined;
-  if (value === null) return null;
-  if (
-    typeof value !== "number" ||
-    !Number.isSafeInteger(value) ||
-    value < 0
-  ) {
-    throw new HttpError(
-      400,
-      "invalid_input",
-      `${field} 必须是非负整数 token 数`,
-    );
-  }
-  return value === 0 ? null : value;
-}
-
-function asUpdateTriggerRules(
-  body: Record<string, unknown>,
-): UpdateTriggerRulesInput {
-  const result: UpdateTriggerRulesInput = {};
-  if (body.enabled !== undefined) result.enabled = body.enabled === true;
-  if (body.sources !== undefined) {
-    result.sources = asStringArray(body.sources, "sources") as UpdateTriggerRulesInput["sources"];
-  }
-  if (body.repos !== undefined) {
-    result.repos = asStringArray(body.repos, "repos");
-  }
-  if (body.labels !== undefined) {
-    result.labels = asStringArray(body.labels, "labels");
-  }
-  if (body.authors !== undefined) {
-    result.authors = asStringArray(body.authors, "authors");
-  }
-  if (body.mention !== undefined) {
-    result.mention = asOptionalString(body.mention, "mention");
-  }
-  return result;
-}
-
-function asCreateProjectFromTemplate(
-  body: Record<string, unknown>,
-): CreateProjectFromTemplateInput {
-  const template = body.template;
-  if (template !== "web" && template !== "game" && template !== "tool") {
-    throw new HttpError(
-      400,
-      "invalid_input",
-      "template 必须是 web / game / tool",
-    );
-  }
-  return {
-    template,
-    name: asString(body.name, "name"),
-    description: asOptionalString(body.description, "description"),
-    repoPath: asOptionalString(body.repoPath, "repoPath") ?? null,
-  };
-}
-
-function asCreateProject(body: Record<string, unknown>): CreateProjectInput {
-  return {
-    name: asString(body.name, "name"),
-    description: asOptionalString(body.description, "description"),
-    tokenBudget: asOptionalBudget(body.tokenBudget, "tokenBudget"),
-  };
-}
-
-function asUpdateProject(
-  body: Record<string, unknown>,
-): UpdateProjectInput {
-  const optionalPath = (
-    value: unknown,
-    field: string,
-  ): string | null | undefined =>
-    value === undefined
-      ? undefined
-      : value === null
-        ? null
-        : asString(value, field);
-  return {
-    repoPath: optionalPath(body.repoPath, "repoPath"),
-    prdPath: optionalPath(body.prdPath, "prdPath"),
-    invariantsPath: optionalPath(
-      body.invariantsPath,
-      "invariantsPath",
-    ),
-    modulesPath: optionalPath(body.modulesPath, "modulesPath"),
-  };
-}
-
-function asCreateModule(body: Record<string, unknown>): CreateModuleInput {
-  return {
-    name: asString(body.name, "name"),
-    responsibility: asOptionalString(body.responsibility, "responsibility"),
-    contractPath: asOptionalString(body.contractPath, "contractPath"),
-    contractText: asOptionalString(body.contractText, "contractText"),
-    allowedPaths: asStringArray(body.allowedPaths, "allowedPaths"),
-    forbiddenPaths: asStringArray(body.forbiddenPaths, "forbiddenPaths"),
-    dependsOn: asStringArray(body.dependsOn, "dependsOn"),
-  };
-}
-
-function asUpdateModule(body: Record<string, unknown>): UpdateModuleInput {
-  return {
-    responsibility: asOptionalString(body.responsibility, "responsibility"),
-    contractPath:
-      body.contractPath === null
-        ? null
-        : asOptionalString(body.contractPath, "contractPath"),
-    contractText: asOptionalString(body.contractText, "contractText"),
-    allowedPaths: asStringArray(body.allowedPaths, "allowedPaths"),
-    forbiddenPaths: asStringArray(body.forbiddenPaths, "forbiddenPaths"),
-    dependsOn: asStringArray(body.dependsOn, "dependsOn"),
-  };
-}
-
-function asCreateDecision(
-  body: Record<string, unknown>,
-): CreateDecisionInput {
-  return {
-    title: asString(body.title, "title"),
-    context: asOptionalString(body.context, "context"),
-    recommendation: asOptionalString(body.recommendation, "recommendation"),
-    taskId:
-      body.taskId === null || body.taskId === undefined
-        ? null
-        : asString(body.taskId, "taskId"),
-    reversible: body.reversible !== false,
-  };
-}
-
-function asDecideDecision(
-  body: Record<string, unknown>,
-): DecideDecisionInput {
-  if (body.status !== "approved" && body.status !== "rejected") {
-    throw new HttpError(
-      400,
-      "invalid_input",
-      "status 只能是 approved 或 rejected",
-    );
-  }
-  return {
-    status: body.status,
-    decision: asOptionalString(body.decision, "decision"),
-    note: asOptionalString(body.note, "note"),
-  };
-}
-
-function asAgentExecutor(value: unknown): AgentExecutor | undefined {
-  if (value === undefined) return undefined;
-  if (value === "dsh" || value === "claude-code" || value === "codex") {
-    return value;
-  }
-  throw new HttpError(
-    400,
-    "invalid_input",
-    "executor 必须是 dsh / claude-code / codex",
-  );
-}
-
-function asPrototypeDemoResult(
-  value: unknown,
-): CreatePrototypeDemoInput["result"] {
-  if (value === "passed" || value === "failed") return value;
-  throw new HttpError(
-    400,
-    "invalid_input",
-    "result 必须是 passed 或 failed",
-  );
-}
-
-function asCreatePrototypeDemo(
-  body: Record<string, unknown>,
-): CreatePrototypeDemoInput {
-  return {
-    title: asString(body.title, "title"),
-    entry: asOptionalString(body.entry, "entry"),
-    startCommand: asOptionalString(body.startCommand, "startCommand"),
-    steps: asOptionalString(body.steps, "steps"),
-    result: asPrototypeDemoResult(body.result),
-    screenshotPath: asOptionalString(body.screenshotPath, "screenshotPath"),
-    notes: asOptionalString(body.notes, "notes"),
-  };
-}
-
-function asUpdatePrototypeDemo(
-  body: Record<string, unknown>,
-): UpdatePrototypeDemoInput {
-  return {
-    title:
-      body.title === undefined ? undefined : asString(body.title, "title"),
-    entry: asOptionalString(body.entry, "entry"),
-    startCommand: asOptionalString(body.startCommand, "startCommand"),
-    steps: asOptionalString(body.steps, "steps"),
-    result:
-      body.result === undefined
-        ? undefined
-        : asPrototypeDemoResult(body.result),
-    screenshotPath: asOptionalString(body.screenshotPath, "screenshotPath"),
-    notes: asOptionalString(body.notes, "notes"),
-  };
-}
-
-function asCreateProviderProfile(
-  body: Record<string, unknown>,
-): CreateProviderProfileInput {
-  return {
-    name: asString(body.name, "name"),
-    executor: asAgentExecutor(body.executor),
-    provider: asOptionalString(body.provider, "provider"),
-    model: asOptionalString(body.model, "model"),
-    note: asOptionalString(body.note, "note"),
-  };
-}
-
-function asUpdateProviderProfile(
-  body: Record<string, unknown>,
-): UpdateProviderProfileInput {
-  return {
-    name:
-      body.name === undefined ? undefined : asString(body.name, "name"),
-    executor: asAgentExecutor(body.executor),
-    provider: asOptionalString(body.provider, "provider"),
-    model: asOptionalString(body.model, "model"),
-    note: asOptionalString(body.note, "note"),
-  };
-}
-
-function asCreateRole(body: Record<string, unknown>): CreateRoleInput {
-  return {
-    name: asString(body.name, "name"),
-    title: asOptionalString(body.title, "title"),
-    mission: asOptionalString(body.mission, "mission"),
-    responsibilities: asStringArray(body.responsibilities, "responsibilities"),
-    providerProfileId:
-      body.providerProfileId === null
-        ? null
-        : asOptionalString(body.providerProfileId, "providerProfileId"),
-    model: asOptionalString(body.model, "model") ?? null,
-    executor: asAgentExecutor(body.executor),
-    tokenBudget: asOptionalBudget(body.tokenBudget, "tokenBudget"),
-    dailyTokenBudget: asOptionalBudget(
-      body.dailyTokenBudget,
-      "dailyTokenBudget",
-    ),
-  };
-}
-
-function asCreateTask(body: Record<string, unknown>): CreateTaskInput {
-  const owner =
-    body.ownerRoleId === null || body.ownerRoleId === undefined
-      ? null
-      : asString(body.ownerRoleId, "ownerRoleId");
-  const reviewer =
-    body.reviewerRoleId === null || body.reviewerRoleId === undefined
-      ? null
-      : asString(body.reviewerRoleId, "reviewerRoleId");
-  const priority =
-    body.priority === "P0" || body.priority === "P1" || body.priority === "P2"
-      ? body.priority
-      : "P1";
-  const kind =
-    body.kind === "fix" || body.kind === "new" ? body.kind : undefined;
-  return {
-    title: asString(body.title, "title"),
-    goal: asOptionalString(body.goal, "goal"),
-    priority,
-    ownerRoleId: owner,
-    reviewerRoleId: reviewer,
-    acceptance: asStringArray(body.acceptance, "acceptance"),
-    branch: asOptionalString(body.branch, "branch") ?? null,
-    verifyCommand:
-      asOptionalString(body.verifyCommand, "verifyCommand") ?? null,
-    module: asOptionalString(body.module, "module") ?? null,
-    contractRef:
-      asOptionalString(body.contractRef, "contractRef") ?? null,
-    requirementRefs: asStringArray(body.requirementRefs, "requirementRefs") ?? [],
-    timeoutSeconds: asOptionalTimeout(body.timeoutSeconds, "timeoutSeconds"),
-    riskTier: asRiskTier(body.riskTier),
-    diagnosis: asOptionalString(body.diagnosis, "diagnosis") ?? "",
-    plan: asOptionalString(body.plan, "plan") ?? "",
-    kind,
-    integration: body.integration === true,
-    originTaskId:
-      asOptionalString(body.originTaskId, "originTaskId") ?? null,
-  };
-}
-
-function asFreezeKind(value: unknown): FreezeKind {
-  if (value === "prd" || value === "architecture") return value;
-  throw new HttpError(400, "invalid_input", "kind 必须是 prd/architecture");
-}
-
-function asCreateFreeze(body: Record<string, unknown>): CreateProjectFreezeInput {
-  const checklist = body.checklist;
-  if (
-    checklist !== undefined &&
-    (!Array.isArray(checklist) ||
-      !checklist.every(
-        (item) =>
-          typeof item === "object" &&
-          item !== null &&
-          typeof (item as { id?: unknown }).id === "string" &&
-          typeof (item as { text?: unknown }).text === "string" &&
-          typeof (item as { done?: unknown }).done === "boolean",
-      ))
-  ) {
-    throw new HttpError(400, "invalid_input", "checklist 无效");
-  }
-  return {
-    kind: asFreezeKind(body.kind),
-    version: asString(body.version, "version"),
-    docPath: asString(body.docPath, "docPath"),
-    domainModelPath:
-      body.domainModelPath === null || body.domainModelPath === undefined
-        ? null
-        : asOptionalString(body.domainModelPath, "domainModelPath") ?? null,
-    summary: asOptionalString(body.summary, "summary") ?? "",
-    openQuestions:
-      asStringArray(body.openQuestions, "openQuestions") ?? [],
-    checklist: checklist as StageCheckItem[] | undefined,
-    waiverReason:
-      body.waiverReason === null || body.waiverReason === undefined
-        ? null
-        : asOptionalString(body.waiverReason, "waiverReason") ?? null,
-  };
-}
-
-function asRequirementDecision(
-  body: Record<string, unknown>,
-): CreateRequirementDecisionInput {
-  const status = body.status;
-  if (
-    status !== undefined &&
-    status !== "accepted" &&
-    status !== "rejected" &&
-    status !== "pending"
-  ) {
-    throw new HttpError(400, "invalid_input", "status 无效");
-  }
-  return {
-    title: asString(body.title, "title"),
-    source: asString(body.source, "source"),
-    recommendation: asString(body.recommendation, "recommendation"),
-    status,
-    rationale: asOptionalString(body.rationale, "rationale") ?? "",
-    freezeId:
-      body.freezeId === null || body.freezeId === undefined
-        ? null
-        : asOptionalString(body.freezeId, "freezeId") ?? null,
-  };
-}
-
-function asCreateFreezeChangeRequest(
-  body: Record<string, unknown>,
-): CreateFreezeChangeRequestInput {
-  return {
-    freezeId: asString(body.freezeId, "freezeId"),
-    title: asString(body.title, "title"),
-    reason: asString(body.reason, "reason"),
-    impact: asOptionalString(body.impact, "impact") ?? "",
-  };
-}
-
-function asUpdateTask(body: Record<string, unknown>): UpdateTaskInput {
-  const result: UpdateTaskInput = {};
-  if (body.title !== undefined) result.title = asString(body.title, "title");
-  if (body.goal !== undefined) result.goal = asOptionalString(body.goal, "goal");
-  if (body.priority !== undefined) {
-    if (
-      body.priority !== "P0" &&
-      body.priority !== "P1" &&
-      body.priority !== "P2"
-    ) {
-      throw new HttpError(400, "invalid_input", "priority 无效");
-    }
-    result.priority = body.priority;
-  }
-  if (body.ownerRoleId !== undefined) {
-    result.ownerRoleId =
-      body.ownerRoleId === null
-        ? null
-        : asString(body.ownerRoleId, "ownerRoleId");
-  }
-  if (body.reviewerRoleId !== undefined) {
-    result.reviewerRoleId =
-      body.reviewerRoleId === null
-        ? null
-        : asString(body.reviewerRoleId, "reviewerRoleId");
-  }
-  if (body.acceptance !== undefined) {
-    if (!Array.isArray(body.acceptance)) {
-      throw new HttpError(400, "invalid_input", "acceptance 必须是数组");
-    }
-    result.acceptance = body.acceptance as UpdateTaskInput["acceptance"];
-  }
-  if (body.evidence !== undefined) {
-    if (!Array.isArray(body.evidence)) {
-      throw new HttpError(400, "invalid_input", "evidence 必须是数组");
-    }
-    result.evidence = body.evidence as UpdateTaskInput["evidence"];
-  }
-  if (body.branch !== undefined) {
-    result.branch =
-      body.branch === null ? null : asOptionalString(body.branch, "branch");
-  }
-  if (body.verifyCommand !== undefined) {
-    result.verifyCommand =
-      body.verifyCommand === null
-        ? null
-        : asOptionalString(body.verifyCommand, "verifyCommand");
-  }
-  if (body.module !== undefined) {
-    result.module =
-      body.module === null
-        ? null
-        : asOptionalString(body.module, "module");
-  }
-  if (body.contractRef !== undefined) {
-    result.contractRef =
-      body.contractRef === null
-        ? null
-        : asOptionalString(body.contractRef, "contractRef");
-  }
-  if (body.requirementRefs !== undefined) {
-    result.requirementRefs =
-      asStringArray(body.requirementRefs, "requirementRefs") ?? [];
-  }
-  if (body.timeoutSeconds !== undefined) {
-    result.timeoutSeconds = asOptionalTimeout(
-      body.timeoutSeconds,
-      "timeoutSeconds",
-    );
-  }
-  if (body.riskTier !== undefined) {
-    result.riskTier = asRiskTier(body.riskTier);
-  }
-  if (body.kind !== undefined) {
-    if (body.kind !== "new" && body.kind !== "fix") {
-      throw new HttpError(400, "invalid_input", "kind 无效");
-    }
-    result.kind = body.kind;
-  }
-  if (body.diagnosis !== undefined) {
-    result.diagnosis = asOptionalString(body.diagnosis, "diagnosis");
-  }
-  if (body.plan !== undefined) {
-    result.plan = asOptionalString(body.plan, "plan");
-  }
-  if (body.integration !== undefined) {
-    if (typeof body.integration !== "boolean") {
-      throw new HttpError(400, "invalid_input", "integration 必须是布尔值");
-    }
-    result.integration = body.integration;
-  }
-  if (body.docsSynced !== undefined) {
-    if (typeof body.docsSynced !== "boolean") {
-      throw new HttpError(400, "invalid_input", "docsSynced 必须是布尔值");
-    }
-    result.docsSynced = body.docsSynced;
-  }
-  return result;
-}
-
-function asMergeRisk(value: unknown): MergeRisk {
-  if (value === undefined) return "medium";
-  if (value === "low" || value === "medium" || value === "high") return value;
-  throw new HttpError(400, "invalid_input", "risk 必须是 low/medium/high");
-}
-
-function asCreateMergeProposal(
-  body: Record<string, unknown>,
-): CreateMergeProposalInput {
-  return {
-    summary: asString(body.summary, "summary"),
-    rollback: asString(body.rollback, "rollback"),
-    risk: asMergeRisk(body.risk),
-    base: asOptionalString(body.base, "base"),
-    branch: asOptionalString(body.branch, "branch"),
-  };
-}
-
-function asNote(body: Record<string, unknown>): string | undefined {
-  return asOptionalString(body.note, "note");
-}
-
-function asTriggerSource(value: unknown): CreateTriggerInput["source"] {
-  if (
-    value === "manual" ||
-    value === "github" ||
-    value === "ci" ||
-    value === "im" ||
-    value === "email"
-  ) {
-    return value;
-  }
-  throw new HttpError(
-    400,
-    "invalid_input",
-    "source 必须是 manual/github/ci/im/email",
-  );
-}
-
-function asCreateTrigger(body: Record<string, unknown>): CreateTriggerInput {
-  return {
-    source: asTriggerSource(body.source),
-    externalId: asOptionalString(body.externalId, "externalId"),
-    threadKey: asOptionalString(body.threadKey, "threadKey"),
-    title: asString(body.title, "title"),
-    body: asOptionalString(body.body, "body"),
-    url: asOptionalString(body.url, "url"),
-  };
-}
-
-function asAcceptTrigger(body: Record<string, unknown>): AcceptTriggerInput {
-  const priority =
-    body.priority === "P0" || body.priority === "P1" || body.priority === "P2"
-      ? body.priority
-      : undefined;
-  return {
-    acceptance: asStringArray(body.acceptance, "acceptance"),
-    ownerRoleId:
-      body.ownerRoleId === null
-        ? null
-        : asOptionalString(body.ownerRoleId, "ownerRoleId"),
-    reviewerRoleId:
-      body.reviewerRoleId === null
-        ? null
-        : asOptionalString(body.reviewerRoleId, "reviewerRoleId"),
-    priority,
-  };
-}
-
-function asCreateWorkshop(
-  body: Record<string, unknown>,
-): CreateWorkshopInput {
-  return {
-    title: asString(body.title, "title"),
-    topic: asOptionalString(body.topic, "topic"),
-    stage:
-      body.stage === undefined
-        ? undefined
-        : asProjectStage(body.stage),
-    participantRoleIds: asStringArray(
-      body.participantRoleIds,
-      "participantRoleIds",
-    ),
-  };
-}
-
-function asWorkshopNote(
-  body: Record<string, unknown>,
-): AddWorkshopNoteInput {
-  return {
-    roleId: asString(body.roleId, "roleId"),
-    summary: asString(body.summary, "summary"),
-    objections: asStringArray(body.objections, "objections"),
-    risks: asStringArray(body.risks, "risks"),
-    recommendation: asOptionalString(body.recommendation, "recommendation"),
-  };
-}
-
-function asProjectStage(value: unknown): ProjectStage {
-  if (isProjectStage(value)) return value;
-  throw new HttpError(
-    400,
-    "invalid_input",
-    "stage 必须是 discovery/architecture/prototype/development",
-  );
-}
-
-function asStageGateInput(
-  body: Record<string, unknown>,
-): UpdateStageGateInput {
-  const input: UpdateStageGateInput = {};
-  if (body.checklist !== undefined) {
-    input.checklist = body.checklist as StageCheckItem[];
-  }
-  if (body.artifacts !== undefined) {
-    input.artifacts = body.artifacts as StageArtifact[];
-  }
-  if (body.note !== undefined) {
-    input.note = asOptionalString(body.note, "note");
-  }
-  return input;
-}
-
-function asApproveStageGateInput(
-  body: Record<string, unknown>,
-): ApproveStageGateInput {
-  return {
-    ...asStageGateInput(body),
-    waiverReason: asOptionalString(body.waiverReason, "waiverReason"),
-  };
-}
-
+import {
+  API_PREFIX,
+  HttpError,
+  assertJsonRequest,
+  decodeSegment,
+  readJson,
+  readRawBody,
+  requestOf,
+  sendError,
+  sendJson,
+  setSecurityHeaders,
+  verifyWebhookSignature,
+} from "./router/http.js";
+import type {
+  ConnectionLike,
+  ParsedRequest,
+  StudioRouterOptions,
+} from "./router/http.js";
+import * as inputs from "./router/inputs.js";
+import {
+  allowRate,
+  assertAuthorized,
+  parseRoute,
+  requireMethod,
+} from "./router/auth.js";
 export class StudioRouter {
   private readonly store: StudioStore;
   private readonly token: string;
@@ -933,7 +143,7 @@ export class StudioRouter {
   }
 
   async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
-    const parsed = this.parse(req);
+    const parsed = parseRoute(req);
     if (parsed.pathname === `${API_PREFIX}/health`) {
       if (parsed.method !== "GET") {
         throw new HttpError(405, "method_not_allowed", "只支持 GET");
@@ -950,8 +160,8 @@ export class StudioRouter {
     }
 
     if (parsed.pathname === `${API_PREFIX}/boot`) {
-      this.requireMethod(parsed, ["GET"]);
-      if (!this.allowRate("boot", req, 30)) {
+      requireMethod(parsed, ["GET"]);
+      if (!allowRate(this.rateBuckets, "boot", req, 30)) {
         sendError(res, 429, "rate_limited", "启动参数请求过于频繁，请稍后再试");
         return;
       }
@@ -1007,7 +217,7 @@ export class StudioRouter {
     const webhookMatch =
       /^\/studio-api\/webhooks\/([^/]+)\/([^/]+)$/.exec(parsed.pathname);
     if (webhookMatch !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       const projectId = decodeSegment(webhookMatch[1] ?? "");
       const source = webhookMatch[2] ?? "";
       if (source !== "github" && source !== "ci" && source !== "im") {
@@ -1051,10 +261,10 @@ export class StudioRouter {
       return;
     }
 
-    this.assertAuthorized(req);
+    assertAuthorized(req, this.token);
 
     if (parsed.pathname === `${API_PREFIX}/bootstrap`) {
-      this.requireMethod(parsed, ["GET"]);
+      requireMethod(parsed, ["GET"]);
       const projectId = parsed.url.searchParams.get("projectId") ?? undefined;
       const data = await this.store.bootstrap(projectId);
       data.app.dshVersion = this.dshVersion;
@@ -1065,7 +275,7 @@ export class StudioRouter {
     }
 
     if (parsed.pathname === `${API_PREFIX}/export`) {
-      this.requireMethod(parsed, ["GET"]);
+      requireMethod(parsed, ["GET"]);
       const state = await this.store.exportState();
       sendJson(res, 200, {
         ok: true,
@@ -1079,11 +289,11 @@ export class StudioRouter {
     }
 
     if (parsed.pathname === `${API_PREFIX}/settings`) {
-      this.requireMethod(parsed, ["PATCH"]);
+      requireMethod(parsed, ["PATCH"]);
       assertJsonRequest(req);
       const body = await readJson(req);
       const state = await this.store.updateCompanyName(
-        asString(body.companyName, "companyName"),
+        inputs.asString(body.companyName, "companyName"),
       );
       sendJson(res, 200, {
         ok: true,
@@ -1093,12 +303,12 @@ export class StudioRouter {
     }
 
     if (parsed.pathname === `${API_PREFIX}/projects/bundle/import`) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const body = await readJson(req);
       const imported = await this.importProjectBundle(
-        asString(body.archivePath, "archivePath"),
-        asString(body.targetPath, "targetPath"),
+        inputs.asString(body.archivePath, "archivePath"),
+        inputs.asString(body.targetPath, "targetPath"),
       );
       sendJson(res, 200, { ok: true, ...imported });
       return;
@@ -1107,7 +317,7 @@ export class StudioRouter {
     const projectBundle =
       /^\/studio-api\/projects\/([^/]+)\/bundle$/.exec(parsed.pathname);
     if (projectBundle !== null) {
-      this.requireMethod(parsed, ["GET"]);
+      requireMethod(parsed, ["GET"]);
       const bundle = await this.exportProjectBundle(
         decodeSegment(projectBundle[1] ?? ""),
       );
@@ -1123,7 +333,7 @@ export class StudioRouter {
     }
 
     if (parsed.pathname === `${API_PREFIX}/import`) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const body = await readJson(req);
       const state = await this.store.importState(body.state);
@@ -1135,20 +345,20 @@ export class StudioRouter {
     }
 
     if (parsed.pathname === `${API_PREFIX}/projects/from-template`) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const project = await this.store.createProjectFromTemplate(
-        asCreateProjectFromTemplate(await readJson(req)),
+        inputs.asCreateProjectFromTemplate(await readJson(req)),
       );
       sendJson(res, 201, { ok: true, project });
       return;
     }
 
     if (parsed.pathname === `${API_PREFIX}/projects`) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const project = await this.store.createProject(
-        asCreateProject(await readJson(req)),
+        inputs.asCreateProject(await readJson(req)),
       );
       sendJson(res, 201, { ok: true, project });
       return;
@@ -1159,11 +369,11 @@ export class StudioRouter {
         parsed.pathname,
       );
     if (triggerRulesMatch !== null) {
-      this.requireMethod(parsed, ["PATCH"]);
+      requireMethod(parsed, ["PATCH"]);
       assertJsonRequest(req);
       const rules = await this.store.updateTriggerRules(
         decodeSegment(triggerRulesMatch[1] ?? ""),
-        asUpdateTriggerRules(await readJson(req)),
+        inputs.asUpdateTriggerRules(await readJson(req)),
       );
       sendJson(res, 200, { ok: true, rules });
       return;
@@ -1174,10 +384,10 @@ export class StudioRouter {
         parsed.pathname,
       );
     if (prototypeDemos !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const demo = await this.store.createPrototypeDemo(
-        asCreatePrototypeDemo(await readJson(req)),
+        inputs.asCreatePrototypeDemo(await readJson(req)),
         decodeSegment(prototypeDemos[1] ?? ""),
       );
       sendJson(res, 201, { ok: true, demo });
@@ -1189,11 +399,11 @@ export class StudioRouter {
         parsed.pathname,
       );
     if (prototypeDemo !== null) {
-      this.requireMethod(parsed, ["PATCH"]);
+      requireMethod(parsed, ["PATCH"]);
       assertJsonRequest(req);
       const demo = await this.store.updatePrototypeDemo(
         decodeSegment(prototypeDemo[2] ?? ""),
-        asUpdatePrototypeDemo(await readJson(req)),
+        inputs.asUpdatePrototypeDemo(await readJson(req)),
       );
       sendJson(res, 200, { ok: true, demo });
       return;
@@ -1203,7 +413,7 @@ export class StudioRouter {
       /^\/studio-api\/projects\/([^/]+)\/freezes$/.exec(parsed.pathname);
     if (freezeMatch !== null) {
       const projectId = decodeSegment(freezeMatch[1] ?? "");
-      this.requireMethod(parsed, ["GET", "POST"]);
+      requireMethod(parsed, ["GET", "POST"]);
       if (parsed.method === "GET") {
         sendJson(res, 200, {
           ok: true,
@@ -1214,7 +424,7 @@ export class StudioRouter {
       assertJsonRequest(req);
       const freeze = await this.store.createFreeze(
         projectId,
-        asCreateFreeze(await readJson(req)),
+        inputs.asCreateFreeze(await readJson(req)),
       );
       sendJson(res, 201, { ok: true, freeze });
       return;
@@ -1226,7 +436,7 @@ export class StudioRouter {
       );
     if (requirementDecisionMatch !== null) {
       const projectId = decodeSegment(requirementDecisionMatch[1] ?? "");
-      this.requireMethod(parsed, ["GET", "POST"]);
+      requireMethod(parsed, ["GET", "POST"]);
       if (parsed.method === "GET") {
         sendJson(res, 200, {
           ok: true,
@@ -1237,7 +447,7 @@ export class StudioRouter {
       assertJsonRequest(req);
       const decision = this.store.createRequirementDecision(
         projectId,
-        asRequirementDecision(await readJson(req)),
+        inputs.asRequirementDecision(await readJson(req)),
       );
       sendJson(res, 201, { ok: true, decision });
       return;
@@ -1249,7 +459,7 @@ export class StudioRouter {
       );
     if (freezeChangeMatch !== null) {
       const projectId = decodeSegment(freezeChangeMatch[1] ?? "");
-      this.requireMethod(parsed, ["GET", "POST"]);
+      requireMethod(parsed, ["GET", "POST"]);
       if (parsed.method === "GET") {
         sendJson(res, 200, {
           ok: true,
@@ -1260,7 +470,7 @@ export class StudioRouter {
       assertJsonRequest(req);
       const request = this.store.createFreezeChangeRequest(
         projectId,
-        asCreateFreezeChangeRequest(await readJson(req)),
+        inputs.asCreateFreezeChangeRequest(await readJson(req)),
       );
       sendJson(res, 201, { ok: true, request });
       return;
@@ -1273,7 +483,7 @@ export class StudioRouter {
     if (freezeChangeDecideMatch !== null) {
       const projectId = decodeSegment(freezeChangeDecideMatch[1] ?? "");
       const requestId = decodeSegment(freezeChangeDecideMatch[2] ?? "");
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const body = await readJson(req);
       if (body.status !== "accepted" && body.status !== "rejected") {
@@ -1291,11 +501,11 @@ export class StudioRouter {
     const projectMatch =
       /^\/studio-api\/projects\/([^/]+)$/.exec(parsed.pathname);
     if (projectMatch !== null) {
-      this.requireMethod(parsed, ["PATCH"]);
+      requireMethod(parsed, ["PATCH"]);
       assertJsonRequest(req);
       const project = await this.store.updateProject(
         decodeSegment(projectMatch[1] ?? ""),
-        asUpdateProject(await readJson(req)),
+        inputs.asUpdateProject(await readJson(req)),
       );
       sendJson(res, 200, { ok: true, project });
       return;
@@ -1306,18 +516,18 @@ export class StudioRouter {
     );
     if (stageGate !== null) {
       const projectId = decodeSegment(stageGate[1] ?? "");
-      const stage = asProjectStage(decodeSegment(stageGate[2] ?? ""));
+      const stage = inputs.asProjectStage(decodeSegment(stageGate[2] ?? ""));
       if (parsed.method === "GET") {
         const gate = await this.store.getStageGate(projectId, stage);
         sendJson(res, 200, { ok: true, gate });
         return;
       }
-      this.requireMethod(parsed, ["PATCH"]);
+      requireMethod(parsed, ["PATCH"]);
       assertJsonRequest(req);
       const gate = await this.store.updateStageGate(
         projectId,
         stage,
-        asStageGateInput(await readJson(req)),
+        inputs.asStageGateInput(await readJson(req)),
       );
       sendJson(res, 200, { ok: true, gate });
       return;
@@ -1328,12 +538,12 @@ export class StudioRouter {
         parsed.pathname,
       );
     if (stageGateApprove !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const gate = await this.store.approveStageGate(
         decodeSegment(stageGateApprove[1] ?? ""),
-        asProjectStage(decodeSegment(stageGateApprove[2] ?? "")),
-        asApproveStageGateInput(await readJson(req)),
+        inputs.asProjectStage(decodeSegment(stageGateApprove[2] ?? "")),
+        inputs.asApproveStageGateInput(await readJson(req)),
       );
       sendJson(res, 200, { ok: true, gate });
       return;
@@ -1344,13 +554,13 @@ export class StudioRouter {
         parsed.pathname,
       );
     if (stageGateReject !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const body = await readJson(req);
       const gate = await this.store.rejectStageGate(
         decodeSegment(stageGateReject[1] ?? ""),
-        asProjectStage(decodeSegment(stageGateReject[2] ?? "")),
-        asNote(body) ?? "",
+        inputs.asProjectStage(decodeSegment(stageGateReject[2] ?? "")),
+        inputs.asNote(body) ?? "",
       );
       sendJson(res, 200, { ok: true, gate });
       return;
@@ -1360,7 +570,7 @@ export class StudioRouter {
       parsed.pathname,
     );
     if (selectProject !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       const project = await this.store.selectProject(
         decodeSegment(selectProject[1] ?? ""),
       );
@@ -1369,10 +579,10 @@ export class StudioRouter {
     }
 
     if (parsed.pathname === `${API_PREFIX}/triggers`) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const trigger = await this.store.ingestTrigger(
-        asCreateTrigger(await readJson(req)),
+        inputs.asCreateTrigger(await readJson(req)),
       );
       sendJson(res, 201, { ok: true, trigger });
       return;
@@ -1381,11 +591,11 @@ export class StudioRouter {
     const triggerAccept =
       /^\/studio-api\/triggers\/([^/]+)\/accept$/.exec(parsed.pathname);
     if (triggerAccept !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const result = await this.store.acceptTrigger(
         decodeSegment(triggerAccept[1] ?? ""),
-        asAcceptTrigger(await readJson(req)),
+        inputs.asAcceptTrigger(await readJson(req)),
       );
       sendJson(res, 200, { ok: true, ...result });
       return;
@@ -1394,23 +604,23 @@ export class StudioRouter {
     const triggerIgnore =
       /^\/studio-api\/triggers\/([^/]+)\/ignore$/.exec(parsed.pathname);
     if (triggerIgnore !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const body = await readJson(req);
       const trigger = await this.store.ignoreTrigger(
         decodeSegment(triggerIgnore[1] ?? ""),
-        asNote(body) ?? "",
+        inputs.asNote(body) ?? "",
       );
       sendJson(res, 200, { ok: true, trigger });
       return;
     }
 
     if (parsed.pathname === `${API_PREFIX}/provider-profiles`) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const profile: ProviderProfile =
         await this.store.createProviderProfile(
-          asCreateProviderProfile(await readJson(req)),
+          inputs.asCreateProviderProfile(await readJson(req)),
         );
       sendJson(res, 201, { ok: true, profile });
       return;
@@ -1421,7 +631,7 @@ export class StudioRouter {
         parsed.pathname,
       );
     if (providerProbe !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       const result = await this.probeProviderProfile(
         decodeSegment(providerProbe[1] ?? ""),
       );
@@ -1434,12 +644,12 @@ export class StudioRouter {
         parsed.pathname,
       );
     if (providerReassign !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const body = await readJson(req);
       const result = await this.store.reassignProviderProfile(
         decodeSegment(providerReassign[1] ?? ""),
-        asString(body.toProfileId, "toProfileId"),
+        inputs.asString(body.toProfileId, "toProfileId"),
       );
       sendJson(res, 200, { ok: true, ...result });
       return;
@@ -1453,7 +663,7 @@ export class StudioRouter {
         assertJsonRequest(req);
         const profile = await this.store.updateProviderProfile(
           profileId,
-          asUpdateProviderProfile(await readJson(req)),
+          inputs.asUpdateProviderProfile(await readJson(req)),
         );
         sendJson(res, 200, { ok: true, profile });
         return;
@@ -1467,10 +677,10 @@ export class StudioRouter {
     }
 
     if (parsed.pathname === `${API_PREFIX}/workshops`) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const workshop = await this.store.createWorkshop(
-        asCreateWorkshop(await readJson(req)),
+        inputs.asCreateWorkshop(await readJson(req)),
       );
       sendJson(res, 201, { ok: true, workshop });
       return;
@@ -1479,11 +689,11 @@ export class StudioRouter {
     const workshopNote =
       /^\/studio-api\/workshops\/([^/]+)\/notes$/.exec(parsed.pathname);
     if (workshopNote !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const workshop = await this.store.addWorkshopNote(
         decodeSegment(workshopNote[1] ?? ""),
-        asWorkshopNote(await readJson(req)),
+        inputs.asWorkshopNote(await readJson(req)),
       );
       sendJson(res, 200, { ok: true, workshop });
       return;
@@ -1492,12 +702,12 @@ export class StudioRouter {
     const workshopSynthesize =
       /^\/studio-api\/workshops\/([^/]+)\/synthesize$/.exec(parsed.pathname);
     if (workshopSynthesize !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const body = await readJson(req);
       const workshop = await this.store.synthesizeWorkshop(
         decodeSegment(workshopSynthesize[1] ?? ""),
-        asString(body.synthesis, "synthesis"),
+        inputs.asString(body.synthesis, "synthesis"),
       );
       sendJson(res, 200, { ok: true, workshop });
       return;
@@ -1506,12 +716,12 @@ export class StudioRouter {
     const workshopDecide =
       /^\/studio-api\/workshops\/([^/]+)\/decide$/.exec(parsed.pathname);
     if (workshopDecide !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const body = await readJson(req);
       const workshop = await this.store.decideWorkshop(
         decodeSegment(workshopDecide[1] ?? ""),
-        asString(body.decision, "decision"),
+        inputs.asString(body.decision, "decision"),
       );
       sendJson(res, 200, { ok: true, workshop });
       return;
@@ -1520,7 +730,7 @@ export class StudioRouter {
     const workshopRun =
       /^\/studio-api\/workshops\/([^/]+)\/run$/.exec(parsed.pathname);
     if (workshopRun !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       const workshop = await this.runWorkshop(
         decodeSegment(workshopRun[1] ?? ""),
       );
@@ -1533,7 +743,7 @@ export class StudioRouter {
         parsed.pathname,
       );
     if (workshopSummarize !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       const workshop = await this.summarizeWorkshop(
         decodeSegment(workshopSummarize[1] ?? ""),
       );
@@ -1542,10 +752,10 @@ export class StudioRouter {
     }
 
     if (parsed.pathname === `${API_PREFIX}/roles`) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const role = await this.store.createRole(
-        asCreateRole(await readJson(req)),
+        inputs.asCreateRole(await readJson(req)),
       );
       sendJson(res, 201, { ok: true, role });
       return;
@@ -1553,27 +763,27 @@ export class StudioRouter {
 
     const roleMatch = /^\/studio-api\/roles\/([^/]+)$/.exec(parsed.pathname);
     if (roleMatch !== null) {
-      this.requireMethod(parsed, ["PATCH"]);
+      requireMethod(parsed, ["PATCH"]);
       assertJsonRequest(req);
       const body = await readJson(req);
       const role = await this.store.updateRole(
         decodeSegment(roleMatch[1] ?? ""),
         {
-          name: asOptionalString(body.name, "name"),
-          title: asOptionalString(body.title, "title"),
-          mission: asOptionalString(body.mission, "mission"),
-          responsibilities: asStringArray(
+          name: inputs.asOptionalString(body.name, "name"),
+          title: inputs.asOptionalString(body.title, "title"),
+          mission: inputs.asOptionalString(body.mission, "mission"),
+          responsibilities: inputs.asStringArray(
             body.responsibilities,
             "responsibilities",
           ),
           providerProfileId:
             body.providerProfileId === null
               ? null
-              : asOptionalString(body.providerProfileId, "providerProfileId"),
-          model: asOptionalString(body.model, "model"),
-          executor: asAgentExecutor(body.executor),
-          tokenBudget: asOptionalBudget(body.tokenBudget, "tokenBudget"),
-          dailyTokenBudget: asOptionalBudget(
+              : inputs.asOptionalString(body.providerProfileId, "providerProfileId"),
+          model: inputs.asOptionalString(body.model, "model"),
+          executor: inputs.asAgentExecutor(body.executor),
+          tokenBudget: inputs.asOptionalBudget(body.tokenBudget, "tokenBudget"),
+          dailyTokenBudget: inputs.asOptionalBudget(
             body.dailyTokenBudget,
             "dailyTokenBudget",
           ),
@@ -1584,10 +794,10 @@ export class StudioRouter {
     }
 
     if (parsed.pathname === `${API_PREFIX}/tasks`) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const task = await this.store.createTask(
-        asCreateTask(await readJson(req)),
+        inputs.asCreateTask(await readJson(req)),
       );
       sendJson(res, 201, { ok: true, task });
       return;
@@ -1596,12 +806,12 @@ export class StudioRouter {
     const taskTransition =
       /^\/studio-api\/tasks\/([^/]+)\/transition$/.exec(parsed.pathname);
     if (taskTransition !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const body = (await readJson(req)) as Partial<TransitionTaskInput>;
       const task = await this.store.transitionTask(
         decodeSegment(taskTransition[1] ?? ""),
-        asTaskStatus(body.status),
+        inputs.asTaskStatus(body.status),
       );
       sendJson(res, 200, { ok: true, task });
       return;
@@ -1610,7 +820,7 @@ export class StudioRouter {
     const taskDispatch =
       /^\/studio-api\/tasks\/([^/]+)\/dispatch$/.exec(parsed.pathname);
     if (taskDispatch !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       const run = await this.dispatchTask(
         decodeSegment(taskDispatch[1] ?? ""),
       );
@@ -1619,7 +829,7 @@ export class StudioRouter {
     }
 
     if (parsed.pathname === `${API_PREFIX}/project-docs`) {
-      this.requireMethod(parsed, ["GET"]);
+      requireMethod(parsed, ["GET"]);
       const docPath = parsed.url.searchParams.get("path");
       if (docPath === null || docPath.trim() === "") {
         throw new HttpError(400, "invalid_input", "path 不能为空");
@@ -1632,8 +842,8 @@ export class StudioRouter {
     const taskVerify =
       /^\/studio-api\/tasks\/([^/]+)\/verify$/.exec(parsed.pathname);
     if (taskVerify !== null) {
-      this.requireMethod(parsed, ["POST"]);
-      if (!this.allowRate("verify", req, 30)) {
+      requireMethod(parsed, ["POST"]);
+      if (!allowRate(this.rateBuckets, "verify", req, 30)) {
         throw new HttpError(
           429,
           "rate_limited",
@@ -1657,10 +867,10 @@ export class StudioRouter {
     }
 
     if (parsed.pathname === `${API_PREFIX}/modules`) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const module = await this.store.createModule(
-        asCreateModule(await readJson(req)),
+        inputs.asCreateModule(await readJson(req)),
       );
       sendJson(res, 201, { ok: true, module });
       return;
@@ -1670,11 +880,11 @@ export class StudioRouter {
       parsed.pathname,
     );
     if (moduleMatch !== null) {
-      this.requireMethod(parsed, ["PATCH"]);
+      requireMethod(parsed, ["PATCH"]);
       assertJsonRequest(req);
       const module = await this.store.updateModule(
         decodeSegment(moduleMatch[1] ?? ""),
-        asUpdateModule(await readJson(req)),
+        inputs.asUpdateModule(await readJson(req)),
       );
       sendJson(res, 200, { ok: true, module });
       return;
@@ -1683,7 +893,7 @@ export class StudioRouter {
     const taskReview =
       /^\/studio-api\/tasks\/([^/]+)\/review$/.exec(parsed.pathname);
     if (taskReview !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       const review = await this.reviewTask(
         decodeSegment(taskReview[1] ?? ""),
       );
@@ -1695,7 +905,7 @@ export class StudioRouter {
       parsed.pathname,
     );
     if (decisionAdr !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       const decision = await this.writeAdr(
         decodeSegment(decisionAdr[1] ?? ""),
       );
@@ -1704,10 +914,10 @@ export class StudioRouter {
     }
 
     if (parsed.pathname === `${API_PREFIX}/decisions`) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const decision = await this.store.createDecision(
-        asCreateDecision(await readJson(req)),
+        inputs.asCreateDecision(await readJson(req)),
       );
       sendJson(res, 201, { ok: true, decision });
       return;
@@ -1716,11 +926,11 @@ export class StudioRouter {
     const decisionDecide =
       /^\/studio-api\/decisions\/([^/]+)\/decide$/.exec(parsed.pathname);
     if (decisionDecide !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const decision = await this.store.decideDecision(
         decodeSegment(decisionDecide[1] ?? ""),
-        asDecideDecision(await readJson(req)),
+        inputs.asDecideDecision(await readJson(req)),
       );
       sendJson(res, 200, { ok: true, decision });
       return;
@@ -1729,11 +939,11 @@ export class StudioRouter {
     const taskMerge =
       /^\/studio-api\/tasks\/([^/]+)\/merge-proposal$/.exec(parsed.pathname);
     if (taskMerge !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const proposal = await this.store.createMergeProposal(
         decodeSegment(taskMerge[1] ?? ""),
-        asCreateMergeProposal(await readJson(req)),
+        inputs.asCreateMergeProposal(await readJson(req)),
       );
       sendJson(res, 201, { ok: true, proposal });
       return;
@@ -1744,18 +954,18 @@ export class StudioRouter {
         parsed.pathname,
       );
     if (mergeDecision !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const body = await readJson(req);
       const proposalId = decodeSegment(mergeDecision[1] ?? "");
       const action = mergeDecision[2];
       const proposal =
         action === "approve"
-          ? await this.store.approveMergeProposal(proposalId, asNote(body))
+          ? await this.store.approveMergeProposal(proposalId, inputs.asNote(body))
           : action === "reject"
             ? await this.store.rejectMergeProposal(
                 proposalId,
-                asNote(body) ?? "",
+                inputs.asNote(body) ?? "",
               )
             : action === "execute"
               ? await this.executeMerge(proposalId)
@@ -1763,7 +973,7 @@ export class StudioRouter {
                 ? await this.rollbackMerge(proposalId)
                 : await this.store.completeMergeProposal(
                     proposalId,
-                    asOptionalString(body.mergeCommit, "mergeCommit"),
+                    inputs.asOptionalString(body.mergeCommit, "mergeCommit"),
                   );
       sendJson(res, 200, { ok: true, proposal });
       return;
@@ -1771,11 +981,11 @@ export class StudioRouter {
 
     const taskMatch = /^\/studio-api\/tasks\/([^/]+)$/.exec(parsed.pathname);
     if (taskMatch !== null) {
-      this.requireMethod(parsed, ["PATCH"]);
+      requireMethod(parsed, ["PATCH"]);
       assertJsonRequest(req);
       const task = await this.store.updateTask(
         decodeSegment(taskMatch[1] ?? ""),
-        asUpdateTask(await readJson(req)),
+        inputs.asUpdateTask(await readJson(req)),
       );
       sendJson(res, 200, { ok: true, task });
       return;
@@ -1783,75 +993,7 @@ export class StudioRouter {
 
     throw new HttpError(404, "not_found", "接口不存在");
   }
-
-  private parse(req: IncomingMessage): ParsedRequest {
-    const method = (req.method ?? "GET").toUpperCase();
-    const url = new URL(req.url ?? "/", "http://studio.local");
-    return {
-      method,
-      pathname: url.pathname,
-      url,
-    };
-  }
-
-  private assertAuthorized(req: IncomingMessage): void {
-    const headerToken = req.headers["x-studio-token"];
-    const authorization = req.headers.authorization;
-    const bearer =
-      typeof authorization === "string" &&
-      authorization.toLowerCase().startsWith("bearer ")
-        ? authorization.slice(7).trim()
-        : "";
-    const candidate =
-      typeof headerToken === "string" ? headerToken.trim() : bearer;
-    const expected = Buffer.from(this.token);
-    const supplied = Buffer.from(candidate);
-    if (
-      candidate === "" ||
-      supplied.length !== expected.length ||
-      !timingSafeEqual(supplied, expected)
-    ) {
-      throw new HttpError(401, "unauthorized", "缺少或无效的 Studio 访问令牌");
-    }
-  }
-
-  private allowRate(
-    bucket: string,
-    req: IncomingMessage,
-    limit: number,
-  ): boolean {
-    const key = `${bucket}:${req.socket?.remoteAddress ?? "unknown"}`;
-    const now = Date.now();
-    const current = this.rateBuckets.get(key);
-    if (current === undefined || current.resetAt <= now) {
-      this.rateBuckets.set(key, { count: 1, resetAt: now + 60_000 });
-      return true;
-    }
-    if (current.count >= limit) return false;
-    current.count += 1;
-    return true;
-  }
-
-  private requireMethod(parsed: ParsedRequest, methods: string[]): void {
-    if (!methods.includes(parsed.method)) {
-      throw new HttpError(
-        405,
-        "method_not_allowed",
-        `只支持 ${methods.join(", ")}`,
-      );
-    }
-  }
 }
 
-export function handleRouterError(res: ServerResponse, error: unknown): void {
-  if (error instanceof StudioStoreError) {
-    sendError(res, error.status, error.code, error.message);
-    return;
-  }
-  if (error instanceof HttpError) {
-    sendError(res, error.status, error.code, error.message);
-    return;
-  }
-  const message = error instanceof Error ? error.message : String(error);
-  sendError(res, 500, "internal_error", message);
-}
+
+export { handleRouterError } from "./router/errors.js";

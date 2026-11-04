@@ -5583,7 +5583,7 @@ function TaskMergePanel({
 }) {
   const [summary, setSummary] = (0, import_react14.useState)("");
   const [branch, setBranch] = (0, import_react14.useState)(task.branch ?? "");
-  const [base, setBase] = (0, import_react14.useState)("main");
+  const [base2, setBase] = (0, import_react14.useState)("main");
   const [risk, setRisk] = (0, import_react14.useState)("medium");
   const [rollback, setRollback] = (0, import_react14.useState)("");
   const [reviewNote, setReviewNote] = (0, import_react14.useState)("");
@@ -5606,7 +5606,7 @@ function TaskMergePanel({
     setLocalError(null);
     const ok = await onCreate({
       branch: branch.trim(),
-      base: base.trim() || "main",
+      base: base2.trim() || "main",
       risk,
       summary: summary.trim(),
       rollback: rollback.trim()
@@ -5645,7 +5645,7 @@ function TaskMergePanel({
               "input",
               {
                 id: "merge-base",
-                value: base,
+                value: base2,
                 onChange: (event) => setBase(event.target.value),
                 placeholder: "main"
               }
@@ -8020,8 +8020,8 @@ function StudioPage() {
   ] });
 }
 
-// src/client/styles.ts
-var studioCss = `
+// src/client/styles/base.ts
+var base = `
 .studio-root {
   --st-bg: #0b0d12;
   --st-bg-soft: #0f1219;
@@ -8347,6 +8347,10 @@ var studioCss = `
   border-color: transparent;
   color: #0b0d12;
 }
+`;
+
+// src/client/styles/layout.ts
+var layout = `
 
 .studio-btn[data-variant="primary"]:hover:not(:disabled) { filter: brightness(1.06); }
 
@@ -8838,6 +8842,10 @@ var studioCss = `
   line-height: 1.45;
   white-space: pre-wrap;
 }
+`;
+
+// src/client/styles/views.ts
+var views = `
 
 .studio-needs {
   display: flex;
@@ -9713,6 +9721,9 @@ var studioCss = `
   .studio-trigger-actions { flex-direction: row; }
 }
 `;
+
+// src/client/styles.ts
+var studioCss = [base, layout, views].join("\n");
 
 // src/client/index.tsx
 var import_jsx_runtime27 = require("react/jsx-runtime");

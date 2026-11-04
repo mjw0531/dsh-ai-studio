@@ -1,6 +1,6 @@
 {
   "name": "dsh-ai-studio",
-  "version": "3.10.0",
+  "version": "3.11.0",
   "private": true,
   "description": "Install-and-use AI Studio for DeepSeek Harness: workspace dashboard, roles, tasks, verification, decision desk, merge governance, and portable project bundles.",
   "license": "MIT",
@@ -34,8 +34,9 @@
     "build": "pnpm --filter dsh-ai-studio build",
     "typecheck": "pnpm --filter dsh-ai-studio typecheck",
     "test": "pnpm --filter dsh-ai-studio test",
-    "check": "pnpm typecheck && pnpm test",
-    "check:clean": "node tools/check-repo-clean.mjs"
+    "check": "pnpm check:docs && pnpm typecheck && pnpm test",
+    "check:clean": "node tools/check-repo-clean.mjs",
+    "check:docs": "node tools/check-docs.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

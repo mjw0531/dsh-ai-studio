@@ -1,8 +1,8 @@
 // src/host/router.ts
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { timingSafeEqual as timingSafeEqual3 } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_PLUGIN_VERSION = "3.10.0";
+var STUDIO_PLUGIN_VERSION = "3.11.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -25,7 +25,8 @@ var StudioStoreError = class extends Error {
   }
 };
 
-// src/host/router.ts
+// src/host/router/http.ts
+import { createHmac, timingSafeEqual } from "node:crypto";
 var MAX_BODY_BYTES = 1024 * 1024;
 var API_PREFIX = "/studio-api";
 var HttpError = class extends Error {
@@ -61,7 +62,10 @@ function requestOf(req) {
   const headers = new Headers();
   for (const [name, value] of Object.entries(req.headers)) {
     if (value === void 0) continue;
-    headers.set(name, Array.isArray(value) ? value.join(", ") : value);
+    headers.set(
+      name,
+      Array.isArray(value) ? value.join(", ") : String(value)
+    );
   }
   const host = req.headers.host ?? "127.0.0.1";
   return new Request(`http://${host}${req.url ?? "/"}`, {
@@ -129,6 +133,8 @@ function decodeSegment(value) {
     throw new HttpError(400, "invalid_path", "\u8DEF\u5F84\u53C2\u6570\u7F16\u7801\u65E0\u6548");
   }
 }
+
+// src/host/router/inputs.ts
 function asString(value, field) {
   if (typeof value !== "string" || value.trim() === "") {
     throw new HttpError(400, "invalid_input", `${field} \u5FC5\u987B\u662F\u975E\u7A7A\u5B57\u7B26\u4E32`);
@@ -602,6 +608,62 @@ function asApproveStageGateInput(body) {
     waiverReason: asOptionalString(body.waiverReason, "waiverReason")
   };
 }
+
+// src/host/router/auth.ts
+import { timingSafeEqual as timingSafeEqual2 } from "node:crypto";
+function parseRoute(req) {
+  const method = (req.method ?? "GET").toUpperCase();
+  const url = new URL(req.url ?? "/", "http://studio.local");
+  return { method, pathname: url.pathname, url };
+}
+function assertAuthorized(req, token) {
+  const headerToken = req.headers["x-studio-token"];
+  const authorization = req.headers.authorization;
+  const bearer = typeof authorization === "string" && authorization.toLowerCase().startsWith("bearer ") ? authorization.slice(7).trim() : "";
+  const candidate = typeof headerToken === "string" ? headerToken.trim() : bearer;
+  const expected = Buffer.from(token);
+  const supplied = Buffer.from(candidate);
+  if (candidate === "" || supplied.length !== expected.length || !timingSafeEqual2(supplied, expected)) {
+    throw new HttpError(401, "unauthorized", "\u7F3A\u5C11\u6216\u65E0\u6548\u7684 Studio \u8BBF\u95EE\u4EE4\u724C");
+  }
+}
+function allowRate(buckets, bucket, req, limit) {
+  const key = `${bucket}:${req.socket?.remoteAddress ?? "unknown"}`;
+  const now = Date.now();
+  const current = buckets.get(key);
+  if (current === void 0 || current.resetAt <= now) {
+    buckets.set(key, { count: 1, resetAt: now + 6e4 });
+    return true;
+  }
+  if (current.count >= limit) return false;
+  current.count += 1;
+  return true;
+}
+function requireMethod(parsed, methods) {
+  if (!methods.includes(parsed.method)) {
+    throw new HttpError(
+      405,
+      "method_not_allowed",
+      `\u53EA\u652F\u6301 ${methods.join(", ")}`
+    );
+  }
+}
+
+// src/host/router/errors.ts
+function handleRouterError(res, error) {
+  if (error instanceof StudioStoreError) {
+    sendError(res, error.status, error.code, error.message);
+    return;
+  }
+  if (error instanceof HttpError) {
+    sendError(res, error.status, error.code, error.message);
+    return;
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  sendError(res, 500, "internal_error", message);
+}
+
+// src/host/router.ts
 var StudioRouter = class {
   store;
   token;
@@ -645,7 +707,7 @@ var StudioRouter = class {
     this.probeProviderProfile = options.probeProviderProfile;
   }
   async handle(req, res) {
-    const parsed = this.parse(req);
+    const parsed = parseRoute(req);
     if (parsed.pathname === `${API_PREFIX}/health`) {
       if (parsed.method !== "GET") {
         throw new HttpError(405, "method_not_allowed", "\u53EA\u652F\u6301 GET");
@@ -661,8 +723,8 @@ var StudioRouter = class {
       return;
     }
     if (parsed.pathname === `${API_PREFIX}/boot`) {
-      this.requireMethod(parsed, ["GET"]);
-      if (!this.allowRate("boot", req, 30)) {
+      requireMethod(parsed, ["GET"]);
+      if (!allowRate(this.rateBuckets, "boot", req, 30)) {
         sendError(res, 429, "rate_limited", "\u542F\u52A8\u53C2\u6570\u8BF7\u6C42\u8FC7\u4E8E\u9891\u7E41\uFF0C\u8BF7\u7A0D\u540E\u518D\u8BD5");
         return;
       }
@@ -681,7 +743,7 @@ var StudioRouter = class {
         const header = req.headers["x-dsh-studio-nonce"];
         const supplied = Array.isArray(header) ? header[0] : header;
         const expected = this.bootNonce;
-        const valid = typeof supplied === "string" && supplied.length === expected.length && timingSafeEqual(Buffer.from(supplied), Buffer.from(expected));
+        const valid = typeof supplied === "string" && supplied.length === expected.length && timingSafeEqual3(Buffer.from(supplied), Buffer.from(expected));
         if (!valid) {
           sendError(
             res,
@@ -711,7 +773,7 @@ var StudioRouter = class {
     }
     const webhookMatch = /^\/studio-api\/webhooks\/([^/]+)\/([^/]+)$/.exec(parsed.pathname);
     if (webhookMatch !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       const projectId = decodeSegment(webhookMatch[1] ?? "");
       const source = webhookMatch[2] ?? "";
       if (source !== "github" && source !== "ci" && source !== "im") {
@@ -744,9 +806,9 @@ var StudioRouter = class {
       sendJson(res, 202, { ok: true, ...result });
       return;
     }
-    this.assertAuthorized(req);
+    assertAuthorized(req, this.token);
     if (parsed.pathname === `${API_PREFIX}/bootstrap`) {
-      this.requireMethod(parsed, ["GET"]);
+      requireMethod(parsed, ["GET"]);
       const projectId = parsed.url.searchParams.get("projectId") ?? void 0;
       const data = await this.store.bootstrap(projectId);
       data.app.dshVersion = this.dshVersion;
@@ -756,7 +818,7 @@ var StudioRouter = class {
       return;
     }
     if (parsed.pathname === `${API_PREFIX}/export`) {
-      this.requireMethod(parsed, ["GET"]);
+      requireMethod(parsed, ["GET"]);
       const state = await this.store.exportState();
       sendJson(res, 200, {
         ok: true,
@@ -769,7 +831,7 @@ var StudioRouter = class {
       return;
     }
     if (parsed.pathname === `${API_PREFIX}/settings`) {
-      this.requireMethod(parsed, ["PATCH"]);
+      requireMethod(parsed, ["PATCH"]);
       assertJsonRequest(req);
       const body = await readJson(req);
       const state = await this.store.updateCompanyName(
@@ -782,7 +844,7 @@ var StudioRouter = class {
       return;
     }
     if (parsed.pathname === `${API_PREFIX}/projects/bundle/import`) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const body = await readJson(req);
       const imported = await this.importProjectBundle(
@@ -794,7 +856,7 @@ var StudioRouter = class {
     }
     const projectBundle = /^\/studio-api\/projects\/([^/]+)\/bundle$/.exec(parsed.pathname);
     if (projectBundle !== null) {
-      this.requireMethod(parsed, ["GET"]);
+      requireMethod(parsed, ["GET"]);
       const bundle = await this.exportProjectBundle(
         decodeSegment(projectBundle[1] ?? "")
       );
@@ -809,7 +871,7 @@ var StudioRouter = class {
       return;
     }
     if (parsed.pathname === `${API_PREFIX}/import`) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const body = await readJson(req);
       const state = await this.store.importState(body.state);
@@ -820,7 +882,7 @@ var StudioRouter = class {
       return;
     }
     if (parsed.pathname === `${API_PREFIX}/projects/from-template`) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const project = await this.store.createProjectFromTemplate(
         asCreateProjectFromTemplate(await readJson(req))
@@ -829,7 +891,7 @@ var StudioRouter = class {
       return;
     }
     if (parsed.pathname === `${API_PREFIX}/projects`) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const project = await this.store.createProject(
         asCreateProject(await readJson(req))
@@ -841,7 +903,7 @@ var StudioRouter = class {
       parsed.pathname
     );
     if (triggerRulesMatch !== null) {
-      this.requireMethod(parsed, ["PATCH"]);
+      requireMethod(parsed, ["PATCH"]);
       assertJsonRequest(req);
       const rules = await this.store.updateTriggerRules(
         decodeSegment(triggerRulesMatch[1] ?? ""),
@@ -854,7 +916,7 @@ var StudioRouter = class {
       parsed.pathname
     );
     if (prototypeDemos !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const demo = await this.store.createPrototypeDemo(
         asCreatePrototypeDemo(await readJson(req)),
@@ -867,7 +929,7 @@ var StudioRouter = class {
       parsed.pathname
     );
     if (prototypeDemo !== null) {
-      this.requireMethod(parsed, ["PATCH"]);
+      requireMethod(parsed, ["PATCH"]);
       assertJsonRequest(req);
       const demo = await this.store.updatePrototypeDemo(
         decodeSegment(prototypeDemo[2] ?? ""),
@@ -879,7 +941,7 @@ var StudioRouter = class {
     const freezeMatch = /^\/studio-api\/projects\/([^/]+)\/freezes$/.exec(parsed.pathname);
     if (freezeMatch !== null) {
       const projectId = decodeSegment(freezeMatch[1] ?? "");
-      this.requireMethod(parsed, ["GET", "POST"]);
+      requireMethod(parsed, ["GET", "POST"]);
       if (parsed.method === "GET") {
         sendJson(res, 200, {
           ok: true,
@@ -900,7 +962,7 @@ var StudioRouter = class {
     );
     if (requirementDecisionMatch !== null) {
       const projectId = decodeSegment(requirementDecisionMatch[1] ?? "");
-      this.requireMethod(parsed, ["GET", "POST"]);
+      requireMethod(parsed, ["GET", "POST"]);
       if (parsed.method === "GET") {
         sendJson(res, 200, {
           ok: true,
@@ -921,7 +983,7 @@ var StudioRouter = class {
     );
     if (freezeChangeMatch !== null) {
       const projectId = decodeSegment(freezeChangeMatch[1] ?? "");
-      this.requireMethod(parsed, ["GET", "POST"]);
+      requireMethod(parsed, ["GET", "POST"]);
       if (parsed.method === "GET") {
         sendJson(res, 200, {
           ok: true,
@@ -943,7 +1005,7 @@ var StudioRouter = class {
     if (freezeChangeDecideMatch !== null) {
       const projectId = decodeSegment(freezeChangeDecideMatch[1] ?? "");
       const requestId = decodeSegment(freezeChangeDecideMatch[2] ?? "");
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const body = await readJson(req);
       if (body.status !== "accepted" && body.status !== "rejected") {
@@ -959,7 +1021,7 @@ var StudioRouter = class {
     }
     const projectMatch = /^\/studio-api\/projects\/([^/]+)$/.exec(parsed.pathname);
     if (projectMatch !== null) {
-      this.requireMethod(parsed, ["PATCH"]);
+      requireMethod(parsed, ["PATCH"]);
       assertJsonRequest(req);
       const project = await this.store.updateProject(
         decodeSegment(projectMatch[1] ?? ""),
@@ -979,7 +1041,7 @@ var StudioRouter = class {
         sendJson(res, 200, { ok: true, gate: gate2 });
         return;
       }
-      this.requireMethod(parsed, ["PATCH"]);
+      requireMethod(parsed, ["PATCH"]);
       assertJsonRequest(req);
       const gate = await this.store.updateStageGate(
         projectId,
@@ -993,7 +1055,7 @@ var StudioRouter = class {
       parsed.pathname
     );
     if (stageGateApprove !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const gate = await this.store.approveStageGate(
         decodeSegment(stageGateApprove[1] ?? ""),
@@ -1007,7 +1069,7 @@ var StudioRouter = class {
       parsed.pathname
     );
     if (stageGateReject !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const body = await readJson(req);
       const gate = await this.store.rejectStageGate(
@@ -1022,7 +1084,7 @@ var StudioRouter = class {
       parsed.pathname
     );
     if (selectProject2 !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       const project = await this.store.selectProject(
         decodeSegment(selectProject2[1] ?? "")
       );
@@ -1030,7 +1092,7 @@ var StudioRouter = class {
       return;
     }
     if (parsed.pathname === `${API_PREFIX}/triggers`) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const trigger = await this.store.ingestTrigger(
         asCreateTrigger(await readJson(req))
@@ -1040,7 +1102,7 @@ var StudioRouter = class {
     }
     const triggerAccept = /^\/studio-api\/triggers\/([^/]+)\/accept$/.exec(parsed.pathname);
     if (triggerAccept !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const result = await this.store.acceptTrigger(
         decodeSegment(triggerAccept[1] ?? ""),
@@ -1051,7 +1113,7 @@ var StudioRouter = class {
     }
     const triggerIgnore = /^\/studio-api\/triggers\/([^/]+)\/ignore$/.exec(parsed.pathname);
     if (triggerIgnore !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const body = await readJson(req);
       const trigger = await this.store.ignoreTrigger(
@@ -1062,7 +1124,7 @@ var StudioRouter = class {
       return;
     }
     if (parsed.pathname === `${API_PREFIX}/provider-profiles`) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const profile = await this.store.createProviderProfile(
         asCreateProviderProfile(await readJson(req))
@@ -1074,7 +1136,7 @@ var StudioRouter = class {
       parsed.pathname
     );
     if (providerProbe !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       const result = await this.probeProviderProfile(
         decodeSegment(providerProbe[1] ?? "")
       );
@@ -1085,7 +1147,7 @@ var StudioRouter = class {
       parsed.pathname
     );
     if (providerReassign !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const body = await readJson(req);
       const result = await this.store.reassignProviderProfile(
@@ -1115,7 +1177,7 @@ var StudioRouter = class {
       throw new HttpError(405, "method_not_allowed", "Method not allowed");
     }
     if (parsed.pathname === `${API_PREFIX}/workshops`) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const workshop = await this.store.createWorkshop(
         asCreateWorkshop(await readJson(req))
@@ -1125,7 +1187,7 @@ var StudioRouter = class {
     }
     const workshopNote = /^\/studio-api\/workshops\/([^/]+)\/notes$/.exec(parsed.pathname);
     if (workshopNote !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const workshop = await this.store.addWorkshopNote(
         decodeSegment(workshopNote[1] ?? ""),
@@ -1136,7 +1198,7 @@ var StudioRouter = class {
     }
     const workshopSynthesize = /^\/studio-api\/workshops\/([^/]+)\/synthesize$/.exec(parsed.pathname);
     if (workshopSynthesize !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const body = await readJson(req);
       const workshop = await this.store.synthesizeWorkshop(
@@ -1148,7 +1210,7 @@ var StudioRouter = class {
     }
     const workshopDecide = /^\/studio-api\/workshops\/([^/]+)\/decide$/.exec(parsed.pathname);
     if (workshopDecide !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const body = await readJson(req);
       const workshop = await this.store.decideWorkshop(
@@ -1160,7 +1222,7 @@ var StudioRouter = class {
     }
     const workshopRun = /^\/studio-api\/workshops\/([^/]+)\/run$/.exec(parsed.pathname);
     if (workshopRun !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       const workshop = await this.runWorkshop(
         decodeSegment(workshopRun[1] ?? "")
       );
@@ -1171,7 +1233,7 @@ var StudioRouter = class {
       parsed.pathname
     );
     if (workshopSummarize !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       const workshop = await this.summarizeWorkshop(
         decodeSegment(workshopSummarize[1] ?? "")
       );
@@ -1179,7 +1241,7 @@ var StudioRouter = class {
       return;
     }
     if (parsed.pathname === `${API_PREFIX}/roles`) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const role = await this.store.createRole(
         asCreateRole(await readJson(req))
@@ -1189,7 +1251,7 @@ var StudioRouter = class {
     }
     const roleMatch = /^\/studio-api\/roles\/([^/]+)$/.exec(parsed.pathname);
     if (roleMatch !== null) {
-      this.requireMethod(parsed, ["PATCH"]);
+      requireMethod(parsed, ["PATCH"]);
       assertJsonRequest(req);
       const body = await readJson(req);
       const role = await this.store.updateRole(
@@ -1216,7 +1278,7 @@ var StudioRouter = class {
       return;
     }
     if (parsed.pathname === `${API_PREFIX}/tasks`) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const task = await this.store.createTask(
         asCreateTask(await readJson(req))
@@ -1226,7 +1288,7 @@ var StudioRouter = class {
     }
     const taskTransition = /^\/studio-api\/tasks\/([^/]+)\/transition$/.exec(parsed.pathname);
     if (taskTransition !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const body = await readJson(req);
       const task = await this.store.transitionTask(
@@ -1238,7 +1300,7 @@ var StudioRouter = class {
     }
     const taskDispatch = /^\/studio-api\/tasks\/([^/]+)\/dispatch$/.exec(parsed.pathname);
     if (taskDispatch !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       const run = await this.dispatchTask(
         decodeSegment(taskDispatch[1] ?? "")
       );
@@ -1246,7 +1308,7 @@ var StudioRouter = class {
       return;
     }
     if (parsed.pathname === `${API_PREFIX}/project-docs`) {
-      this.requireMethod(parsed, ["GET"]);
+      requireMethod(parsed, ["GET"]);
       const docPath = parsed.url.searchParams.get("path");
       if (docPath === null || docPath.trim() === "") {
         throw new HttpError(400, "invalid_input", "path \u4E0D\u80FD\u4E3A\u7A7A");
@@ -1257,8 +1319,8 @@ var StudioRouter = class {
     }
     const taskVerify = /^\/studio-api\/tasks\/([^/]+)\/verify$/.exec(parsed.pathname);
     if (taskVerify !== null) {
-      this.requireMethod(parsed, ["POST"]);
-      if (!this.allowRate("verify", req, 30)) {
+      requireMethod(parsed, ["POST"]);
+      if (!allowRate(this.rateBuckets, "verify", req, 30)) {
         throw new HttpError(
           429,
           "rate_limited",
@@ -1281,7 +1343,7 @@ var StudioRouter = class {
       return;
     }
     if (parsed.pathname === `${API_PREFIX}/modules`) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const module = await this.store.createModule(
         asCreateModule(await readJson(req))
@@ -1293,7 +1355,7 @@ var StudioRouter = class {
       parsed.pathname
     );
     if (moduleMatch !== null) {
-      this.requireMethod(parsed, ["PATCH"]);
+      requireMethod(parsed, ["PATCH"]);
       assertJsonRequest(req);
       const module = await this.store.updateModule(
         decodeSegment(moduleMatch[1] ?? ""),
@@ -1304,7 +1366,7 @@ var StudioRouter = class {
     }
     const taskReview = /^\/studio-api\/tasks\/([^/]+)\/review$/.exec(parsed.pathname);
     if (taskReview !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       const review = await this.reviewTask(
         decodeSegment(taskReview[1] ?? "")
       );
@@ -1315,7 +1377,7 @@ var StudioRouter = class {
       parsed.pathname
     );
     if (decisionAdr !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       const decision = await this.writeAdr(
         decodeSegment(decisionAdr[1] ?? "")
       );
@@ -1323,7 +1385,7 @@ var StudioRouter = class {
       return;
     }
     if (parsed.pathname === `${API_PREFIX}/decisions`) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const decision = await this.store.createDecision(
         asCreateDecision(await readJson(req))
@@ -1333,7 +1395,7 @@ var StudioRouter = class {
     }
     const decisionDecide = /^\/studio-api\/decisions\/([^/]+)\/decide$/.exec(parsed.pathname);
     if (decisionDecide !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const decision = await this.store.decideDecision(
         decodeSegment(decisionDecide[1] ?? ""),
@@ -1344,7 +1406,7 @@ var StudioRouter = class {
     }
     const taskMerge = /^\/studio-api\/tasks\/([^/]+)\/merge-proposal$/.exec(parsed.pathname);
     if (taskMerge !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const proposal = await this.store.createMergeProposal(
         decodeSegment(taskMerge[1] ?? ""),
@@ -1357,7 +1419,7 @@ var StudioRouter = class {
       parsed.pathname
     );
     if (mergeDecision !== null) {
-      this.requireMethod(parsed, ["POST"]);
+      requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
       const body = await readJson(req);
       const proposalId = decodeSegment(mergeDecision[1] ?? "");
@@ -1374,7 +1436,7 @@ var StudioRouter = class {
     }
     const taskMatch = /^\/studio-api\/tasks\/([^/]+)$/.exec(parsed.pathname);
     if (taskMatch !== null) {
-      this.requireMethod(parsed, ["PATCH"]);
+      requireMethod(parsed, ["PATCH"]);
       assertJsonRequest(req);
       const task = await this.store.updateTask(
         decodeSegment(taskMatch[1] ?? ""),
@@ -1385,60 +1447,7 @@ var StudioRouter = class {
     }
     throw new HttpError(404, "not_found", "\u63A5\u53E3\u4E0D\u5B58\u5728");
   }
-  parse(req) {
-    const method = (req.method ?? "GET").toUpperCase();
-    const url = new URL(req.url ?? "/", "http://studio.local");
-    return {
-      method,
-      pathname: url.pathname,
-      url
-    };
-  }
-  assertAuthorized(req) {
-    const headerToken = req.headers["x-studio-token"];
-    const authorization = req.headers.authorization;
-    const bearer = typeof authorization === "string" && authorization.toLowerCase().startsWith("bearer ") ? authorization.slice(7).trim() : "";
-    const candidate = typeof headerToken === "string" ? headerToken.trim() : bearer;
-    const expected = Buffer.from(this.token);
-    const supplied = Buffer.from(candidate);
-    if (candidate === "" || supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) {
-      throw new HttpError(401, "unauthorized", "\u7F3A\u5C11\u6216\u65E0\u6548\u7684 Studio \u8BBF\u95EE\u4EE4\u724C");
-    }
-  }
-  allowRate(bucket, req, limit) {
-    const key = `${bucket}:${req.socket?.remoteAddress ?? "unknown"}`;
-    const now = Date.now();
-    const current = this.rateBuckets.get(key);
-    if (current === void 0 || current.resetAt <= now) {
-      this.rateBuckets.set(key, { count: 1, resetAt: now + 6e4 });
-      return true;
-    }
-    if (current.count >= limit) return false;
-    current.count += 1;
-    return true;
-  }
-  requireMethod(parsed, methods) {
-    if (!methods.includes(parsed.method)) {
-      throw new HttpError(
-        405,
-        "method_not_allowed",
-        `\u53EA\u652F\u6301 ${methods.join(", ")}`
-      );
-    }
-  }
 };
-function handleRouterError(res, error) {
-  if (error instanceof StudioStoreError) {
-    sendError(res, error.status, error.code, error.message);
-    return;
-  }
-  if (error instanceof HttpError) {
-    sendError(res, error.status, error.code, error.message);
-    return;
-  }
-  const message = error instanceof Error ? error.message : String(error);
-  sendError(res, 500, "internal_error", message);
-}
 export {
   StudioRouter,
   handleRouterError

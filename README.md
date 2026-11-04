@@ -2,310 +2,160 @@
 
 [![check](https://github.com/mjw0531/dsh-ai-studio/actions/workflows/check.yml/badge.svg)](https://github.com/mjw0531/dsh-ai-studio/actions/workflows/check.yml)
 
-一套构建在 **DeepSeek Harness（DSH）** 之上的多角色 AI Studio：把「一个聊天窗口」变成一间**有工作室仪表盘、Agent 派单、token 预算、决策台、支线/契约冲突、worktree 代码执行、项目、角色、任务、验收、合并治理**的工作室。
+把 DeepSeek Harness 的「一个对话框」变成一间有仪表盘、角色、任务、验收和合并治理的 AI 工作室。
 
-> 当前状态：**v3.10.0 可运行**。已完成工作室级 Owner Dashboard、Agent 派单与结构化回执、角色模型/token 预算、DSH token 计量、决策台、支线/契约冲突自动升级、git worktree 代码执行与自动提交、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、ADR 草稿与落盘、人工触发 Git merge 与合并后回归、合并失败升级与回滚、改修票诊断/计划门禁、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、Claude Code / Codex CLI 执行器、项目包导出、数据导出/导入恢复、项目/角色/任务/验收/证据持久化、合并治理，并在 DSH `0.2.1-rc.2` 和真实外部仓库上完成派单→验证→评审→merge→回归的 dogfood。
+## 它解决什么问题
 
-## 现在能做什么
+Agent 能写代码，但团队真正缺的是：
 
-- **公司仪表盘**：跨项目组合、老板收件箱、角色负载、风险雷达、交付流和 token 消耗；金额成本等报价接入后再显示。
-- **决策台**：Agent 的项目级决策自动进入待裁决；Owner 批准/拒绝并记录结论与理由，Agent 不能替 Owner 拍板。
-- **支线/契约冲突**：派单自动登记支线；两条支线改同一契约且内容不同时，自动升级为待裁决决策。
-- **worktree 代码执行**：项目绑定 git 仓库后，每个任务自动创建独立 worktree 和分支；Agent 在里面改代码，Run 记录 diff，主工作区不被直接修改。
-- **Host 独立验证**：Task Room 的验证命令由 Host 在 worktree 内执行，记录退出码/输出并写 evidence；不依赖 Agent 会话，也不会自动通过验收。
-- **工作流护栏**：Task 记录模块/契约/票类型；连续失败 2 次自动 blocked 并升级决策；代码项目没有通过的验证不能提交合并提案。
-- **知识层**：PRD/INVARIANTS/MODULES 只读查看；Module 契约卡记录职责、接口摘要、允许/禁止路径和依赖，派单时进入 Agent 上下文。
-- **契约护栏**：代码 Run 改动契约文件、禁止路径或越出允许的 `src/`/`test/` 路径时，任务自动 blocked 并生成决策。
-- **闭环 ticket**：集成/playtest ticket 标记；连续失败 2 次自动生成 Architect 重拆 ticket（backlog），不只是留一个决策。
-- **独立 AI 评审**：验收人角色另开 Agent 会话，只读 diff/Host 验证输出，给出 pass/fail 与 findings；代码任务没有通过评审不能 done。
-- **自动集成分期**：每完成 3 个任务自动生成一张 backlog 集成/playtest ticket，不自动派单。
-- **文档同步门禁**：项目绑定 PRD/INVARIANTS/MODULES 时，任务 done 前必须勾选“文档已同步”。
-- **不可逆决策**：Decision 可标记不可逆；批准时必须写结论和理由。
-- **ADR 草稿**：不可逆决策批准后自动生成 Markdown ADR 草稿，保存在决策记录，不自动写文件。
-- **评审同族提示**：评审模型与实现模型相同时，Task Room 警告共享盲点。
-- **人工触发 Git merge**：已批准提案可在 Task Room 执行真实 `git merge --no-ff`；要求当前在 base、工作区干净、分支存在；冲突自动 abort，不自动 push。
-- **合并后回归**：merge 成功后自动在 repo 执行任务验证命令，记录 pass/fail 和输出；失败不会自动回滚。
-- **合并失败升级**：回归失败自动生成决策台决策，附 merge commit、回滚命令和修复选项。
-- **ADR 落盘**：人工确认后写入 `docs/adr/`，自动编号，幂等。
-- **合并回滚**：回归失败的 merge 可人工触发 `git revert`，记录 rollback commit；不 reset/push。
-- **改修票工序**：`kind=fix` 必须有诊断和修改计划才能派单；UI 有字段和校验。
-- **1.9.1 修复**：回滚用 `git revert -m 1` 处理 merge commit，并补真实 merge 失败 → 回滚 E2E 测试。
-- **2.0 自动提交**：Agent 成功后 Host 自动提交 worktree 改动（含未跟踪文件）到任务分支。
-- **2.0 Git 身份预检**：merge 前检查 repo 的 `user.name/email`，缺失时明确报错。
-- **2.0 真实 dogfood**：在外部真实仓库完成一次派单、Host 验证 5/5、独立评审 pass、merge 和 post-merge 回归 5/5。
-- **2.2 数据导入**：页面「导入」恢复备份；Host 先备份原文件，校验 schema 后替换。
-- **2.4 外部执行器**：角色可选择 DSH Agent / Claude Code / Codex CLI；外部工具需先在本机登录。
-- **2.5 项目包**：设置页导出/导入 `tar.gz`（状态 + git bundle + manifest + SHA-256 + 迁移说明）。
-- **2.5.1 导航保持**：切到 DSH 对话再回 Studio，保留页签和当前任务。
-- **2.6 阶段门禁**：项目支持 `discovery → architecture → prototype → development`；Owner 确认检查项/产物后推进，代码项目未进入持续开发不能派单；任务可登记需求引用。
-- **2.7 触发收件箱**：外部事件先进入 Trigger Inbox；同一 `threadKey` 归入 Thread，后续事件可关联到已有任务；由人确认转任务，不自动派单或合并。
-- **2.8 研讨会**：记录各角色的独立意见、反对、风险和推荐；2.8.1 增加 AI 独立评审，形成汇总与 Owner 决策；不自动合并。
-- **2.9 原型 Demo 门禁**：从原型验证进入持续开发前，必须登记 `demo` 产物（路径、URL 或 playtest 记录），或写 Owner 豁免理由。
-- **2.10 Provider Profiles**：角色可以绑定命名执行配置（DSH / Claude Code / Codex + provider + model），派单、独立评审和 Workshop 共用同一解析。
-- **2.11 Provider 健康度**：按 Profile 聚合成功/失败、token、最近错误；运行失败会把状态标为 `degraded`，不自动切换。
-- **2.12 Provider 诊断**：显示失败率、失败原因分布、最近 5 次运行；对 `degraded` Profile 给出备用建议，不自动切换。
-- **2.13 人工备用切换**：确认后把绑定降级 Profile 的角色改绑到建议 Profile；不自动 failover，改绑留审计事件。
-- **2.14 Run 执行快照**：每次 Run 记录 providerProfileId / executor / provider / model；后续改绑不会改变历史归属。
-- **2.15 Provider 实时探测**：检查 DSH provider/model 是否存在、外部 CLI 是否可执行；结果只展示，不自动切换。
-- **2.16 Trigger Webhook**：GitHub/CI/IM 通过 HMAC 签名进入收件箱；repo/label/author/mention 规则过滤，人工确认转任务。
-- **2.17 手动 Demo 记录**：记录入口、启动命令、验证步骤、结果、截图和备注；不执行命令，不自动截图。
-- **2.18 Workshop AI 汇总草稿**：生成共识、分歧、未决问题、候选方案；不覆盖原始意见，不写 Owner 决策。
-- **2.19 入门引导与项目模板**：新手清单；Web / 游戏 / CLI 工具模板自动创建角色和首批任务；PWA 暂缓。
-- **3.0 公司级组合治理**：组合预算、跨项目优先级、角色覆盖聚合；只从项目状态派生，不引入第二份事实来源。
-- **3.0.1 客户端拆分（一）**：抽出 `lib/format`、`components/ui`、`views/Company|Boardroom|Knowledge|Team`。
-- **3.0.2 客户端拆分（二）**：抽出 `views/MissionView`、`components/TaskPanels`、`components/Forms`、`components/RecentEvents`；`StudioPage` 降到 2,186 行。
-- **3.0.3 Store 拆分（一）**：抽出 `store/read-model`、`store/validation`、`store/migration`；`store.ts` 降到 4,797 行。
-- **3.0.4 Store 拆分（二）**：抽出 `store/inputs`、`store/seed`、`store/errors`；同时拆出 Tasks/Merge/Settings/States；`store.ts` 4,272 行，`StudioPage` 1,528 行。
-- **3.0.5 Store 拆分（三）**：抽出 `store/templates`、`store/lookups`；`store.ts` 降到 3,993 行。
-- **3.0.6 有状态域拆分（一）**：Provider Profile 域抽成 service；`store.ts` 降到 3,878 行。
-- **3.0.7 有状态域拆分（二）**：Merge 域抽成 service；`store.ts` 降到 3,598 行。
-- **3.0.8 有状态域拆分（三）**：Trigger / Webhook / Thread 域抽成 service；`store.ts` 降到 3,277 行。
-- **3.0.9 有状态域拆分（四）**：Task 域抽成 service；`store.ts` 降到 2,969 行。
-- **3.1.0 质量门禁拆分**：评审与 Host 验证抽成 service；`store.ts` 降到 2,815 行。
-- **3.1.1 Run 生命周期拆分**：Run / 失败升级 / 契约护栏抽成 service；`store.ts` 降到 2,112 行。
-- **3.1.2 Workshop / Prototype Demo 拆分**：Workshop 与手动 Demo 抽成 service；`store.ts` 降到 1,817 行。
-- **3.1.3 微型文件收敛**：context / errors / ids 合并为 `store/core.ts`；Store 文件数 18 → 16。
-- **3.1.4 Mission 视图拆分**：Trigger / Stage / Workshop / Demo 独立；MissionView 1,740 → 568 行。
-- **3.1.5 任务组件拆分**：TaskPanels 拆成 Board / Drawer / RunPanels / MergePanel。
-- **3.1.6 表单拆分**：Forms 拆成 Task / Role / Project / Decision 和 ModalShell。
-- **3.1.7 决策域拆分**：Decision / ADR / 合并后决策抽成 service；`store.ts` 降到 1,577 行。
-- **3.1.8 项目/阶段/目录域拆分**：Project、Stage Gate、Role、Module 抽成 service；`store.ts` 降到 1,017 行。
-- **3.2.0 客户端动作拆分**：52 个 API handler 抽成 `studio-actions.ts`；`StudioPage` 降到 888 行。
-- **3.2.1 收尾整理**：RecentEvents 并入 Mission；项目介绍与文档校对；拆分收尾完成。
-- **3.3.0 执行层绑定**：`/boot` 桌面 nonce；项目包按项目导出/合并导入；taskId 路径校验；Run/Proposal 绑定提交；更高 schema 保留不覆盖；merge 只用 repo-local Git 身份。
-- **3.4.0 运行隔离**：worker/review 显式挂载 `standard`；worker 限制 creator/子代理工具；评审/研讨会只读沙箱；Run 记录预设、审批、沙箱和限制工具。
-- **3.5.0 反馈修复**：API 可选字段接受 `null`；`/verify` 只跑任务里保存的命令；Bearer 定时安全比较；boot/verify 限流；GitHub Actions 检查 `src/lib` 漂移。
-- **3.6.0 评审证据**：Run 保存真实 `git diff` patch；评审注入 patch + base/branch；契约越界改为提交前检查，越界不产生正常任务分支提交。
-- **3.7.0 运行数据**：Run 全文外置到 `runs/<id>.txt`，state 只留 2KB 预览；回执 JSON 改为扫描所有块并从后往前解析。
-- **3.8.0 超时与风险分级**：任务可设超时；超时记 `timeout` 并保留 worktree；新增 `riskTier`，trivial 有 Host 验证时走快速评审通道。
-- **3.9.0 PRD/架构冻结**：Owner 主动冻结版本、Hash 漂移检测、StageGate 绑定、领域模型、需求决策记录、架构检查表。
-- **3.10.0 冻结变更单**：冻结后可登记变更原因/影响，Owner 接受或拒绝；schema 33。
-- **Agent 分析派单**：Task Room 把任务派给负责人角色，Agent 返回结构化回执；回执缺 `summary`/`evidence` 时任务退回可开始，不能进入验收。
-- **薪资与预算**：角色配置模型、单任务/每日 token 预算；项目配置总 token 预算。
-- **独立工作台页面**：DSH 侧栏点击「工作台」，进入公司仪表盘，不占用聊天会话。
-- **项目**：创建/切换项目，任务和角色归属项目。
-- **角色**：使命、职位、职责、决策权、模型与预算。
-- **任务**：目标、负责人、验收人、优先级、分支、验收标准、证据。
-- **验收门禁**：任务完成前必须勾完所有验收项，并至少记录一条证据；完成后锁定。
-- **合并治理**：验收通过后可提交合并提案，记录摘要、风险、回滚、评审备注和合并提交；批准、打回、合并都有审计事件。
-- **本地持久化**：`$DSH_HOME/studio/studio.json`，重启不丢；首次运行自动生成演示项目。
-- **版本适配**：`engines.dsh >= 0.2.1-rc.2`；只依赖 Web Server 路由、client slots 和 React，不依赖私有 Remote 生成器。
+- 谁在做什么，卡在哪；
+- 什么算完成，证据在哪；
+- 哪些决定不可逆，谁批准的；
+- 代码改动什么时候能合并，谁验证过。
 
-## 合并治理
+Studio 不替代 Agent，也不替代 Git。它把 Agent 的工作放进可审计的任务和阶段门禁里。
 
-分支不会自己汇入主干。合并提案必须带摘要、风险、回滚和评审记录；批准后由人或 Integrator 执行 Git，Studio 记录状态与审计事件。
+## 四件事
 
-## 快速开始
+| 能力 | 说明 |
+|---|---|
+| 工作室仪表盘 | 跨项目预算、优先级、角色负载、风险与交付流 |
+| Task Room | 派单、worktree 执行、Host 验证、独立评审、验收证据 |
+| 决策台 | 项目级决策、不可逆决定、ADR 草稿与人工落盘 |
+| 阶段门禁 | PRD/架构冻结、领域模型、需求决策、变更单 |
 
-插件在 [`packages/dsh-studio`](packages/dsh-studio/README.md)。
+核心边界：
 
-**桌面端**：Plugins → Add plugin → 本地目录填 `D:\dsh-ai-studio\packages\dsh-studio` → Enable now → 刷新页面。
+- Agent 只能把任务推进到 `review`，不能自己验收；
+- Host 验证只写 evidence，不自动勾验收；
+- 真实 `git merge` 必须由人触发；
+- PRD/架构冻结只能由 Owner 主动创建；
+- 冻结后文档变更会让阶段门禁失败，必须出新版本或变更单。
 
-**Web profile**：
+## 5 分钟闭环
+
+1. 安装插件并完全重启 DSH。
+2. 打开侧栏「AI 工作室」→「公司」。
+3. 新建项目，绑定一个 Git 仓库。
+4. 新建任务：写标题，至少一条验收标准；分支、模块、验证命令可留空。
+5. 派单 → 在 Task Room 看回执和 diff。
+6. 运行 Host 验证 → 独立评审 → 勾验收 → 创建合并提案。
+7. 需要时由人在 Task Room 执行真实 `git merge`。
+
+首次使用不需要先配模型；会跟随 DSH 当前默认模型。
+
+## 安装
+
+要求：
+
+```text
+DSH >= 0.2.1-rc.2
+Node.js 24
+pnpm 11
+```
+
+### 桌面端
+
+Plugins → Add plugin → 填本地目录：
+
+```text
+D:\dsh-ai-studio\packages\dsh-studio
+```
+
+Enable now，然后完全退出并重启 DSH。
+
+### Web profile
 
 ```powershell
 dsh plugin --profile web add "D:\dsh-ai-studio\packages\dsh-studio"
 dsh --profile web
 ```
 
-首次 5 分钟闭环：
+### 从 tarball 安装
 
-1. 完全退出并重启 DSH（插件安装/升级后必须做，不需要重装）；
-2. 打开「AI 工作室」→「公司」→ 新建项目；
-3. 新建任务，至少写一条验收标准；分支、模块、验证命令可以留空；
-4. 派单 → 看回执 → 在任务详情运行 Host 验证；
-5. 独立评审 → 勾验收 → 创建合并提案。
+Release 页面下载 `dsh-ai-studio-<version>.tgz`，在 Add plugin 里填 tarball 路径。
 
-如果表单留空后报「必须是字符串」，请升级到 v3.10.0 或更新版本；这是已修复的 `null` 边界问题。
+升级插件后必须完全退出 DSH 再启动；不需要重装。
 
-详细安装、打包分发、安全说明见 [插件 README](packages/dsh-studio/README.md)；想先理解整体工作流、角色和开发术语，读 [项目介绍与开发指南](docs/06-项目介绍.md)；对 Super-agent / Router / Thread 的架构启发见 [Super-agent 启发](docs/07-Super-agent-启发.md)；后续版本安排见 [迭代计划](docs/08-迭代计划.md)；完整操作步骤见 [使用说明书](docs/05-使用说明书.md)；兼容性、升级、备份见 [兼容性与安装](docs/04-兼容性与安装.md)。
+## 数据放在哪
 
-DSH 生态发现：GitHub topic 为 `dsh-plugin`，npm keywords 包含 `dsh-plugin` / `deepseek-harness` / `dsh`，包内提供 `dsh.bundle.patch` 与 `dsh.client.platform`。
+```text
+%USERPROFILE%\.dsh\studio\studio.json   # 状态
+%USERPROFILE%\.dsh\studio\runs\         # Run 全文
+<项目仓库>\.worktrees\<taskId>          # 每个任务的 worktree
+```
 
-## 为什么不是「酒馆套壳」
+- 状态文件不进 Git；
+- Run 全文外置，`studio.json` 只留 2 KB 预览；
+- 卸载插件不会删除工作室数据；
+- 导入/导出在「设置」页，导入前自动备份。
 
-酒馆的成熟之处是**内容与运行时分离**：世界书、角色卡、预设、正则、群聊。Studio 借这套经验，但把映射拆开：
+## 常见问题
 
-- 世界书 → Project Book（检索层），不是项目本身；Canon 留在仓库里。
-- 角色卡 → 角色契约的一部分；员工还需要职责、权限、交付和预算。
-- 预设 → 运行时配置；权限/验收/合并门禁属于 Policy。
-- 正则 → 确定性 Hook；控制面是状态机 + 验收 + 合并队列。
-- 群聊 → 多独立会话 + 结构化消息 + 共享产物，不是同一个上下文里的轮转。
+### 页面 401 或一直转圈
 
-完整论证见 [设计蓝图](docs/00-设计蓝图.md)。
+`/studio-api` 需要当前页面注入的进程级 token。刷新页面或重启 DSH；不要手工拼 API URL。
+
+### 安装后侧栏没有「AI 工作室」
+
+1. 确认插件已 Enable；
+2. 完全退出 DSH，而不是只关窗口；
+3. 打开 Plugins 看是否有加载错误；
+4. Web profile 用 `dsh plugin --profile web list` 确认已安装。
+
+### 表单留空报「必须是字符串」
+
+升级到 v3.11.0 或更新版本。旧版本对可选字段的 `null` 处理有 bug。
+
+### 阶段门禁过不去
+
+- 绑定仓库的项目进入 `architecture` 前要冻结 PRD；
+- 进入 `development` 前要冻结架构；
+- 冻结后改过文档会报漂移，需要创建新版本；
+- 检查项没完成时，Owner 可以写豁免理由。
+
+### 任务一直 blocked
+
+看 Task Room 的 Run 错误、Host 验证输出和决策台。连续失败 2 次会升级，不会允许原地第三次重试。
+
+## 文档
+
+- [使用说明书](docs/05-使用说明书.md)
+- [兼容性与安装](docs/04-兼容性与安装.md)
+- [项目介绍与开发指南](docs/06-项目介绍.md)
+- [迭代计划](docs/08-迭代计划.md)
+- [设计蓝图](docs/00-设计蓝图.md)
+- [架构决策记录](docs/adr/)
+- [CHANGELOG](CHANGELOG.md)
 
 ## 架构
 
 ```text
 DSH Web/Desktop
   ├─ 独立页面（client plugin）
-  │    Owner Dashboard / Decision Boardroom / Mission Control / Task Room / Merge Queue / Team / Settings
+  │   Owner Dashboard / Decision Boardroom / Mission Control
+  │   Task Room / Merge Queue / Team / Settings
   └─ Host plugin
-       ├─ /studio-api（同源、Bearer token、JSON）
-       ├─ 文件存储（$DSH_HOME/studio/studio.json）
-       ├─ 版本适配（app-boot → 安装包清单 → env）
-       ├─ DSH Agent 派单（agents.create + agentPresets.mount + tokenMeter）
-       └─ 状态机 / 验收门禁 / 合并治理 / 公司聚合
+      ├─ /studio-api（同源、Bearer token、JSON）
+      ├─ 文件存储（$DSH_HOME/studio/studio.json）
+      ├─ 版本适配（app-boot → 安装包清单 → env）
+      ├─ DSH Agent 派单（agents.create + agentPresets.mount + tokenMeter）
+      └─ 状态机 / 验收门禁 / 合并治理 / 公司聚合
 ```
 
-- Host 半是普通 Cordis 插件，依赖 `ctx.webServer` 与 `ctx.connection.admit()` 的认证边界。
-- Client 半注册一个 `main` 面板和一个 `sidebar.panellist` 入口。
-- 不依赖 DSH 私有 Remote 代码生成；API 是一层很薄的同源 HTTP JSON。
-- 领域逻辑在 `src/shared` 和 `src/host/store.ts`，未来替换传输层不影响数据模型。
+- Host 只依赖公开的 `ctx.webServer`、`ctx.connection`、`ctx.agents`、`ctx.agentPresets`、`ctx.llm`、`ctx.tokenMeter`；
+- Client 只依赖 `ctx.slots`、`ctx.layout` 和平台 React；
+- 不依赖 DSH 私有 Remote 代码生成器；
+- 领域逻辑在 `src/shared` 与 `src/host/store`。
 
-## 项目结构
+## 非目标
 
-```text
-packages/dsh-studio/     # 可安装的 DSH 插件
-  src/host/              # Cordis 插件、HTTP API、存储、兼容层
-  src/client/            # React 页面
-  src/shared/            # 跨端类型与状态机
-  tests/                 # 存储层单测
-docs/
-  00-设计蓝图.md          # 产品/工作流/领域模型
-  04-兼容性与安装.md      # 安装、升级、备份、兼容性矩阵
-  05-使用说明书.md        # 工作流、门禁、数据与迁移
-  adr/                    # 架构决策记录
-  adr/                   # 架构决策
-CONTEXT.md               # 术语表
-tools/                   # CDP 端到端验证脚本
-```
+- 不做通用聊天客户端；
+- 不自动 merge 或 push；
+- 不让 Agent 自己批准决策；
+- 不把工作室状态写进项目 Git 仓库；
+- 不把外部事件直接当验收结论。
 
-## 决策记录
+## 版本
 
-- [ADR-0001：自建编排层](docs/adr/0001-studio-owns-orchestration.md)
-- [ADR-0002：同源 HTTP + token](docs/adr/0002-same-origin-http-and-token.md)
-- [ADR-0003：合并治理只记录状态](docs/adr/0003-record-only-merge-governance.md)
-- [ADR-0004：公司仪表盘是派生投影](docs/adr/0004-company-is-a-derived-projection.md)
-- [ADR-0005：Agent 派单先做只读分析](docs/adr/0005-agent-dispatch-is-advisory.md)
-- [ADR-0006：项目级决策进入决策台](docs/adr/0006-decision-boardroom.md)
-- [ADR-0007：支线自动登记与契约冲突升级](docs/adr/0007-branch-contract-escalation.md)
-- [ADR-0008：代码执行放在每 Task 的 worktree](docs/adr/0008-code-execution-in-worktrees.md)
-- [ADR-0009：Host 独立验证](docs/adr/0009-host-verification.md)
-- [ADR-0010：项目知识与模块契约](docs/adr/0010-project-knowledge-and-modules.md)
-- [ADR-0011：契约越界护栏](docs/adr/0011-contract-scope-guard.md)
-- [ADR-0012：重拆票与集成票](docs/adr/0012-resplit-and-integration-tickets.md)
-- [ADR-0013：独立 AI 评审](docs/adr/0013-independent-ai-review.md)
-- [ADR-0014：自动集成分期](docs/adr/0014-automatic-integration-gate.md)
-- [ADR-0015：文档同步与不可逆决策](docs/adr/0015-docs-sync-and-irreversible-decisions.md)
-- [ADR-0016：人工触发 Git merge](docs/adr/0016-human-triggered-git-merge.md)
-- [ADR-0017：ADR 草稿保存于决策记录](docs/adr/0017-adr-draft-in-decision.md)
-- [ADR-0018：合并后回归](docs/adr/0018-post-merge-regression.md)
-- [ADR-0019：合并失败升级](docs/adr/0019-post-merge-failure-decision.md)
-- [ADR-0020：ADR 落盘与合并回滚](docs/adr/0020-adr-writeback-and-merge-rollback.md)
-- [ADR-0021：改修票诊断/计划门禁](docs/adr/0021-fix-ticket-diagnosis-plan.md)
-- [ADR-0022：Host 自动提交 worktree 改动](docs/adr/0022-host-auto-commit-worktree.md)
-- [ADR-0023：外部执行器](docs/adr/0023-external-executors.md)
-- [ADR-0024：项目包](docs/adr/0024-project-bundle.md)
-
-## 开发
-
-```powershell
-pnpm install
-pnpm typecheck
-pnpm build
-pnpm test
-```
-
-端到端验证使用本机 DSH Web profile + Chrome CDP：
-
-```powershell
-# 1. 启动测试 profile（不要占用当前 GUI）
-dsh --profile web --no-open --port 0
-# 2. 用 tools/cdp-check.mjs 打开打印出的 URL
-```
-
-（`tools/` 是开发验证脚本，不随插件发布。）
-
-## 路线
-
-- **v0.1**：项目/角色/任务/验收/证据；独立页面；本地持久化；版本适配。
-- **v0.2**：合并提案、批准、打回、合并记录；schema v1→v2 迁移。
-- **v0.3**：Owner Dashboard；公司级项目组合、老板收件箱、角色负载、风险雷达、交付流。
-- **v0.4**：Agent 分析派单与结构化回执；角色模型/token 预算；项目预算；DSH token 计量。
-- **v0.5**：决策台；Agent 项目级决策进入待裁决；Owner 批准/拒绝与结论记录。
-- **v0.5.1**：支线持久化、契约变更记录、跨支线同契约冲突自动升级。
-- **v0.6**：项目绑定 git 仓库、每 Task worktree/branch、Agent 代码编辑与 diff 记录。
-- **v0.6.1**：Host 独立验证、验证 evidence、Merge Proposal 的 diff/变更文件/验证结果。
-- **v0.7**：Task 模块/契约/票类型、失败 2 次自动升级、代码项目合并前验证门禁。
-- **v0.8**：PRD/INVARIANTS/MODULES 知识层、Module 契约卡、派单加载模块契约。
-- **v0.9**：契约越界护栏、契约/禁止路径改动自动 blocked + 决策。
-- **v1.0**：集成/playtest ticket、连续失败自动生成 Architect 重拆 ticket。
-- **v1.1**：独立 AI 评审、代码任务 done 前评审门禁。
-- **v1.2**：每 3 个完成任务自动生成 backlog 集成/playtest ticket。
-- **v1.3**：文档同步门禁、不可逆决策批准必须写理由。
-- **v1.4**：人工触发真实 Git merge，冲突自动 abort。
-- **v1.5**：不可逆决策生成 ADR 草稿、评审同族风险提示。
-- **v1.6**：merge 后自动回归并记录结果。
-- **v1.7**：合并后回归失败自动生成决策台决策，附回滚建议。
-- **v1.8**：ADR 落盘 + 人工触发合并回滚。
-- **v1.9**：改修票诊断/计划门禁。
-- **v2.0（当前）**：真实项目 dogfood（首个任务闭环）、Agent 改动自动提交、Git 身份预检。
-- **v2.1**：可分发稳定版、数据导出备份、兼容性/安装/升级文档。
-- **v2.2**：数据导入恢复、导入前自动备份。
-- **v2.3**：工作室名称可改、决策台改名、dsh-ai-studio 仓库清理、去项目化。
-- **v2.5**：Claude Code / Codex 执行器、项目包导出/导入、工作流说明书。
-- **v2.5.1**：切换 DSH 页面后保持 Studio 导航位置。
-- **v2.5.2**：发布包名改为无 scope 的 `dsh-ai-studio`，修复 DSH 侧栏入口。
-- **v2.5.3**：仓库根目录补 `dsh` 清单，可直接从 GitHub 根目录安装并被 `dsh-plugin` 生态发现。
-- **v2.6.0**：阶段门禁、Definition of Ready 清单、产物登记、Owner 豁免、任务需求引用。
-- **v2.7.0**：Trigger Inbox / Thread，外部事件先进入收件箱，由人决定转为任务；同 Thread 事件关联到已有任务，不自动派单/合并。
-- **v2.8.0**：Workshop Room，记录各角色独立意见、汇总和 Owner 决策。
-- **v2.8.1**：Workshop AI 独立评审，每个参与角色独立调用 DSH Agent；汇总和 Owner 决策仍由人确认，不自动合并。
-- **v2.9.0**：原型 Demo 门禁；从原型验证进入持续开发前，必须登记 `demo` 产物，或写 Owner 豁免理由。
-- **v2.10.0**：Provider Profiles；角色可以绑定命名执行配置（executor/provider/model），派单与 Workshop 共用同一解析。
-- **v2.11.0**：Provider 健康度；按绑定的 Profile 聚合运行次数、成功/失败、token、最近错误和健康状态。
-- **v2.12.0**：Provider 诊断补全；失败率、失败原因分布、最近运行、备用 Profile 建议。
-- **v2.13.0**：人工备用切换；把绑定降级 Profile 的角色改绑到建议的 Profile，需确认，不自动 failover。
-- **v2.14.0**：Run 级执行快照；Run 记录 providerProfileId / executor / provider / model，健康度按快照聚合。
-- **v2.15.0**：Provider 实时探测；检查 DSH provider/model 是否存在，外部 CLI 是否可执行，不自动切换。
-- **v2.16.0**：Trigger Webhook；HMAC 签名、来源白名单、repo/label/author/mention 确定性过滤，人工确认后才转任务。
-- **v2.17.0**：Prototype 手动 Demo 记录；记录入口、启动命令、步骤、结果、截图和备注，通过记录可作为 Demo 门禁证据。
-- **v2.18.0**：Workshop AI 汇总草稿；生成共识/分歧/未决问题/候选方案，不覆盖原始意见，不写 Owner 决策。
-- **v2.19.0**：入门引导 + 项目模板（Web / 游戏 / CLI 工具）；独立窗口/PWA 暂缓。
-- **v3.0.0**：公司级组合治理；预算、跨项目优先级、角色覆盖聚合，全部从项目状态派生。
-- **v3.0.1**：客户端拆分（一）；纯函数/UI 原子、Company/Boardroom/Knowledge/Team。
-- **v3.0.2**：客户端拆分（二）；Mission、TaskPanels、Forms、RecentEvents 独立，`StudioPage` 2,186 行。
-- **v3.0.3**：Store 拆分（一）；read-model / validation / migration，`store.ts` 4,797 行。
-- **v3.0.4**：Store 拆分（二）+ 客户端收尾；inputs / seed / errors + Tasks/Merge/Settings/States；`store.ts` 4,272，`StudioPage` 1,528。
-- **v3.0.5**：Store 拆分（三）；项目模板与 lookup 独立，`store.ts` 3,993 行。
-- **v3.0.6**：Provider Profile 域抽成 service，引入 StoreContext；`store.ts` 3,878 行。
-- **v3.0.7**：Merge 域抽成 service；`store.ts` 3,598 行。
-- **v3.0.8**：Trigger / Webhook / Thread 域抽成 service；`store.ts` 3,277 行。
-- **v3.0.9**：Task 域抽成 service；`store.ts` 2,969 行。
-- **v3.1.0**：评审与 Host 验证抽成 service；`store.ts` 2,815 行。
-- **v3.1.1**：Run 生命周期、失败升级、契约护栏抽成 service；`store.ts` 2,112 行。
-- **v3.1.2**：Workshop / Prototype Demo 抽成 service；`store.ts` 1,817 行。
-- **v3.1.3**：微型文件收敛；Store 文件数 18 → 16。
-- **v3.1.4**：Mission 视图拆分；MissionView 1,740 → 568。
-- **v3.1.5**：任务组件拆分；Board / Drawer / RunPanels / MergePanel。
-- **v3.1.6**：表单拆分；Task / Role / Project / Decision + ModalShell。
-- **v3.1.7**：决策域拆分；`store.ts` 1,577 行。
-- **v3.1.8**：项目 / 阶段 / 目录域拆分；`store.ts` 1,017 行。
-- **v3.2.0**：客户端动作拆分；52 个 handler 独立，`StudioPage` 888 行。
-- **v3.2.1**：收尾整理；RecentEvents 合并，项目介绍文档完成。
-- **v3.3.0**：执行层绑定；boot nonce、项目包按项目、路径校验、提交绑定、schema 27、local Git 身份。
-- **v3.4.0**：运行隔离；worker/review 显式挂载 standard、工具限制、只读沙箱、Run 记录预设/审批/沙箱，schema 28。
-- **v3.5.0**：反馈修复；null 输入、verify 命令来源、timing-safe、限流、CI/lib 校验。
-- **v3.6.0**：评审证据；真实 patch、review prompt、契约检查前置、schema 29。
-- **v3.7.0**：运行数据；Run 输出外置、2KB 预览、回执解析加固、schema 30。
-- **v3.8.0**：超时与风险分级；timeout 状态、trivial 快速通道、schema 31。
-- **v3.9.0**：PRD/架构双冻结；版本 Hash、StageGate 绑定、领域模型、需求决策、schema 32。
-- **v3.10.0（当前）**：冻结变更单；接受/拒绝、原因与影响记录、schema 33。
-- **下一步**：B2 剩余超时与 riskTier。
-- **v1.0**：用工作台完成一个完整垂直切片，再抽象为可复用插件。
-
-升级、备份与兼容性见 [兼容性与安装](docs/04-兼容性与安装.md)。
-
-## 核心原则
-
-1. **LLM 提议，系统裁决**：Agent 不能自己把任务标记为完成。
-2. **产物优先，会话可弃**：状态和知识落在文件里。
-3. **一个产物一个写入者**：跨角色只发请求，不直接改对方记忆。
-4. **短分支，频繁合并**：分支是隔离手段，不是长期分叉。
-5. **人类持有最终决策权**：方向、预算、不可逆选择、安全与权限。
-6. **先狗粮，后抽象**：每个功能都要被真实任务使用过。
-
-## 许可
-
-MIT
+当前版本 **3.11.0**。版本历史见 [CHANGELOG](CHANGELOG.md)。
