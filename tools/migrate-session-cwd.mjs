@@ -131,7 +131,12 @@ fs.mkdirSync(targetSessionDir, { recursive: true });
 fs.mkdirSync(backupDir, { recursive: true });
 fs.copyFileSync(source.file, backup);
 fs.writeFileSync(targetFile, rewritten);
-fs.rmSync(path.dirname(source.file), { recursive: true, force: true });
+if (args.includes("--remove-old")) {
+  fs.rmSync(path.dirname(source.file), { recursive: true, force: true });
+  console.log("旧会话目录已删除（--remove-old）。");
+} else {
+  console.log("旧会话目录保留，确认新会话可打开后可手动删除。");
+}
 
 console.log(`已迁移。旧文件备份：${backup}`);
 console.log("现在重新启动 DSH，并从工作区 D:\\dsh-ai-studio 打开该会话。");
