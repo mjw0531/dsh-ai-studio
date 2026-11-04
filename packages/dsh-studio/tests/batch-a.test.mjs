@@ -288,8 +288,12 @@ test("exports only the selected project and refuses same-id import", async () =>
     });
     assert.match(entries, /project\.json/);
     assert.doesNotMatch(entries, /studio\.json/);
+    const projectEntry = entries
+      .split(/\r?\n/)
+      .find((entry) => entry.endsWith("project.json"));
+    assert.ok(projectEntry);
     const slice = JSON.parse(
-      execFileSync("tar", ["-xOf", archive, "project.json"], {
+      execFileSync("tar", ["-xOf", archive, projectEntry], {
         encoding: "utf8",
       }),
     );
