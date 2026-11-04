@@ -27,6 +27,13 @@ export class DocsService {
         409,
       );
     }
+    if (path.isAbsolute(relativePath)) {
+      throw new StudioStoreError(
+        "doc_path_absolute",
+        "文档路径必须是相对仓库根目录的路径，例如 docs/PRD.md",
+        400,
+      );
+    }
     const root = path.resolve(data.project.repoPath);
     const resolved = path.resolve(root, relativePath);
     if (

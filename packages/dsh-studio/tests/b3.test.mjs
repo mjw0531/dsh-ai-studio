@@ -19,6 +19,16 @@ test("freezes PRD and architecture versions with drift detection", async () => {
       name: "Freeze",
       repoPath: repo,
     });
+    const rebound = await store.updateProject(project.id, {
+      repoPath: repo,
+      prdPath: path.join(repo, "PRD.md"),
+    });
+    assert.equal(rebound.prdPath, "PRD.md");
+    await assert.rejects(
+      () => store.updateProject(project.id, { prdPath: "../escape.md" }),
+      (error) => error.code === "doc_path_outside_repo",
+    );
+
     const prd = await store.createFreeze(project.id, {
       kind: "prd",
       version: "v1",

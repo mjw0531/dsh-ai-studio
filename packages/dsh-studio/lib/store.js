@@ -10,11 +10,11 @@ import {
   writeFile
 } from "node:fs/promises";
 import os from "node:os";
-import path2 from "node:path";
+import path3 from "node:path";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 33;
-var STUDIO_PLUGIN_VERSION = "3.11.0";
+var STUDIO_PLUGIN_VERSION = "3.12.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -3523,12 +3523,12 @@ async function enforceContractScope(ctx, taskId, runId, changedFiles) {
       if (file === "") return false;
       if (contract !== "" && file === contract) return true;
       if (forbidden.some(
-        (path3) => file === path3 || file.startsWith(`${path3}/`)
+        (path4) => file === path4 || file.startsWith(`${path4}/`)
       )) {
         return true;
       }
       if (allowed.length > 0 && (file.startsWith("src/") || file.startsWith("test/")) && !allowed.some(
-        (path3) => file === path3 || file.startsWith(`${path3}/`)
+        (path4) => file === path4 || file.startsWith(`${path4}/`)
       )) {
         return true;
       }
@@ -4369,6 +4369,7 @@ async function decideDecision(ctx, decisionId, input) {
 
 // src/host/store/projects.ts
 import { existsSync } from "node:fs";
+import path2 from "node:path";
 
 // src/host/store/freezes.ts
 import { createHash } from "node:crypto";
@@ -4719,6 +4720,44 @@ async function createProjectFromTemplate(ctx, input) {
   }
   return project;
 }
+function normalizeDocPath(value, root, previousRoot, allowDrop) {
+  if (value.trim() === "") return null;
+  if (root === null) {
+    if (path2.isAbsolute(value)) {
+      throw new StudioStoreError(
+        "repo_required",
+        "\u7ED1\u5B9A\u4ED3\u5E93\u524D\u53EA\u80FD\u4FDD\u5B58\u76F8\u5BF9\u6587\u6863\u8DEF\u5F84",
+        409
+      );
+    }
+    return value.replaceAll("\\", "/");
+  }
+  if (!path2.isAbsolute(value)) {
+    const target = path2.resolve(root, value);
+    if (target !== root && !target.startsWith(`${root}${path2.sep}`)) {
+      throw new StudioStoreError(
+        "doc_path_outside_repo",
+        "\u6587\u6863\u8DEF\u5F84\u5FC5\u987B\u4F4D\u4E8E\u4ED3\u5E93\u5185",
+        400
+      );
+    }
+    return value.replaceAll("\\", "/");
+  }
+  for (const candidate of [root, previousRoot]) {
+    if (candidate === null) continue;
+    const base = path2.resolve(candidate);
+    const target = path2.resolve(value);
+    if (target === base || target.startsWith(`${base}${path2.sep}`)) {
+      return path2.relative(base, target).replaceAll("\\", "/");
+    }
+  }
+  if (allowDrop) return null;
+  throw new StudioStoreError(
+    "doc_path_outside_repo",
+    "\u7EDD\u5BF9\u8DEF\u5F84\u4E0D\u5C5E\u4E8E\u5F53\u524D\u6216\u65E7\u4ED3\u5E93\uFF0C\u8BF7\u6539\u6210\u4ED3\u5E93\u5185\u76F8\u5BF9\u8DEF\u5F84",
+    400
+  );
+}
 async function updateProject(ctx, projectId, input) {
   return ctx.runExclusive(async () => {
     const state = ctx.requireState();
@@ -4726,17 +4765,48 @@ async function updateProject(ctx, projectId, input) {
     if (project === void 0) {
       throw new StudioStoreError("project_not_found", "\u9879\u76EE\u4E0D\u5B58\u5728", 404);
     }
+    const previousRepo = project.repoPath;
     if (input.repoPath !== void 0) {
       project.repoPath = optionalText(input.repoPath, "repoPath", 1e3) || null;
     }
+    if (previousRepo !== project.repoPath) {
+      project.prdPath = project.prdPath === null ? null : normalizeDocPath(project.prdPath, project.repoPath, previousRepo, true);
+      project.invariantsPath = project.invariantsPath === null ? null : normalizeDocPath(
+        project.invariantsPath,
+        project.repoPath,
+        previousRepo,
+        true
+      );
+      project.modulesPath = project.modulesPath === null ? null : normalizeDocPath(
+        project.modulesPath,
+        project.repoPath,
+        previousRepo,
+        true
+      );
+    }
     if (input.prdPath !== void 0) {
-      project.prdPath = optionalText(input.prdPath, "prdPath", 500) || null;
+      project.prdPath = normalizeDocPath(
+        optionalText(input.prdPath, "prdPath", 500) || "",
+        project.repoPath,
+        previousRepo,
+        false
+      );
     }
     if (input.invariantsPath !== void 0) {
-      project.invariantsPath = optionalText(input.invariantsPath, "invariantsPath", 500) || null;
+      project.invariantsPath = normalizeDocPath(
+        optionalText(input.invariantsPath, "invariantsPath", 500) || "",
+        project.repoPath,
+        previousRepo,
+        false
+      );
     }
     if (input.modulesPath !== void 0) {
-      project.modulesPath = optionalText(input.modulesPath, "modulesPath", 500) || null;
+      project.modulesPath = normalizeDocPath(
+        optionalText(input.modulesPath, "modulesPath", 500) || "",
+        project.repoPath,
+        previousRepo,
+        false
+      );
     }
     const at = ctx.now();
     project.updatedAt = at;
@@ -5292,11 +5362,11 @@ async function importProjectSlice(ctx, slice, repoPath) {
 function defaultStudioDataDir() {
   const override = process.env.DSH_STUDIO_DATA_DIR?.trim();
   if (override !== void 0 && override !== "") {
-    return path2.resolve(override);
+    return path3.resolve(override);
   }
   const home = process.env.DSH_HOME?.trim();
-  return path2.join(
-    home !== void 0 && home !== "" ? home : path2.join(os.homedir(), ".dsh"),
+  return path3.join(
+    home !== void 0 && home !== "" ? home : path3.join(os.homedir(), ".dsh"),
     "studio"
   );
 }
@@ -5316,7 +5386,7 @@ var StudioStore = class {
   context;
   constructor(options = {}) {
     this.dataDir = options.dataDir ?? defaultStudioDataDir();
-    this.file = path2.join(this.dataDir, "studio.json");
+    this.file = path3.join(this.dataDir, "studio.json");
     this.now = options.now ?? (() => /* @__PURE__ */ new Date());
     this.context = {
       runExclusive: (work) => this.runExclusive(work),
@@ -5644,9 +5714,9 @@ var StudioStore = class {
   }
   async externalizeRunOutput(runId, output) {
     try {
-      const dir = path2.join(this.dataDir, "runs");
+      const dir = path3.join(this.dataDir, "runs");
       await mkdir(dir, { recursive: true });
-      const file = path2.join(dir, `${runId}.txt`);
+      const file = path3.join(dir, `${runId}.txt`);
       await writeFile(file, output, "utf8");
       await this.runExclusive(async () => {
         const run = this.requireState().runs.find(

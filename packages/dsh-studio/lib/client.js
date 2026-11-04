@@ -2308,6 +2308,10 @@ function KnowledgeView({
         }
       )
     ] }),
+    project?.repoPath == null ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "studio-alert", children: "\u9879\u76EE\u8FD8\u6CA1\u6709\u7ED1\u5B9A\u4EE3\u7801\u4ED3\u5E93\uFF0C\u77E5\u8BC6\u9875\u65E0\u6CD5\u8BFB\u53D6\u6587\u6863\u3002\u5148\u5230\u300C\u8BBE\u7F6E\u300D\u7ED1\u5B9A\u4ED3\u5E93\u6839\u76EE\u5F55\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "studio-hint studio-mono", children: [
+      "\u4ED3\u5E93\u6839\u76EE\u5F55\uFF1A",
+      project.repoPath
+    ] }),
     /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "studio-knowledge-grid", children: [
       /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("section", { className: "studio-panel", children: [
         /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "studio-section-label", children: "\u9879\u76EE\u6587\u6863" }),
@@ -2322,7 +2326,8 @@ function KnowledgeView({
                 onChange: (event) => setPrdPath(event.target.value),
                 placeholder: "docs/PRD.md"
               }
-            )
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "studio-hint", children: "\u76F8\u5BF9\u4ED3\u5E93\u6839\u76EE\u5F55\uFF0C\u4F8B\u5982 docs/PRD.md\uFF1B\u4E0D\u8981\u586B\u65E7\u7684\u7EDD\u5BF9\u8DEF\u5F84\u3002" })
           ] }),
           /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "studio-field", children: [
             /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("label", { htmlFor: "invariants-path", children: "INVARIANTS \u8DEF\u5F84" }),

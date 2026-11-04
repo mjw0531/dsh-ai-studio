@@ -105,7 +105,7 @@ Release 页面下载 `dsh-ai-studio-<version>.tgz`，在 Add plugin 里填 tarba
 
 ### 表单留空报「必须是字符串」
 
-升级到 v3.11.0 或更新版本。旧版本对可选字段的 `null` 处理有 bug。
+升级到 v3.12.0 或更新版本。旧版本对可选字段的 `null` 处理有 bug。
 
 ### 阶段门禁过不去
 
@@ -158,4 +158,4 @@ DSH Web/Desktop
 
 ## 版本
 
-当前版本 **3.11.0**。版本历史见 [CHANGELOG](CHANGELOG.md)。
+当前版本 **3.12.0**。版本历史见 [CHANGELOG](CHANGELOG.md)。

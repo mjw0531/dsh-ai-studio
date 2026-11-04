@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import path from "node:path";
 
 import { nextProjectStage } from "../../shared/types.js";
 import type {
@@ -103,6 +104,50 @@ export async function createProjectFromTemplate(
     return project;
   }
 
+function normalizeDocPath(
+  value: string,
+  root: string | null,
+  previousRoot: string | null,
+  allowDrop: boolean,
+): string | null {
+  if (value.trim() === "") return null;
+  if (root === null) {
+    if (path.isAbsolute(value)) {
+      throw new StudioStoreError(
+        "repo_required",
+        "绑定仓库前只能保存相对文档路径",
+        409,
+      );
+    }
+    return value.replaceAll("\\", "/");
+  }
+  if (!path.isAbsolute(value)) {
+    const target = path.resolve(root, value);
+    if (target !== root && !target.startsWith(`${root}${path.sep}`)) {
+      throw new StudioStoreError(
+        "doc_path_outside_repo",
+        "文档路径必须位于仓库内",
+        400,
+      );
+    }
+    return value.replaceAll("\\", "/");
+  }
+  for (const candidate of [root, previousRoot]) {
+    if (candidate === null) continue;
+    const base = path.resolve(candidate);
+    const target = path.resolve(value);
+    if (target === base || target.startsWith(`${base}${path.sep}`)) {
+      return path.relative(base, target).replaceAll("\\", "/");
+    }
+  }
+  if (allowDrop) return null;
+  throw new StudioStoreError(
+    "doc_path_outside_repo",
+    "绝对路径不属于当前或旧仓库，请改成仓库内相对路径",
+    400,
+  );
+}
+
 export async function updateProject(
   ctx: StoreContext,
     projectId: string,
@@ -114,21 +159,55 @@ export async function updateProject(
       if (project === undefined) {
         throw new StudioStoreError("project_not_found", "项目不存在", 404);
       }
+      const previousRepo = project.repoPath;
       if (input.repoPath !== undefined) {
         project.repoPath =
           optionalText(input.repoPath, "repoPath", 1000) || null;
       }
+      if (previousRepo !== project.repoPath) {
+        project.prdPath = project.prdPath === null
+          ? null
+          : normalizeDocPath(project.prdPath, project.repoPath, previousRepo, true);
+        project.invariantsPath = project.invariantsPath === null
+          ? null
+          : normalizeDocPath(
+              project.invariantsPath,
+              project.repoPath,
+              previousRepo,
+              true,
+            );
+        project.modulesPath = project.modulesPath === null
+          ? null
+          : normalizeDocPath(
+              project.modulesPath,
+              project.repoPath,
+              previousRepo,
+              true,
+            );
+      }
       if (input.prdPath !== undefined) {
-        project.prdPath =
-          optionalText(input.prdPath, "prdPath", 500) || null;
+        project.prdPath = normalizeDocPath(
+          optionalText(input.prdPath, "prdPath", 500) || "",
+          project.repoPath,
+          previousRepo,
+          false,
+        );
       }
       if (input.invariantsPath !== undefined) {
-        project.invariantsPath =
-          optionalText(input.invariantsPath, "invariantsPath", 500) || null;
+        project.invariantsPath = normalizeDocPath(
+          optionalText(input.invariantsPath, "invariantsPath", 500) || "",
+          project.repoPath,
+          previousRepo,
+          false,
+        );
       }
       if (input.modulesPath !== undefined) {
-        project.modulesPath =
-          optionalText(input.modulesPath, "modulesPath", 500) || null;
+        project.modulesPath = normalizeDocPath(
+          optionalText(input.modulesPath, "modulesPath", 500) || "",
+          project.repoPath,
+          previousRepo,
+          false,
+        );
       }
       const at = ctx.now();
       project.updatedAt = at;

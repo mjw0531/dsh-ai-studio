@@ -30,6 +30,13 @@ var DocsService = class {
         409
       );
     }
+    if (path.isAbsolute(relativePath)) {
+      throw new StudioStoreError(
+        "doc_path_absolute",
+        "\u6587\u6863\u8DEF\u5F84\u5FC5\u987B\u662F\u76F8\u5BF9\u4ED3\u5E93\u6839\u76EE\u5F55\u7684\u8DEF\u5F84\uFF0C\u4F8B\u5982 docs/PRD.md",
+        400
+      );
+    }
     const root = path.resolve(data.project.repoPath);
     const resolved = path.resolve(root, relativePath);
     if (resolved !== root && !resolved.startsWith(`${root}${path.sep}`)) {

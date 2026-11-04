@@ -75,6 +75,16 @@ export function KnowledgeView({
         </button>
       </div>
 
+      {project?.repoPath == null ? (
+        <div className="studio-alert">
+          项目还没有绑定代码仓库，知识页无法读取文档。先到「设置」绑定仓库根目录。
+        </div>
+      ) : (
+        <div className="studio-hint studio-mono">
+          仓库根目录：{project.repoPath}
+        </div>
+      )}
+
       <div className="studio-knowledge-grid">
         <section className="studio-panel">
           <div className="studio-section-label">项目文档</div>
@@ -87,6 +97,9 @@ export function KnowledgeView({
                 onChange={(event) => setPrdPath(event.target.value)}
                 placeholder="docs/PRD.md"
               />
+              <div className="studio-hint">
+                相对仓库根目录，例如 docs/PRD.md；不要填旧的绝对路径。
+              </div>
             </div>
             <div className="studio-field">
               <label htmlFor="invariants-path">INVARIANTS 路径</label>

@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 33;
-var STUDIO_PLUGIN_VERSION = "3.11.0";
+var STUDIO_PLUGIN_VERSION = "3.12.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -155,7 +155,7 @@ function safeOrigin(ctx) {
 
 // src/host/adr.ts
 import { mkdir as mkdir2, readdir, writeFile as writeFile2 } from "node:fs/promises";
-import path4 from "node:path";
+import path5 from "node:path";
 
 // src/host/store.ts
 import { randomUUID as randomUUID5 } from "node:crypto";
@@ -169,7 +169,7 @@ import {
   writeFile
 } from "node:fs/promises";
 import os from "node:os";
-import path3 from "node:path";
+import path4 from "node:path";
 
 // src/host/store/migration.ts
 function isRecord(value) {
@@ -3634,12 +3634,12 @@ async function enforceContractScope(ctx, taskId, runId, changedFiles) {
       if (file === "") return false;
       if (contract !== "" && file === contract) return true;
       if (forbidden.some(
-        (path9) => file === path9 || file.startsWith(`${path9}/`)
+        (path10) => file === path10 || file.startsWith(`${path10}/`)
       )) {
         return true;
       }
       if (allowed.length > 0 && (file.startsWith("src/") || file.startsWith("test/")) && !allowed.some(
-        (path9) => file === path9 || file.startsWith(`${path9}/`)
+        (path10) => file === path10 || file.startsWith(`${path10}/`)
       )) {
         return true;
       }
@@ -4480,6 +4480,7 @@ async function decideDecision(ctx, decisionId, input) {
 
 // src/host/store/projects.ts
 import { existsSync } from "node:fs";
+import path3 from "node:path";
 
 // src/host/store/freezes.ts
 import { createHash } from "node:crypto";
@@ -4830,6 +4831,44 @@ async function createProjectFromTemplate(ctx, input) {
   }
   return project;
 }
+function normalizeDocPath(value, root, previousRoot, allowDrop) {
+  if (value.trim() === "") return null;
+  if (root === null) {
+    if (path3.isAbsolute(value)) {
+      throw new StudioStoreError(
+        "repo_required",
+        "\u7ED1\u5B9A\u4ED3\u5E93\u524D\u53EA\u80FD\u4FDD\u5B58\u76F8\u5BF9\u6587\u6863\u8DEF\u5F84",
+        409
+      );
+    }
+    return value.replaceAll("\\", "/");
+  }
+  if (!path3.isAbsolute(value)) {
+    const target = path3.resolve(root, value);
+    if (target !== root && !target.startsWith(`${root}${path3.sep}`)) {
+      throw new StudioStoreError(
+        "doc_path_outside_repo",
+        "\u6587\u6863\u8DEF\u5F84\u5FC5\u987B\u4F4D\u4E8E\u4ED3\u5E93\u5185",
+        400
+      );
+    }
+    return value.replaceAll("\\", "/");
+  }
+  for (const candidate of [root, previousRoot]) {
+    if (candidate === null) continue;
+    const base = path3.resolve(candidate);
+    const target = path3.resolve(value);
+    if (target === base || target.startsWith(`${base}${path3.sep}`)) {
+      return path3.relative(base, target).replaceAll("\\", "/");
+    }
+  }
+  if (allowDrop) return null;
+  throw new StudioStoreError(
+    "doc_path_outside_repo",
+    "\u7EDD\u5BF9\u8DEF\u5F84\u4E0D\u5C5E\u4E8E\u5F53\u524D\u6216\u65E7\u4ED3\u5E93\uFF0C\u8BF7\u6539\u6210\u4ED3\u5E93\u5185\u76F8\u5BF9\u8DEF\u5F84",
+    400
+  );
+}
 async function updateProject(ctx, projectId, input) {
   return ctx.runExclusive(async () => {
     const state = ctx.requireState();
@@ -4837,17 +4876,48 @@ async function updateProject(ctx, projectId, input) {
     if (project === void 0) {
       throw new StudioStoreError("project_not_found", "\u9879\u76EE\u4E0D\u5B58\u5728", 404);
     }
+    const previousRepo = project.repoPath;
     if (input.repoPath !== void 0) {
       project.repoPath = optionalText(input.repoPath, "repoPath", 1e3) || null;
     }
+    if (previousRepo !== project.repoPath) {
+      project.prdPath = project.prdPath === null ? null : normalizeDocPath(project.prdPath, project.repoPath, previousRepo, true);
+      project.invariantsPath = project.invariantsPath === null ? null : normalizeDocPath(
+        project.invariantsPath,
+        project.repoPath,
+        previousRepo,
+        true
+      );
+      project.modulesPath = project.modulesPath === null ? null : normalizeDocPath(
+        project.modulesPath,
+        project.repoPath,
+        previousRepo,
+        true
+      );
+    }
     if (input.prdPath !== void 0) {
-      project.prdPath = optionalText(input.prdPath, "prdPath", 500) || null;
+      project.prdPath = normalizeDocPath(
+        optionalText(input.prdPath, "prdPath", 500) || "",
+        project.repoPath,
+        previousRepo,
+        false
+      );
     }
     if (input.invariantsPath !== void 0) {
-      project.invariantsPath = optionalText(input.invariantsPath, "invariantsPath", 500) || null;
+      project.invariantsPath = normalizeDocPath(
+        optionalText(input.invariantsPath, "invariantsPath", 500) || "",
+        project.repoPath,
+        previousRepo,
+        false
+      );
     }
     if (input.modulesPath !== void 0) {
-      project.modulesPath = optionalText(input.modulesPath, "modulesPath", 500) || null;
+      project.modulesPath = normalizeDocPath(
+        optionalText(input.modulesPath, "modulesPath", 500) || "",
+        project.repoPath,
+        previousRepo,
+        false
+      );
     }
     const at = ctx.now();
     project.updatedAt = at;
@@ -5403,11 +5473,11 @@ async function importProjectSlice(ctx, slice, repoPath) {
 function defaultStudioDataDir() {
   const override = process.env.DSH_STUDIO_DATA_DIR?.trim();
   if (override !== void 0 && override !== "") {
-    return path3.resolve(override);
+    return path4.resolve(override);
   }
   const home = process.env.DSH_HOME?.trim();
-  return path3.join(
-    home !== void 0 && home !== "" ? home : path3.join(os.homedir(), ".dsh"),
+  return path4.join(
+    home !== void 0 && home !== "" ? home : path4.join(os.homedir(), ".dsh"),
     "studio"
   );
 }
@@ -5427,7 +5497,7 @@ var StudioStore = class {
   context;
   constructor(options = {}) {
     this.dataDir = options.dataDir ?? defaultStudioDataDir();
-    this.file = path3.join(this.dataDir, "studio.json");
+    this.file = path4.join(this.dataDir, "studio.json");
     this.now = options.now ?? (() => /* @__PURE__ */ new Date());
     this.context = {
       runExclusive: (work) => this.runExclusive(work),
@@ -5755,9 +5825,9 @@ var StudioStore = class {
   }
   async externalizeRunOutput(runId, output) {
     try {
-      const dir = path3.join(this.dataDir, "runs");
+      const dir = path4.join(this.dataDir, "runs");
       await mkdir(dir, { recursive: true });
-      const file = path3.join(dir, `${runId}.txt`);
+      const file = path4.join(dir, `${runId}.txt`);
       await writeFile(file, output, "utf8");
       await this.runExclusive(async () => {
         const run3 = this.requireState().runs.find(
@@ -5979,7 +6049,7 @@ var AdrService = class {
         409
       );
     }
-    const dir = path4.join(project.repoPath, "docs", "adr");
+    const dir = path5.join(project.repoPath, "docs", "adr");
     await mkdir2(dir, { recursive: true });
     const files = await readdir(dir);
     let next = 1;
@@ -5991,7 +6061,7 @@ var AdrService = class {
     }
     const name2 = `${String(next).padStart(4, "0")}-${decision.id}.md`;
     const relative = `docs/adr/${name2}`;
-    await writeFile2(path4.join(dir, name2), decision.adrDraft, "utf8");
+    await writeFile2(path5.join(dir, name2), decision.adrDraft, "utf8");
     return this.store.setDecisionAdrPath(decision.id, relative);
   }
 };
@@ -6008,7 +6078,7 @@ import {
   writeFile as writeFile3
 } from "node:fs/promises";
 import os2 from "node:os";
-import path5 from "node:path";
+import path6 from "node:path";
 import { promisify } from "node:util";
 var run = promisify(execFile);
 function assertSafeTarEntries(entries) {
@@ -6075,20 +6145,20 @@ var ProjectBundleService = class {
       );
     }
     const slice = sliceForProject(state, projectId);
-    const temp = await mkdtemp(path5.join(os2.tmpdir(), "studio-bundle-"));
-    const archive = path5.join(
+    const temp = await mkdtemp(path6.join(os2.tmpdir(), "studio-bundle-"));
+    const archive = path6.join(
       os2.tmpdir(),
       `studio-bundle-${String(Date.now())}-${Math.random().toString(36).slice(2)}.tar.gz`
     );
     try {
-      const bundlePath = path5.join(temp, "project.bundle");
+      const bundlePath = path6.join(temp, "project.bundle");
       await run(
         "git",
         ["bundle", "create", bundlePath, "--all"],
         { cwd: project.repoPath, windowsHide: true }
       );
       await writeFile3(
-        path5.join(temp, "project.json"),
+        path6.join(temp, "project.json"),
         `${JSON.stringify(slice, null, 2)}
 `,
         "utf8"
@@ -6110,19 +6180,19 @@ var ProjectBundleService = class {
         files: ["project.json", "project.bundle", "manifest.json", "README.txt"],
         checksums: {
           "project.json": checksum(
-            await readFile4(path5.join(temp, "project.json"))
+            await readFile4(path6.join(temp, "project.json"))
           ),
           "project.bundle": checksum(await readFile4(bundlePath))
         }
       };
       await writeFile3(
-        path5.join(temp, "manifest.json"),
+        path6.join(temp, "manifest.json"),
         `${JSON.stringify(manifest, null, 2)}
 `,
         "utf8"
       );
       await writeFile3(
-        path5.join(temp, "README.txt"),
+        path6.join(temp, "README.txt"),
         [
           "dsh-ai-studio project bundle",
           "",
@@ -6161,7 +6231,7 @@ var ProjectBundleService = class {
     }
   }
   async importProject(archivePath, targetPath) {
-    if (!path5.isAbsolute(archivePath) || !path5.isAbsolute(targetPath)) {
+    if (!path6.isAbsolute(archivePath) || !path6.isAbsolute(targetPath)) {
       throw new StudioStoreError(
         "invalid_path",
         "\u9879\u76EE\u5305\u8DEF\u5F84\u548C\u76EE\u6807\u4ED3\u5E93\u8DEF\u5F84\u90FD\u5FC5\u987B\u662F\u7EDD\u5BF9\u8DEF\u5F84",
@@ -6194,7 +6264,7 @@ var ProjectBundleService = class {
         );
       }
     }
-    const temp = await mkdtemp(path5.join(os2.tmpdir(), "studio-import-"));
+    const temp = await mkdtemp(path6.join(os2.tmpdir(), "studio-import-"));
     try {
       const entries = await run(
         "tar",
@@ -6208,7 +6278,7 @@ var ProjectBundleService = class {
         { windowsHide: true }
       );
       const manifest = JSON.parse(
-        await readFile4(path5.join(temp, "manifest.json"), "utf8")
+        await readFile4(path6.join(temp, "manifest.json"), "utf8")
       );
       if (manifest.kind !== "dsh-ai-studio-project-bundle" || manifest.formatVersion !== 2) {
         throw new StudioStoreError(
@@ -6228,7 +6298,7 @@ var ProjectBundleService = class {
       for (const [name2, expected] of Object.entries(
         manifest.checksums ?? {}
       )) {
-        const file = await readFile4(path5.join(temp, name2)).catch(() => null);
+        const file = await readFile4(path6.join(temp, name2)).catch(() => null);
         if (file === null) {
           throw new StudioStoreError(
             "bundle_invalid",
@@ -6246,7 +6316,7 @@ var ProjectBundleService = class {
         }
       }
       const slice = JSON.parse(
-        await readFile4(path5.join(temp, "project.json"), "utf8")
+        await readFile4(path6.join(temp, "project.json"), "utf8")
       );
       if (slice.project.id !== projectId) {
         throw new StudioStoreError(
@@ -6257,7 +6327,7 @@ var ProjectBundleService = class {
       }
       await run(
         "git",
-        ["clone", path5.join(temp, "project.bundle"), targetPath],
+        ["clone", path6.join(temp, "project.bundle"), targetPath],
         { windowsHide: true }
       );
       await this.store.importProjectSlice(slice, targetPath);
@@ -6282,13 +6352,13 @@ import { randomUUID as randomUUID6 } from "node:crypto";
 import { spawn } from "node:child_process";
 import { mkdtemp as mkdtemp2, readFile as readFile5, rm as rm3 } from "node:fs/promises";
 import os3 from "node:os";
-import path7 from "node:path";
+import path8 from "node:path";
 
 // src/host/workspace.ts
 import { execFileSync } from "node:child_process";
 import { existsSync as existsSync3 } from "node:fs";
 import { mkdir as mkdir3 } from "node:fs/promises";
-import path6 from "node:path";
+import path7 from "node:path";
 var WorkspaceError = class extends Error {
   code;
   constructor(code, message) {
@@ -6322,7 +6392,7 @@ function sanitize(taskId) {
 }
 var WorkspaceManager = class {
   async prepare(repoPath, taskId) {
-    const resolved = path6.resolve(repoPath);
+    const resolved = path7.resolve(repoPath);
     if (!existsSync3(resolved)) {
       throw new WorkspaceError(
         "repo_missing",
@@ -6332,9 +6402,9 @@ var WorkspaceManager = class {
     const root = git(resolved, ["rev-parse", "--show-toplevel"]);
     const baseSha = git(root, ["rev-parse", "HEAD"]);
     const key = sanitize(taskId);
-    const worktreeRoot = path6.join(root, ".worktrees");
-    const worktreePath = path6.resolve(worktreeRoot, key);
-    if (!worktreePath.startsWith(`${path6.resolve(worktreeRoot)}${path6.sep}`)) {
+    const worktreeRoot = path7.join(root, ".worktrees");
+    const worktreePath = path7.resolve(worktreeRoot, key);
+    if (!worktreePath.startsWith(`${path7.resolve(worktreeRoot)}${path7.sep}`)) {
       throw new WorkspaceError(
         "invalid_worktree_path",
         "worktree \u8DEF\u5F84\u8D8A\u51FA .worktrees \u76EE\u5F55"
@@ -6650,8 +6720,8 @@ async function executeExternalCli(executor, prompt, workspace) {
     }
     return { output, code: result.code, stderr: result.stderr };
   }
-  const temp = await mkdtemp2(path7.join(os3.tmpdir(), "studio-codex-"));
-  const messageFile = path7.join(temp, "last-message.txt");
+  const temp = await mkdtemp2(path8.join(os3.tmpdir(), "studio-codex-"));
+  const messageFile = path8.join(temp, "last-message.txt");
   try {
     const result = await runCli(
       `codex exec --json -s workspace-write --output-last-message "${messageFile}" -`,
@@ -7034,7 +7104,7 @@ var AgentDispatcher = class {
 
 // src/host/docs.ts
 import { readFile as readFile6 } from "node:fs/promises";
-import path8 from "node:path";
+import path9 from "node:path";
 var MAX_BYTES = 2e5;
 var DocsService = class {
   store;
@@ -7050,9 +7120,16 @@ var DocsService = class {
         409
       );
     }
-    const root = path8.resolve(data.project.repoPath);
-    const resolved = path8.resolve(root, relativePath);
-    if (resolved !== root && !resolved.startsWith(`${root}${path8.sep}`)) {
+    if (path9.isAbsolute(relativePath)) {
+      throw new StudioStoreError(
+        "doc_path_absolute",
+        "\u6587\u6863\u8DEF\u5F84\u5FC5\u987B\u662F\u76F8\u5BF9\u4ED3\u5E93\u6839\u76EE\u5F55\u7684\u8DEF\u5F84\uFF0C\u4F8B\u5982 docs/PRD.md",
+        400
+      );
+    }
+    const root = path9.resolve(data.project.repoPath);
+    const resolved = path9.resolve(root, relativePath);
+    if (resolved !== root && !resolved.startsWith(`${root}${path9.sep}`)) {
       throw new StudioStoreError(
         "path_outside_repo",
         "\u6587\u6863\u8DEF\u5F84\u5FC5\u987B\u4F4D\u4E8E\u9879\u76EE\u4ED3\u5E93\u5185",
@@ -9205,7 +9282,7 @@ async function apply(ctx) {
     writeAdr: (decisionId) => adr.write(decisionId),
     exportProjectBundle: (projectId) => bundles.exportProject(projectId, runtime.version),
     importProjectBundle: (archivePath, targetPath) => bundles.importProject(archivePath, targetPath),
-    readProjectDoc: (path9) => docs.read(path9),
+    readProjectDoc: (path10) => docs.read(path10),
     runWorkshop: (workshopId) => workshopRunner.run(workshopId),
     summarizeWorkshop: (workshopId) => workshopRunner.summarize(workshopId),
     probeProviderProfile: (profileId) => providerProbe.check(profileId)
