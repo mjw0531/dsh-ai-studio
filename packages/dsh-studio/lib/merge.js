@@ -68,6 +68,18 @@ function git(cwd, args) {
     );
   });
 }
+async function assertLocalGitIdentity(repo) {
+  try {
+    await git(repo, ["config", "--local", "--get", "user.name"]);
+    await git(repo, ["config", "--local", "--get", "user.email"]);
+  } catch {
+    throw new StudioStoreError(
+      "git_identity_required",
+      "\u4ED3\u5E93\u6CA1\u6709\u914D\u7F6E\u672C\u5730 git user.name / user.email\uFF0C\u65E0\u6CD5\u521B\u5EFA merge commit",
+      409
+    );
+  }
+}
 var GitMergeService = class {
   store;
   constructor(store) {
@@ -148,13 +160,19 @@ var GitMergeService = class {
       );
     }
     const repo = project.repoPath;
-    try {
-      await git(repo, ["config", "--get", "user.name"]);
-      await git(repo, ["config", "--get", "user.email"]);
-    } catch {
+    if (proposal.sourceCommit === null) {
       throw new StudioStoreError(
-        "git_identity_required",
-        "\u4ED3\u5E93\u8FD8\u6CA1\u6709\u914D\u7F6E git user.name / user.email\uFF0C\u65E0\u6CD5\u521B\u5EFA merge commit",
+        "merge_commit_unbound",
+        "\u5408\u5E76\u63D0\u6848\u6CA1\u6709\u7ED1\u5B9A\u6765\u6E90\u63D0\u4EA4\uFF0C\u8BF7\u91CD\u65B0\u9A8C\u8BC1\u3001\u8BC4\u5BA1\u5E76\u521B\u5EFA\u63D0\u6848",
+        409
+      );
+    }
+    await assertLocalGitIdentity(repo);
+    const branchHead = (await git(repo, ["rev-parse", proposal.branch])).stdout.trim();
+    if (branchHead !== proposal.sourceCommit) {
+      throw new StudioStoreError(
+        "merge_source_changed",
+        "\u4EFB\u52A1\u5206\u652F\u5728\u8BC4\u5BA1\u540E\u5DF2\u88AB\u6539\u5199\uFF0C\u62D2\u7EDD\u5408\u5E76\uFF1B\u8BF7\u91CD\u65B0\u9A8C\u8BC1\u5E76\u521B\u5EFA\u63D0\u6848",
         409
       );
     }
@@ -246,5 +264,6 @@ var GitMergeService = class {
   }
 };
 export {
-  GitMergeService
+  GitMergeService,
+  assertLocalGitIdentity
 };

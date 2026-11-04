@@ -28,6 +28,15 @@ test("creates one worktree and branch per task", async () => {
     const manager = new WorkspaceManager();
     const workspace = await manager.prepare(dir, "task-001");
     assert.equal(workspace.branch, "studio/task-001");
+    assert.equal(workspace.baseSha, git(dir, ["rev-parse", "HEAD"]));
+    await assert.rejects(
+      () => manager.prepare(dir, ".."),
+      (error) => error.code === "invalid_task_id",
+    );
+    await assert.rejects(
+      () => manager.prepare(dir, "../escape"),
+      (error) => error.code === "invalid_task_id",
+    );
     assert.ok(workspace.path.endsWith(path.join(".worktrees", "task-001")));
     assert.equal(git(workspace.path, ["branch", "--show-current"]), "studio/task-001");
 

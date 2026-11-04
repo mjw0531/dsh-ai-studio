@@ -639,12 +639,13 @@ export class AgentDispatcher {
         workspace === undefined
           ? null
           : this.workspaces.diffStat(workspace.path);
-      if (workspace !== undefined && diffStat !== "" && diffStat !== null) {
-        this.workspaces.commit(
-          workspace.path,
-          `studio: complete ${run.taskId} (${run.id})`,
-        );
-      }
+      const commitSha =
+        workspace !== undefined && diffStat !== "" && diffStat !== null
+          ? this.workspaces.commit(
+              workspace.path,
+              `studio: complete ${run.taskId} (${run.id})`,
+            )
+          : null;
       await this.store.completeRun(run.id, {
         output,
         receipt,
@@ -653,6 +654,7 @@ export class AgentDispatcher {
             ? measured.totalTokens
             : null,
         diffStat,
+        commitSha,
       });
       if (workspace !== undefined) {
         await this.store.enforceContractScope(
@@ -690,18 +692,20 @@ export class AgentDispatcher {
       }
       const output = result.output.trim();
       const diffStat = this.workspaces.diffStat(workspace.path);
-      if (diffStat !== "") {
-        this.workspaces.commit(
-          workspace.path,
-          `studio: complete ${run.taskId} (${run.id})`,
-        );
-      }
+      const commitSha =
+        diffStat !== ""
+          ? this.workspaces.commit(
+              workspace.path,
+              `studio: complete ${run.taskId} (${run.id})`,
+            )
+          : null;
       const receipt = normalizeReceipt(extractJsonObject(output), output);
       await this.store.completeRun(run.id, {
         output,
         receipt,
         tokens: null,
         diffStat,
+        commitSha,
       });
       await this.store.enforceContractScope(
         run.taskId,

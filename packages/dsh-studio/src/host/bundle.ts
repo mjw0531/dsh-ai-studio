@@ -12,15 +12,68 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
-import { STUDIO_PLUGIN_VERSION } from "../shared/types.js";
+import { STUDIO_PLUGIN_VERSION, STUDIO_SCHEMA_VERSION } from "../shared/types.js";
+import type { ProjectSlice } from "../shared/types.js";
 import type { StudioStore } from "./store.js";
 import { StudioStoreError } from "./store.js";
 
 const run = promisify(execFile);
 
+function assertSafeTarEntries(entries: string): void {
+  for (const raw of entries.split(/\r?\n/)) {
+    const entry = raw.trim();
+    if (entry === "") continue;
+    const normalized = entry.replaceAll("\\", "/");
+    if (
+      normalized.startsWith("/") ||
+      /^[a-zA-Z]:\//.test(normalized) ||
+      normalized.split("/").includes("..")
+    ) {
+      throw new StudioStoreError(
+        "bundle_unsafe_path",
+        `项目包含不安全路径：${entry}`,
+        400,
+      );
+    }
+  }
+}
+
 export interface ProjectBundle {
   filename: string;
   bytes: Buffer;
+}
+
+function sliceForProject(
+  state: Awaited<ReturnType<StudioStore["exportState"]>>,
+  projectId: string,
+): ProjectSlice {
+  const byProject = <T extends { projectId: string }>(items: T[]): T[] =>
+    items.filter((item) => item.projectId === projectId);
+  const project = state.projects.find((item) => item.id === projectId);
+  if (project === undefined) {
+    throw new StudioStoreError("project_not_found", "项目不存在", 404);
+  }
+  return {
+    schemaVersion: state.schemaVersion,
+    project,
+    stageGates: byProject(state.stageGates),
+    triggers: byProject(state.triggers),
+    threads: byProject(state.threads),
+    workshops: byProject(state.workshops),
+    providerProfiles: byProject(state.providerProfiles),
+    prototypeDemos: byProject(state.prototypeDemos),
+    roles: byProject(state.roles),
+    modules: byProject(state.modules),
+    tasks: byProject(state.tasks),
+    mergeProposals: byProject(state.mergeProposals),
+    runs: byProject(state.runs),
+    branches: byProject(state.branches),
+    contractChanges: byProject(state.contractChanges),
+    decisions: byProject(state.decisions),
+    verifications: byProject(state.verifications),
+    reviews: byProject(state.reviews),
+    events: state.events.filter((item) => item.projectId === projectId),
+  };
 }
 
 /**
@@ -51,6 +104,7 @@ export class ProjectBundleService {
         409,
       );
     }
+    const slice = sliceForProject(state, projectId);
     const temp = await mkdtemp(path.join(os.tmpdir(), "studio-bundle-"));
     const archive = path.join(
       os.tmpdir(),
@@ -64,15 +118,15 @@ export class ProjectBundleService {
         { cwd: project.repoPath, windowsHide: true },
       );
       await writeFile(
-        path.join(temp, "studio.json"),
-        `${JSON.stringify(state, null, 2)}\n`,
+        path.join(temp, "project.json"),
+        `${JSON.stringify(slice, null, 2)}\n`,
         "utf8",
       );
       const checksum = (file: Buffer): string =>
         createHash("sha256").update(file).digest("hex");
       const manifest = {
         kind: "dsh-ai-studio-project-bundle",
-        formatVersion: 1,
+        formatVersion: 2,
         generatedAt: new Date().toISOString(),
         pluginVersion: STUDIO_PLUGIN_VERSION,
         dshVersion,
@@ -83,10 +137,10 @@ export class ProjectBundleService {
           description: project.description,
         },
         repoPath: project.repoPath,
-        files: ["studio.json", "project.bundle", "manifest.json", "README.txt"],
+        files: ["project.json", "project.bundle", "manifest.json", "README.txt"],
         checksums: {
-          "studio.json": checksum(
-            await readFile(path.join(temp, "studio.json")),
+          "project.json": checksum(
+            await readFile(path.join(temp, "project.json")),
           ),
           "project.bundle": checksum(await readFile(bundlePath)),
         },
@@ -102,7 +156,7 @@ export class ProjectBundleService {
           "dsh-ai-studio project bundle",
           "",
           "1. Install the same or newer dsh-ai-studio plugin.",
-          "2. Import studio.json on the new machine.",
+          "2. Import project.json on the new machine.",
           "3. Clone project.bundle into a new directory:",
           "   git clone project.bundle <new-project-dir>",
           "4. Rebind the project repoPath to <new-project-dir>.",
@@ -175,6 +229,12 @@ export class ProjectBundleService {
     }
     const temp = await mkdtemp(path.join(os.tmpdir(), "studio-import-"));
     try {
+      const entries = await run(
+        "tar",
+        ["-tzf", archivePath],
+        { windowsHide: true, maxBuffer: 4 * 1024 * 1024 },
+      );
+      assertSafeTarEntries(entries.stdout);
       await run(
         "tar",
         ["-xzf", archivePath, "-C", temp],
@@ -185,16 +245,17 @@ export class ProjectBundleService {
       ) as {
         kind?: unknown;
         formatVersion?: unknown;
+        schemaVersion?: unknown;
         project?: { id?: unknown };
         checksums?: Record<string, string>;
       };
       if (
         manifest.kind !== "dsh-ai-studio-project-bundle" ||
-        manifest.formatVersion !== 1
+        manifest.formatVersion !== 2
       ) {
         throw new StudioStoreError(
           "bundle_invalid",
-          "不是 dsh-ai-studio 项目包，或格式版本不支持",
+          "不是 dsh-ai-studio v2 项目包；旧项目包请重新导出，避免覆盖其他项目",
           400,
         );
       }
@@ -226,21 +287,32 @@ export class ProjectBundleService {
           );
         }
       }
-      const state = JSON.parse(
-        await readFile(path.join(temp, "studio.json"), "utf8"),
-      ) as unknown;
+      const slice = JSON.parse(
+        await readFile(path.join(temp, "project.json"), "utf8"),
+      ) as ProjectSlice;
+      if (slice.project.id !== projectId) {
+        throw new StudioStoreError(
+          "bundle_invalid",
+          "manifest 与 project.json 的 project id 不一致",
+          400,
+        );
+      }
       await run(
         "git",
         ["clone", path.join(temp, "project.bundle"), targetPath],
         { windowsHide: true },
       );
-      await this.store.importState(state);
-      await this.store.updateProject(projectId, {
-        repoPath: targetPath,
-      });
+      await this.store.importProjectSlice(slice, targetPath);
       return { projectId, repoPath: targetPath };
     } catch (error) {
-      if (error instanceof StudioStoreError) throw error;
+      if (
+        error instanceof StudioStoreError ||
+        (error instanceof Error &&
+          "code" in error &&
+          "status" in error)
+      ) {
+        throw error;
+      }
       throw new StudioStoreError(
         "bundle_import_failed",
         `项目包导入失败：${error instanceof Error ? error.message : String(error)}`,

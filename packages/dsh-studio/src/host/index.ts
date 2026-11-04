@@ -74,6 +74,7 @@ interface StudioHostContext {
 
 interface BootPayload {
   token: string;
+  nonce: string;
   basePath: string;
   pluginVersion: string;
   dshVersion: string;
@@ -126,9 +127,11 @@ export async function apply(ctx: StudioHostContext): Promise<void> {
   const bundles = new ProjectBundleService(store);
 
   const token = randomBytes(24).toString("hex");
+  const nonce = randomBytes(18).toString("hex");
   const startedAt = new Date().toISOString();
   const bootPayload: BootPayload = {
     token,
+    nonce,
     basePath: "/studio-api",
     pluginVersion: STUDIO_PLUGIN_VERSION,
     dshVersion: runtime.version,
@@ -141,6 +144,7 @@ export async function apply(ctx: StudioHostContext): Promise<void> {
     dshVersion: runtime.version,
     compatibility,
     connection: ctx.connection,
+    bootNonce: nonce,
     getBootPayload: () => bootPayload,
     dispatchTask: (taskId) => dispatcher.dispatch(taskId),
     verifyTask: (taskId, command) => verifier.verify(taskId, command),

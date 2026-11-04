@@ -62,6 +62,7 @@ interface StudioRouterOptions {
   dshVersion: string;
   compatibility: CompatibilityInfo;
   connection: ConnectionLike;
+  bootNonce: string;
   getBootPayload: () => unknown;
   dispatchTask: (taskId: string) => Promise<AgentRun>;
   verifyTask: (taskId: string, command?: string) => Promise<Verification>;
@@ -759,6 +760,7 @@ export class StudioRouter {
   private readonly dshVersion: string;
   private readonly compatibility: CompatibilityInfo;
   private readonly connection: ConnectionLike;
+  private readonly bootNonce: string;
   private readonly getBootPayload: () => unknown;
   private readonly dispatchTask: (taskId: string) => Promise<AgentRun>;
   private readonly verifyTask: (
@@ -797,6 +799,7 @@ export class StudioRouter {
     this.dshVersion = options.dshVersion;
     this.compatibility = options.compatibility;
     this.connection = options.connection;
+    this.bootNonce = options.bootNonce;
     this.getBootPayload = options.getBootPayload;
     this.dispatchTask = options.dispatchTask;
     this.verifyTask = options.verifyTask;
@@ -832,29 +835,49 @@ export class StudioRouter {
     if (parsed.pathname === `${API_PREFIX}/boot`) {
       this.requireMethod(parsed, ["GET"]);
       const origin = req.headers.origin;
+      if (origin === "null" || origin?.startsWith("file://")) {
+        sendError(
+          res,
+          401,
+          "unauthorized",
+          "本地文件页面不能获取 Studio 启动参数",
+        );
+        return;
+      }
       const desktopOrigin =
-        typeof origin === "string" &&
-        (origin.startsWith("dsh-app://") ||
-          origin.startsWith("file://") ||
-          origin === "null");
+        typeof origin === "string" && origin.startsWith("dsh-app://");
       if (desktopOrigin) {
-        // The desktop renderer runs on a custom scheme, so its fetch to the
-        // loopback Host is cross-origin and carries no DSH cookie. The boot
-        // response is only a process-random token for this local app; the
-        // token still protects every data endpoint.
+        const header = req.headers["x-dsh-studio-nonce"];
+        const supplied = Array.isArray(header) ? header[0] : header;
+        const expected = this.bootNonce;
+        const valid =
+          typeof supplied === "string" &&
+          supplied.length === expected.length &&
+          timingSafeEqual(Buffer.from(supplied), Buffer.from(expected));
+        if (!valid) {
+          sendError(
+            res,
+            401,
+            "boot_nonce_required",
+            "桌面启动凭据缺失或无效；请完全退出并重启 DSH 后再试",
+          );
+          return;
+        }
+        // 桌面自定义 scheme 没有 DSH cookie；nonce 是一次性启动凭据。
         res.setHeader("Access-Control-Allow-Origin", origin);
         res.setHeader("Access-Control-Allow-Credentials", "true");
         res.setHeader("Vary", "Origin");
-      }
-      const admission = this.connection.admit(requestOf(req));
-      if (admission.rejection !== undefined && !desktopOrigin) {
-        sendError(
-          res,
-          admission.rejection,
-          "unauthorized",
-          "DSH 会话没有通过认证，无法获取 Studio 启动参数",
-        );
-        return;
+      } else {
+        const admission = this.connection.admit(requestOf(req));
+        if (admission.rejection !== undefined) {
+          sendError(
+            res,
+            admission.rejection,
+            "unauthorized",
+            "DSH 会话没有通过认证，无法获取 Studio 启动参数",
+          );
+          return;
+        }
       }
       sendJson(res, 200, this.getBootPayload());
       return;

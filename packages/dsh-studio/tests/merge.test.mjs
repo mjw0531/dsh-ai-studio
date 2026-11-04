@@ -49,8 +49,43 @@ test("merges an approved proposal in a clean repository", async () => {
       verifyCommand: 'node -e "process.exit(0)"',
     });
     await store.transitionTask(task.id, "ready");
-    await store.transitionTask(task.id, "running");
-    await store.transitionTask(task.id, "review");
+    const head = git(dir, "rev-parse", "studio/test");
+    const run = await store.beginRun(task.id, "bound merge", {
+      path: dir,
+      branch: "studio/test",
+      baseSha: git(dir, "rev-parse", "main"),
+    });
+    await store.completeRun(run.id, {
+      output: "ok",
+      receipt: {
+        summary: "完成",
+        evidence: ["测试通过"],
+        artifacts: [],
+        decisions: [],
+        contractDeltas: [],
+        rejectedOptions: [],
+        blockers: [],
+      },
+      tokens: null,
+      commitSha: head,
+    });
+    await store.recordVerification(task.id, {
+      command: "git --version",
+      workdir: dir,
+      exitCode: 0,
+      output: "ok",
+      passed: true,
+      runId: run.id,
+    });
+    await store.recordReview(task.id, {
+      reviewerRoleId: data.roles[1].id,
+      model: "test",
+      verdict: "pass",
+      summary: "通过",
+      findings: [],
+      tokens: null,
+      runId: run.id,
+    });
     await store.updateTask(task.id, {
       acceptance: task.acceptance.map((item) => ({ ...item, done: true })),
       evidence: [
@@ -62,13 +97,6 @@ test("merges an approved proposal in a clean repository", async () => {
       ],
     });
     const done = await store.transitionTask(task.id, "done");
-    await store.recordVerification(task.id, {
-      command: "git --version",
-      workdir: dir,
-      exitCode: 0,
-      output: "ok",
-      passed: true,
-    });
     const proposal = await store.createMergeProposal(task.id, {
       summary: "合并 branch",
       rollback: "git reset --hard HEAD^",
@@ -133,8 +161,43 @@ test("rolls back a merged proposal after a failed regression", async () => {
       verifyCommand: 'node -e "process.exit(1)"',
     });
     await store.transitionTask(task.id, "ready");
-    await store.transitionTask(task.id, "running");
-    await store.transitionTask(task.id, "review");
+    const head = git(dir, "rev-parse", "studio/test");
+    const run = await store.beginRun(task.id, "bound rollback", {
+      path: dir,
+      branch: "studio/test",
+      baseSha: git(dir, "rev-parse", "main"),
+    });
+    await store.completeRun(run.id, {
+      output: "ok",
+      receipt: {
+        summary: "完成",
+        evidence: ["测试通过"],
+        artifacts: [],
+        decisions: [],
+        contractDeltas: [],
+        rejectedOptions: [],
+        blockers: [],
+      },
+      tokens: null,
+      commitSha: head,
+    });
+    await store.recordVerification(task.id, {
+      command: "git --version",
+      workdir: dir,
+      exitCode: 0,
+      output: "ok",
+      passed: true,
+      runId: run.id,
+    });
+    await store.recordReview(task.id, {
+      reviewerRoleId: data.roles[1].id,
+      model: "test",
+      verdict: "pass",
+      summary: "通过",
+      findings: [],
+      tokens: null,
+      runId: run.id,
+    });
     await store.updateTask(task.id, {
       acceptance: task.acceptance.map((item) => ({ ...item, done: true })),
       evidence: [
@@ -146,13 +209,6 @@ test("rolls back a merged proposal after a failed regression", async () => {
       ],
     });
     await store.transitionTask(task.id, "done");
-    await store.recordVerification(task.id, {
-      command: "git --version",
-      workdir: dir,
-      exitCode: 0,
-      output: "ok",
-      passed: true,
-    });
     const proposal = await store.createMergeProposal(task.id, {
       summary: "合并 branch",
       rollback: "git reset --hard HEAD^",

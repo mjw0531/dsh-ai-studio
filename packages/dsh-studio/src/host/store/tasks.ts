@@ -221,22 +221,37 @@ export async function transitionTask(
         const project = state.projects.find(
           (item) => item.id === task.projectId,
         );
-        const hasCodeRun = state.runs.some(
-          (item) =>
-            item.taskId === task.id && item.workspacePath !== null,
-        );
+        const latestCodeRun = [...state.runs]
+          .filter(
+            (item) =>
+              item.taskId === task.id && item.workspacePath !== null,
+          )
+          .sort((left, right) =>
+            right.startedAt.localeCompare(left.startedAt),
+          )[0];
+        const hasCodeRun = latestCodeRun !== undefined;
+        const boundCommit =
+          latestCodeRun?.commitSha === null ||
+          latestCodeRun?.commitSha === undefined
+            ? null
+            : latestCodeRun.commitSha;
         if (
           project?.repoPath !== null &&
           project?.repoPath !== undefined &&
           hasCodeRun &&
           !state.reviews.some(
             (review) =>
-              review.taskId === task.id && review.verdict === "pass",
+              review.taskId === task.id &&
+              review.verdict === "pass" &&
+              (boundCommit === null ||
+                review.runId === latestCodeRun?.id),
           )
         ) {
           throw new StudioStoreError(
             "review_required",
-            "代码任务完成前必须有一次通过的独立评审",
+            boundCommit === null
+              ? "代码任务完成前必须有一次通过的独立评审"
+              : "当前提交缺少通过的独立评审，请重新评审",
             409,
           );
         }

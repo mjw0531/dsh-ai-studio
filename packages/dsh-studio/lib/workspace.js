@@ -26,7 +26,13 @@ function git(cwd, args) {
   }
 }
 function sanitize(taskId) {
-  return taskId.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 80);
+  if (taskId.trim() === "" || taskId === "." || taskId === ".." || !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$/.test(taskId)) {
+    throw new WorkspaceError(
+      "invalid_task_id",
+      `taskId \u4E0D\u80FD\u4F5C\u4E3A\u76EE\u5F55\u540D\uFF1A${JSON.stringify(taskId)}`
+    );
+  }
+  return taskId;
 }
 var WorkspaceManager = class {
   async prepare(repoPath, taskId) {
@@ -38,12 +44,27 @@ var WorkspaceManager = class {
       );
     }
     const root = git(resolved, ["rev-parse", "--show-toplevel"]);
+    const baseSha = git(root, ["rev-parse", "HEAD"]);
+    const key = sanitize(taskId);
     const worktreeRoot = path.join(root, ".worktrees");
-    const worktreePath = path.join(worktreeRoot, sanitize(taskId));
-    const branch = `studio/${sanitize(taskId)}`;
+    const worktreePath = path.resolve(worktreeRoot, key);
+    if (!worktreePath.startsWith(`${path.resolve(worktreeRoot)}${path.sep}`)) {
+      throw new WorkspaceError(
+        "invalid_worktree_path",
+        "worktree \u8DEF\u5F84\u8D8A\u51FA .worktrees \u76EE\u5F55"
+      );
+    }
+    const branch = `studio/${key}`;
     await mkdir(worktreeRoot, { recursive: true });
     if (existsSync(worktreePath)) {
-      return { repoPath: root, path: worktreePath, branch };
+      const current = git(worktreePath, ["branch", "--show-current"]);
+      if (current !== branch) {
+        throw new WorkspaceError(
+          "worktree_branch_mismatch",
+          `worktree \u5DF2\u5B58\u5728\u4F46\u5206\u652F\u662F\u300C${current}\u300D\uFF0C\u671F\u671B\u300C${branch}\u300D`
+        );
+      }
+      return { repoPath: root, path: worktreePath, branch, baseSha };
     }
     const branches = git(root, ["branch", "--list", branch]);
     if (branches === "") {
@@ -64,7 +85,7 @@ var WorkspaceManager = class {
     } else {
       git(root, ["worktree", "add", worktreePath, branch]);
     }
-    return { repoPath: root, path: worktreePath, branch };
+    return { repoPath: root, path: worktreePath, branch, baseSha };
   }
   commit(worktreePath, message) {
     if (!existsSync(worktreePath)) return null;

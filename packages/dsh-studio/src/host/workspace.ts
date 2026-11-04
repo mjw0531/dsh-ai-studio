@@ -16,6 +16,7 @@ export interface TaskWorkspace {
   repoPath: string;
   path: string;
   branch: string;
+  baseSha: string;
 }
 
 function git(cwd: string, args: string[]): string {
@@ -38,7 +39,18 @@ function git(cwd: string, args: string[]): string {
 }
 
 function sanitize(taskId: string): string {
-  return taskId.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 80);
+  if (
+    taskId.trim() === "" ||
+    taskId === "." ||
+    taskId === ".." ||
+    !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$/.test(taskId)
+  ) {
+    throw new WorkspaceError(
+      "invalid_task_id",
+      `taskId 不能作为目录名：${JSON.stringify(taskId)}`,
+    );
+  }
+  return taskId;
 }
 
 /**
@@ -57,13 +69,28 @@ export class WorkspaceManager {
       );
     }
     const root = git(resolved, ["rev-parse", "--show-toplevel"]);
+    const baseSha = git(root, ["rev-parse", "HEAD"]);
+    const key = sanitize(taskId);
     const worktreeRoot = path.join(root, ".worktrees");
-    const worktreePath = path.join(worktreeRoot, sanitize(taskId));
-    const branch = `studio/${sanitize(taskId)}`;
+    const worktreePath = path.resolve(worktreeRoot, key);
+    if (!worktreePath.startsWith(`${path.resolve(worktreeRoot)}${path.sep}`)) {
+      throw new WorkspaceError(
+        "invalid_worktree_path",
+        "worktree 路径越出 .worktrees 目录",
+      );
+    }
+    const branch = `studio/${key}`;
     await mkdir(worktreeRoot, { recursive: true });
 
     if (existsSync(worktreePath)) {
-      return { repoPath: root, path: worktreePath, branch };
+      const current = git(worktreePath, ["branch", "--show-current"]);
+      if (current !== branch) {
+        throw new WorkspaceError(
+          "worktree_branch_mismatch",
+          `worktree 已存在但分支是「${current}」，期望「${branch}」`,
+        );
+      }
+      return { repoPath: root, path: worktreePath, branch, baseSha };
     }
 
     const branches = git(root, ["branch", "--list", branch]);
@@ -85,7 +112,7 @@ export class WorkspaceManager {
     } else {
       git(root, ["worktree", "add", worktreePath, branch]);
     }
-    return { repoPath: root, path: worktreePath, branch };
+    return { repoPath: root, path: worktreePath, branch, baseSha };
   }
 
   commit(worktreePath: string, message: string): string | null {

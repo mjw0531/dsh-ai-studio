@@ -62,6 +62,7 @@ import type {
   MergeRisk,
   OwnerNeed,
   Project,
+  ProjectSlice,
   ProjectStage,
   CreatePrototypeDemoInput,
   PrototypeDemo,
@@ -205,6 +206,7 @@ import {
   updateModule as updateModuleImpl,
   updateRole as updateRoleImpl,
 } from "./store/catalog.js";
+import { importProjectSlice as importProjectSliceImpl } from "./store/import.js";
 import {
   defaultStageChecklist,
   defaultTriggerRules,
@@ -231,6 +233,10 @@ interface StoreSnapshot {
 }
 
 export function defaultStudioDataDir(): string {
+  const override = process.env.DSH_STUDIO_DATA_DIR?.trim();
+  if (override !== undefined && override !== "") {
+    return path.resolve(override);
+  }
   const home = process.env.DSH_HOME?.trim();
   return path.join(
     home !== undefined && home !== "" ? home : path.join(os.homedir(), ".dsh"),
@@ -516,6 +522,13 @@ export class StudioStore {
     });
   }
 
+  async importProjectSlice(
+    slice: ProjectSlice,
+    repoPath: string,
+  ): Promise<Project> {
+    return importProjectSliceImpl(this.context, slice, repoPath);
+  }
+
   async createProject(input: CreateProjectInput): Promise<Project> {
     return createProjectImpl(this.context, input);
   }
@@ -703,7 +716,7 @@ export class StudioStore {
   async beginRun(
     taskId: string,
     prompt: string,
-    workspace?: { path: string; branch: string },
+    workspace?: { path: string; branch: string; baseSha?: string },
     execution?: {
       providerProfileId: string | null;
       executor: AgentRun["executor"];
@@ -729,6 +742,7 @@ export class StudioStore {
       receipt: AgentReceipt | null;
       tokens: number | null;
       diffStat?: string | null;
+      commitSha?: string | null;
     },
   ): Promise<AgentRun> {
     return completeRunImpl(this.context, runId, input);
@@ -929,8 +943,31 @@ export class StudioStore {
       return;
     }
     const raw = await readFile(this.file, "utf8");
+    let parsed: unknown;
     try {
-      const parsed: unknown = JSON.parse(raw);
+      parsed = JSON.parse(raw);
+    } catch (error) {
+      const backup = `${this.file}.corrupt-${String(Date.now())}`;
+      await rename(this.file, backup).catch(() => undefined);
+      this.state = this.seedState();
+      this.warning = `studio.json 无法读取，已备份到 ${backup} 并重建演示数据：${
+        error instanceof Error ? error.message : String(error)
+      }`;
+      await this.save();
+      return;
+    }
+    if (
+      isRecord(parsed) &&
+      typeof parsed.schemaVersion === "number" &&
+      parsed.schemaVersion > STUDIO_SCHEMA_VERSION
+    ) {
+      this.warning = `studio.json schemaVersion=${String(parsed.schemaVersion)} 高于当前支持的 ${String(
+        STUDIO_SCHEMA_VERSION,
+      )}；已保留原文件，未覆盖、未重建。请升级 dsh-ai-studio 后再启动。`;
+      this.state = null;
+      return;
+    }
+    try {
       const migrated = migrateState(parsed);
       assertState(migrated);
       this.state = migrated;

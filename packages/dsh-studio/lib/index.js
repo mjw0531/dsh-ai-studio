@@ -2,8 +2,8 @@
 import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 26;
-var STUDIO_PLUGIN_VERSION = "3.2.1";
+var STUDIO_SCHEMA_VERSION = 27;
+var STUDIO_PLUGIN_VERSION = "3.3.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -478,10 +478,28 @@ function migrateState(value) {
   if (state.schemaVersion === 25) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 26,
       workshops: state.workshops.map((workshop) => ({
         ...workshop,
         aiSummary: null
+      }))
+    };
+  }
+  if (state.schemaVersion === 26) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      runs: state.runs.map((run3) => ({
+        ...run3,
+        commitSha: null,
+        baseSha: null
+      })),
+      mergeProposals: state.mergeProposals.map((proposal) => ({
+        ...proposal,
+        sourceCommit: null,
+        baseCommit: null,
+        verificationRunId: null,
+        reviewId: null
       }))
     };
   }
@@ -514,7 +532,7 @@ function isAgentRunStatus(value) {
   return value === "queued" || value === "running" || value === "succeeded" || value === "failed";
 }
 function isAgentRun(value) {
-  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.providerProfileId === null || typeof value.providerProfileId === "string") && (value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && (value.provider === null || typeof value.provider === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.branchName === null || typeof value.branchName === "string") && (value.workspacePath === null || typeof value.workspacePath === "string") && (value.diffStat === null || typeof value.diffStat === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord2(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.providerProfileId === null || typeof value.providerProfileId === "string") && (value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && (value.provider === null || typeof value.provider === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.branchName === null || typeof value.branchName === "string") && (value.workspacePath === null || typeof value.workspacePath === "string") && (value.commitSha === null || value.commitSha === void 0 || typeof value.commitSha === "string") && (value.baseSha === null || value.baseSha === void 0 || typeof value.baseSha === "string") && (value.diffStat === null || typeof value.diffStat === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord2(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
 }
 function isTask(value) {
   return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence) && (value.verifyCommand === null || value.verifyCommand === void 0 || typeof value.verifyCommand === "string") && (value.module === null || value.module === void 0 || typeof value.module === "string") && (value.contractRef === null || value.contractRef === void 0 || typeof value.contractRef === "string") && Array.isArray(value.requirementRefs) && value.requirementRefs.every((item) => typeof item === "string") && (value.kind === void 0 || value.kind === "new" || value.kind === "fix") && (value.integration === void 0 || typeof value.integration === "boolean") && (value.originTaskId === null || value.originTaskId === void 0 || typeof value.originTaskId === "string") && (value.docsSynced === void 0 || typeof value.docsSynced === "boolean") && (value.diagnosis === void 0 || typeof value.diagnosis === "string") && (value.plan === void 0 || typeof value.plan === "string");
@@ -523,7 +541,7 @@ function isMergeRisk(value) {
   return value === "low" || value === "medium" || value === "high";
 }
 function isMergeProposal(value) {
-  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && typeof value.branch === "string" && typeof value.base === "string" && typeof value.summary === "string" && isMergeRisk(value.risk) && typeof value.rollback === "string" && (value.status === "review" || value.status === "approved" || value.status === "rejected" || value.status === "merged") && typeof value.reviewNote === "string" && (value.mergeCommit === null || typeof value.mergeCommit === "string") && (value.diffStat === null || value.diffStat === void 0 || typeof value.diffStat === "string") && (Array.isArray(value.changedFiles) || value.changedFiles === void 0) && (value.verificationId === null || value.verificationId === void 0 || typeof value.verificationId === "string") && (value.postMergeVerificationId === null || value.postMergeVerificationId === void 0 || typeof value.postMergeVerificationId === "string") && (value.rollbackCommit === null || value.rollbackCommit === void 0 || typeof value.rollbackCommit === "string") && (value.rolledBackAt === null || value.rolledBackAt === void 0 || typeof value.rolledBackAt === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && (value.mergedAt === null || typeof value.mergedAt === "string");
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && typeof value.branch === "string" && typeof value.base === "string" && typeof value.summary === "string" && isMergeRisk(value.risk) && typeof value.rollback === "string" && (value.status === "review" || value.status === "approved" || value.status === "rejected" || value.status === "merged") && typeof value.reviewNote === "string" && (value.mergeCommit === null || typeof value.mergeCommit === "string") && (value.diffStat === null || value.diffStat === void 0 || typeof value.diffStat === "string") && (Array.isArray(value.changedFiles) || value.changedFiles === void 0) && (value.sourceCommit === null || value.sourceCommit === void 0 || typeof value.sourceCommit === "string") && (value.baseCommit === null || value.baseCommit === void 0 || typeof value.baseCommit === "string") && (value.verificationRunId === null || value.verificationRunId === void 0 || typeof value.verificationRunId === "string") && (value.reviewId === null || value.reviewId === void 0 || typeof value.reviewId === "string") && (value.verificationId === null || value.verificationId === void 0 || typeof value.verificationId === "string") && (value.postMergeVerificationId === null || value.postMergeVerificationId === void 0 || typeof value.postMergeVerificationId === "string") && (value.rollbackCommit === null || value.rollbackCommit === void 0 || typeof value.rollbackCommit === "string") && (value.rolledBackAt === null || value.rolledBackAt === void 0 || typeof value.rolledBackAt === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && (value.mergedAt === null || typeof value.mergedAt === "string");
 }
 function isDecisionStatus(value) {
   return value === "pending" || value === "approved" || value === "rejected";
@@ -2034,9 +2052,34 @@ async function createMergeProposal(ctx, taskId, input) {
     const latestRun = [...state.runs].filter((run3) => run3.taskId === task.id).sort(
       (left, right) => right.startedAt.localeCompare(left.startedAt)
     )[0];
+    const latestCodeRun = [...state.runs].filter(
+      (run3) => run3.taskId === task.id && run3.workspacePath !== null
+    ).sort(
+      (left, right) => right.startedAt.localeCompare(left.startedAt)
+    )[0];
     const latestVerification = [...state.verifications].filter((verification) => verification.taskId === task.id).sort(
       (left, right) => right.createdAt.localeCompare(left.createdAt)
     )[0];
+    const latestReview = [...state.reviews].filter((review) => review.taskId === task.id).sort(
+      (left, right) => right.createdAt.localeCompare(left.createdAt)
+    )[0];
+    const boundRun = latestCodeRun?.commitSha === null || latestCodeRun?.commitSha === void 0 ? null : latestCodeRun;
+    if (boundRun !== null) {
+      if (latestVerification === void 0 || latestVerification.runId !== boundRun.id) {
+        throw new StudioStoreError(
+          "verification_stale",
+          "\u6700\u65B0\u9A8C\u8BC1\u4E0D\u5C5E\u4E8E\u5F53\u524D\u63D0\u4EA4\uFF0C\u8BF7\u91CD\u65B0\u8FD0\u884C Host \u9A8C\u8BC1",
+          409
+        );
+      }
+      if (latestReview === void 0 || latestReview.runId !== boundRun.id) {
+        throw new StudioStoreError(
+          "review_stale",
+          "\u6700\u65B0\u8BC4\u5BA1\u4E0D\u5C5E\u4E8E\u5F53\u524D\u63D0\u4EA4\uFF0C\u8BF7\u91CD\u65B0\u8BC4\u5BA1",
+          409
+        );
+      }
+    }
     const changedFiles = latestRun?.diffStat === null || latestRun?.diffStat === void 0 ? [] : latestRun.diffStat.split("\n").filter((line) => /^[ MARC?]{1,2} \S/.test(line)).map((line) => line.slice(3).trim()).filter(Boolean);
     const proposal = {
       id: newId("merge"),
@@ -2052,7 +2095,11 @@ async function createMergeProposal(ctx, taskId, input) {
       mergeCommit: null,
       diffStat: latestRun?.diffStat ?? null,
       changedFiles,
+      sourceCommit: boundRun?.commitSha ?? null,
+      baseCommit: boundRun?.baseSha ?? null,
       verificationId: latestVerification?.id ?? null,
+      verificationRunId: boundRun === null ? null : latestVerification?.runId ?? null,
+      reviewId: boundRun === null ? null : latestReview?.id ?? null,
       postMergeVerificationId: null,
       rollbackCommit: null,
       rolledBackAt: null,
@@ -2760,15 +2807,19 @@ async function transitionTask(ctx, taskId, next) {
       const project = state.projects.find(
         (item) => item.id === task.projectId
       );
-      const hasCodeRun = state.runs.some(
+      const latestCodeRun = [...state.runs].filter(
         (item) => item.taskId === task.id && item.workspacePath !== null
-      );
+      ).sort(
+        (left, right) => right.startedAt.localeCompare(left.startedAt)
+      )[0];
+      const hasCodeRun = latestCodeRun !== void 0;
+      const boundCommit = latestCodeRun?.commitSha === null || latestCodeRun?.commitSha === void 0 ? null : latestCodeRun.commitSha;
       if (project?.repoPath !== null && project?.repoPath !== void 0 && hasCodeRun && !state.reviews.some(
-        (review) => review.taskId === task.id && review.verdict === "pass"
+        (review) => review.taskId === task.id && review.verdict === "pass" && (boundCommit === null || review.runId === latestCodeRun?.id)
       )) {
         throw new StudioStoreError(
           "review_required",
-          "\u4EE3\u7801\u4EFB\u52A1\u5B8C\u6210\u524D\u5FC5\u987B\u6709\u4E00\u6B21\u901A\u8FC7\u7684\u72EC\u7ACB\u8BC4\u5BA1",
+          boundCommit === null ? "\u4EE3\u7801\u4EFB\u52A1\u5B8C\u6210\u524D\u5FC5\u987B\u6709\u4E00\u6B21\u901A\u8FC7\u7684\u72EC\u7ACB\u8BC4\u5BA1" : "\u5F53\u524D\u63D0\u4EA4\u7F3A\u5C11\u901A\u8FC7\u7684\u72EC\u7ACB\u8BC4\u5BA1\uFF0C\u8BF7\u91CD\u65B0\u8BC4\u5BA1",
           409
         );
       }
@@ -3096,6 +3147,8 @@ async function beginRun(ctx, taskId, prompt, workspace, execution) {
       branchId: branch.id,
       branchName: workspace?.branch ?? null,
       workspacePath: workspace?.path ?? null,
+      commitSha: null,
+      baseSha: workspace?.baseSha ?? null,
       diffStat: null,
       sessionId: null,
       status: "queued",
@@ -3215,6 +3268,9 @@ async function completeRun(ctx, runId, input) {
     run3.receipt = input.receipt;
     run3.tokens = input.tokens;
     run3.diffStat = input.diffStat ?? null;
+    if (input.commitSha !== void 0) {
+      run3.commitSha = input.commitSha;
+    }
     run3.budgetWarning = warnings.length === 0 ? null : warnings.join("\uFF1B");
     run3.endedAt = at;
     if (task !== void 0) {
@@ -4798,8 +4854,117 @@ async function updateRole(ctx, roleId, input) {
   });
 }
 
+// src/host/store/import.ts
+function idsOf(items) {
+  return items.map((item) => item.id);
+}
+async function importProjectSlice(ctx, slice, repoPath) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    if (slice.schemaVersion !== STUDIO_SCHEMA_VERSION) {
+      throw new StudioStoreError(
+        "bundle_schema_mismatch",
+        `\u9879\u76EE\u5305 schema \u4E3A ${String(slice.schemaVersion)}\uFF0C\u5F53\u524D\u53EA\u652F\u6301 ${String(
+          STUDIO_SCHEMA_VERSION
+        )}`,
+        409
+      );
+    }
+    if (state.projects.some((project2) => project2.id === slice.project.id)) {
+      throw new StudioStoreError(
+        "project_conflict",
+        `\u9879\u76EE id ${slice.project.id} \u5DF2\u5B58\u5728\uFF1B\u8BF7\u5148\u5220\u9664/\u6539\u540D\uFF0C\u6216\u5728\u65B0 profile \u5BFC\u5165`,
+        409
+      );
+    }
+    const existing = /* @__PURE__ */ new Set([
+      ...idsOf(state.projects),
+      ...idsOf(state.roles),
+      ...idsOf(state.tasks),
+      ...idsOf(state.runs),
+      ...idsOf(state.reviews),
+      ...idsOf(state.verifications),
+      ...idsOf(state.decisions),
+      ...idsOf(state.stageGates),
+      ...idsOf(state.triggers),
+      ...idsOf(state.threads),
+      ...idsOf(state.workshops),
+      ...idsOf(state.providerProfiles),
+      ...idsOf(state.prototypeDemos),
+      ...idsOf(state.modules),
+      ...idsOf(state.branches),
+      ...idsOf(state.contractChanges),
+      ...idsOf(state.mergeProposals)
+    ]);
+    const importedIds = [
+      slice.project.id,
+      ...idsOf(slice.roles),
+      ...idsOf(slice.tasks),
+      ...idsOf(slice.runs),
+      ...idsOf(slice.reviews),
+      ...idsOf(slice.verifications),
+      ...idsOf(slice.decisions),
+      ...idsOf(slice.stageGates),
+      ...idsOf(slice.triggers),
+      ...idsOf(slice.threads),
+      ...idsOf(slice.workshops),
+      ...idsOf(slice.providerProfiles),
+      ...idsOf(slice.prototypeDemos),
+      ...idsOf(slice.modules),
+      ...idsOf(slice.branches),
+      ...idsOf(slice.contractChanges),
+      ...idsOf(slice.mergeProposals)
+    ];
+    const collision = importedIds.find((id) => existing.has(id));
+    if (collision !== void 0) {
+      throw new StudioStoreError(
+        "object_conflict",
+        `\u9879\u76EE\u5305\u91CC\u7684\u5BF9\u8C61 id ${collision} \u4E0E\u73B0\u6709\u6570\u636E\u51B2\u7A81\uFF0C\u62D2\u7EDD\u5BFC\u5165`,
+        409
+      );
+    }
+    const project = {
+      ...slice.project,
+      repoPath: requiredText(repoPath, "repoPath", 1e3),
+      updatedAt: ctx.now()
+    };
+    state.projects.push(project);
+    state.stageGates.push(...slice.stageGates);
+    state.triggers.push(...slice.triggers);
+    state.threads.push(...slice.threads);
+    state.workshops.push(...slice.workshops);
+    state.providerProfiles.push(...slice.providerProfiles);
+    state.prototypeDemos.push(...slice.prototypeDemos);
+    state.roles.push(...slice.roles);
+    state.modules.push(...slice.modules);
+    state.tasks.push(...slice.tasks);
+    state.mergeProposals.push(...slice.mergeProposals);
+    state.runs.push(...slice.runs);
+    state.branches.push(...slice.branches);
+    state.contractChanges.push(...slice.contractChanges);
+    state.decisions.push(...slice.decisions);
+    state.verifications.push(...slice.verifications);
+    state.reviews.push(...slice.reviews);
+    state.events.push(...slice.events);
+    state.activeProjectId = project.id;
+    state.updatedAt = project.updatedAt;
+    ctx.recordEvent(state, {
+      type: "project.imported",
+      at: project.updatedAt,
+      projectId: project.id,
+      payload: { projectId: project.id, repoPath }
+    });
+    await ctx.save();
+    return structuredClone(project);
+  });
+}
+
 // src/host/store.ts
 function defaultStudioDataDir() {
+  const override = process.env.DSH_STUDIO_DATA_DIR?.trim();
+  if (override !== void 0 && override !== "") {
+    return path2.resolve(override);
+  }
   const home = process.env.DSH_HOME?.trim();
   return path2.join(
     home !== void 0 && home !== "" ? home : path2.join(os.homedir(), ".dsh"),
@@ -5016,6 +5181,9 @@ var StudioStore = class {
       };
     });
   }
+  async importProjectSlice(slice, repoPath) {
+    return importProjectSlice(this.context, slice, repoPath);
+  }
   async createProject(input) {
     return createProject(this.context, input);
   }
@@ -5198,8 +5366,25 @@ var StudioStore = class {
       return;
     }
     const raw = await readFile2(this.file, "utf8");
+    let parsed;
     try {
-      const parsed = JSON.parse(raw);
+      parsed = JSON.parse(raw);
+    } catch (error) {
+      const backup = `${this.file}.corrupt-${String(Date.now())}`;
+      await rename(this.file, backup).catch(() => void 0);
+      this.state = this.seedState();
+      this.warning = `studio.json \u65E0\u6CD5\u8BFB\u53D6\uFF0C\u5DF2\u5907\u4EFD\u5230 ${backup} \u5E76\u91CD\u5EFA\u6F14\u793A\u6570\u636E\uFF1A${error instanceof Error ? error.message : String(error)}`;
+      await this.save();
+      return;
+    }
+    if (isRecord3(parsed) && typeof parsed.schemaVersion === "number" && parsed.schemaVersion > STUDIO_SCHEMA_VERSION) {
+      this.warning = `studio.json schemaVersion=${String(parsed.schemaVersion)} \u9AD8\u4E8E\u5F53\u524D\u652F\u6301\u7684 ${String(
+        STUDIO_SCHEMA_VERSION
+      )}\uFF1B\u5DF2\u4FDD\u7559\u539F\u6587\u4EF6\uFF0C\u672A\u8986\u76D6\u3001\u672A\u91CD\u5EFA\u3002\u8BF7\u5347\u7EA7 dsh-ai-studio \u540E\u518D\u542F\u52A8\u3002`;
+      this.state = null;
+      return;
+    }
+    try {
       const migrated = migrateState(parsed);
       assertState(migrated);
       this.state = migrated;
@@ -5323,6 +5508,48 @@ import os2 from "node:os";
 import path4 from "node:path";
 import { promisify } from "node:util";
 var run = promisify(execFile);
+function assertSafeTarEntries(entries) {
+  for (const raw of entries.split(/\r?\n/)) {
+    const entry = raw.trim();
+    if (entry === "") continue;
+    const normalized = entry.replaceAll("\\", "/");
+    if (normalized.startsWith("/") || /^[a-zA-Z]:\//.test(normalized) || normalized.split("/").includes("..")) {
+      throw new StudioStoreError(
+        "bundle_unsafe_path",
+        `\u9879\u76EE\u5305\u542B\u4E0D\u5B89\u5168\u8DEF\u5F84\uFF1A${entry}`,
+        400
+      );
+    }
+  }
+}
+function sliceForProject(state, projectId) {
+  const byProject = (items) => items.filter((item) => item.projectId === projectId);
+  const project = state.projects.find((item) => item.id === projectId);
+  if (project === void 0) {
+    throw new StudioStoreError("project_not_found", "\u9879\u76EE\u4E0D\u5B58\u5728", 404);
+  }
+  return {
+    schemaVersion: state.schemaVersion,
+    project,
+    stageGates: byProject(state.stageGates),
+    triggers: byProject(state.triggers),
+    threads: byProject(state.threads),
+    workshops: byProject(state.workshops),
+    providerProfiles: byProject(state.providerProfiles),
+    prototypeDemos: byProject(state.prototypeDemos),
+    roles: byProject(state.roles),
+    modules: byProject(state.modules),
+    tasks: byProject(state.tasks),
+    mergeProposals: byProject(state.mergeProposals),
+    runs: byProject(state.runs),
+    branches: byProject(state.branches),
+    contractChanges: byProject(state.contractChanges),
+    decisions: byProject(state.decisions),
+    verifications: byProject(state.verifications),
+    reviews: byProject(state.reviews),
+    events: state.events.filter((item) => item.projectId === projectId)
+  };
+}
 var ProjectBundleService = class {
   store;
   constructor(store) {
@@ -5341,6 +5568,7 @@ var ProjectBundleService = class {
         409
       );
     }
+    const slice = sliceForProject(state, projectId);
     const temp = await mkdtemp(path4.join(os2.tmpdir(), "studio-bundle-"));
     const archive = path4.join(
       os2.tmpdir(),
@@ -5354,15 +5582,15 @@ var ProjectBundleService = class {
         { cwd: project.repoPath, windowsHide: true }
       );
       await writeFile3(
-        path4.join(temp, "studio.json"),
-        `${JSON.stringify(state, null, 2)}
+        path4.join(temp, "project.json"),
+        `${JSON.stringify(slice, null, 2)}
 `,
         "utf8"
       );
       const checksum = (file) => createHash("sha256").update(file).digest("hex");
       const manifest = {
         kind: "dsh-ai-studio-project-bundle",
-        formatVersion: 1,
+        formatVersion: 2,
         generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
         pluginVersion: STUDIO_PLUGIN_VERSION,
         dshVersion,
@@ -5373,10 +5601,10 @@ var ProjectBundleService = class {
           description: project.description
         },
         repoPath: project.repoPath,
-        files: ["studio.json", "project.bundle", "manifest.json", "README.txt"],
+        files: ["project.json", "project.bundle", "manifest.json", "README.txt"],
         checksums: {
-          "studio.json": checksum(
-            await readFile3(path4.join(temp, "studio.json"))
+          "project.json": checksum(
+            await readFile3(path4.join(temp, "project.json"))
           ),
           "project.bundle": checksum(await readFile3(bundlePath))
         }
@@ -5393,7 +5621,7 @@ var ProjectBundleService = class {
           "dsh-ai-studio project bundle",
           "",
           "1. Install the same or newer dsh-ai-studio plugin.",
-          "2. Import studio.json on the new machine.",
+          "2. Import project.json on the new machine.",
           "3. Clone project.bundle into a new directory:",
           "   git clone project.bundle <new-project-dir>",
           "4. Rebind the project repoPath to <new-project-dir>.",
@@ -5462,6 +5690,12 @@ var ProjectBundleService = class {
     }
     const temp = await mkdtemp(path4.join(os2.tmpdir(), "studio-import-"));
     try {
+      const entries = await run(
+        "tar",
+        ["-tzf", archivePath],
+        { windowsHide: true, maxBuffer: 4 * 1024 * 1024 }
+      );
+      assertSafeTarEntries(entries.stdout);
       await run(
         "tar",
         ["-xzf", archivePath, "-C", temp],
@@ -5470,10 +5704,10 @@ var ProjectBundleService = class {
       const manifest = JSON.parse(
         await readFile3(path4.join(temp, "manifest.json"), "utf8")
       );
-      if (manifest.kind !== "dsh-ai-studio-project-bundle" || manifest.formatVersion !== 1) {
+      if (manifest.kind !== "dsh-ai-studio-project-bundle" || manifest.formatVersion !== 2) {
         throw new StudioStoreError(
           "bundle_invalid",
-          "\u4E0D\u662F dsh-ai-studio \u9879\u76EE\u5305\uFF0C\u6216\u683C\u5F0F\u7248\u672C\u4E0D\u652F\u6301",
+          "\u4E0D\u662F dsh-ai-studio v2 \u9879\u76EE\u5305\uFF1B\u65E7\u9879\u76EE\u5305\u8BF7\u91CD\u65B0\u5BFC\u51FA\uFF0C\u907F\u514D\u8986\u76D6\u5176\u4ED6\u9879\u76EE",
           400
         );
       }
@@ -5505,21 +5739,27 @@ var ProjectBundleService = class {
           );
         }
       }
-      const state = JSON.parse(
-        await readFile3(path4.join(temp, "studio.json"), "utf8")
+      const slice = JSON.parse(
+        await readFile3(path4.join(temp, "project.json"), "utf8")
       );
+      if (slice.project.id !== projectId) {
+        throw new StudioStoreError(
+          "bundle_invalid",
+          "manifest \u4E0E project.json \u7684 project id \u4E0D\u4E00\u81F4",
+          400
+        );
+      }
       await run(
         "git",
         ["clone", path4.join(temp, "project.bundle"), targetPath],
         { windowsHide: true }
       );
-      await this.store.importState(state);
-      await this.store.updateProject(projectId, {
-        repoPath: targetPath
-      });
+      await this.store.importProjectSlice(slice, targetPath);
       return { projectId, repoPath: targetPath };
     } catch (error) {
-      if (error instanceof StudioStoreError) throw error;
+      if (error instanceof StudioStoreError || error instanceof Error && "code" in error && "status" in error) {
+        throw error;
+      }
       throw new StudioStoreError(
         "bundle_import_failed",
         `\u9879\u76EE\u5305\u5BFC\u5165\u5931\u8D25\uFF1A${error instanceof Error ? error.message : String(error)}`,
@@ -5566,7 +5806,13 @@ function git(cwd, args) {
   }
 }
 function sanitize(taskId) {
-  return taskId.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 80);
+  if (taskId.trim() === "" || taskId === "." || taskId === ".." || !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$/.test(taskId)) {
+    throw new WorkspaceError(
+      "invalid_task_id",
+      `taskId \u4E0D\u80FD\u4F5C\u4E3A\u76EE\u5F55\u540D\uFF1A${JSON.stringify(taskId)}`
+    );
+  }
+  return taskId;
 }
 var WorkspaceManager = class {
   async prepare(repoPath, taskId) {
@@ -5578,12 +5824,27 @@ var WorkspaceManager = class {
       );
     }
     const root = git(resolved, ["rev-parse", "--show-toplevel"]);
+    const baseSha = git(root, ["rev-parse", "HEAD"]);
+    const key = sanitize(taskId);
     const worktreeRoot = path5.join(root, ".worktrees");
-    const worktreePath = path5.join(worktreeRoot, sanitize(taskId));
-    const branch = `studio/${sanitize(taskId)}`;
+    const worktreePath = path5.resolve(worktreeRoot, key);
+    if (!worktreePath.startsWith(`${path5.resolve(worktreeRoot)}${path5.sep}`)) {
+      throw new WorkspaceError(
+        "invalid_worktree_path",
+        "worktree \u8DEF\u5F84\u8D8A\u51FA .worktrees \u76EE\u5F55"
+      );
+    }
+    const branch = `studio/${key}`;
     await mkdir3(worktreeRoot, { recursive: true });
     if (existsSync2(worktreePath)) {
-      return { repoPath: root, path: worktreePath, branch };
+      const current = git(worktreePath, ["branch", "--show-current"]);
+      if (current !== branch) {
+        throw new WorkspaceError(
+          "worktree_branch_mismatch",
+          `worktree \u5DF2\u5B58\u5728\u4F46\u5206\u652F\u662F\u300C${current}\u300D\uFF0C\u671F\u671B\u300C${branch}\u300D`
+        );
+      }
+      return { repoPath: root, path: worktreePath, branch, baseSha };
     }
     const branches = git(root, ["branch", "--list", branch]);
     if (branches === "") {
@@ -5604,7 +5865,7 @@ var WorkspaceManager = class {
     } else {
       git(root, ["worktree", "add", worktreePath, branch]);
     }
-    return { repoPath: root, path: worktreePath, branch };
+    return { repoPath: root, path: worktreePath, branch, baseSha };
   }
   commit(worktreePath, message) {
     if (!existsSync2(worktreePath)) return null;
@@ -6025,17 +6286,16 @@ var AgentDispatcher = class {
       );
       const measured = this.ctx.tokenMeter.measure(handle.agent.session);
       const diffStat = workspace === void 0 ? null : this.workspaces.diffStat(workspace.path);
-      if (workspace !== void 0 && diffStat !== "" && diffStat !== null) {
-        this.workspaces.commit(
-          workspace.path,
-          `studio: complete ${run3.taskId} (${run3.id})`
-        );
-      }
+      const commitSha = workspace !== void 0 && diffStat !== "" && diffStat !== null ? this.workspaces.commit(
+        workspace.path,
+        `studio: complete ${run3.taskId} (${run3.id})`
+      ) : null;
       await this.store.completeRun(run3.id, {
         output,
         receipt,
         tokens: typeof measured.totalTokens === "number" ? measured.totalTokens : null,
-        diffStat
+        diffStat,
+        commitSha
       });
       if (workspace !== void 0) {
         await this.store.enforceContractScope(
@@ -6065,18 +6325,17 @@ var AgentDispatcher = class {
       }
       const output = result.output.trim();
       const diffStat = this.workspaces.diffStat(workspace.path);
-      if (diffStat !== "") {
-        this.workspaces.commit(
-          workspace.path,
-          `studio: complete ${run3.taskId} (${run3.id})`
-        );
-      }
+      const commitSha = diffStat !== "" ? this.workspaces.commit(
+        workspace.path,
+        `studio: complete ${run3.taskId} (${run3.id})`
+      ) : null;
       const receipt = normalizeReceipt(extractJsonObject(output), output);
       await this.store.completeRun(run3.id, {
         output,
         receipt,
         tokens: null,
-        diffStat
+        diffStat,
+        commitSha
       });
       await this.store.enforceContractScope(
         run3.taskId,
@@ -6229,6 +6488,18 @@ function git2(cwd, args) {
     );
   });
 }
+async function assertLocalGitIdentity(repo) {
+  try {
+    await git2(repo, ["config", "--local", "--get", "user.name"]);
+    await git2(repo, ["config", "--local", "--get", "user.email"]);
+  } catch {
+    throw new StudioStoreError(
+      "git_identity_required",
+      "\u4ED3\u5E93\u6CA1\u6709\u914D\u7F6E\u672C\u5730 git user.name / user.email\uFF0C\u65E0\u6CD5\u521B\u5EFA merge commit",
+      409
+    );
+  }
+}
 var GitMergeService = class {
   store;
   constructor(store) {
@@ -6309,13 +6580,19 @@ var GitMergeService = class {
       );
     }
     const repo = project.repoPath;
-    try {
-      await git2(repo, ["config", "--get", "user.name"]);
-      await git2(repo, ["config", "--get", "user.email"]);
-    } catch {
+    if (proposal.sourceCommit === null) {
       throw new StudioStoreError(
-        "git_identity_required",
-        "\u4ED3\u5E93\u8FD8\u6CA1\u6709\u914D\u7F6E git user.name / user.email\uFF0C\u65E0\u6CD5\u521B\u5EFA merge commit",
+        "merge_commit_unbound",
+        "\u5408\u5E76\u63D0\u6848\u6CA1\u6709\u7ED1\u5B9A\u6765\u6E90\u63D0\u4EA4\uFF0C\u8BF7\u91CD\u65B0\u9A8C\u8BC1\u3001\u8BC4\u5BA1\u5E76\u521B\u5EFA\u63D0\u6848",
+        409
+      );
+    }
+    await assertLocalGitIdentity(repo);
+    const branchHead = (await git2(repo, ["rev-parse", proposal.branch])).stdout.trim();
+    if (branchHead !== proposal.sourceCommit) {
+      throw new StudioStoreError(
+        "merge_source_changed",
+        "\u4EFB\u52A1\u5206\u652F\u5728\u8BC4\u5BA1\u540E\u5DF2\u88AB\u6539\u5199\uFF0C\u62D2\u7EDD\u5408\u5E76\uFF1B\u8BF7\u91CD\u65B0\u9A8C\u8BC1\u5E76\u521B\u5EFA\u63D0\u6848",
         409
       );
     }
@@ -6916,6 +7193,7 @@ var StudioRouter = class {
   dshVersion;
   compatibility;
   connection;
+  bootNonce;
   getBootPayload;
   dispatchTask;
   verifyTask;
@@ -6935,6 +7213,7 @@ var StudioRouter = class {
     this.dshVersion = options.dshVersion;
     this.compatibility = options.compatibility;
     this.connection = options.connection;
+    this.bootNonce = options.bootNonce;
     this.getBootPayload = options.getBootPayload;
     this.dispatchTask = options.dispatchTask;
     this.verifyTask = options.verifyTask;
@@ -6968,21 +7247,44 @@ var StudioRouter = class {
     if (parsed.pathname === `${API_PREFIX}/boot`) {
       this.requireMethod(parsed, ["GET"]);
       const origin = req.headers.origin;
-      const desktopOrigin = typeof origin === "string" && (origin.startsWith("dsh-app://") || origin.startsWith("file://") || origin === "null");
+      if (origin === "null" || origin?.startsWith("file://")) {
+        sendError(
+          res,
+          401,
+          "unauthorized",
+          "\u672C\u5730\u6587\u4EF6\u9875\u9762\u4E0D\u80FD\u83B7\u53D6 Studio \u542F\u52A8\u53C2\u6570"
+        );
+        return;
+      }
+      const desktopOrigin = typeof origin === "string" && origin.startsWith("dsh-app://");
       if (desktopOrigin) {
+        const header = req.headers["x-dsh-studio-nonce"];
+        const supplied = Array.isArray(header) ? header[0] : header;
+        const expected = this.bootNonce;
+        const valid = typeof supplied === "string" && supplied.length === expected.length && timingSafeEqual(Buffer.from(supplied), Buffer.from(expected));
+        if (!valid) {
+          sendError(
+            res,
+            401,
+            "boot_nonce_required",
+            "\u684C\u9762\u542F\u52A8\u51ED\u636E\u7F3A\u5931\u6216\u65E0\u6548\uFF1B\u8BF7\u5B8C\u5168\u9000\u51FA\u5E76\u91CD\u542F DSH \u540E\u518D\u8BD5"
+          );
+          return;
+        }
         res.setHeader("Access-Control-Allow-Origin", origin);
         res.setHeader("Access-Control-Allow-Credentials", "true");
         res.setHeader("Vary", "Origin");
-      }
-      const admission = this.connection.admit(requestOf(req));
-      if (admission.rejection !== void 0 && !desktopOrigin) {
-        sendError(
-          res,
-          admission.rejection,
-          "unauthorized",
-          "DSH \u4F1A\u8BDD\u6CA1\u6709\u901A\u8FC7\u8BA4\u8BC1\uFF0C\u65E0\u6CD5\u83B7\u53D6 Studio \u542F\u52A8\u53C2\u6570"
-        );
-        return;
+      } else {
+        const admission = this.connection.admit(requestOf(req));
+        if (admission.rejection !== void 0) {
+          sendError(
+            res,
+            admission.rejection,
+            "unauthorized",
+            "DSH \u4F1A\u8BDD\u6CA1\u6709\u901A\u8FC7\u8BA4\u8BC1\uFF0C\u65E0\u6CD5\u83B7\u53D6 Studio \u542F\u52A8\u53C2\u6570"
+          );
+          return;
+        }
       }
       sendJson(res, 200, this.getBootPayload());
       return;
@@ -7999,9 +8301,11 @@ async function apply(ctx) {
   const adr = new AdrService(store);
   const bundles = new ProjectBundleService(store);
   const token = randomBytes(24).toString("hex");
+  const nonce = randomBytes(18).toString("hex");
   const startedAt = (/* @__PURE__ */ new Date()).toISOString();
   const bootPayload = {
     token,
+    nonce,
     basePath: "/studio-api",
     pluginVersion: STUDIO_PLUGIN_VERSION,
     dshVersion: runtime.version,
@@ -8014,6 +8318,7 @@ async function apply(ctx) {
     dshVersion: runtime.version,
     compatibility,
     connection: ctx.connection,
+    bootNonce: nonce,
     getBootPayload: () => bootPayload,
     dispatchTask: (taskId) => dispatcher.dispatch(taskId),
     verifyTask: (taskId, command) => verifier.verify(taskId, command),

@@ -13,8 +13,8 @@ import os from "node:os";
 import path from "node:path";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 26;
-var STUDIO_PLUGIN_VERSION = "3.2.1";
+var STUDIO_SCHEMA_VERSION = 27;
+var STUDIO_PLUGIN_VERSION = "3.3.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -367,10 +367,28 @@ function migrateState(value) {
   if (state.schemaVersion === 25) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 26,
       workshops: state.workshops.map((workshop) => ({
         ...workshop,
         aiSummary: null
+      }))
+    };
+  }
+  if (state.schemaVersion === 26) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      runs: state.runs.map((run) => ({
+        ...run,
+        commitSha: null,
+        baseSha: null
+      })),
+      mergeProposals: state.mergeProposals.map((proposal) => ({
+        ...proposal,
+        sourceCommit: null,
+        baseCommit: null,
+        verificationRunId: null,
+        reviewId: null
       }))
     };
   }
@@ -403,7 +421,7 @@ function isAgentRunStatus(value) {
   return value === "queued" || value === "running" || value === "succeeded" || value === "failed";
 }
 function isAgentRun(value) {
-  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.providerProfileId === null || typeof value.providerProfileId === "string") && (value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && (value.provider === null || typeof value.provider === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.branchName === null || typeof value.branchName === "string") && (value.workspacePath === null || typeof value.workspacePath === "string") && (value.diffStat === null || typeof value.diffStat === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord2(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.providerProfileId === null || typeof value.providerProfileId === "string") && (value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && (value.provider === null || typeof value.provider === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.branchName === null || typeof value.branchName === "string") && (value.workspacePath === null || typeof value.workspacePath === "string") && (value.commitSha === null || value.commitSha === void 0 || typeof value.commitSha === "string") && (value.baseSha === null || value.baseSha === void 0 || typeof value.baseSha === "string") && (value.diffStat === null || typeof value.diffStat === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord2(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
 }
 function isTask(value) {
   return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence) && (value.verifyCommand === null || value.verifyCommand === void 0 || typeof value.verifyCommand === "string") && (value.module === null || value.module === void 0 || typeof value.module === "string") && (value.contractRef === null || value.contractRef === void 0 || typeof value.contractRef === "string") && Array.isArray(value.requirementRefs) && value.requirementRefs.every((item) => typeof item === "string") && (value.kind === void 0 || value.kind === "new" || value.kind === "fix") && (value.integration === void 0 || typeof value.integration === "boolean") && (value.originTaskId === null || value.originTaskId === void 0 || typeof value.originTaskId === "string") && (value.docsSynced === void 0 || typeof value.docsSynced === "boolean") && (value.diagnosis === void 0 || typeof value.diagnosis === "string") && (value.plan === void 0 || typeof value.plan === "string");
@@ -412,7 +430,7 @@ function isMergeRisk(value) {
   return value === "low" || value === "medium" || value === "high";
 }
 function isMergeProposal(value) {
-  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && typeof value.branch === "string" && typeof value.base === "string" && typeof value.summary === "string" && isMergeRisk(value.risk) && typeof value.rollback === "string" && (value.status === "review" || value.status === "approved" || value.status === "rejected" || value.status === "merged") && typeof value.reviewNote === "string" && (value.mergeCommit === null || typeof value.mergeCommit === "string") && (value.diffStat === null || value.diffStat === void 0 || typeof value.diffStat === "string") && (Array.isArray(value.changedFiles) || value.changedFiles === void 0) && (value.verificationId === null || value.verificationId === void 0 || typeof value.verificationId === "string") && (value.postMergeVerificationId === null || value.postMergeVerificationId === void 0 || typeof value.postMergeVerificationId === "string") && (value.rollbackCommit === null || value.rollbackCommit === void 0 || typeof value.rollbackCommit === "string") && (value.rolledBackAt === null || value.rolledBackAt === void 0 || typeof value.rolledBackAt === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && (value.mergedAt === null || typeof value.mergedAt === "string");
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && typeof value.branch === "string" && typeof value.base === "string" && typeof value.summary === "string" && isMergeRisk(value.risk) && typeof value.rollback === "string" && (value.status === "review" || value.status === "approved" || value.status === "rejected" || value.status === "merged") && typeof value.reviewNote === "string" && (value.mergeCommit === null || typeof value.mergeCommit === "string") && (value.diffStat === null || value.diffStat === void 0 || typeof value.diffStat === "string") && (Array.isArray(value.changedFiles) || value.changedFiles === void 0) && (value.sourceCommit === null || value.sourceCommit === void 0 || typeof value.sourceCommit === "string") && (value.baseCommit === null || value.baseCommit === void 0 || typeof value.baseCommit === "string") && (value.verificationRunId === null || value.verificationRunId === void 0 || typeof value.verificationRunId === "string") && (value.reviewId === null || value.reviewId === void 0 || typeof value.reviewId === "string") && (value.verificationId === null || value.verificationId === void 0 || typeof value.verificationId === "string") && (value.postMergeVerificationId === null || value.postMergeVerificationId === void 0 || typeof value.postMergeVerificationId === "string") && (value.rollbackCommit === null || value.rollbackCommit === void 0 || typeof value.rollbackCommit === "string") && (value.rolledBackAt === null || value.rolledBackAt === void 0 || typeof value.rolledBackAt === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && (value.mergedAt === null || typeof value.mergedAt === "string");
 }
 function isDecisionStatus(value) {
   return value === "pending" || value === "approved" || value === "rejected";
@@ -1923,9 +1941,34 @@ async function createMergeProposal(ctx, taskId, input) {
     const latestRun = [...state.runs].filter((run) => run.taskId === task.id).sort(
       (left, right) => right.startedAt.localeCompare(left.startedAt)
     )[0];
+    const latestCodeRun = [...state.runs].filter(
+      (run) => run.taskId === task.id && run.workspacePath !== null
+    ).sort(
+      (left, right) => right.startedAt.localeCompare(left.startedAt)
+    )[0];
     const latestVerification = [...state.verifications].filter((verification) => verification.taskId === task.id).sort(
       (left, right) => right.createdAt.localeCompare(left.createdAt)
     )[0];
+    const latestReview = [...state.reviews].filter((review) => review.taskId === task.id).sort(
+      (left, right) => right.createdAt.localeCompare(left.createdAt)
+    )[0];
+    const boundRun = latestCodeRun?.commitSha === null || latestCodeRun?.commitSha === void 0 ? null : latestCodeRun;
+    if (boundRun !== null) {
+      if (latestVerification === void 0 || latestVerification.runId !== boundRun.id) {
+        throw new StudioStoreError(
+          "verification_stale",
+          "\u6700\u65B0\u9A8C\u8BC1\u4E0D\u5C5E\u4E8E\u5F53\u524D\u63D0\u4EA4\uFF0C\u8BF7\u91CD\u65B0\u8FD0\u884C Host \u9A8C\u8BC1",
+          409
+        );
+      }
+      if (latestReview === void 0 || latestReview.runId !== boundRun.id) {
+        throw new StudioStoreError(
+          "review_stale",
+          "\u6700\u65B0\u8BC4\u5BA1\u4E0D\u5C5E\u4E8E\u5F53\u524D\u63D0\u4EA4\uFF0C\u8BF7\u91CD\u65B0\u8BC4\u5BA1",
+          409
+        );
+      }
+    }
     const changedFiles = latestRun?.diffStat === null || latestRun?.diffStat === void 0 ? [] : latestRun.diffStat.split("\n").filter((line) => /^[ MARC?]{1,2} \S/.test(line)).map((line) => line.slice(3).trim()).filter(Boolean);
     const proposal = {
       id: newId("merge"),
@@ -1941,7 +1984,11 @@ async function createMergeProposal(ctx, taskId, input) {
       mergeCommit: null,
       diffStat: latestRun?.diffStat ?? null,
       changedFiles,
+      sourceCommit: boundRun?.commitSha ?? null,
+      baseCommit: boundRun?.baseSha ?? null,
       verificationId: latestVerification?.id ?? null,
+      verificationRunId: boundRun === null ? null : latestVerification?.runId ?? null,
+      reviewId: boundRun === null ? null : latestReview?.id ?? null,
       postMergeVerificationId: null,
       rollbackCommit: null,
       rolledBackAt: null,
@@ -2649,15 +2696,19 @@ async function transitionTask(ctx, taskId, next) {
       const project = state.projects.find(
         (item) => item.id === task.projectId
       );
-      const hasCodeRun = state.runs.some(
+      const latestCodeRun = [...state.runs].filter(
         (item) => item.taskId === task.id && item.workspacePath !== null
-      );
+      ).sort(
+        (left, right) => right.startedAt.localeCompare(left.startedAt)
+      )[0];
+      const hasCodeRun = latestCodeRun !== void 0;
+      const boundCommit = latestCodeRun?.commitSha === null || latestCodeRun?.commitSha === void 0 ? null : latestCodeRun.commitSha;
       if (project?.repoPath !== null && project?.repoPath !== void 0 && hasCodeRun && !state.reviews.some(
-        (review) => review.taskId === task.id && review.verdict === "pass"
+        (review) => review.taskId === task.id && review.verdict === "pass" && (boundCommit === null || review.runId === latestCodeRun?.id)
       )) {
         throw new StudioStoreError(
           "review_required",
-          "\u4EE3\u7801\u4EFB\u52A1\u5B8C\u6210\u524D\u5FC5\u987B\u6709\u4E00\u6B21\u901A\u8FC7\u7684\u72EC\u7ACB\u8BC4\u5BA1",
+          boundCommit === null ? "\u4EE3\u7801\u4EFB\u52A1\u5B8C\u6210\u524D\u5FC5\u987B\u6709\u4E00\u6B21\u901A\u8FC7\u7684\u72EC\u7ACB\u8BC4\u5BA1" : "\u5F53\u524D\u63D0\u4EA4\u7F3A\u5C11\u901A\u8FC7\u7684\u72EC\u7ACB\u8BC4\u5BA1\uFF0C\u8BF7\u91CD\u65B0\u8BC4\u5BA1",
           409
         );
       }
@@ -2985,6 +3036,8 @@ async function beginRun(ctx, taskId, prompt, workspace, execution) {
       branchId: branch.id,
       branchName: workspace?.branch ?? null,
       workspacePath: workspace?.path ?? null,
+      commitSha: null,
+      baseSha: workspace?.baseSha ?? null,
       diffStat: null,
       sessionId: null,
       status: "queued",
@@ -3104,6 +3157,9 @@ async function completeRun(ctx, runId, input) {
     run.receipt = input.receipt;
     run.tokens = input.tokens;
     run.diffStat = input.diffStat ?? null;
+    if (input.commitSha !== void 0) {
+      run.commitSha = input.commitSha;
+    }
     run.budgetWarning = warnings.length === 0 ? null : warnings.join("\uFF1B");
     run.endedAt = at;
     if (task !== void 0) {
@@ -4687,8 +4743,117 @@ async function updateRole(ctx, roleId, input) {
   });
 }
 
+// src/host/store/import.ts
+function idsOf(items) {
+  return items.map((item) => item.id);
+}
+async function importProjectSlice(ctx, slice, repoPath) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    if (slice.schemaVersion !== STUDIO_SCHEMA_VERSION) {
+      throw new StudioStoreError(
+        "bundle_schema_mismatch",
+        `\u9879\u76EE\u5305 schema \u4E3A ${String(slice.schemaVersion)}\uFF0C\u5F53\u524D\u53EA\u652F\u6301 ${String(
+          STUDIO_SCHEMA_VERSION
+        )}`,
+        409
+      );
+    }
+    if (state.projects.some((project2) => project2.id === slice.project.id)) {
+      throw new StudioStoreError(
+        "project_conflict",
+        `\u9879\u76EE id ${slice.project.id} \u5DF2\u5B58\u5728\uFF1B\u8BF7\u5148\u5220\u9664/\u6539\u540D\uFF0C\u6216\u5728\u65B0 profile \u5BFC\u5165`,
+        409
+      );
+    }
+    const existing = /* @__PURE__ */ new Set([
+      ...idsOf(state.projects),
+      ...idsOf(state.roles),
+      ...idsOf(state.tasks),
+      ...idsOf(state.runs),
+      ...idsOf(state.reviews),
+      ...idsOf(state.verifications),
+      ...idsOf(state.decisions),
+      ...idsOf(state.stageGates),
+      ...idsOf(state.triggers),
+      ...idsOf(state.threads),
+      ...idsOf(state.workshops),
+      ...idsOf(state.providerProfiles),
+      ...idsOf(state.prototypeDemos),
+      ...idsOf(state.modules),
+      ...idsOf(state.branches),
+      ...idsOf(state.contractChanges),
+      ...idsOf(state.mergeProposals)
+    ]);
+    const importedIds = [
+      slice.project.id,
+      ...idsOf(slice.roles),
+      ...idsOf(slice.tasks),
+      ...idsOf(slice.runs),
+      ...idsOf(slice.reviews),
+      ...idsOf(slice.verifications),
+      ...idsOf(slice.decisions),
+      ...idsOf(slice.stageGates),
+      ...idsOf(slice.triggers),
+      ...idsOf(slice.threads),
+      ...idsOf(slice.workshops),
+      ...idsOf(slice.providerProfiles),
+      ...idsOf(slice.prototypeDemos),
+      ...idsOf(slice.modules),
+      ...idsOf(slice.branches),
+      ...idsOf(slice.contractChanges),
+      ...idsOf(slice.mergeProposals)
+    ];
+    const collision = importedIds.find((id) => existing.has(id));
+    if (collision !== void 0) {
+      throw new StudioStoreError(
+        "object_conflict",
+        `\u9879\u76EE\u5305\u91CC\u7684\u5BF9\u8C61 id ${collision} \u4E0E\u73B0\u6709\u6570\u636E\u51B2\u7A81\uFF0C\u62D2\u7EDD\u5BFC\u5165`,
+        409
+      );
+    }
+    const project = {
+      ...slice.project,
+      repoPath: requiredText(repoPath, "repoPath", 1e3),
+      updatedAt: ctx.now()
+    };
+    state.projects.push(project);
+    state.stageGates.push(...slice.stageGates);
+    state.triggers.push(...slice.triggers);
+    state.threads.push(...slice.threads);
+    state.workshops.push(...slice.workshops);
+    state.providerProfiles.push(...slice.providerProfiles);
+    state.prototypeDemos.push(...slice.prototypeDemos);
+    state.roles.push(...slice.roles);
+    state.modules.push(...slice.modules);
+    state.tasks.push(...slice.tasks);
+    state.mergeProposals.push(...slice.mergeProposals);
+    state.runs.push(...slice.runs);
+    state.branches.push(...slice.branches);
+    state.contractChanges.push(...slice.contractChanges);
+    state.decisions.push(...slice.decisions);
+    state.verifications.push(...slice.verifications);
+    state.reviews.push(...slice.reviews);
+    state.events.push(...slice.events);
+    state.activeProjectId = project.id;
+    state.updatedAt = project.updatedAt;
+    ctx.recordEvent(state, {
+      type: "project.imported",
+      at: project.updatedAt,
+      projectId: project.id,
+      payload: { projectId: project.id, repoPath }
+    });
+    await ctx.save();
+    return structuredClone(project);
+  });
+}
+
 // src/host/store.ts
 function defaultStudioDataDir() {
+  const override = process.env.DSH_STUDIO_DATA_DIR?.trim();
+  if (override !== void 0 && override !== "") {
+    return path.resolve(override);
+  }
   const home = process.env.DSH_HOME?.trim();
   return path.join(
     home !== void 0 && home !== "" ? home : path.join(os.homedir(), ".dsh"),
@@ -4905,6 +5070,9 @@ var StudioStore = class {
       };
     });
   }
+  async importProjectSlice(slice, repoPath) {
+    return importProjectSlice(this.context, slice, repoPath);
+  }
   async createProject(input) {
     return createProject(this.context, input);
   }
@@ -5087,8 +5255,25 @@ var StudioStore = class {
       return;
     }
     const raw = await readFile(this.file, "utf8");
+    let parsed;
     try {
-      const parsed = JSON.parse(raw);
+      parsed = JSON.parse(raw);
+    } catch (error) {
+      const backup = `${this.file}.corrupt-${String(Date.now())}`;
+      await rename(this.file, backup).catch(() => void 0);
+      this.state = this.seedState();
+      this.warning = `studio.json \u65E0\u6CD5\u8BFB\u53D6\uFF0C\u5DF2\u5907\u4EFD\u5230 ${backup} \u5E76\u91CD\u5EFA\u6F14\u793A\u6570\u636E\uFF1A${error instanceof Error ? error.message : String(error)}`;
+      await this.save();
+      return;
+    }
+    if (isRecord3(parsed) && typeof parsed.schemaVersion === "number" && parsed.schemaVersion > STUDIO_SCHEMA_VERSION) {
+      this.warning = `studio.json schemaVersion=${String(parsed.schemaVersion)} \u9AD8\u4E8E\u5F53\u524D\u652F\u6301\u7684 ${String(
+        STUDIO_SCHEMA_VERSION
+      )}\uFF1B\u5DF2\u4FDD\u7559\u539F\u6587\u4EF6\uFF0C\u672A\u8986\u76D6\u3001\u672A\u91CD\u5EFA\u3002\u8BF7\u5347\u7EA7 dsh-ai-studio \u540E\u518D\u542F\u52A8\u3002`;
+      this.state = null;
+      return;
+    }
+    try {
       const migrated = migrateState(parsed);
       assertState(migrated);
       this.state = migrated;

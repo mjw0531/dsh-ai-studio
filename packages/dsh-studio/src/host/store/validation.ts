@@ -171,6 +171,12 @@ function isAgentRun(value: unknown): value is AgentRun {
     (value.branchId === null || typeof value.branchId === "string") &&
     (value.branchName === null || typeof value.branchName === "string") &&
     (value.workspacePath === null || typeof value.workspacePath === "string") &&
+    (value.commitSha === null ||
+      value.commitSha === undefined ||
+      typeof value.commitSha === "string") &&
+    (value.baseSha === null ||
+      value.baseSha === undefined ||
+      typeof value.baseSha === "string") &&
     (value.diffStat === null || typeof value.diffStat === "string") &&
     (value.sessionId === null || typeof value.sessionId === "string") &&
     isAgentRunStatus(value.status) &&
@@ -250,6 +256,18 @@ function isMergeProposal(value: unknown): value is MergeProposal {
       value.diffStat === undefined ||
       typeof value.diffStat === "string") &&
     (Array.isArray(value.changedFiles) || value.changedFiles === undefined) &&
+    (value.sourceCommit === null ||
+      value.sourceCommit === undefined ||
+      typeof value.sourceCommit === "string") &&
+    (value.baseCommit === null ||
+      value.baseCommit === undefined ||
+      typeof value.baseCommit === "string") &&
+    (value.verificationRunId === null ||
+      value.verificationRunId === undefined ||
+      typeof value.verificationRunId === "string") &&
+    (value.reviewId === null ||
+      value.reviewId === undefined ||
+      typeof value.reviewId === "string") &&
     (value.verificationId === null ||
       value.verificationId === undefined ||
       typeof value.verificationId === "string") &&

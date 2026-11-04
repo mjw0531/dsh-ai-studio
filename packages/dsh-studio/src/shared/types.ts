@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 26;
-export const STUDIO_PLUGIN_VERSION = "3.2.1";
+export const STUDIO_SCHEMA_VERSION = 27;
+export const STUDIO_PLUGIN_VERSION = "3.3.0";
 
 export type TaskStatus =
   | "backlog"
@@ -489,7 +489,11 @@ export interface MergeProposal {
   mergeCommit: string | null;
   diffStat: string | null;
   changedFiles: string[];
+  sourceCommit: string | null;
+  baseCommit: string | null;
   verificationId: string | null;
+  verificationRunId: string | null;
+  reviewId: string | null;
   postMergeVerificationId: string | null;
   rollbackCommit: string | null;
   rolledBackAt: string | null;
@@ -543,6 +547,8 @@ export interface AgentRun {
   branchId: string | null;
   branchName: string | null;
   workspacePath: string | null;
+  commitSha: string | null;
+  baseSha: string | null;
   diffStat: string | null;
   sessionId: string | null;
   status: AgentRunStatus;
@@ -628,6 +634,28 @@ export interface StudioState {
   updatedAt: string;
   activeProjectId: string | null;
   projects: Project[];
+  stageGates: StageGate[];
+  triggers: Trigger[];
+  threads: Thread[];
+  workshops: Workshop[];
+  providerProfiles: ProviderProfile[];
+  prototypeDemos: PrototypeDemo[];
+  roles: Role[];
+  modules: Module[];
+  tasks: Task[];
+  mergeProposals: MergeProposal[];
+  runs: AgentRun[];
+  branches: Branch[];
+  contractChanges: ContractChange[];
+  decisions: Decision[];
+  verifications: Verification[];
+  reviews: IndependentReview[];
+  events: StudioEvent[];
+}
+
+export interface ProjectSlice {
+  schemaVersion: number;
+  project: Project;
   stageGates: StageGate[];
   triggers: Trigger[];
   threads: Thread[];

@@ -50,6 +50,19 @@ function git(
   });
 }
 
+export async function assertLocalGitIdentity(repo: string): Promise<void> {
+  try {
+    await git(repo, ["config", "--local", "--get", "user.name"]);
+    await git(repo, ["config", "--local", "--get", "user.email"]);
+  } catch {
+    throw new StudioStoreError(
+      "git_identity_required",
+      "仓库没有配置本地 git user.name / user.email，无法创建 merge commit",
+      409,
+    );
+  }
+}
+
 /**
  * Human-triggered Git merge.
  *
@@ -150,13 +163,21 @@ export class GitMergeService {
       );
     }
     const repo = project.repoPath;
-    try {
-      await git(repo, ["config", "--get", "user.name"]);
-      await git(repo, ["config", "--get", "user.email"]);
-    } catch {
+    if (proposal.sourceCommit === null) {
       throw new StudioStoreError(
-        "git_identity_required",
-        "仓库还没有配置 git user.name / user.email，无法创建 merge commit",
+        "merge_commit_unbound",
+        "合并提案没有绑定来源提交，请重新验证、评审并创建提案",
+        409,
+      );
+    }
+    await assertLocalGitIdentity(repo);
+    const branchHead = (
+      await git(repo, ["rev-parse", proposal.branch])
+    ).stdout.trim();
+    if (branchHead !== proposal.sourceCommit) {
+      throw new StudioStoreError(
+        "merge_source_changed",
+        "任务分支在评审后已被改写，拒绝合并；请重新验证并创建提案",
         409,
       );
     }

@@ -14,7 +14,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 // src/shared/types.ts
-var STUDIO_PLUGIN_VERSION = "3.2.1";
+var STUDIO_PLUGIN_VERSION = "3.3.0";
 
 // src/host/store/core.ts
 var StudioStoreError = class extends Error {
@@ -30,6 +30,48 @@ var StudioStoreError = class extends Error {
 
 // src/host/bundle.ts
 var run = promisify(execFile);
+function assertSafeTarEntries(entries) {
+  for (const raw of entries.split(/\r?\n/)) {
+    const entry = raw.trim();
+    if (entry === "") continue;
+    const normalized = entry.replaceAll("\\", "/");
+    if (normalized.startsWith("/") || /^[a-zA-Z]:\//.test(normalized) || normalized.split("/").includes("..")) {
+      throw new StudioStoreError(
+        "bundle_unsafe_path",
+        `\u9879\u76EE\u5305\u542B\u4E0D\u5B89\u5168\u8DEF\u5F84\uFF1A${entry}`,
+        400
+      );
+    }
+  }
+}
+function sliceForProject(state, projectId) {
+  const byProject = (items) => items.filter((item) => item.projectId === projectId);
+  const project = state.projects.find((item) => item.id === projectId);
+  if (project === void 0) {
+    throw new StudioStoreError("project_not_found", "\u9879\u76EE\u4E0D\u5B58\u5728", 404);
+  }
+  return {
+    schemaVersion: state.schemaVersion,
+    project,
+    stageGates: byProject(state.stageGates),
+    triggers: byProject(state.triggers),
+    threads: byProject(state.threads),
+    workshops: byProject(state.workshops),
+    providerProfiles: byProject(state.providerProfiles),
+    prototypeDemos: byProject(state.prototypeDemos),
+    roles: byProject(state.roles),
+    modules: byProject(state.modules),
+    tasks: byProject(state.tasks),
+    mergeProposals: byProject(state.mergeProposals),
+    runs: byProject(state.runs),
+    branches: byProject(state.branches),
+    contractChanges: byProject(state.contractChanges),
+    decisions: byProject(state.decisions),
+    verifications: byProject(state.verifications),
+    reviews: byProject(state.reviews),
+    events: state.events.filter((item) => item.projectId === projectId)
+  };
+}
 var ProjectBundleService = class {
   store;
   constructor(store) {
@@ -48,6 +90,7 @@ var ProjectBundleService = class {
         409
       );
     }
+    const slice = sliceForProject(state, projectId);
     const temp = await mkdtemp(path.join(os.tmpdir(), "studio-bundle-"));
     const archive = path.join(
       os.tmpdir(),
@@ -61,15 +104,15 @@ var ProjectBundleService = class {
         { cwd: project.repoPath, windowsHide: true }
       );
       await writeFile(
-        path.join(temp, "studio.json"),
-        `${JSON.stringify(state, null, 2)}
+        path.join(temp, "project.json"),
+        `${JSON.stringify(slice, null, 2)}
 `,
         "utf8"
       );
       const checksum = (file) => createHash("sha256").update(file).digest("hex");
       const manifest = {
         kind: "dsh-ai-studio-project-bundle",
-        formatVersion: 1,
+        formatVersion: 2,
         generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
         pluginVersion: STUDIO_PLUGIN_VERSION,
         dshVersion,
@@ -80,10 +123,10 @@ var ProjectBundleService = class {
           description: project.description
         },
         repoPath: project.repoPath,
-        files: ["studio.json", "project.bundle", "manifest.json", "README.txt"],
+        files: ["project.json", "project.bundle", "manifest.json", "README.txt"],
         checksums: {
-          "studio.json": checksum(
-            await readFile(path.join(temp, "studio.json"))
+          "project.json": checksum(
+            await readFile(path.join(temp, "project.json"))
           ),
           "project.bundle": checksum(await readFile(bundlePath))
         }
@@ -100,7 +143,7 @@ var ProjectBundleService = class {
           "dsh-ai-studio project bundle",
           "",
           "1. Install the same or newer dsh-ai-studio plugin.",
-          "2. Import studio.json on the new machine.",
+          "2. Import project.json on the new machine.",
           "3. Clone project.bundle into a new directory:",
           "   git clone project.bundle <new-project-dir>",
           "4. Rebind the project repoPath to <new-project-dir>.",
@@ -169,6 +212,12 @@ var ProjectBundleService = class {
     }
     const temp = await mkdtemp(path.join(os.tmpdir(), "studio-import-"));
     try {
+      const entries = await run(
+        "tar",
+        ["-tzf", archivePath],
+        { windowsHide: true, maxBuffer: 4 * 1024 * 1024 }
+      );
+      assertSafeTarEntries(entries.stdout);
       await run(
         "tar",
         ["-xzf", archivePath, "-C", temp],
@@ -177,10 +226,10 @@ var ProjectBundleService = class {
       const manifest = JSON.parse(
         await readFile(path.join(temp, "manifest.json"), "utf8")
       );
-      if (manifest.kind !== "dsh-ai-studio-project-bundle" || manifest.formatVersion !== 1) {
+      if (manifest.kind !== "dsh-ai-studio-project-bundle" || manifest.formatVersion !== 2) {
         throw new StudioStoreError(
           "bundle_invalid",
-          "\u4E0D\u662F dsh-ai-studio \u9879\u76EE\u5305\uFF0C\u6216\u683C\u5F0F\u7248\u672C\u4E0D\u652F\u6301",
+          "\u4E0D\u662F dsh-ai-studio v2 \u9879\u76EE\u5305\uFF1B\u65E7\u9879\u76EE\u5305\u8BF7\u91CD\u65B0\u5BFC\u51FA\uFF0C\u907F\u514D\u8986\u76D6\u5176\u4ED6\u9879\u76EE",
           400
         );
       }
@@ -212,21 +261,27 @@ var ProjectBundleService = class {
           );
         }
       }
-      const state = JSON.parse(
-        await readFile(path.join(temp, "studio.json"), "utf8")
+      const slice = JSON.parse(
+        await readFile(path.join(temp, "project.json"), "utf8")
       );
+      if (slice.project.id !== projectId) {
+        throw new StudioStoreError(
+          "bundle_invalid",
+          "manifest \u4E0E project.json \u7684 project id \u4E0D\u4E00\u81F4",
+          400
+        );
+      }
       await run(
         "git",
         ["clone", path.join(temp, "project.bundle"), targetPath],
         { windowsHide: true }
       );
-      await this.store.importState(state);
-      await this.store.updateProject(projectId, {
-        repoPath: targetPath
-      });
+      await this.store.importProjectSlice(slice, targetPath);
       return { projectId, repoPath: targetPath };
     } catch (error) {
-      if (error instanceof StudioStoreError) throw error;
+      if (error instanceof StudioStoreError || error instanceof Error && "code" in error && "status" in error) {
+        throw error;
+      }
       throw new StudioStoreError(
         "bundle_import_failed",
         `\u9879\u76EE\u5305\u5BFC\u5165\u5931\u8D25\uFF1A${error instanceof Error ? error.message : String(error)}`,

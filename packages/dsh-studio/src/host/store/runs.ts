@@ -17,7 +17,7 @@ export async function beginRun(
   ctx: StoreContext,
     taskId: string,
     prompt: string,
-    workspace?: { path: string; branch: string },
+    workspace?: { path: string; branch: string; baseSha?: string },
     execution?: {
       providerProfileId: string | null;
       executor: AgentRun["executor"];
@@ -118,6 +118,8 @@ export async function beginRun(
         branchId: branch.id,
         branchName: workspace?.branch ?? null,
         workspacePath: workspace?.path ?? null,
+        commitSha: null,
+        baseSha: workspace?.baseSha ?? null,
         diffStat: null,
         sessionId: null,
         status: "queued",
@@ -176,6 +178,7 @@ export async function completeRun(
       receipt: AgentReceipt | null;
       tokens: number | null;
       diffStat?: string | null;
+      commitSha?: string | null;
     },
   ): Promise<AgentRun> {
     return ctx.runExclusive(async () => {
@@ -273,6 +276,9 @@ export async function completeRun(
       run.receipt = input.receipt;
       run.tokens = input.tokens;
       run.diffStat = input.diffStat ?? null;
+      if (input.commitSha !== undefined) {
+        run.commitSha = input.commitSha;
+      }
       run.budgetWarning = warnings.length === 0 ? null : warnings.join("；");
       run.endedAt = at;
       if (task !== undefined) {

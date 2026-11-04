@@ -84,11 +84,47 @@ export async function createMergeProposal(
         .sort((left, right) =>
           right.startedAt.localeCompare(left.startedAt),
         )[0];
+      const latestCodeRun = [...state.runs]
+        .filter(
+          (run) => run.taskId === task.id && run.workspacePath !== null,
+        )
+        .sort((left, right) =>
+          right.startedAt.localeCompare(left.startedAt),
+        )[0];
       const latestVerification = [...state.verifications]
         .filter((verification) => verification.taskId === task.id)
         .sort((left, right) =>
           right.createdAt.localeCompare(left.createdAt),
         )[0];
+      const latestReview = [...state.reviews]
+        .filter((review) => review.taskId === task.id)
+        .sort((left, right) =>
+          right.createdAt.localeCompare(left.createdAt),
+        )[0];
+      const boundRun =
+        latestCodeRun?.commitSha === null ||
+        latestCodeRun?.commitSha === undefined
+          ? null
+          : latestCodeRun;
+      if (boundRun !== null) {
+        if (
+          latestVerification === undefined ||
+          latestVerification.runId !== boundRun.id
+        ) {
+          throw new StudioStoreError(
+            "verification_stale",
+            "最新验证不属于当前提交，请重新运行 Host 验证",
+            409,
+          );
+        }
+        if (latestReview === undefined || latestReview.runId !== boundRun.id) {
+          throw new StudioStoreError(
+            "review_stale",
+            "最新评审不属于当前提交，请重新评审",
+            409,
+          );
+        }
+      }
       const changedFiles =
         latestRun?.diffStat === null || latestRun?.diffStat === undefined
           ? []
@@ -111,7 +147,13 @@ export async function createMergeProposal(
         mergeCommit: null,
         diffStat: latestRun?.diffStat ?? null,
         changedFiles,
+        sourceCommit: boundRun?.commitSha ?? null,
+        baseCommit: boundRun?.baseSha ?? null,
         verificationId: latestVerification?.id ?? null,
+        verificationRunId: boundRun === null
+          ? null
+          : (latestVerification?.runId ?? null),
+        reviewId: boundRun === null ? null : (latestReview?.id ?? null),
         postMergeVerificationId: null,
         rollbackCommit: null,
         rolledBackAt: null,

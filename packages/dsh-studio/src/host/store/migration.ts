@@ -329,10 +329,28 @@ export function migrateState(value: unknown): StudioState {
   if (state.schemaVersion === 25) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 26,
       workshops: state.workshops.map((workshop) => ({
         ...workshop,
         aiSummary: null,
+      })),
+    };
+  }
+  if (state.schemaVersion === 26) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      runs: state.runs.map((run) => ({
+        ...run,
+        commitSha: null,
+        baseSha: null,
+      })),
+      mergeProposals: state.mergeProposals.map((proposal) => ({
+        ...proposal,
+        sourceCommit: null,
+        baseCommit: null,
+        verificationRunId: null,
+        reviewId: null,
       })),
     };
   }

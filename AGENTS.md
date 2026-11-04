@@ -41,7 +41,7 @@ Studio 是 DSH 的即装即用工作台插件。改领域词、工作流或接�
 - **回滚门禁**：只有 merged 且 post-merge 回归失败的提案可回滚；用 `git revert -m 1`，不 reset/push。
 - **改修票门禁**：`kind=fix` 必须有非空 `diagnosis` 和 `plan` 才能派单；新建型不受影响。
 - **自动提交门禁**：Agent 成功后 Host 必须把 worktree 内改动（含未跟踪文件）提交到任务分支，否则不进入 review。
-- **Git 身份门禁**：merge 前必须检查 repo 的 `user.name/email`，缺失时明确报错，不能依赖全局配置。
+- **Git 身份门禁**：merge 前必须用 `git config --local` 检查 repo 的 `user.name/email`，缺失时明确报错，不能依赖全局配置。
 - **导出安全**：`/studio-api/export` 必须与数据接口一样校验 Bearer token，导出的 JSON 含运行记录，不得公开缓存。
 - **导入安全**：`/studio-api/import` 只能由 Owner 手动触发；先备份 `pre-import`，校验 schema 和结构，拒绝更高版本，校验失败不得覆盖。
 - **外部执行器门禁**：Claude Code / Codex 必须在本机已登录、在 worktree 内 headless 运行；退出码非 0 或回执缺 `summary/evidence` 时 Run 失败，不能绕过 Host 验证和独立评审。
@@ -49,7 +49,7 @@ Studio 是 DSH 的即装即用工作台插件。改领域词、工作流或接�
 - **决策门禁**：项目级决策只能由 Owner 在决策台批准/拒绝；Agent 只能提出建议，不能替 Owner 决定。决策必须保留结论和理由，批准后不得静默改写。
 - **支线门禁**：派单时自动登记 Branch；Agent 的 `contractDeltas` 写入 `contractChanges`。两条支线改同一契约且内容不同时，必须自动生成待裁决 Decision，不能静默合并。
 - **公司聚合是派生视图**：Owner Dashboard 的 `company`（含 budget / priorities / roleCoverage）必须从 `StudioState` 计算，不能成为第二份事实来源；金额成本没有真实报价时显示“待接入”，token 消耗必须来自 DSH meter。
-- **桌面启动参数**：桌面渲染器是 `dsh-app://` 自定义 scheme，不能依赖 DSH Cookie 或 startup injection 的热更新。保留 `/studio-api/boot` 的桌面 origin 回退；它只发放进程级 token，绝不能把数据接口改成免 token。
+- **桌面启动参数**：桌面渲染器是 `dsh-app://` 自定义 scheme，不能依赖 DSH Cookie 或 startup injection 的热更新。`/studio-api/boot` 只对带进程 nonce 的 `dsh-app://` 发放进程级 token；热装后没有 nonce 时必须重启 DSH，不接受重装作为恢复手段。绝不能把数据接口改成免 token。
 - **鉴权**：`/studio-api` 除 `/health` 外都必须校验进程内随机 Bearer token；token 只注入当前页面，不写日志、不进数据文件。
 - **数据兼容**：`StudioState.schemaVersion` 变更必须提供迁移或明确的破坏性说明；`studio.json` 是本地事实来源，损坏时备份而不是静默覆盖。
 - **术语**：使用 `Role`（角色契约）、`Agent`（运行实例）、`Task`、`Branch`、`Acceptance`、`Evidence`；不要把世界书/人物卡/群聊当成本项目的领域词。
