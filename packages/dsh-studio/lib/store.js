@@ -13,8 +13,8 @@ import os from "node:os";
 import path from "node:path";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 28;
-var STUDIO_PLUGIN_VERSION = "3.5.0";
+var STUDIO_SCHEMA_VERSION = 29;
+var STUDIO_PLUGIN_VERSION = "3.6.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -395,13 +395,23 @@ function migrateState(value) {
   if (state.schemaVersion === 27) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 28,
       runs: state.runs.map((run) => ({
         ...run,
         agentPreset: null,
         approvalPolicy: null,
         sandboxMode: null,
         restrictedTools: []
+      }))
+    };
+  }
+  if (state.schemaVersion === 28) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      runs: state.runs.map((run) => ({
+        ...run,
+        diffPatch: null
       }))
     };
   }
@@ -434,7 +444,7 @@ function isAgentRunStatus(value) {
   return value === "queued" || value === "running" || value === "succeeded" || value === "failed";
 }
 function isAgentRun(value) {
-  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.providerProfileId === null || typeof value.providerProfileId === "string") && (value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && (value.provider === null || typeof value.provider === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.branchName === null || typeof value.branchName === "string") && (value.workspacePath === null || typeof value.workspacePath === "string") && (value.commitSha === null || value.commitSha === void 0 || typeof value.commitSha === "string") && (value.baseSha === null || value.baseSha === void 0 || typeof value.baseSha === "string") && (value.agentPreset === null || value.agentPreset === void 0 || typeof value.agentPreset === "string") && (value.approvalPolicy === null || value.approvalPolicy === void 0 || value.approvalPolicy === "ask" || value.approvalPolicy === "never") && (value.sandboxMode === null || value.sandboxMode === void 0 || value.sandboxMode === "read-only" || value.sandboxMode === "workspace-write" || value.sandboxMode === "danger-full-access") && (Array.isArray(value.restrictedTools) || value.restrictedTools === void 0) && (value.diffStat === null || typeof value.diffStat === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord2(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.providerProfileId === null || typeof value.providerProfileId === "string") && (value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && (value.provider === null || typeof value.provider === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.branchName === null || typeof value.branchName === "string") && (value.workspacePath === null || typeof value.workspacePath === "string") && (value.commitSha === null || value.commitSha === void 0 || typeof value.commitSha === "string") && (value.baseSha === null || value.baseSha === void 0 || typeof value.baseSha === "string") && (value.agentPreset === null || value.agentPreset === void 0 || typeof value.agentPreset === "string") && (value.approvalPolicy === null || value.approvalPolicy === void 0 || value.approvalPolicy === "ask" || value.approvalPolicy === "never") && (value.sandboxMode === null || value.sandboxMode === void 0 || value.sandboxMode === "read-only" || value.sandboxMode === "workspace-write" || value.sandboxMode === "danger-full-access") && (Array.isArray(value.restrictedTools) || value.restrictedTools === void 0) && (value.diffPatch === null || value.diffPatch === void 0 || typeof value.diffPatch === "string") && (value.diffStat === null || typeof value.diffStat === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord2(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
 }
 function isTask(value) {
   return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence) && (value.verifyCommand === null || value.verifyCommand === void 0 || typeof value.verifyCommand === "string") && (value.module === null || value.module === void 0 || typeof value.module === "string") && (value.contractRef === null || value.contractRef === void 0 || typeof value.contractRef === "string") && Array.isArray(value.requirementRefs) && value.requirementRefs.every((item) => typeof item === "string") && (value.kind === void 0 || value.kind === "new" || value.kind === "fix") && (value.integration === void 0 || typeof value.integration === "boolean") && (value.originTaskId === null || value.originTaskId === void 0 || typeof value.originTaskId === "string") && (value.docsSynced === void 0 || typeof value.docsSynced === "boolean") && (value.diagnosis === void 0 || typeof value.diagnosis === "string") && (value.plan === void 0 || typeof value.plan === "string");
@@ -3059,6 +3069,7 @@ async function beginRun(ctx, taskId, prompt, workspace, execution) {
       approvalPolicy: null,
       sandboxMode: null,
       restrictedTools: [],
+      diffPatch: null,
       diffStat: null,
       sessionId: null,
       status: "queued",
@@ -3178,6 +3189,9 @@ async function completeRun(ctx, runId, input) {
     run.receipt = input.receipt;
     run.tokens = input.tokens;
     run.diffStat = input.diffStat ?? null;
+    if (input.diffPatch !== void 0) {
+      run.diffPatch = input.diffPatch;
+    }
     if (input.commitSha !== void 0) {
       run.commitSha = input.commitSha;
     }

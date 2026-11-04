@@ -743,6 +743,7 @@ export class StudioStore {
       receipt: AgentReceipt | null;
       tokens: number | null;
       diffStat?: string | null;
+      diffPatch?: string | null;
       commitSha?: string | null;
     },
   ): Promise<AgentRun> {

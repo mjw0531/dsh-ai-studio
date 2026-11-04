@@ -2,8 +2,8 @@
 import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 28;
-var STUDIO_PLUGIN_VERSION = "3.5.0";
+var STUDIO_SCHEMA_VERSION = 29;
+var STUDIO_PLUGIN_VERSION = "3.6.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -506,13 +506,23 @@ function migrateState(value) {
   if (state.schemaVersion === 27) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 28,
       runs: state.runs.map((run3) => ({
         ...run3,
         agentPreset: null,
         approvalPolicy: null,
         sandboxMode: null,
         restrictedTools: []
+      }))
+    };
+  }
+  if (state.schemaVersion === 28) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      runs: state.runs.map((run3) => ({
+        ...run3,
+        diffPatch: null
       }))
     };
   }
@@ -545,7 +555,7 @@ function isAgentRunStatus(value) {
   return value === "queued" || value === "running" || value === "succeeded" || value === "failed";
 }
 function isAgentRun(value) {
-  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.providerProfileId === null || typeof value.providerProfileId === "string") && (value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && (value.provider === null || typeof value.provider === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.branchName === null || typeof value.branchName === "string") && (value.workspacePath === null || typeof value.workspacePath === "string") && (value.commitSha === null || value.commitSha === void 0 || typeof value.commitSha === "string") && (value.baseSha === null || value.baseSha === void 0 || typeof value.baseSha === "string") && (value.agentPreset === null || value.agentPreset === void 0 || typeof value.agentPreset === "string") && (value.approvalPolicy === null || value.approvalPolicy === void 0 || value.approvalPolicy === "ask" || value.approvalPolicy === "never") && (value.sandboxMode === null || value.sandboxMode === void 0 || value.sandboxMode === "read-only" || value.sandboxMode === "workspace-write" || value.sandboxMode === "danger-full-access") && (Array.isArray(value.restrictedTools) || value.restrictedTools === void 0) && (value.diffStat === null || typeof value.diffStat === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord2(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.providerProfileId === null || typeof value.providerProfileId === "string") && (value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && (value.provider === null || typeof value.provider === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.branchName === null || typeof value.branchName === "string") && (value.workspacePath === null || typeof value.workspacePath === "string") && (value.commitSha === null || value.commitSha === void 0 || typeof value.commitSha === "string") && (value.baseSha === null || value.baseSha === void 0 || typeof value.baseSha === "string") && (value.agentPreset === null || value.agentPreset === void 0 || typeof value.agentPreset === "string") && (value.approvalPolicy === null || value.approvalPolicy === void 0 || value.approvalPolicy === "ask" || value.approvalPolicy === "never") && (value.sandboxMode === null || value.sandboxMode === void 0 || value.sandboxMode === "read-only" || value.sandboxMode === "workspace-write" || value.sandboxMode === "danger-full-access") && (Array.isArray(value.restrictedTools) || value.restrictedTools === void 0) && (value.diffPatch === null || value.diffPatch === void 0 || typeof value.diffPatch === "string") && (value.diffStat === null || typeof value.diffStat === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord2(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
 }
 function isTask(value) {
   return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence) && (value.verifyCommand === null || value.verifyCommand === void 0 || typeof value.verifyCommand === "string") && (value.module === null || value.module === void 0 || typeof value.module === "string") && (value.contractRef === null || value.contractRef === void 0 || typeof value.contractRef === "string") && Array.isArray(value.requirementRefs) && value.requirementRefs.every((item) => typeof item === "string") && (value.kind === void 0 || value.kind === "new" || value.kind === "fix") && (value.integration === void 0 || typeof value.integration === "boolean") && (value.originTaskId === null || value.originTaskId === void 0 || typeof value.originTaskId === "string") && (value.docsSynced === void 0 || typeof value.docsSynced === "boolean") && (value.diagnosis === void 0 || typeof value.diagnosis === "string") && (value.plan === void 0 || typeof value.plan === "string");
@@ -3170,6 +3180,7 @@ async function beginRun(ctx, taskId, prompt, workspace, execution) {
       approvalPolicy: null,
       sandboxMode: null,
       restrictedTools: [],
+      diffPatch: null,
       diffStat: null,
       sessionId: null,
       status: "queued",
@@ -3289,6 +3300,9 @@ async function completeRun(ctx, runId, input) {
     run3.receipt = input.receipt;
     run3.tokens = input.tokens;
     run3.diffStat = input.diffStat ?? null;
+    if (input.diffPatch !== void 0) {
+      run3.diffPatch = input.diffPatch;
+    }
     if (input.commitSha !== void 0) {
       run3.commitSha = input.commitSha;
     }
@@ -5925,6 +5939,11 @@ var WorkspaceManager = class {
     const stat2 = git(worktreePath, ["diff", "--stat"]);
     return [status, stat2].filter((line) => line !== "").join("\n").trim();
   }
+  patch(worktreePath, baseSha, includeWorkingTree = false) {
+    if (!existsSync2(worktreePath)) return "";
+    const range = includeWorkingTree ? baseSha : `${baseSha}...HEAD`;
+    return git(worktreePath, ["diff", "--no-color", range]);
+  }
 };
 
 // src/host/dispatcher.ts
@@ -6002,6 +6021,11 @@ async function bindStudioRuntime(ctx, agentCtx, agent, options) {
 function changedFilesFromDiff(diffStat) {
   if (diffStat === null) return [];
   return diffStat.split("\n").map((line) => /^[ MARC?]{1,2} (\S.*)$/.exec(line)?.[1]?.trim() ?? "").filter(Boolean);
+}
+function clipPatch(value) {
+  if (value === null || value.length <= 12e4) return value;
+  return `${value.slice(0, 12e4)}
+\u2026 patch truncated by Host`;
 }
 function assistantText(messages) {
   const assistant = [...messages].reverse().find((message) => message.role === "assistant");
@@ -6207,8 +6231,9 @@ function buildReviewPrompt(context) {
       (item, index) => `${String(index + 1)}. [${item.done ? "x" : " "}] ${item.text}`
     ).join("\n") || "\uFF08\u65E0\uFF09",
     "",
+    `base\uFF1A${context.run?.baseSha ?? "\u672A\u8BB0\u5F55"}\uFF1B\u5206\u652F\uFF1A${context.run?.branchName ?? "\u672A\u8BB0\u5F55"}`,
     "\u5B9E\u73B0\u8005 diff\uFF1A",
-    context.run?.diffStat ?? "\uFF08\u6CA1\u6709\u4EE3\u7801 diff\uFF09",
+    context.run?.diffPatch ?? context.run?.diffStat ?? "\uFF08\u6CA1\u6709\u4EE3\u7801 diff\uFF09",
     "",
     context.verification === null ? "\u6CA1\u6709 Host \u72EC\u7ACB\u9A8C\u8BC1\u8BB0\u5F55\u3002" : `Host \u72EC\u7ACB\u9A8C\u8BC1\uFF1A${context.verification.command} \u2192 exit ${String(context.verification.exitCode)}\uFF08${context.verification.passed ? "\u901A\u8FC7" : "\u5931\u8D25"}\uFF09
 ${context.verification.output.slice(0, 6e3)}`,
@@ -6400,24 +6425,38 @@ var AgentDispatcher = class {
       );
       const measured = this.ctx.tokenMeter.measure(handle.agent.session);
       const diffStat = workspace === void 0 ? null : this.workspaces.diffStat(workspace.path);
+      const workingPatch = workspace === void 0 ? null : clipPatch(this.workspaces.patch(workspace.path, workspace.baseSha, true));
+      if (workspace !== void 0) {
+        const violations = await this.store.enforceContractScope(
+          run3.taskId,
+          run3.id,
+          changedFilesFromDiff(diffStat)
+        );
+        if (violations.length > 0) {
+          await this.store.completeRun(run3.id, {
+            output,
+            receipt,
+            tokens: typeof measured.totalTokens === "number" ? measured.totalTokens : null,
+            diffStat,
+            diffPatch: workingPatch,
+            commitSha: null
+          });
+          return;
+        }
+      }
       const commitSha = workspace !== void 0 && diffStat !== "" && diffStat !== null ? this.workspaces.commit(
         workspace.path,
         `studio: complete ${run3.taskId} (${run3.id})`
       ) : null;
+      const diffPatch = workspace === void 0 ? null : commitSha === null ? workingPatch : clipPatch(this.workspaces.patch(workspace.path, workspace.baseSha));
       await this.store.completeRun(run3.id, {
         output,
         receipt,
         tokens: typeof measured.totalTokens === "number" ? measured.totalTokens : null,
         diffStat,
+        diffPatch,
         commitSha
       });
-      if (workspace !== void 0) {
-        await this.store.enforceContractScope(
-          run3.taskId,
-          run3.id,
-          changedFilesFromDiff(diffStat)
-        );
-      }
     } catch (error) {
       await this.store.failRun(
         run3.id,
@@ -6439,23 +6478,39 @@ var AgentDispatcher = class {
       }
       const output = result.output.trim();
       const diffStat = this.workspaces.diffStat(workspace.path);
+      const workingPatch = clipPatch(
+        this.workspaces.patch(workspace.path, workspace.baseSha, true)
+      );
+      const violations = await this.store.enforceContractScope(
+        run3.taskId,
+        run3.id,
+        changedFilesFromDiff(diffStat)
+      );
+      const receipt = normalizeReceipt(extractJsonObject(output), output);
+      if (violations.length > 0) {
+        await this.store.completeRun(run3.id, {
+          output,
+          receipt,
+          tokens: null,
+          diffStat,
+          diffPatch: workingPatch,
+          commitSha: null
+        });
+        return;
+      }
       const commitSha = diffStat !== "" ? this.workspaces.commit(
         workspace.path,
         `studio: complete ${run3.taskId} (${run3.id})`
       ) : null;
-      const receipt = normalizeReceipt(extractJsonObject(output), output);
+      const diffPatch = commitSha === null ? workingPatch : clipPatch(this.workspaces.patch(workspace.path, workspace.baseSha));
       await this.store.completeRun(run3.id, {
         output,
         receipt,
         tokens: null,
         diffStat,
+        diffPatch,
         commitSha
       });
-      await this.store.enforceContractScope(
-        run3.taskId,
-        run3.id,
-        changedFilesFromDiff(diffStat)
-      );
     } catch (error) {
       await this.store.failRun(
         run3.id,

@@ -191,6 +191,9 @@ function isAgentRun(value: unknown): value is AgentRun {
       value.sandboxMode === "danger-full-access") &&
     (Array.isArray(value.restrictedTools) ||
       value.restrictedTools === undefined) &&
+    (value.diffPatch === null ||
+      value.diffPatch === undefined ||
+      typeof value.diffPatch === "string") &&
     (value.diffStat === null || typeof value.diffStat === "string") &&
     (value.sessionId === null || typeof value.sessionId === "string") &&
     isAgentRunStatus(value.status) &&

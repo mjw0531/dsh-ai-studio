@@ -109,6 +109,11 @@ var WorkspaceManager = class {
     const stat = git(worktreePath, ["diff", "--stat"]);
     return [status, stat].filter((line) => line !== "").join("\n").trim();
   }
+  patch(worktreePath, baseSha, includeWorkingTree = false) {
+    if (!existsSync(worktreePath)) return "";
+    const range = includeWorkingTree ? baseSha : `${baseSha}...HEAD`;
+    return git(worktreePath, ["diff", "--no-color", range]);
+  }
 };
 export {
   WorkspaceError,

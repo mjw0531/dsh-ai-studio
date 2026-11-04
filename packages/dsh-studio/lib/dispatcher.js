@@ -116,6 +116,11 @@ var WorkspaceManager = class {
     const stat = git(worktreePath, ["diff", "--stat"]);
     return [status, stat].filter((line) => line !== "").join("\n").trim();
   }
+  patch(worktreePath, baseSha, includeWorkingTree = false) {
+    if (!existsSync(worktreePath)) return "";
+    const range = includeWorkingTree ? baseSha : `${baseSha}...HEAD`;
+    return git(worktreePath, ["diff", "--no-color", range]);
+  }
 };
 
 // src/host/dispatcher.ts
@@ -193,6 +198,11 @@ async function bindStudioRuntime(ctx, agentCtx, agent, options) {
 function changedFilesFromDiff(diffStat) {
   if (diffStat === null) return [];
   return diffStat.split("\n").map((line) => /^[ MARC?]{1,2} (\S.*)$/.exec(line)?.[1]?.trim() ?? "").filter(Boolean);
+}
+function clipPatch(value) {
+  if (value === null || value.length <= 12e4) return value;
+  return `${value.slice(0, 12e4)}
+\u2026 patch truncated by Host`;
 }
 function assistantText(messages) {
   const assistant = [...messages].reverse().find((message) => message.role === "assistant");
@@ -398,8 +408,9 @@ function buildReviewPrompt(context) {
       (item, index) => `${String(index + 1)}. [${item.done ? "x" : " "}] ${item.text}`
     ).join("\n") || "\uFF08\u65E0\uFF09",
     "",
+    `base\uFF1A${context.run?.baseSha ?? "\u672A\u8BB0\u5F55"}\uFF1B\u5206\u652F\uFF1A${context.run?.branchName ?? "\u672A\u8BB0\u5F55"}`,
     "\u5B9E\u73B0\u8005 diff\uFF1A",
-    context.run?.diffStat ?? "\uFF08\u6CA1\u6709\u4EE3\u7801 diff\uFF09",
+    context.run?.diffPatch ?? context.run?.diffStat ?? "\uFF08\u6CA1\u6709\u4EE3\u7801 diff\uFF09",
     "",
     context.verification === null ? "\u6CA1\u6709 Host \u72EC\u7ACB\u9A8C\u8BC1\u8BB0\u5F55\u3002" : `Host \u72EC\u7ACB\u9A8C\u8BC1\uFF1A${context.verification.command} \u2192 exit ${String(context.verification.exitCode)}\uFF08${context.verification.passed ? "\u901A\u8FC7" : "\u5931\u8D25"}\uFF09
 ${context.verification.output.slice(0, 6e3)}`,
@@ -591,24 +602,38 @@ var AgentDispatcher = class {
       );
       const measured = this.ctx.tokenMeter.measure(handle.agent.session);
       const diffStat = workspace === void 0 ? null : this.workspaces.diffStat(workspace.path);
+      const workingPatch = workspace === void 0 ? null : clipPatch(this.workspaces.patch(workspace.path, workspace.baseSha, true));
+      if (workspace !== void 0) {
+        const violations = await this.store.enforceContractScope(
+          run.taskId,
+          run.id,
+          changedFilesFromDiff(diffStat)
+        );
+        if (violations.length > 0) {
+          await this.store.completeRun(run.id, {
+            output,
+            receipt,
+            tokens: typeof measured.totalTokens === "number" ? measured.totalTokens : null,
+            diffStat,
+            diffPatch: workingPatch,
+            commitSha: null
+          });
+          return;
+        }
+      }
       const commitSha = workspace !== void 0 && diffStat !== "" && diffStat !== null ? this.workspaces.commit(
         workspace.path,
         `studio: complete ${run.taskId} (${run.id})`
       ) : null;
+      const diffPatch = workspace === void 0 ? null : commitSha === null ? workingPatch : clipPatch(this.workspaces.patch(workspace.path, workspace.baseSha));
       await this.store.completeRun(run.id, {
         output,
         receipt,
         tokens: typeof measured.totalTokens === "number" ? measured.totalTokens : null,
         diffStat,
+        diffPatch,
         commitSha
       });
-      if (workspace !== void 0) {
-        await this.store.enforceContractScope(
-          run.taskId,
-          run.id,
-          changedFilesFromDiff(diffStat)
-        );
-      }
     } catch (error) {
       await this.store.failRun(
         run.id,
@@ -630,23 +655,39 @@ var AgentDispatcher = class {
       }
       const output = result.output.trim();
       const diffStat = this.workspaces.diffStat(workspace.path);
+      const workingPatch = clipPatch(
+        this.workspaces.patch(workspace.path, workspace.baseSha, true)
+      );
+      const violations = await this.store.enforceContractScope(
+        run.taskId,
+        run.id,
+        changedFilesFromDiff(diffStat)
+      );
+      const receipt = normalizeReceipt(extractJsonObject(output), output);
+      if (violations.length > 0) {
+        await this.store.completeRun(run.id, {
+          output,
+          receipt,
+          tokens: null,
+          diffStat,
+          diffPatch: workingPatch,
+          commitSha: null
+        });
+        return;
+      }
       const commitSha = diffStat !== "" ? this.workspaces.commit(
         workspace.path,
         `studio: complete ${run.taskId} (${run.id})`
       ) : null;
-      const receipt = normalizeReceipt(extractJsonObject(output), output);
+      const diffPatch = commitSha === null ? workingPatch : clipPatch(this.workspaces.patch(workspace.path, workspace.baseSha));
       await this.store.completeRun(run.id, {
         output,
         receipt,
         tokens: null,
         diffStat,
+        diffPatch,
         commitSha
       });
-      await this.store.enforceContractScope(
-        run.taskId,
-        run.id,
-        changedFilesFromDiff(diffStat)
-      );
     } catch (error) {
       await this.store.failRun(
         run.id,

@@ -12,17 +12,30 @@ const forbidden = [
 ];
 
 const self = "tools/check-repo-clean.mjs";
-const files = execFileSync("git", ["ls-files", "-z"], {
+const trackedFiles = execFileSync("git", ["ls-files", "-z"], {
   encoding: "utf8",
   windowsHide: true,
 })
   .split("\0")
   .map((line) => line.trim())
   .filter(Boolean)
-  .filter((file) => file !== self)
-  .filter((file) => !/\.(png|jpg|jpeg|webp|gif|tgz|zip|ico)$/i.test(file));
+  .filter((file) => file !== self);
+const files = trackedFiles.filter(
+  (file) => !/\.(png|jpg|jpeg|webp|gif|tgz|zip|ico)$/i.test(file),
+);
 
-const hits = [];
+const forbiddenImages = [
+  "packages/dsh-studio/docs/owner-dashboard.png",
+  "packages/dsh-studio/docs/owner-dashboard-v04.png",
+  "packages/dsh-studio/docs/mission-control.png",
+  "packages/dsh-studio/docs/task-room.png",
+  "packages/dsh-studio/docs/decision-boardroom.png",
+  "packages/dsh-studio/docs/merge-queue.png",
+  "packages/dsh-studio/docs/branches.png",
+];
+const hits = trackedFiles
+  .filter((file) => forbiddenImages.includes(file))
+  .map((file) => `${file}: forbidden screenshot`);
 for (const file of files) {
   let text;
   try {

@@ -124,6 +124,7 @@ export async function beginRun(
         approvalPolicy: null,
         sandboxMode: null,
         restrictedTools: [],
+        diffPatch: null,
         diffStat: null,
         sessionId: null,
         status: "queued",
@@ -182,6 +183,7 @@ export async function completeRun(
       receipt: AgentReceipt | null;
       tokens: number | null;
       diffStat?: string | null;
+      diffPatch?: string | null;
       commitSha?: string | null;
     },
   ): Promise<AgentRun> {
@@ -280,6 +282,9 @@ export async function completeRun(
       run.receipt = input.receipt;
       run.tokens = input.tokens;
       run.diffStat = input.diffStat ?? null;
+      if (input.diffPatch !== undefined) {
+        run.diffPatch = input.diffPatch;
+      }
       if (input.commitSha !== undefined) {
         run.commitSha = input.commitSha;
       }

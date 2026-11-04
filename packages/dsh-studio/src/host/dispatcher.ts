@@ -198,6 +198,11 @@ function changedFilesFromDiff(diffStat: string | null): string[] {
     .filter(Boolean);
 }
 
+function clipPatch(value: string | null): string | null {
+  if (value === null || value.length <= 120_000) return value;
+  return `${value.slice(0, 120_000)}\n… patch truncated by Host`;
+}
+
 function assistantText(messages: AgentMessage[]): string {
   const assistant = [...messages]
     .reverse()
@@ -486,8 +491,11 @@ function buildReviewPrompt(context: {
       )
       .join("\n") || "（无）",
     "",
+    `base：${context.run?.baseSha ?? "未记录"}；分支：${context.run?.branchName ?? "未记录"}`,
     "实现者 diff：",
-    context.run?.diffStat ?? "（没有代码 diff）",
+    context.run?.diffPatch ??
+      context.run?.diffStat ??
+      "（没有代码 diff）",
     "",
     context.verification === null
       ? "没有 Host 独立验证记录。"
@@ -744,6 +752,31 @@ export class AgentDispatcher {
         workspace === undefined
           ? null
           : this.workspaces.diffStat(workspace.path);
+      const workingPatch =
+        workspace === undefined
+          ? null
+          : clipPatch(this.workspaces.patch(workspace.path, workspace.baseSha, true));
+      if (workspace !== undefined) {
+        const violations = await this.store.enforceContractScope(
+          run.taskId,
+          run.id,
+          changedFilesFromDiff(diffStat),
+        );
+        if (violations.length > 0) {
+          await this.store.completeRun(run.id, {
+            output,
+            receipt,
+            tokens:
+              typeof measured.totalTokens === "number"
+                ? measured.totalTokens
+                : null,
+            diffStat,
+            diffPatch: workingPatch,
+            commitSha: null,
+          });
+          return;
+        }
+      }
       const commitSha =
         workspace !== undefined && diffStat !== "" && diffStat !== null
           ? this.workspaces.commit(
@@ -751,6 +784,12 @@ export class AgentDispatcher {
               `studio: complete ${run.taskId} (${run.id})`,
             )
           : null;
+      const diffPatch =
+        workspace === undefined
+          ? null
+          : commitSha === null
+            ? workingPatch
+            : clipPatch(this.workspaces.patch(workspace.path, workspace.baseSha));
       await this.store.completeRun(run.id, {
         output,
         receipt,
@@ -759,15 +798,9 @@ export class AgentDispatcher {
             ? measured.totalTokens
             : null,
         diffStat,
+        diffPatch,
         commitSha,
       });
-      if (workspace !== undefined) {
-        await this.store.enforceContractScope(
-          run.taskId,
-          run.id,
-          changedFilesFromDiff(diffStat),
-        );
-      }
     } catch (error) {
       await this.store
         .failRun(
@@ -797,6 +830,26 @@ export class AgentDispatcher {
       }
       const output = result.output.trim();
       const diffStat = this.workspaces.diffStat(workspace.path);
+      const workingPatch = clipPatch(
+        this.workspaces.patch(workspace.path, workspace.baseSha, true),
+      );
+      const violations = await this.store.enforceContractScope(
+        run.taskId,
+        run.id,
+        changedFilesFromDiff(diffStat),
+      );
+      const receipt = normalizeReceipt(extractJsonObject(output), output);
+      if (violations.length > 0) {
+        await this.store.completeRun(run.id, {
+          output,
+          receipt,
+          tokens: null,
+          diffStat,
+          diffPatch: workingPatch,
+          commitSha: null,
+        });
+        return;
+      }
       const commitSha =
         diffStat !== ""
           ? this.workspaces.commit(
@@ -804,19 +857,18 @@ export class AgentDispatcher {
               `studio: complete ${run.taskId} (${run.id})`,
             )
           : null;
-      const receipt = normalizeReceipt(extractJsonObject(output), output);
+      const diffPatch =
+        commitSha === null
+          ? workingPatch
+          : clipPatch(this.workspaces.patch(workspace.path, workspace.baseSha));
       await this.store.completeRun(run.id, {
         output,
         receipt,
         tokens: null,
         diffStat,
+        diffPatch,
         commitSha,
       });
-      await this.store.enforceContractScope(
-        run.taskId,
-        run.id,
-        changedFilesFromDiff(diffStat),
-      );
     } catch (error) {
       await this.store
         .failRun(

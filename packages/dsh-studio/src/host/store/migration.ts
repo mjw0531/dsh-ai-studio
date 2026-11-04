@@ -357,13 +357,23 @@ export function migrateState(value: unknown): StudioState {
   if (state.schemaVersion === 27) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 28,
       runs: state.runs.map((run) => ({
         ...run,
         agentPreset: null,
         approvalPolicy: null,
         sandboxMode: null,
         restrictedTools: [],
+      })),
+    };
+  }
+  if (state.schemaVersion === 28) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      runs: state.runs.map((run) => ({
+        ...run,
+        diffPatch: null,
       })),
     };
   }

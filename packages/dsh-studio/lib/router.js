@@ -2,7 +2,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_PLUGIN_VERSION = "3.5.0";
+var STUDIO_PLUGIN_VERSION = "3.6.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",

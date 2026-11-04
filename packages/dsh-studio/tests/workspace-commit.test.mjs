@@ -25,6 +25,7 @@ test("commits all agent changes in a worktree", async () => {
     git(dir, "add", "a.txt");
     git(dir, "commit", "-m", "init");
 
+    const base = git(dir, "rev-parse", "HEAD");
     await writeFile(path.join(dir, "a.txt"), "a\nb\n", "utf8");
     await writeFile(path.join(dir, "b.txt"), "new\n", "utf8");
     const manager = new WorkspaceManager();
@@ -32,6 +33,10 @@ test("commits all agent changes in a worktree", async () => {
     assert.ok(commit);
     assert.equal(git(dir, "status", "--porcelain"), "");
     assert.match(git(dir, "log", "-1", "--format=%s"), /studio: test task/);
+    const patch = manager.patch(dir, base);
+    assert.match(patch, /b\.txt/);
+    assert.match(patch, /\+new/);
+    assert.match(patch, /\+b/);
     assert.equal(manager.commit(dir, "studio: again"), null);
   } finally {
     await rm(dir, { recursive: true, force: true });

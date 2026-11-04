@@ -15,8 +15,7 @@ docs/legacy/
 # runtime state
 .worktrees/
 studio.json
-studio.json.pre-import-*
-studio.json.corrupt-*
+studio.json.*
 .workbench/runtime/
 .workbench/**/*.lock
 .workbench/**/*.tmp
