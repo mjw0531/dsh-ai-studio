@@ -120,6 +120,10 @@ export async function beginRun(
         workspacePath: workspace?.path ?? null,
         commitSha: null,
         baseSha: workspace?.baseSha ?? null,
+        agentPreset: null,
+        approvalPolicy: null,
+        sandboxMode: null,
+        restrictedTools: [],
         diffStat: null,
         sessionId: null,
         status: "queued",
@@ -858,3 +862,25 @@ export async function getDispatchContext(
     });
   }
 
+
+export async function recordRunRuntime(
+  ctx: StoreContext,
+  runId: string,
+  runtime: {
+    agentPreset: string;
+    approvalPolicy: "ask" | "never";
+    sandboxMode: "read-only" | "workspace-write" | "danger-full-access";
+    restrictedTools: string[];
+  },
+): Promise<void> {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const run = state.runs.find((item) => item.id === runId);
+    if (run === undefined) return;
+    run.agentPreset = runtime.agentPreset;
+    run.approvalPolicy = runtime.approvalPolicy;
+    run.sandboxMode = runtime.sandboxMode;
+    run.restrictedTools = [...runtime.restrictedTools];
+    await ctx.save();
+  });
+}

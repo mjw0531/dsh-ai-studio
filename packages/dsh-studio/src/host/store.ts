@@ -171,6 +171,7 @@ import {
   completeRun as completeRunImpl,
   enforceContractScope as enforceContractScopeImpl,
   failRun as failRunImpl,
+  recordRunRuntime as recordRunRuntimeImpl,
 } from "./store/runs.js";
 import { getDispatchContext as getDispatchContextImpl } from "./store/runs.js";
 import {
@@ -746,6 +747,18 @@ export class StudioStore {
     },
   ): Promise<AgentRun> {
     return completeRunImpl(this.context, runId, input);
+  }
+
+  async recordRunRuntime(
+    runId: string,
+    runtime: {
+      agentPreset: string;
+      approvalPolicy: "ask" | "never";
+      sandboxMode: "read-only" | "workspace-write" | "danger-full-access";
+      restrictedTools: string[];
+    },
+  ): Promise<void> {
+    return recordRunRuntimeImpl(this.context, runId, runtime);
   }
 
   async failRun(runId: string, error: string): Promise<AgentRun> {

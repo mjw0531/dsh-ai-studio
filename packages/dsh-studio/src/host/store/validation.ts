@@ -177,6 +177,20 @@ function isAgentRun(value: unknown): value is AgentRun {
     (value.baseSha === null ||
       value.baseSha === undefined ||
       typeof value.baseSha === "string") &&
+    (value.agentPreset === null ||
+      value.agentPreset === undefined ||
+      typeof value.agentPreset === "string") &&
+    (value.approvalPolicy === null ||
+      value.approvalPolicy === undefined ||
+      value.approvalPolicy === "ask" ||
+      value.approvalPolicy === "never") &&
+    (value.sandboxMode === null ||
+      value.sandboxMode === undefined ||
+      value.sandboxMode === "read-only" ||
+      value.sandboxMode === "workspace-write" ||
+      value.sandboxMode === "danger-full-access") &&
+    (Array.isArray(value.restrictedTools) ||
+      value.restrictedTools === undefined) &&
     (value.diffStat === null || typeof value.diffStat === "string") &&
     (value.sessionId === null || typeof value.sessionId === "string") &&
     isAgentRunStatus(value.status) &&

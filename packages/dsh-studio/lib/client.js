@@ -5572,6 +5572,17 @@ function RunCard({ run }) {
       /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { className: "studio-faint", style: { marginLeft: "auto" }, children: formatDate(run.startedAt) })
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-run-body", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-faint", children: [
+        "\u9884\u8BBE ",
+        run.agentPreset ?? "\u672A\u8BB0\u5F55",
+        " \xB7 \u6C99\u7BB1",
+        " ",
+        run.sandboxMode ?? "\u672A\u8BB0\u5F55",
+        " \xB7 \u5BA1\u6279",
+        " ",
+        run.approvalPolicy ?? "\u672A\u8BB0\u5F55",
+        (run.restrictedTools?.length ?? 0) > 0 ? ` \xB7 \u9650\u5236 ${String(run.restrictedTools.length)} \u4E2A\u5DE5\u5177` : ""
+      ] }),
       run.error !== null ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "studio-alert", children: run.error }) : null,
       run.budgetWarning !== null ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "studio-alert", "data-tone": "warn", children: run.budgetWarning }) : null,
       run.status === "running" || run.status === "queued" ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "studio-faint", style: { fontSize: 11 }, children: "Agent \u6B63\u5728\u5DE5\u4F5C\uFF1B\u9875\u9762\u6BCF 4 \u79D2\u5237\u65B0\u4E00\u6B21\u3002" }) : null,

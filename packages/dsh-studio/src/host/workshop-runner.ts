@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import type { ProviderProfile, Role, Workshop } from "../shared/types.js";
+import { bindStudioRuntime, STUDIO_REVIEW_POLICY } from "./dispatcher.js";
 import type { AgentHandleLike, DispatcherContext } from "./dispatcher.js";
 import type { StudioStore } from "./store.js";
 
@@ -183,8 +184,7 @@ export class WorkshopRunner {
         meta: { cwd: context.project.repoPath ?? process.cwd() },
         agentOptions: selection,
         setup: async (agentCtx, agent) => {
-          await this.ctx.agentPresets.mount(agentCtx);
-          agent.session.append("approval/policy", { policy: "never" });
+          await bindStudioRuntime(this.ctx, agentCtx, agent, STUDIO_REVIEW_POLICY);
         },
       });
       handle.agent.followup({
@@ -228,8 +228,7 @@ export class WorkshopRunner {
         meta: { cwd: repoPath ?? process.cwd() },
         agentOptions: selection,
         setup: async (agentCtx, agent) => {
-          await this.ctx.agentPresets.mount(agentCtx);
-          agent.session.append("approval/policy", { policy: "never" });
+          await bindStudioRuntime(this.ctx, agentCtx, agent, STUDIO_REVIEW_POLICY);
         },
       });
       handle.agent.followup({

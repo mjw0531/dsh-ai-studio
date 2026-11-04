@@ -30,6 +30,7 @@ Studio 是 DSH 的即装即用工作台插件。改领域词、工作流或接�
 - **契约门禁**：代码 Run 改动模块契约文件、禁止路径，或越出允许的 src/test 路径时，必须 blocked + 「契约越界」决策；不能静默接受。
 - **闭环门禁**：连续失败 2 次必须同时生成 Architect 重拆 ticket（backlog），不能只留决策；集成/playtest ticket 用 `integration` 标记。
 - **评审门禁**：代码任务（有 worktree Run）done 前必须有验收人角色的独立评审 pass；评审只读，不改代码。
+- **执行 Agent 门禁**：worker/评审/Workshop 必须显式 `mount(agentCtx, "standard")` 并校验实际 id；评审/Workshop 必须 `read-only` 沙箱并拒绝 `write/edit/pwsh/bash`；`tools.restrict` 不可用时 fail closed，不派单。
 - **集成门禁**：每完成 3 个任务必须自动生成一张 backlog 集成/playtest ticket；只生成一次，不自动派单。
 - **文档门禁**：项目绑定 PRD/INVARIANTS/MODULES 时，任务 done 前必须 `docsSynced=true`。
 - **不可逆门禁**：`reversible=false` 的 Decision 批准时必须写结论和理由，否则拒绝。

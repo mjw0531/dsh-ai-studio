@@ -339,7 +339,7 @@ export function migrateState(value: unknown): StudioState {
   if (state.schemaVersion === 26) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 27,
       runs: state.runs.map((run) => ({
         ...run,
         commitSha: null,
@@ -351,6 +351,19 @@ export function migrateState(value: unknown): StudioState {
         baseCommit: null,
         verificationRunId: null,
         reviewId: null,
+      })),
+    };
+  }
+  if (state.schemaVersion === 27) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      runs: state.runs.map((run) => ({
+        ...run,
+        agentPreset: null,
+        approvalPolicy: null,
+        sandboxMode: null,
+        restrictedTools: [],
       })),
     };
   }

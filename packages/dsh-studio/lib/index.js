@@ -2,8 +2,8 @@
 import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 27;
-var STUDIO_PLUGIN_VERSION = "3.3.0";
+var STUDIO_SCHEMA_VERSION = 28;
+var STUDIO_PLUGIN_VERSION = "3.4.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -488,7 +488,7 @@ function migrateState(value) {
   if (state.schemaVersion === 26) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 27,
       runs: state.runs.map((run3) => ({
         ...run3,
         commitSha: null,
@@ -500,6 +500,19 @@ function migrateState(value) {
         baseCommit: null,
         verificationRunId: null,
         reviewId: null
+      }))
+    };
+  }
+  if (state.schemaVersion === 27) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      runs: state.runs.map((run3) => ({
+        ...run3,
+        agentPreset: null,
+        approvalPolicy: null,
+        sandboxMode: null,
+        restrictedTools: []
       }))
     };
   }
@@ -532,7 +545,7 @@ function isAgentRunStatus(value) {
   return value === "queued" || value === "running" || value === "succeeded" || value === "failed";
 }
 function isAgentRun(value) {
-  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.providerProfileId === null || typeof value.providerProfileId === "string") && (value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && (value.provider === null || typeof value.provider === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.branchName === null || typeof value.branchName === "string") && (value.workspacePath === null || typeof value.workspacePath === "string") && (value.commitSha === null || value.commitSha === void 0 || typeof value.commitSha === "string") && (value.baseSha === null || value.baseSha === void 0 || typeof value.baseSha === "string") && (value.diffStat === null || typeof value.diffStat === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord2(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.providerProfileId === null || typeof value.providerProfileId === "string") && (value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && (value.provider === null || typeof value.provider === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.branchName === null || typeof value.branchName === "string") && (value.workspacePath === null || typeof value.workspacePath === "string") && (value.commitSha === null || value.commitSha === void 0 || typeof value.commitSha === "string") && (value.baseSha === null || value.baseSha === void 0 || typeof value.baseSha === "string") && (value.agentPreset === null || value.agentPreset === void 0 || typeof value.agentPreset === "string") && (value.approvalPolicy === null || value.approvalPolicy === void 0 || value.approvalPolicy === "ask" || value.approvalPolicy === "never") && (value.sandboxMode === null || value.sandboxMode === void 0 || value.sandboxMode === "read-only" || value.sandboxMode === "workspace-write" || value.sandboxMode === "danger-full-access") && (Array.isArray(value.restrictedTools) || value.restrictedTools === void 0) && (value.diffStat === null || typeof value.diffStat === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord2(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
 }
 function isTask(value) {
   return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence) && (value.verifyCommand === null || value.verifyCommand === void 0 || typeof value.verifyCommand === "string") && (value.module === null || value.module === void 0 || typeof value.module === "string") && (value.contractRef === null || value.contractRef === void 0 || typeof value.contractRef === "string") && Array.isArray(value.requirementRefs) && value.requirementRefs.every((item) => typeof item === "string") && (value.kind === void 0 || value.kind === "new" || value.kind === "fix") && (value.integration === void 0 || typeof value.integration === "boolean") && (value.originTaskId === null || value.originTaskId === void 0 || typeof value.originTaskId === "string") && (value.docsSynced === void 0 || typeof value.docsSynced === "boolean") && (value.diagnosis === void 0 || typeof value.diagnosis === "string") && (value.plan === void 0 || typeof value.plan === "string");
@@ -3153,6 +3166,10 @@ async function beginRun(ctx, taskId, prompt, workspace, execution) {
       workspacePath: workspace?.path ?? null,
       commitSha: null,
       baseSha: workspace?.baseSha ?? null,
+      agentPreset: null,
+      approvalPolicy: null,
+      sandboxMode: null,
+      restrictedTools: [],
       diffStat: null,
       sessionId: null,
       status: "queued",
@@ -3754,6 +3771,18 @@ async function getDispatchContext(ctx, taskId) {
       module: module === void 0 ? null : structuredClone(module),
       providerProfile: providerProfile === null ? null : structuredClone(providerProfile)
     };
+  });
+}
+async function recordRunRuntime(ctx, runId, runtime) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const run3 = state.runs.find((item) => item.id === runId);
+    if (run3 === void 0) return;
+    run3.agentPreset = runtime.agentPreset;
+    run3.approvalPolicy = runtime.approvalPolicy;
+    run3.sandboxMode = runtime.sandboxMode;
+    run3.restrictedTools = [...runtime.restrictedTools];
+    await ctx.save();
   });
 }
 
@@ -5275,6 +5304,9 @@ var StudioStore = class {
   async completeRun(runId, input) {
     return completeRun(this.context, runId, input);
   }
+  async recordRunRuntime(runId, runtime) {
+    return recordRunRuntime(this.context, runId, runtime);
+  }
   async failRun(runId, error) {
     return failRun(this.context, runId, error);
   }
@@ -5896,6 +5928,77 @@ var WorkspaceManager = class {
 };
 
 // src/host/dispatcher.ts
+var WORKER_PRESET = "standard";
+var WORKER_SANDBOX = "workspace-write";
+var REVIEW_SANDBOX = "read-only";
+var WORKER_RESTRICTED = [
+  "subagent",
+  "subagent_fork",
+  "workflow",
+  "ask_user_question",
+  "create_goal",
+  "update_goal",
+  "get_goal",
+  "schedule_create",
+  "schedule_update",
+  "schedule_delete",
+  "schedule_list",
+  "todo_write",
+  "working_directory",
+  "plugin_manager",
+  "plugin_market",
+  "cordis_inspect",
+  "cordis_define",
+  "cordis_mount",
+  "cordis_unmount",
+  "cordis_list",
+  "cordis_read"
+];
+var REVIEW_RESTRICTED = [
+  ...WORKER_RESTRICTED,
+  "write",
+  "edit",
+  "pwsh",
+  "bash",
+  "present"
+];
+var STUDIO_WORKER_POLICY = {
+  sandboxMode: WORKER_SANDBOX,
+  restrictedTools: WORKER_RESTRICTED
+};
+var STUDIO_REVIEW_POLICY = {
+  sandboxMode: REVIEW_SANDBOX,
+  restrictedTools: REVIEW_RESTRICTED
+};
+async function bindStudioRuntime(ctx, agentCtx, agent, options) {
+  const mounted = await ctx.agentPresets.mount(agentCtx, WORKER_PRESET);
+  if (mounted.id !== WORKER_PRESET) {
+    throw new Error(`Agent preset mount returned ${mounted.id}, expected ${WORKER_PRESET}`);
+  }
+  if (ctx.approval?.setPolicy !== void 0) {
+    ctx.approval.setPolicy(agent, "never");
+  } else {
+    agent.session.append("approval/policy", { policy: "never" });
+  }
+  if (ctx.sandboxPolicy?.setSandboxMode !== void 0) {
+    ctx.sandboxPolicy.setSandboxMode(agent.session, options.sandboxMode);
+  } else {
+    agent.session.append("sandbox/mode", { mode: options.sandboxMode });
+  }
+  const tools = agentCtx.tools;
+  if (tools?.restrict === void 0) {
+    throw new Error(
+      "tools.restrict unavailable; refusing to run without a tool boundary"
+    );
+  }
+  tools.restrict({ deny: options.restrictedTools });
+  return {
+    agentPreset: WORKER_PRESET,
+    approvalPolicy: "never",
+    sandboxMode: options.sandboxMode,
+    restrictedTools: [...options.restrictedTools]
+  };
+}
 function changedFilesFromDiff(diffStat) {
   if (diffStat === null) return [];
   return diffStat.split("\n").map((line) => /^[ MARC?]{1,2} (\S.*)$/.exec(line)?.[1]?.trim() ?? "").filter(Boolean);
@@ -6167,8 +6270,10 @@ var AgentDispatcher = class {
         meta: { cwd: context.run.workspacePath },
         agentOptions: selection,
         setup: async (agentCtx, agent) => {
-          await this.ctx.agentPresets.mount(agentCtx);
-          agent.session.append("approval/policy", { policy: "never" });
+          await bindStudioRuntime(this.ctx, agentCtx, agent, {
+            sandboxMode: REVIEW_SANDBOX,
+            restrictedTools: REVIEW_RESTRICTED
+          });
         }
       });
       handle.agent.followup({
@@ -6241,14 +6346,16 @@ var AgentDispatcher = class {
   }
   async execute(run3, selection, workspace) {
     let handle = null;
+    let runtime = null;
     try {
       handle = await this.ctx.agents.create({
         sessionId: `run-${randomUUID6()}`,
         meta: { cwd: workspace?.path ?? process.cwd() },
         agentOptions: selection,
         setup: async (agentCtx, agent) => {
-          await this.ctx.agentPresets.mount(agentCtx);
-          agent.session.append("approval/policy", { policy: "never" });
+          runtime = await bindStudioRuntime(this.ctx, agentCtx, agent, {
+            ...STUDIO_WORKER_POLICY
+          });
         }
       });
       await this.store.attachRunSession(
@@ -6256,6 +6363,9 @@ var AgentDispatcher = class {
         handle.agent.session.id,
         selection.model
       );
+      if (runtime !== null) {
+        await this.store.recordRunRuntime(run3.id, runtime);
+      }
       handle.agent.followup({
         role: "user",
         content: [{ type: "text", text: run3.prompt }],
@@ -8047,8 +8157,7 @@ ${note.summary}
         meta: { cwd: context.project.repoPath ?? process.cwd() },
         agentOptions: selection,
         setup: async (agentCtx, agent) => {
-          await this.ctx.agentPresets.mount(agentCtx);
-          agent.session.append("approval/policy", { policy: "never" });
+          await bindStudioRuntime(this.ctx, agentCtx, agent, STUDIO_REVIEW_POLICY);
         }
       });
       handle.agent.followup({
@@ -8086,8 +8195,7 @@ ${note.summary}
         meta: { cwd: repoPath ?? process.cwd() },
         agentOptions: selection,
         setup: async (agentCtx, agent) => {
-          await this.ctx.agentPresets.mount(agentCtx);
-          agent.session.append("approval/policy", { policy: "never" });
+          await bindStudioRuntime(this.ctx, agentCtx, agent, STUDIO_REVIEW_POLICY);
         }
       });
       handle.agent.followup({

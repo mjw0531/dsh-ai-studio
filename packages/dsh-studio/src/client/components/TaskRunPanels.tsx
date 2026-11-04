@@ -267,6 +267,14 @@ export function RunCard({ run }: { run: AgentRun }) {
         </span>
       </summary>
       <div className="studio-run-body">
+        <div className="studio-faint">
+          预设 {run.agentPreset ?? "未记录"} · 沙箱{" "}
+          {run.sandboxMode ?? "未记录"} · 审批{" "}
+          {run.approvalPolicy ?? "未记录"}
+          {(run.restrictedTools?.length ?? 0) > 0
+            ? ` · 限制 ${String(run.restrictedTools.length)} 个工具`
+            : ""}
+        </div>
         {run.error !== null ? (
           <div className="studio-alert">{run.error}</div>
         ) : null}

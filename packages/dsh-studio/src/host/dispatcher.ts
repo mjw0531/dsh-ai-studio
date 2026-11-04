@@ -74,12 +74,112 @@ export interface TokenMeterLike {
   measure(session: unknown): { totalTokens: number };
 }
 
+export interface StudioApprovalLike {
+  setPolicy?(agent: AgentLike, policy: "ask" | "never"): void;
+}
+
+export interface StudioSandboxPolicyLike {
+  setSandboxMode?(session: AgentLike["session"], mode: "read-only" | "workspace-write"): void;
+}
+
 export interface DispatcherContext {
   agents: AgentsLike;
   agentPresets: AgentPresetsLike;
   agentDefaultModel: AgentDefaultModelLike;
   llm: LlmLike;
   tokenMeter: TokenMeterLike;
+  approval?: StudioApprovalLike;
+  sandboxPolicy?: StudioSandboxPolicyLike;
+}
+
+const WORKER_PRESET = "standard";
+const WORKER_SANDBOX = "workspace-write" as const;
+const REVIEW_SANDBOX = "read-only" as const;
+const WORKER_RESTRICTED = [
+  "subagent",
+  "subagent_fork",
+  "workflow",
+  "ask_user_question",
+  "create_goal",
+  "update_goal",
+  "get_goal",
+  "schedule_create",
+  "schedule_update",
+  "schedule_delete",
+  "schedule_list",
+  "todo_write",
+  "working_directory",
+  "plugin_manager",
+  "plugin_market",
+  "cordis_inspect",
+  "cordis_define",
+  "cordis_mount",
+  "cordis_unmount",
+  "cordis_list",
+  "cordis_read",
+];
+const REVIEW_RESTRICTED = [
+  ...WORKER_RESTRICTED,
+  "write",
+  "edit",
+  "pwsh",
+  "bash",
+  "present",
+];
+
+export const STUDIO_WORKER_POLICY = {
+  sandboxMode: WORKER_SANDBOX,
+  restrictedTools: WORKER_RESTRICTED,
+} as const;
+
+export const STUDIO_REVIEW_POLICY = {
+  sandboxMode: REVIEW_SANDBOX,
+  restrictedTools: REVIEW_RESTRICTED,
+} as const;
+
+interface StudioRuntime {
+  agentPreset: string;
+  approvalPolicy: "ask" | "never";
+  sandboxMode: "read-only" | "workspace-write" | "danger-full-access";
+  restrictedTools: string[];
+}
+
+export async function bindStudioRuntime(
+  ctx: DispatcherContext,
+  agentCtx: unknown,
+  agent: AgentLike,
+  options: {
+    sandboxMode: "read-only" | "workspace-write";
+    restrictedTools: string[];
+  },
+): Promise<StudioRuntime> {
+  const mounted = await ctx.agentPresets.mount(agentCtx, WORKER_PRESET);
+  if (mounted.id !== WORKER_PRESET) {
+    throw new Error(`Agent preset mount returned ${mounted.id}, expected ${WORKER_PRESET}`);
+  }
+  if (ctx.approval?.setPolicy !== undefined) {
+    ctx.approval.setPolicy(agent, "never");
+  } else {
+    agent.session.append("approval/policy", { policy: "never" });
+  }
+  if (ctx.sandboxPolicy?.setSandboxMode !== undefined) {
+    ctx.sandboxPolicy.setSandboxMode(agent.session, options.sandboxMode);
+  } else {
+    agent.session.append("sandbox/mode", { mode: options.sandboxMode });
+  }
+  const tools = (agentCtx as { tools?: { restrict?(filter: { deny: string[] }): unknown } }).tools;
+  if (tools?.restrict === undefined) {
+    throw new Error(
+      "tools.restrict unavailable; refusing to run without a tool boundary",
+    );
+  }
+  tools.restrict({ deny: options.restrictedTools });
+  return {
+    agentPreset: WORKER_PRESET,
+    approvalPolicy: "never",
+    sandboxMode: options.sandboxMode,
+    restrictedTools: [...options.restrictedTools],
+  };
 }
 
 interface RunContext {
@@ -472,8 +572,10 @@ export class AgentDispatcher {
         meta: { cwd: context.run.workspacePath },
         agentOptions: selection,
         setup: async (agentCtx, agent) => {
-          await this.ctx.agentPresets.mount(agentCtx);
-          agent.session.append("approval/policy", { policy: "never" });
+          await bindStudioRuntime(this.ctx, agentCtx, agent, {
+            sandboxMode: REVIEW_SANDBOX,
+            restrictedTools: REVIEW_RESTRICTED,
+          });
         },
       });
       handle.agent.followup({
@@ -582,16 +684,16 @@ export class AgentDispatcher {
     workspace?: TaskWorkspace,
   ): Promise<void> {
     let handle: AgentHandleLike | null = null;
+    let runtime: StudioRuntime | null = null;
     try {
       handle = await this.ctx.agents.create({
         sessionId: `run-${randomUUID()}`,
         meta: { cwd: workspace?.path ?? process.cwd() },
         agentOptions: selection,
         setup: async (agentCtx, agent) => {
-          await this.ctx.agentPresets.mount(agentCtx);
-          // Unattended Studio runs cannot answer approval prompts. Pin the
-          // session to "never" so tools fail closed instead of hanging.
-          agent.session.append("approval/policy", { policy: "never" });
+          runtime = await bindStudioRuntime(this.ctx, agentCtx, agent, {
+            ...STUDIO_WORKER_POLICY,
+          });
         },
       });
       await this.store.attachRunSession(
@@ -599,6 +701,9 @@ export class AgentDispatcher {
         handle.agent.session.id,
         selection.model,
       );
+      if (runtime !== null) {
+        await this.store.recordRunRuntime(run.id, runtime);
+      }
       handle.agent.followup({
         role: "user",
         content: [{ type: "text", text: run.prompt }],
