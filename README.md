@@ -77,6 +77,33 @@ Release 页面下载 `dsh-ai-studio-<version>.tgz`，在 Add plugin 里填 tarba
 
 升级插件后必须完全退出 DSH 再启动；不需要重装。
 
+## 发布与商店更新
+
+发布链路是：
+
+```text
+tag vX.Y.Z
+  → GitHub Actions publish
+  → npm dsh-ai-studio@X.Y.Z
+  → awesome-dsh-plugin 目录刷新
+  → dshmarket 更新检查
+```
+
+只打 GitHub Release 不会更新市场。市场安装源是 npm。
+
+发布前：
+
+```powershell
+pnpm release:check
+pnpm check
+```
+
+发布 workflow：`.github/workflows/publish.yml`，由 tag 触发，也可以手动指定 tag。
+
+需要仓库 secret `NPM_TOKEN`，且 token 必须对 `dsh-ai-studio` 有发布权限。
+
+npm 发布后，市场目录来自 [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)；如果目录未刷新，向该仓库提交条目的 PR，不要向 dshmarket 仓库提交插件。
+
 ## 数据放在哪
 
 ```text

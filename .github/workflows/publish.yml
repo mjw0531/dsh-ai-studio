@@ -1,0 +1,43 @@
+name: publish
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, e.g. v3.12.0"
+        required: true
+        default: "v3.12.0"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.28.5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: "https://registry.npmjs.org"
+      - run: pnpm install --frozen-lockfile
+      - name: Verify, build, and test
+        run: pnpm --filter dsh-ai-studio check
+      - name: Verify generated lib is committed
+        run: git diff --exit-code -- packages/dsh-studio/lib
+      - name: Verify tag matches package version
+        run: node tools/check-release-version.mjs "${{ inputs.tag || github.ref_name }}"
+      - name: Publish to npm
+        run: npm publish ./packages/dsh-studio --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

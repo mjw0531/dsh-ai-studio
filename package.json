@@ -36,7 +36,8 @@
     "test": "pnpm --filter dsh-ai-studio test",
     "check": "pnpm check:docs && pnpm typecheck && pnpm test",
     "check:clean": "node tools/check-repo-clean.mjs",
-    "check:docs": "node tools/check-docs.mjs"
+    "check:docs": "node tools/check-docs.mjs",
+    "release:check": "node tools/check-release-version.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
