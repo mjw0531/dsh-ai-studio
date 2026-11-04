@@ -235,17 +235,25 @@ export async function transitionTask(
           latestCodeRun?.commitSha === undefined
             ? null
             : latestCodeRun.commitSha;
+        const latestReview = [...state.reviews]
+          .filter((review) => review.taskId === task.id)
+          .sort((left, right) =>
+            right.createdAt.localeCompare(left.createdAt),
+          )[0];
+        const reviewPassed =
+          boundCommit === null
+            ? state.reviews.some(
+                (review) =>
+                  review.taskId === task.id &&
+                  review.verdict === "pass",
+              )
+            : latestReview?.verdict === "pass" &&
+              latestReview.runId === latestCodeRun?.id;
         if (
           project?.repoPath !== null &&
           project?.repoPath !== undefined &&
           hasCodeRun &&
-          !state.reviews.some(
-            (review) =>
-              review.taskId === task.id &&
-              review.verdict === "pass" &&
-              (boundCommit === null ||
-                review.runId === latestCodeRun?.id),
-          )
+          !reviewPassed
         ) {
           throw new StudioStoreError(
             "review_required",

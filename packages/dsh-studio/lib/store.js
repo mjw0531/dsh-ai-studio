@@ -2703,9 +2703,13 @@ async function transitionTask(ctx, taskId, next) {
       )[0];
       const hasCodeRun = latestCodeRun !== void 0;
       const boundCommit = latestCodeRun?.commitSha === null || latestCodeRun?.commitSha === void 0 ? null : latestCodeRun.commitSha;
-      if (project?.repoPath !== null && project?.repoPath !== void 0 && hasCodeRun && !state.reviews.some(
-        (review) => review.taskId === task.id && review.verdict === "pass" && (boundCommit === null || review.runId === latestCodeRun?.id)
-      )) {
+      const latestReview = [...state.reviews].filter((review) => review.taskId === task.id).sort(
+        (left, right) => right.createdAt.localeCompare(left.createdAt)
+      )[0];
+      const reviewPassed = boundCommit === null ? state.reviews.some(
+        (review) => review.taskId === task.id && review.verdict === "pass"
+      ) : latestReview?.verdict === "pass" && latestReview.runId === latestCodeRun?.id;
+      if (project?.repoPath !== null && project?.repoPath !== void 0 && hasCodeRun && !reviewPassed) {
         throw new StudioStoreError(
           "review_required",
           boundCommit === null ? "\u4EE3\u7801\u4EFB\u52A1\u5B8C\u6210\u524D\u5FC5\u987B\u6709\u4E00\u6B21\u901A\u8FC7\u7684\u72EC\u7ACB\u8BC4\u5BA1" : "\u5F53\u524D\u63D0\u4EA4\u7F3A\u5C11\u901A\u8FC7\u7684\u72EC\u7ACB\u8BC4\u5BA1\uFF0C\u8BF7\u91CD\u65B0\u8BC4\u5BA1",
