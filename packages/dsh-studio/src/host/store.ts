@@ -40,7 +40,12 @@ import type {
   ContractChange,
   CreateDecisionInput,
   CreateModuleInput,
+  CreateProjectFreezeInput,
+  CreateRequirementDecisionInput,
   DecideDecisionInput,
+  FreezeKind,
+  ProjectFreeze,
+  RequirementDecision,
   Decision,
   IndependentReview,
   Module,
@@ -210,6 +215,13 @@ import {
 } from "./store/catalog.js";
 import { importProjectSlice as importProjectSliceImpl } from "./store/import.js";
 import {
+  assertFreezeCurrent as assertFreezeCurrentImpl,
+  createFreeze as createFreezeImpl,
+  createRequirementDecision as createRequirementDecisionImpl,
+  listFreezes as listFreezesImpl,
+  listRequirementDecisions as listRequirementDecisionsImpl,
+} from "./store/freezes.js";
+import {
   defaultStageChecklist,
   defaultTriggerRules,
   isRecord,
@@ -364,6 +376,14 @@ export class StudioStore {
       const stageGates = project === null
         ? []
         : state.stageGates.filter((gate) => gate.projectId === project.id);
+      const freezes = project === null
+        ? []
+        : state.freezes.filter((freeze) => freeze.projectId === project.id);
+      const requirementDecisions = project === null
+        ? []
+        : state.requirementDecisions.filter(
+            (decision) => decision.projectId === project.id,
+          );
       const triggers = project === null
         ? []
         : state.triggers
@@ -476,6 +496,8 @@ export class StudioStore {
         activeProjectId: state.activeProjectId,
         project,
         stageGates,
+        freezes,
+        requirementDecisions,
         triggers,
         threads,
         workshops,
@@ -522,6 +544,35 @@ export class StudioStore {
         },
       };
     });
+  }
+
+  async createFreeze(
+    projectId: string,
+    input: CreateProjectFreezeInput,
+  ): Promise<ProjectFreeze> {
+    return createFreezeImpl(this.context, projectId, input);
+  }
+
+  listFreezes(projectId: string): ProjectFreeze[] {
+    return listFreezesImpl(this.requireState(), projectId);
+  }
+
+  async assertFreezeCurrent(
+    projectId: string,
+    kind: FreezeKind,
+  ): Promise<ProjectFreeze> {
+    return assertFreezeCurrentImpl(this.context, projectId, kind);
+  }
+
+  createRequirementDecision(
+    projectId: string,
+    input: CreateRequirementDecisionInput,
+  ): RequirementDecision {
+    return createRequirementDecisionImpl(this.context, projectId, input);
+  }
+
+  listRequirementDecisions(projectId: string): RequirementDecision[] {
+    return listRequirementDecisionsImpl(this.requireState(), projectId);
   }
 
   async importProjectSlice(

@@ -14,7 +14,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 // src/shared/types.ts
-var STUDIO_PLUGIN_VERSION = "3.8.0";
+var STUDIO_PLUGIN_VERSION = "3.9.0";
 
 // src/host/store/core.ts
 var StudioStoreError = class extends Error {
@@ -54,6 +54,8 @@ function sliceForProject(state, projectId) {
     schemaVersion: state.schemaVersion,
     project,
     stageGates: byProject(state.stageGates),
+    freezes: byProject(state.freezes),
+    requirementDecisions: byProject(state.requirementDecisions),
     triggers: byProject(state.triggers),
     threads: byProject(state.threads),
     workshops: byProject(state.workshops),

@@ -1,20 +1,20 @@
 // src/host/store.ts
 import { randomUUID as randomUUID5 } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync as existsSync2 } from "node:fs";
 import {
   copyFile,
   mkdir,
-  readFile,
+  readFile as readFile2,
   rename,
   rm,
   writeFile
 } from "node:fs/promises";
 import os from "node:os";
-import path from "node:path";
+import path2 from "node:path";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 31;
-var STUDIO_PLUGIN_VERSION = "3.8.0";
+var STUDIO_SCHEMA_VERSION = 32;
+var STUDIO_PLUGIN_VERSION = "3.9.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -428,11 +428,23 @@ function migrateState(value) {
   if (state.schemaVersion === 30) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 31,
       tasks: state.tasks.map((task) => ({
         ...task,
         timeoutSeconds: null,
         riskTier: "normal"
+      }))
+    };
+  }
+  if (state.schemaVersion === 31) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      freezes: [],
+      requirementDecisions: [],
+      stageGates: state.stageGates.map((gate) => ({
+        ...gate,
+        freezeId: null
       }))
     };
   }
@@ -482,6 +494,12 @@ function isDecisionStatus(value) {
 function isDecision(value) {
   return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && (value.taskId === null || typeof value.taskId === "string") && (value.runId === null || typeof value.runId === "string") && typeof value.title === "string" && typeof value.context === "string" && Array.isArray(value.options) && typeof value.recommendation === "string" && (value.reversible === void 0 || typeof value.reversible === "boolean") && (value.adrDraft === null || value.adrDraft === void 0 || typeof value.adrDraft === "string") && (value.adrPath === null || value.adrPath === void 0 || typeof value.adrPath === "string") && isDecisionStatus(value.status) && typeof value.decision === "string" && typeof value.note === "string" && typeof value.decidedBy === "string" && (value.tokenCost === null || typeof value.tokenCost === "number") && typeof value.createdAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string");
 }
+function isProjectFreeze(value) {
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && (value.kind === "prd" || value.kind === "architecture") && typeof value.version === "string" && typeof value.docPath === "string" && typeof value.docHash === "string" && (value.domainModelPath === null || typeof value.domainModelPath === "string") && typeof value.summary === "string" && Array.isArray(value.openQuestions) && value.openQuestions.every((item) => typeof item === "string") && Array.isArray(value.checklist) && value.checklist.every(isStageCheckItem) && (value.waiverReason === null || typeof value.waiverReason === "string") && typeof value.frozenBy === "string" && typeof value.frozenAt === "string";
+}
+function isRequirementDecision(value) {
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && (value.freezeId === null || typeof value.freezeId === "string") && typeof value.title === "string" && typeof value.source === "string" && typeof value.recommendation === "string" && (value.status === "accepted" || value.status === "rejected" || value.status === "pending") && typeof value.rationale === "string" && typeof value.createdAt === "string" && (value.decidedAt === null || typeof value.decidedAt === "string");
+}
 function isStageGateStatus(value) {
   return value === "pending" || value === "approved" || value === "rejected";
 }
@@ -495,7 +513,7 @@ function isStageArtifact(value) {
   return isRecord2(value) && typeof value.id === "string" && isStageArtifactKind(value.kind) && typeof value.label === "string" && typeof value.path === "string";
 }
 function isStageGate(value) {
-  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && isProjectStage(value.stage) && isStageGateStatus(value.status) && Array.isArray(value.checklist) && value.checklist.every(isStageCheckItem) && Array.isArray(value.artifacts) && value.artifacts.every(isStageArtifact) && typeof value.note === "string" && (value.decisionId === null || typeof value.decisionId === "string") && typeof value.approvedBy === "string" && (value.approvedAt === null || typeof value.approvedAt === "string") && (value.waiverReason === null || typeof value.waiverReason === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && isProjectStage(value.stage) && isStageGateStatus(value.status) && Array.isArray(value.checklist) && value.checklist.every(isStageCheckItem) && Array.isArray(value.artifacts) && value.artifacts.every(isStageArtifact) && typeof value.note === "string" && (value.decisionId === null || typeof value.decisionId === "string") && (value.freezeId === null || value.freezeId === void 0 || typeof value.freezeId === "string") && typeof value.approvedBy === "string" && (value.approvedAt === null || typeof value.approvedAt === "string") && (value.waiverReason === null || typeof value.waiverReason === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
 }
 function isTriggerSource(value) {
   return value === "manual" || value === "github" || value === "ci" || value === "im" || value === "email";
@@ -551,11 +569,17 @@ function assertState(value) {
   if (typeof value.companyName !== "string" || value.companyName.trim() === "") {
     throw new Error("Studio state must contain a companyName");
   }
-  if (!Array.isArray(value.projects) || !Array.isArray(value.stageGates) || !Array.isArray(value.triggers) || !Array.isArray(value.threads) || !Array.isArray(value.workshops) || !Array.isArray(value.providerProfiles) || !Array.isArray(value.prototypeDemos) || !Array.isArray(value.roles) || !Array.isArray(value.modules) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.runs) || !Array.isArray(value.branches) || !Array.isArray(value.contractChanges) || !Array.isArray(value.decisions) || !Array.isArray(value.verifications) || !Array.isArray(value.reviews) || !Array.isArray(value.events)) {
+  if (!Array.isArray(value.projects) || !Array.isArray(value.stageGates) || !Array.isArray(value.freezes) || !Array.isArray(value.requirementDecisions) || !Array.isArray(value.triggers) || !Array.isArray(value.threads) || !Array.isArray(value.workshops) || !Array.isArray(value.providerProfiles) || !Array.isArray(value.prototypeDemos) || !Array.isArray(value.roles) || !Array.isArray(value.modules) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.runs) || !Array.isArray(value.branches) || !Array.isArray(value.contractChanges) || !Array.isArray(value.decisions) || !Array.isArray(value.verifications) || !Array.isArray(value.reviews) || !Array.isArray(value.events)) {
     throw new Error("Studio state collections are missing");
   }
   if (!value.projects.every(isProject)) {
     throw new Error("Studio state contains an invalid project");
+  }
+  if (!value.freezes.every(isProjectFreeze)) {
+    throw new Error("Studio state contains an invalid freeze");
+  }
+  if (!value.requirementDecisions.every(isRequirementDecision)) {
+    throw new Error("Studio state contains an invalid requirement decision");
   }
   if (!value.stageGates.every(isStageGate)) {
     throw new Error("Studio state contains an invalid stage gate");
@@ -1495,6 +1519,8 @@ function createSeedState(now) {
     activeProjectId: project.id,
     projects: [project],
     stageGates: [],
+    freezes: [],
+    requirementDecisions: [],
     triggers: [],
     threads: [],
     workshops: [],
@@ -3483,12 +3509,12 @@ async function enforceContractScope(ctx, taskId, runId, changedFiles) {
       if (file === "") return false;
       if (contract !== "" && file === contract) return true;
       if (forbidden.some(
-        (path2) => file === path2 || file.startsWith(`${path2}/`)
+        (path3) => file === path3 || file.startsWith(`${path3}/`)
       )) {
         return true;
       }
       if (allowed.length > 0 && (file.startsWith("src/") || file.startsWith("test/")) && !allowed.some(
-        (path2) => file === path2 || file.startsWith(`${path2}/`)
+        (path3) => file === path3 || file.startsWith(`${path3}/`)
       )) {
         return true;
       }
@@ -4328,6 +4354,227 @@ async function decideDecision(ctx, decisionId, input) {
 }
 
 // src/host/store/projects.ts
+import { existsSync } from "node:fs";
+
+// src/host/store/freezes.ts
+import { createHash } from "node:crypto";
+import { readFile, stat } from "node:fs/promises";
+import path from "node:path";
+var PRD_CHECKS = [
+  "\u6838\u5FC3\u5FAA\u73AF/\u72B6\u6001\u8F6C\u6362\u5DF2\u5B9A\u4E49",
+  "\u9996\u5207\u7247\u8303\u56F4\u4E0E\u975E\u76EE\u6807\u5DF2\u5199",
+  "\u6BCF\u6761\u9700\u6C42\u6709\u53EF\u89C2\u5BDF\u7684\u9A8C\u6536\u53E3\u5F84",
+  "\u9886\u57DF\u6A21\u578B\u5DF2\u767B\u8BB0\u5E76\u53EF\u5B9A\u4F4D",
+  "\u672A\u51B3\u95EE\u9898\u90FD\u6709 Owner \u548C\u671F\u9650",
+  "\u9700\u6C42 ID \u53EF\u8FFD\u6EAF\u5230\u6A21\u5757/\u4EFB\u52A1"
+];
+var ARCH_CHECKS = [
+  "\u6A21\u5757\u8FB9\u754C\u4E0E\u4F9D\u8D56\u65B9\u5411\u5DF2\u5199",
+  "\u5931\u8D25\u6A21\u5F0F\u4E0E\u6062\u590D\u7B56\u7565\u5DF2\u5199",
+  "\u6D4B\u8BD5\u7B56\u7565\u4E0E\u9A8C\u6536\u547D\u4EE4\u5DF2\u5B9A\u4E49",
+  "\u9996\u4E2A\u5782\u76F4\u5207\u7247\u7684\u98CE\u9669\u5DF2\u5217\u51FA",
+  "\u67B6\u6784\u6587\u6863\u4E0E ADR \u5DF2\u767B\u8BB0"
+];
+function defaultChecklist(kind) {
+  return (kind === "prd" ? PRD_CHECKS : ARCH_CHECKS).map((text) => ({
+    id: newId("check"),
+    text,
+    done: false
+  }));
+}
+function resolveInside(repoPath, relative) {
+  const root = path.resolve(repoPath);
+  const target = path.resolve(root, relative);
+  if (target !== root && !target.startsWith(`${root}${path.sep}`)) {
+    throw new StudioStoreError(
+      "freeze_path_outside_repo",
+      "\u51BB\u7ED3\u6587\u6863\u5FC5\u987B\u4F4D\u4E8E\u9879\u76EE\u4ED3\u5E93\u5185",
+      400
+    );
+  }
+  return target;
+}
+async function hashFile(file) {
+  const info = await stat(file).catch(() => null);
+  if (info === null || !info.isFile()) {
+    throw new StudioStoreError(
+      "freeze_doc_missing",
+      `\u51BB\u7ED3\u6587\u6863\u4E0D\u5B58\u5728\uFF1A${file}`,
+      404
+    );
+  }
+  return createHash("sha256").update(await readFile(file)).digest("hex");
+}
+function latestFreeze(state, projectId, kind) {
+  return [...state.freezes].filter(
+    (freeze) => freeze.projectId === projectId && freeze.kind === kind
+  ).sort((left, right) => right.frozenAt.localeCompare(left.frozenAt))[0] ?? null;
+}
+async function createFreeze(ctx, projectId, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const project = findProject(state, projectId);
+    if (project.repoPath === null) {
+      throw new StudioStoreError(
+        "repo_required",
+        "\u51BB\u7ED3 PRD/\u67B6\u6784\u524D\u5FC5\u987B\u5148\u7ED1\u5B9A\u9879\u76EE\u4ED3\u5E93",
+        409
+      );
+    }
+    if (!/^v[0-9]+(?:\.[0-9]+)*$/.test(input.version)) {
+      throw new StudioStoreError(
+        "invalid_version",
+        "\u51BB\u7ED3\u7248\u672C\u53F7\u5FC5\u987B\u5F62\u5982 v1 \u6216 v1.1",
+        400
+      );
+    }
+    const kind = input.kind;
+    if (kind !== "prd" && kind !== "architecture") {
+      throw new StudioStoreError("invalid_kind", "\u51BB\u7ED3\u7C7B\u578B\u65E0\u6548", 400);
+    }
+    if (state.freezes.some(
+      (freeze2) => freeze2.projectId === projectId && freeze2.kind === kind && freeze2.version === input.version
+    )) {
+      throw new StudioStoreError(
+        "freeze_version_exists",
+        `\u7248\u672C ${input.version} \u5DF2\u51BB\u7ED3`,
+        409
+      );
+    }
+    const docPath = requiredText(input.docPath, "docPath", 1e3);
+    const absolute = resolveInside(project.repoPath, docPath);
+    const docHash = await hashFile(absolute);
+    const domainModelPath = input.domainModelPath === null || input.domainModelPath === void 0 ? null : requiredText(input.domainModelPath, "domainModelPath", 1e3);
+    if (kind === "prd" && domainModelPath === null) {
+      throw new StudioStoreError(
+        "domain_model_required",
+        "\u51BB\u7ED3 PRD \u524D\u5FC5\u987B\u767B\u8BB0\u9886\u57DF\u6A21\u578B\u8DEF\u5F84",
+        400
+      );
+    }
+    if (domainModelPath !== null) {
+      await hashFile(resolveInside(project.repoPath, domainModelPath));
+    }
+    const checklist = input.checklist === void 0 ? defaultChecklist(kind) : input.checklist.map((item) => ({
+      ...item,
+      text: requiredText(item.text, "checklist.text", 500)
+    }));
+    const waiverReason = input.waiverReason === null || input.waiverReason === void 0 ? null : requiredText(input.waiverReason, "waiverReason", 1e3);
+    if (checklist.length === 0 || checklist.some((item) => !item.done)) {
+      if (waiverReason === null) {
+        throw new StudioStoreError(
+          "freeze_checklist_incomplete",
+          "\u51BB\u7ED3\u524D\u5FC5\u987B\u5B8C\u6210\u68C0\u67E5\u9879\uFF0C\u6216\u586B\u5199 Owner \u8C41\u514D\u7406\u7531",
+          409
+        );
+      }
+    }
+    const at = ctx.now();
+    const freeze = {
+      id: newId("freeze"),
+      projectId,
+      kind,
+      version: input.version,
+      docPath,
+      docHash,
+      domainModelPath,
+      summary: input.summary?.trim() ?? "",
+      openQuestions: textList(input.openQuestions, "openQuestions", 30),
+      checklist,
+      waiverReason,
+      frozenBy: "Owner",
+      frozenAt: at
+    };
+    state.freezes.push(freeze);
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "freeze.created",
+      at,
+      projectId,
+      payload: {
+        freezeId: freeze.id,
+        kind,
+        version: freeze.version,
+        docHash: freeze.docHash,
+        waiver: waiverReason !== null
+      }
+    });
+    await ctx.save();
+    return structuredClone(freeze);
+  });
+}
+async function assertFreezeCurrent(ctx, projectId, kind) {
+  const state = ctx.requireState();
+  const project = findProject(state, projectId);
+  if (project.repoPath === null) {
+    throw new StudioStoreError(
+      "repo_required",
+      "\u9879\u76EE\u8FD8\u6CA1\u6709\u7ED1\u5B9A\u4EE3\u7801\u4ED3\u5E93\uFF0C\u4E0D\u80FD\u6821\u9A8C\u51BB\u7ED3\u7248\u672C",
+      409
+    );
+  }
+  const freeze = latestFreeze(state, projectId, kind);
+  if (freeze === null) {
+    throw new StudioStoreError(
+      "freeze_required",
+      kind === "prd" ? "\u8FDB\u5165\u67B6\u6784\u8BBE\u8BA1\u524D\u5FC5\u987B\u5148\u51BB\u7ED3 PRD" : "\u8FDB\u5165\u5F00\u53D1\u524D\u5FC5\u987B\u5148\u51BB\u7ED3\u67B6\u6784",
+      409
+    );
+  }
+  const current = await hashFile(
+    resolveInside(project.repoPath, freeze.docPath)
+  );
+  if (current !== freeze.docHash) {
+    throw new StudioStoreError(
+      "freeze_drift",
+      `${kind === "prd" ? "PRD" : "\u67B6\u6784"}\u6587\u4EF6\u5728\u51BB\u7ED3\u540E\u88AB\u4FEE\u6539\uFF1B\u8BF7\u521B\u5EFA\u65B0\u7248\u672C\u6216\u53D8\u66F4\u5355`,
+      409
+    );
+  }
+  return freeze;
+}
+function listFreezes(state, projectId) {
+  return state.freezes.filter((freeze) => freeze.projectId === projectId).map((freeze) => structuredClone(freeze));
+}
+function listRequirementDecisions(state, projectId) {
+  return state.requirementDecisions.filter((decision) => decision.projectId === projectId).map((decision) => structuredClone(decision));
+}
+function createRequirementDecision(ctx, projectId, input) {
+  const state = ctx.requireState();
+  findProject(state, projectId);
+  const at = ctx.now();
+  const status = input.status ?? "pending";
+  if (status !== "accepted" && status !== "rejected" && status !== "pending") {
+    throw new StudioStoreError("invalid_status", "\u9700\u6C42\u51B3\u7B56\u72B6\u6001\u65E0\u6548", 400);
+  }
+  const decision = {
+    id: newId("rdec"),
+    projectId,
+    freezeId: input.freezeId ?? null,
+    title: requiredText(input.title, "title", 200),
+    source: requiredText(input.source, "source", 120),
+    recommendation: requiredText(
+      input.recommendation,
+      "recommendation",
+      4e3
+    ),
+    status,
+    rationale: input.rationale?.trim() ?? "",
+    createdAt: at,
+    decidedAt: status === "pending" ? null : at
+  };
+  state.requirementDecisions.push(decision);
+  state.updatedAt = at;
+  ctx.recordEvent(state, {
+    type: "requirement.decided",
+    at,
+    projectId,
+    payload: { decisionId: decision.id, status, source: decision.source }
+  });
+  return decision;
+}
+
+// src/host/store/projects.ts
 async function createProject(ctx, input) {
   return ctx.runExclusive(async () => {
     const state = ctx.requireState();
@@ -4462,6 +4709,7 @@ async function getStageGate(ctx, projectId, stage) {
         artifacts: [],
         note: "",
         decisionId: null,
+        freezeId: null,
         approvedBy: "",
         approvedAt: null,
         waiverReason: null,
@@ -4532,6 +4780,7 @@ async function approveStageGate(ctx, projectId, stage, input = {}) {
       "waiverReason",
       1e3
     );
+    const freeze = project.repoPath === null || !existsSync(project.repoPath) ? null : stage === "architecture" ? await assertFreezeCurrent(ctx, projectId, "prd") : stage === "development" ? await assertFreezeCurrent(ctx, projectId, "architecture") : null;
     const missingDemo = stage === "development" && !gate.artifacts.some((artifact) => artifact.kind === "demo") && !state.prototypeDemos.some(
       (demo) => demo.projectId === projectId && demo.result === "passed"
     );
@@ -4555,6 +4804,7 @@ async function approveStageGate(ctx, projectId, stage, input = {}) {
     gate.approvedBy = "Owner";
     gate.approvedAt = at;
     gate.waiverReason = (incomplete || missingDemo) && waiverReason !== "" ? waiverReason : null;
+    gate.freezeId = freeze?.id ?? null;
     gate.updatedAt = at;
     project.stage = stage;
     project.updatedAt = at;
@@ -4931,6 +5181,8 @@ async function importProjectSlice(ctx, slice, repoPath) {
     };
     state.projects.push(project);
     state.stageGates.push(...slice.stageGates);
+    state.freezes.push(...slice.freezes);
+    state.requirementDecisions.push(...slice.requirementDecisions);
     state.triggers.push(...slice.triggers);
     state.threads.push(...slice.threads);
     state.workshops.push(...slice.workshops);
@@ -4964,11 +5216,11 @@ async function importProjectSlice(ctx, slice, repoPath) {
 function defaultStudioDataDir() {
   const override = process.env.DSH_STUDIO_DATA_DIR?.trim();
   if (override !== void 0 && override !== "") {
-    return path.resolve(override);
+    return path2.resolve(override);
   }
   const home = process.env.DSH_HOME?.trim();
-  return path.join(
-    home !== void 0 && home !== "" ? home : path.join(os.homedir(), ".dsh"),
+  return path2.join(
+    home !== void 0 && home !== "" ? home : path2.join(os.homedir(), ".dsh"),
     "studio"
   );
 }
@@ -4988,7 +5240,7 @@ var StudioStore = class {
   context;
   constructor(options = {}) {
     this.dataDir = options.dataDir ?? defaultStudioDataDir();
-    this.file = path.join(this.dataDir, "studio.json");
+    this.file = path2.join(this.dataDir, "studio.json");
     this.now = options.now ?? (() => /* @__PURE__ */ new Date());
     this.context = {
       runExclusive: (work) => this.runExclusive(work),
@@ -5060,7 +5312,7 @@ var StudioStore = class {
         );
       }
       const backup = `${this.file}.pre-import-${String(Date.now())}`;
-      if (existsSync(this.file)) {
+      if (existsSync2(this.file)) {
         await copyFile(this.file, backup);
       }
       this.state = structuredClone(candidate);
@@ -5074,6 +5326,10 @@ var StudioStore = class {
       const state = this.requireState();
       const project = pickProject(state, projectId);
       const stageGates = project === null ? [] : state.stageGates.filter((gate) => gate.projectId === project.id);
+      const freezes = project === null ? [] : state.freezes.filter((freeze) => freeze.projectId === project.id);
+      const requirementDecisions = project === null ? [] : state.requirementDecisions.filter(
+        (decision) => decision.projectId === project.id
+      );
       const triggers = project === null ? [] : state.triggers.filter((trigger) => trigger.projectId === project.id).sort(
         (left, right) => right.createdAt.localeCompare(left.createdAt)
       );
@@ -5135,6 +5391,8 @@ var StudioStore = class {
         activeProjectId: state.activeProjectId,
         project,
         stageGates,
+        freezes,
+        requirementDecisions,
         triggers,
         threads,
         workshops,
@@ -5181,6 +5439,21 @@ var StudioStore = class {
         }
       };
     });
+  }
+  async createFreeze(projectId, input) {
+    return createFreeze(this.context, projectId, input);
+  }
+  listFreezes(projectId) {
+    return listFreezes(this.requireState(), projectId);
+  }
+  async assertFreezeCurrent(projectId, kind) {
+    return assertFreezeCurrent(this.context, projectId, kind);
+  }
+  createRequirementDecision(projectId, input) {
+    return createRequirementDecision(this.context, projectId, input);
+  }
+  listRequirementDecisions(projectId) {
+    return listRequirementDecisions(this.requireState(), projectId);
   }
   async importProjectSlice(slice, repoPath) {
     return importProjectSlice(this.context, slice, repoPath);
@@ -5277,9 +5550,9 @@ var StudioStore = class {
   }
   async externalizeRunOutput(runId, output) {
     try {
-      const dir = path.join(this.dataDir, "runs");
+      const dir = path2.join(this.dataDir, "runs");
       await mkdir(dir, { recursive: true });
-      const file = path.join(dir, `${runId}.txt`);
+      const file = path2.join(dir, `${runId}.txt`);
       await writeFile(file, output, "utf8");
       await this.runExclusive(async () => {
         const run = this.requireState().runs.find(
@@ -5385,12 +5658,12 @@ var StudioStore = class {
   }
   async load() {
     await mkdir(this.dataDir, { recursive: true });
-    if (!existsSync(this.file)) {
+    if (!existsSync2(this.file)) {
       this.state = this.seedState();
       await this.save();
       return;
     }
-    const raw = await readFile(this.file, "utf8");
+    const raw = await readFile2(this.file, "utf8");
     let parsed;
     try {
       parsed = JSON.parse(raw);

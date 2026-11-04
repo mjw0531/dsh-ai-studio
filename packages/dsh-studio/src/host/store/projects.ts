@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+
 import { nextProjectStage } from "../../shared/types.js";
 import type {
   ApproveStageGateInput,
@@ -13,6 +15,7 @@ import type {
   UpdateStageGateInput,
 } from "../../shared/types.js";
 import { newId, StudioStoreError, type StoreContext } from "./core.js";
+import { assertFreezeCurrent } from "./freezes.js";
 import {
   defaultStageChecklist,
   defaultTriggerRules,
@@ -178,6 +181,7 @@ export async function getStageGate(
           artifacts: [],
           note: "",
           decisionId: null,
+          freezeId: null,
           approvedBy: "",
           approvedAt: null,
           waiverReason: null,
@@ -260,6 +264,14 @@ export async function approveStageGate(
         "waiverReason",
         1000,
       );
+      const freeze =
+        project.repoPath === null || !existsSync(project.repoPath)
+          ? null
+          : stage === "architecture"
+            ? await assertFreezeCurrent(ctx, projectId, "prd")
+            : stage === "development"
+              ? await assertFreezeCurrent(ctx, projectId, "architecture")
+              : null;
       const missingDemo =
         stage === "development" &&
         !gate.artifacts.some((artifact) => artifact.kind === "demo") &&
@@ -293,6 +305,7 @@ export async function approveStageGate(
         (incomplete || missingDemo) && waiverReason !== ""
           ? waiverReason
           : null;
+      gate.freezeId = freeze?.id ?? null;
       gate.updatedAt = at;
       project.stage = stage;
       project.updatedAt = at;

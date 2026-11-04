@@ -2,7 +2,7 @@
 
 > 即装即用的 DeepSeek Harness AI Studio：**工作室仪表盘、Agent 派单、token 预算、决策台、支线/契约冲突、worktree 代码执行、项目、角色、任务、验收、合并治理**，一个独立页面。
 
-当前版本 **3.8.0**，已在 **DSH 0.2.1-rc.2** 上完成端到端验证（Web/桌面安装、页面渲染、任务创建、验收门禁、合并治理、工作室仪表盘、Agent 派单与结构化回执、token 计量、决策台、支线/契约冲突自动升级、git worktree 代码编辑与自动提交、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、ADR 草稿与写入、人工触发的 Git merge 与合并后回归、合并失败升级与回滚、改修票诊断/计划门禁、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、真实项目 dogfood、数据导出/导入恢复、Claude Code / Codex CLI 执行器、项目包导出/导入、切换 DSH 页面后保持 Studio 导航位置）。
+当前版本 **3.9.0**，已在 **DSH 0.2.1-rc.2** 上完成端到端验证（Web/桌面安装、页面渲染、任务创建、验收门禁、合并治理、工作室仪表盘、Agent 派单与结构化回执、token 计量、决策台、支线/契约冲突自动升级、git worktree 代码编辑与自动提交、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、ADR 草稿与写入、人工触发的 Git merge 与合并后回归、合并失败升级与回滚、改修票诊断/计划门禁、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、真实项目 dogfood、数据导出/导入恢复、Claude Code / Codex CLI 执行器、项目包导出/导入、切换 DSH 页面后保持 Studio 导航位置）。
 
 
 
@@ -82,6 +82,7 @@ Studio 把 DSH 从「一个会话」扩展成「一间工作室」：
 - **3.6.0 评审证据**：Run 保存真实 patch；评审注入 patch + base/branch；契约越界在提交前拦截。
 - **3.7.0 运行数据**：Run 输出外置到 `runs/<id>.txt`；state 留 2KB 预览；回执 JSON 多块解析。
 - **3.8.0 超时与风险分级**：任务可设超时；超时状态保留 worktree；`riskTier` 的 trivial 任务有 Host 验证时可跳独立评审。
+- **3.9.0 PRD/架构冻结**：Owner 主动冻结、版本 Hash、漂移检测、StageGate 绑定、领域模型、需求决策记录。
 - **角色薪资与预算**：角色可配置模型和单任务/每日 token 预算；项目可配置总 token 预算。
 - **项目**：一个项目边界，下面有角色和任务。
 - **角色**：持久的职责契约（使命、职责、决策权），不是人设卡。
@@ -143,7 +144,7 @@ cd D:\dsh-ai-studio\packages\dsh-studio
 pnpm pack
 ```
 
-把生成的 `dsh-ai-studio-3.8.0.tgz` 发给对方，在 **Add plugin** 里填 tarball 路径即可。
+把生成的 `dsh-ai-studio-3.9.0.tgz` 发给对方，在 **Add plugin** 里填 tarball 路径即可。
 
 ## 使用
 

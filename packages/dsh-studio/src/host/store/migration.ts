@@ -390,11 +390,23 @@ export function migrateState(value: unknown): StudioState {
   if (state.schemaVersion === 30) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 31,
       tasks: state.tasks.map((task) => ({
         ...task,
         timeoutSeconds: null,
         riskTier: "normal",
+      })),
+    };
+  }
+  if (state.schemaVersion === 31) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      freezes: [],
+      requirementDecisions: [],
+      stageGates: state.stageGates.map((gate) => ({
+        ...gate,
+        freezeId: null,
       })),
     };
   }

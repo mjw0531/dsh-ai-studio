@@ -24,9 +24,14 @@ import type {
   CreateDecisionInput,
   CreateMergeProposalInput,
   CreateModuleInput,
+  CreateProjectFreezeInput,
   CreateProjectFromTemplateInput,
   CreateProjectInput,
+  CreateRequirementDecisionInput,
   CreateRoleInput,
+  FreezeKind,
+  ProjectFreeze,
+  RequirementDecision,
   AgentExecutor,
   CreateTaskInput,
   DecideDecisionInput,
@@ -552,6 +557,71 @@ function asCreateTask(body: Record<string, unknown>): CreateTaskInput {
     integration: body.integration === true,
     originTaskId:
       asOptionalString(body.originTaskId, "originTaskId") ?? null,
+  };
+}
+
+function asFreezeKind(value: unknown): FreezeKind {
+  if (value === "prd" || value === "architecture") return value;
+  throw new HttpError(400, "invalid_input", "kind 必须是 prd/architecture");
+}
+
+function asCreateFreeze(body: Record<string, unknown>): CreateProjectFreezeInput {
+  const checklist = body.checklist;
+  if (
+    checklist !== undefined &&
+    (!Array.isArray(checklist) ||
+      !checklist.every(
+        (item) =>
+          typeof item === "object" &&
+          item !== null &&
+          typeof (item as { id?: unknown }).id === "string" &&
+          typeof (item as { text?: unknown }).text === "string" &&
+          typeof (item as { done?: unknown }).done === "boolean",
+      ))
+  ) {
+    throw new HttpError(400, "invalid_input", "checklist 无效");
+  }
+  return {
+    kind: asFreezeKind(body.kind),
+    version: asString(body.version, "version"),
+    docPath: asString(body.docPath, "docPath"),
+    domainModelPath:
+      body.domainModelPath === null || body.domainModelPath === undefined
+        ? null
+        : asOptionalString(body.domainModelPath, "domainModelPath") ?? null,
+    summary: asOptionalString(body.summary, "summary") ?? "",
+    openQuestions:
+      asStringArray(body.openQuestions, "openQuestions") ?? [],
+    checklist: checklist as StageCheckItem[] | undefined,
+    waiverReason:
+      body.waiverReason === null || body.waiverReason === undefined
+        ? null
+        : asOptionalString(body.waiverReason, "waiverReason") ?? null,
+  };
+}
+
+function asRequirementDecision(
+  body: Record<string, unknown>,
+): CreateRequirementDecisionInput {
+  const status = body.status;
+  if (
+    status !== undefined &&
+    status !== "accepted" &&
+    status !== "rejected" &&
+    status !== "pending"
+  ) {
+    throw new HttpError(400, "invalid_input", "status 无效");
+  }
+  return {
+    title: asString(body.title, "title"),
+    source: asString(body.source, "source"),
+    recommendation: asString(body.recommendation, "recommendation"),
+    status,
+    rationale: asOptionalString(body.rationale, "rationale") ?? "",
+    freezeId:
+      body.freezeId === null || body.freezeId === undefined
+        ? null
+        : asOptionalString(body.freezeId, "freezeId") ?? null,
   };
 }
 
@@ -1113,6 +1183,50 @@ export class StudioRouter {
         asUpdatePrototypeDemo(await readJson(req)),
       );
       sendJson(res, 200, { ok: true, demo });
+      return;
+    }
+
+    const freezeMatch =
+      /^\/studio-api\/projects\/([^/]+)\/freezes$/.exec(parsed.pathname);
+    if (freezeMatch !== null) {
+      const projectId = decodeSegment(freezeMatch[1] ?? "");
+      this.requireMethod(parsed, ["GET", "POST"]);
+      if (parsed.method === "GET") {
+        sendJson(res, 200, {
+          ok: true,
+          freezes: this.store.listFreezes(projectId),
+        });
+        return;
+      }
+      assertJsonRequest(req);
+      const freeze = await this.store.createFreeze(
+        projectId,
+        asCreateFreeze(await readJson(req)),
+      );
+      sendJson(res, 201, { ok: true, freeze });
+      return;
+    }
+
+    const requirementDecisionMatch =
+      /^\/studio-api\/projects\/([^/]+)\/requirement-decisions$/.exec(
+        parsed.pathname,
+      );
+    if (requirementDecisionMatch !== null) {
+      const projectId = decodeSegment(requirementDecisionMatch[1] ?? "");
+      this.requireMethod(parsed, ["GET", "POST"]);
+      if (parsed.method === "GET") {
+        sendJson(res, 200, {
+          ok: true,
+          decisions: this.store.listRequirementDecisions(projectId),
+        });
+        return;
+      }
+      assertJsonRequest(req);
+      const decision = this.store.createRequirementDecision(
+        projectId,
+        asRequirementDecision(await readJson(req)),
+      );
+      sendJson(res, 201, { ok: true, decision });
       return;
     }
 

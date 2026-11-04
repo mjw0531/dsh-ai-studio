@@ -57,6 +57,8 @@ function sliceForProject(
     schemaVersion: state.schemaVersion,
     project,
     stageGates: byProject(state.stageGates),
+    freezes: byProject(state.freezes),
+    requirementDecisions: byProject(state.requirementDecisions),
     triggers: byProject(state.triggers),
     threads: byProject(state.threads),
     workshops: byProject(state.workshops),

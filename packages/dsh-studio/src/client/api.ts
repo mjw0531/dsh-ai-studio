@@ -6,9 +6,13 @@ import type {
   DecideDecisionInput,
   Decision,
   CreateMergeProposalInput,
+  CreateProjectFreezeInput,
   CreateProjectFromTemplateInput,
   CreateProjectInput,
+  CreateRequirementDecisionInput,
   CreateRoleInput,
+  ProjectFreeze,
+  RequirementDecision,
   CreateTaskInput,
   CreateModuleInput,
   IndependentReview,
@@ -259,6 +263,44 @@ export class StudioClient {
       body: input,
     });
     return data.project;
+  }
+
+  async listFreezes(projectId: string): Promise<ProjectFreeze[]> {
+    const data = await this.request<{ freezes: ProjectFreeze[] }>(
+      `/projects/${encodeURIComponent(projectId)}/freezes`,
+    );
+    return data.freezes;
+  }
+
+  async createFreeze(
+    projectId: string,
+    input: CreateProjectFreezeInput,
+  ): Promise<ProjectFreeze> {
+    const data = await this.request<{ freeze: ProjectFreeze }>(
+      `/projects/${encodeURIComponent(projectId)}/freezes`,
+      { method: "POST", body: input },
+    );
+    return data.freeze;
+  }
+
+  async listRequirementDecisions(
+    projectId: string,
+  ): Promise<RequirementDecision[]> {
+    const data = await this.request<{ decisions: RequirementDecision[] }>(
+      `/projects/${encodeURIComponent(projectId)}/requirement-decisions`,
+    );
+    return data.decisions;
+  }
+
+  async createRequirementDecision(
+    projectId: string,
+    input: CreateRequirementDecisionInput,
+  ): Promise<RequirementDecision> {
+    const data = await this.request<{ decision: RequirementDecision }>(
+      `/projects/${encodeURIComponent(projectId)}/requirement-decisions`,
+      { method: "POST", body: input },
+    );
+    return data.decision;
   }
 
   async createProjectFromTemplate(

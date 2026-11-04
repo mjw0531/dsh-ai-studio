@@ -20,6 +20,8 @@ import type {
   CreateModuleInput,
   CreatePrototypeDemoInput,
   CreateProviderProfileInput,
+  CreateProjectFreezeInput,
+  CreateRequirementDecisionInput,
   CreateTriggerInput,
   CreateWorkshopInput,
   Module,
@@ -43,6 +45,7 @@ import { TaskBoard } from "../components/TaskBoard.js";
 import { ModalShell } from "../components/ModalShell.js";
 import { TriggerInbox } from "../features/TriggerInbox.js";
 import { StagePanel } from "../features/StagePanel.js";
+import { FreezePanel } from "../features/FreezePanel.js";
 import { WorkshopPanel } from "../features/WorkshopPanel.js";
 import { PrototypeDemoPanel } from "../features/PrototypeDemoPanel.js";
 import { BranchPanel, Roster } from "./TeamView.js";
@@ -243,6 +246,8 @@ export function MissionView({
   onSaveStageGate,
   onApproveStageGate,
   onRejectStageGate,
+  onCreateFreeze,
+  onCreateRequirementDecision,
   onIngestTrigger,
   onAcceptTrigger,
   onIgnoreTrigger,
@@ -273,6 +278,10 @@ export function MissionView({
   onRejectStageGate: (
     stage: ProjectStage,
     note: string,
+  ) => Promise<boolean>;
+  onCreateFreeze: (input: CreateProjectFreezeInput) => Promise<boolean>;
+  onCreateRequirementDecision: (
+    input: CreateRequirementDecisionInput,
   ) => Promise<boolean>;
   onIngestTrigger: (input: CreateTriggerInput) => Promise<boolean>;
   onAcceptTrigger: (trigger: Trigger) => void;
@@ -366,15 +375,25 @@ export function MissionView({
       </div>
 
       {project !== null ? (
-        <StagePanel
-          project={project}
-          gate={nextGate}
-          busy={busy}
-          onLoad={onLoadStageGate}
-          onSave={onSaveStageGate}
-          onApprove={onApproveStageGate}
-          onReject={onRejectStageGate}
-        />
+        <>
+          <StagePanel
+            project={project}
+            gate={nextGate}
+            busy={busy}
+            onLoad={onLoadStageGate}
+            onSave={onSaveStageGate}
+            onApprove={onApproveStageGate}
+            onReject={onRejectStageGate}
+          />
+          <FreezePanel
+            project={project}
+            freezes={data.freezes}
+            decisions={data.requirementDecisions}
+            busy={busy}
+            onCreateFreeze={onCreateFreeze}
+            onCreateDecision={onCreateRequirementDecision}
+          />
+        </>
       ) : null}
 
       {project !== null && project.stage === "prototype" ? (

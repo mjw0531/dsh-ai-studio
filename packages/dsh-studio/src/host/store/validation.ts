@@ -353,6 +353,45 @@ function isDecision(value: unknown): value is Decision {
   );
 }
 
+function isProjectFreeze(value: unknown): value is import("../../shared/types.js").ProjectFreeze {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.projectId === "string" &&
+    (value.kind === "prd" || value.kind === "architecture") &&
+    typeof value.version === "string" &&
+    typeof value.docPath === "string" &&
+    typeof value.docHash === "string" &&
+    (value.domainModelPath === null || typeof value.domainModelPath === "string") &&
+    typeof value.summary === "string" &&
+    Array.isArray(value.openQuestions) &&
+    value.openQuestions.every((item) => typeof item === "string") &&
+    Array.isArray(value.checklist) &&
+    value.checklist.every(isStageCheckItem) &&
+    (value.waiverReason === null || typeof value.waiverReason === "string") &&
+    typeof value.frozenBy === "string" &&
+    typeof value.frozenAt === "string"
+  );
+}
+
+function isRequirementDecision(value: unknown): value is import("../../shared/types.js").RequirementDecision {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.projectId === "string" &&
+    (value.freezeId === null || typeof value.freezeId === "string") &&
+    typeof value.title === "string" &&
+    typeof value.source === "string" &&
+    typeof value.recommendation === "string" &&
+    (value.status === "accepted" ||
+      value.status === "rejected" ||
+      value.status === "pending") &&
+    typeof value.rationale === "string" &&
+    typeof value.createdAt === "string" &&
+    (value.decidedAt === null || typeof value.decidedAt === "string")
+  );
+}
+
 function isStageGateStatus(value: unknown): value is StageGate["status"] {
   return value === "pending" || value === "approved" || value === "rejected";
 }
@@ -399,6 +438,9 @@ function isStageGate(value: unknown): value is StageGate {
     value.artifacts.every(isStageArtifact) &&
     typeof value.note === "string" &&
     (value.decisionId === null || typeof value.decisionId === "string") &&
+    (value.freezeId === null ||
+      value.freezeId === undefined ||
+      typeof value.freezeId === "string") &&
     typeof value.approvedBy === "string" &&
     (value.approvedAt === null || typeof value.approvedAt === "string") &&
     (value.waiverReason === null || typeof value.waiverReason === "string") &&
@@ -627,6 +669,8 @@ export function assertState(value: unknown): asserts value is StudioState {
   if (
     !Array.isArray(value.projects) ||
     !Array.isArray(value.stageGates) ||
+    !Array.isArray(value.freezes) ||
+    !Array.isArray(value.requirementDecisions) ||
     !Array.isArray(value.triggers) ||
     !Array.isArray(value.threads) ||
     !Array.isArray(value.workshops) ||
@@ -648,6 +692,12 @@ export function assertState(value: unknown): asserts value is StudioState {
   }
   if (!value.projects.every(isProject)) {
     throw new Error("Studio state contains an invalid project");
+  }
+  if (!value.freezes.every(isProjectFreeze)) {
+    throw new Error("Studio state contains an invalid freeze");
+  }
+  if (!value.requirementDecisions.every(isRequirementDecision)) {
+    throw new Error("Studio state contains an invalid requirement decision");
   }
   if (!value.stageGates.every(isStageGate)) {
     throw new Error("Studio state contains an invalid stage gate");

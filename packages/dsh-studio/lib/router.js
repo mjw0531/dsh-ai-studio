@@ -2,7 +2,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_PLUGIN_VERSION = "3.8.0";
+var STUDIO_PLUGIN_VERSION = "3.9.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -385,6 +385,42 @@ function asCreateTask(body) {
     kind,
     integration: body.integration === true,
     originTaskId: asOptionalString(body.originTaskId, "originTaskId") ?? null
+  };
+}
+function asFreezeKind(value) {
+  if (value === "prd" || value === "architecture") return value;
+  throw new HttpError(400, "invalid_input", "kind \u5FC5\u987B\u662F prd/architecture");
+}
+function asCreateFreeze(body) {
+  const checklist = body.checklist;
+  if (checklist !== void 0 && (!Array.isArray(checklist) || !checklist.every(
+    (item) => typeof item === "object" && item !== null && typeof item.id === "string" && typeof item.text === "string" && typeof item.done === "boolean"
+  ))) {
+    throw new HttpError(400, "invalid_input", "checklist \u65E0\u6548");
+  }
+  return {
+    kind: asFreezeKind(body.kind),
+    version: asString(body.version, "version"),
+    docPath: asString(body.docPath, "docPath"),
+    domainModelPath: body.domainModelPath === null || body.domainModelPath === void 0 ? null : asOptionalString(body.domainModelPath, "domainModelPath") ?? null,
+    summary: asOptionalString(body.summary, "summary") ?? "",
+    openQuestions: asStringArray(body.openQuestions, "openQuestions") ?? [],
+    checklist,
+    waiverReason: body.waiverReason === null || body.waiverReason === void 0 ? null : asOptionalString(body.waiverReason, "waiverReason") ?? null
+  };
+}
+function asRequirementDecision(body) {
+  const status = body.status;
+  if (status !== void 0 && status !== "accepted" && status !== "rejected" && status !== "pending") {
+    throw new HttpError(400, "invalid_input", "status \u65E0\u6548");
+  }
+  return {
+    title: asString(body.title, "title"),
+    source: asString(body.source, "source"),
+    recommendation: asString(body.recommendation, "recommendation"),
+    status,
+    rationale: asOptionalString(body.rationale, "rationale") ?? "",
+    freezeId: body.freezeId === null || body.freezeId === void 0 ? null : asOptionalString(body.freezeId, "freezeId") ?? null
   };
 }
 function asUpdateTask(body) {
@@ -830,6 +866,46 @@ var StudioRouter = class {
         asUpdatePrototypeDemo(await readJson(req))
       );
       sendJson(res, 200, { ok: true, demo });
+      return;
+    }
+    const freezeMatch = /^\/studio-api\/projects\/([^/]+)\/freezes$/.exec(parsed.pathname);
+    if (freezeMatch !== null) {
+      const projectId = decodeSegment(freezeMatch[1] ?? "");
+      this.requireMethod(parsed, ["GET", "POST"]);
+      if (parsed.method === "GET") {
+        sendJson(res, 200, {
+          ok: true,
+          freezes: this.store.listFreezes(projectId)
+        });
+        return;
+      }
+      assertJsonRequest(req);
+      const freeze = await this.store.createFreeze(
+        projectId,
+        asCreateFreeze(await readJson(req))
+      );
+      sendJson(res, 201, { ok: true, freeze });
+      return;
+    }
+    const requirementDecisionMatch = /^\/studio-api\/projects\/([^/]+)\/requirement-decisions$/.exec(
+      parsed.pathname
+    );
+    if (requirementDecisionMatch !== null) {
+      const projectId = decodeSegment(requirementDecisionMatch[1] ?? "");
+      this.requireMethod(parsed, ["GET", "POST"]);
+      if (parsed.method === "GET") {
+        sendJson(res, 200, {
+          ok: true,
+          decisions: this.store.listRequirementDecisions(projectId)
+        });
+        return;
+      }
+      assertJsonRequest(req);
+      const decision = this.store.createRequirementDecision(
+        projectId,
+        asRequirementDecision(await readJson(req))
+      );
+      sendJson(res, 201, { ok: true, decision });
       return;
     }
     const projectMatch = /^\/studio-api\/projects\/([^/]+)$/.exec(parsed.pathname);

@@ -432,6 +432,8 @@ export function StudioPage() {
     setError,
   });
   const {
+    createFreeze,
+    createRequirementDecision,
     createTask,
     createRole,
     updateRoleExecutor,
@@ -701,6 +703,8 @@ export function StudioPage() {
                 onSaveStageGate={saveStageGate}
                 onApproveStageGate={approveStageGate}
                 onRejectStageGate={rejectStageGate}
+                onCreateFreeze={createFreeze}
+                onCreateRequirementDecision={createRequirementDecision}
                 onIngestTrigger={ingestTrigger}
                 onAcceptTrigger={(trigger) => void acceptTrigger(trigger)}
                 onIgnoreTrigger={(trigger) => void ignoreTrigger(trigger)}

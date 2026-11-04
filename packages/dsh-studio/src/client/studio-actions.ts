@@ -10,8 +10,10 @@ import type {
   CreateDecisionInput,
   CreateMergeProposalInput,
   CreateModuleInput,
+  CreateProjectFreezeInput,
   CreateProjectFromTemplateInput,
   CreateProjectInput,
+  CreateRequirementDecisionInput,
   CreatePrototypeDemoInput,
   CreateProviderProfileInput,
   CreateRoleInput,
@@ -173,6 +175,32 @@ export function createStudioActions({
         await client.reassignProviderProfile(fromProfileId, toProfileId);
       },
       "角色已改绑到备用 Profile",
+    );
+  };
+
+  const createFreeze = async (
+    input: CreateProjectFreezeInput,
+  ): Promise<boolean> => {
+    if (project === null) return false;
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.createFreeze(project.id, input);
+      },
+      "冻结版本已创建",
+    );
+  };
+
+  const createRequirementDecision = async (
+    input: CreateRequirementDecisionInput,
+  ): Promise<boolean> => {
+    if (project === null) return false;
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.createRequirementDecision(project.id, input);
+      },
+      "需求决策已记录",
     );
   };
 
@@ -765,6 +793,8 @@ export function createStudioActions({
   };
 
   return {
+    createFreeze,
+    createRequirementDecision,
     createTask,
     createRole,
     updateRoleExecutor,

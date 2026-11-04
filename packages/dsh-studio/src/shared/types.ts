@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 31;
-export const STUDIO_PLUGIN_VERSION = "3.8.0";
+export const STUDIO_SCHEMA_VERSION = 32;
+export const STUDIO_PLUGIN_VERSION = "3.9.0";
 
 export type TaskStatus =
   | "backlog"
@@ -53,7 +53,13 @@ export function nextProjectStage(stage: ProjectStage): ProjectStage | null {
 }
 
 export type StageGateStatus = "pending" | "approved" | "rejected";
-export type StageArtifactKind = "prd" | "architecture" | "demo" | "adr" | "other";
+export type StageArtifactKind =
+  | "prd"
+  | "domain_model"
+  | "architecture"
+  | "demo"
+  | "adr"
+  | "other";
 
 export interface StageCheckItem {
   id: string;
@@ -81,6 +87,7 @@ export interface StageGate {
   artifacts: StageArtifact[];
   note: string;
   decisionId: string | null;
+  freezeId: string | null;
   approvedBy: string;
   approvedAt: string | null;
   waiverReason: string | null;
@@ -96,6 +103,59 @@ export interface UpdateStageGateInput {
 
 export interface ApproveStageGateInput extends UpdateStageGateInput {
   waiverReason?: string;
+}
+
+export type FreezeKind = "prd" | "architecture";
+
+export interface ProjectFreeze {
+  id: string;
+  projectId: string;
+  kind: FreezeKind;
+  version: string;
+  docPath: string;
+  docHash: string;
+  domainModelPath: string | null;
+  summary: string;
+  openQuestions: string[];
+  checklist: StageCheckItem[];
+  waiverReason: string | null;
+  frozenBy: string;
+  frozenAt: string;
+}
+
+export interface CreateProjectFreezeInput {
+  kind: FreezeKind;
+  version: string;
+  docPath: string;
+  domainModelPath?: string | null;
+  summary?: string;
+  openQuestions?: string[];
+  checklist?: StageCheckItem[];
+  waiverReason?: string | null;
+}
+
+export type RequirementDecisionStatus = "accepted" | "rejected" | "pending";
+
+export interface RequirementDecision {
+  id: string;
+  projectId: string;
+  freezeId: string | null;
+  title: string;
+  source: string;
+  recommendation: string;
+  status: RequirementDecisionStatus;
+  rationale: string;
+  createdAt: string;
+  decidedAt: string | null;
+}
+
+export interface CreateRequirementDecisionInput {
+  title: string;
+  source: string;
+  recommendation: string;
+  status?: RequirementDecisionStatus;
+  rationale?: string;
+  freezeId?: string | null;
 }
 
 export type TriggerSource = "manual" | "github" | "ci" | "im" | "email";
@@ -643,6 +703,8 @@ export interface StudioState {
   activeProjectId: string | null;
   projects: Project[];
   stageGates: StageGate[];
+  freezes: ProjectFreeze[];
+  requirementDecisions: RequirementDecision[];
   triggers: Trigger[];
   threads: Thread[];
   workshops: Workshop[];
@@ -665,6 +727,8 @@ export interface ProjectSlice {
   schemaVersion: number;
   project: Project;
   stageGates: StageGate[];
+  freezes: ProjectFreeze[];
+  requirementDecisions: RequirementDecision[];
   triggers: Trigger[];
   threads: Thread[];
   workshops: Workshop[];
@@ -826,6 +890,8 @@ export interface BootstrapResponse {
   activeProjectId: string | null;
   project: Project | null;
   stageGates: StageGate[];
+  freezes: ProjectFreeze[];
+  requirementDecisions: RequirementDecision[];
   triggers: Trigger[];
   threads: Thread[];
   workshops: Workshop[];
