@@ -13,8 +13,8 @@ import os from "node:os";
 import path from "node:path";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 30;
-var STUDIO_PLUGIN_VERSION = "3.7.0";
+var STUDIO_SCHEMA_VERSION = 31;
+var STUDIO_PLUGIN_VERSION = "3.8.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -418,10 +418,21 @@ function migrateState(value) {
   if (state.schemaVersion === 29) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 30,
       runs: state.runs.map((run) => ({
         ...run,
         outputPath: null
+      }))
+    };
+  }
+  if (state.schemaVersion === 30) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      tasks: state.tasks.map((task) => ({
+        ...task,
+        timeoutSeconds: null,
+        riskTier: "normal"
       }))
     };
   }
@@ -457,7 +468,7 @@ function isAgentRun(value) {
   return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.providerProfileId === null || typeof value.providerProfileId === "string") && (value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && (value.provider === null || typeof value.provider === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.branchName === null || typeof value.branchName === "string") && (value.workspacePath === null || typeof value.workspacePath === "string") && (value.commitSha === null || value.commitSha === void 0 || typeof value.commitSha === "string") && (value.baseSha === null || value.baseSha === void 0 || typeof value.baseSha === "string") && (value.agentPreset === null || value.agentPreset === void 0 || typeof value.agentPreset === "string") && (value.approvalPolicy === null || value.approvalPolicy === void 0 || value.approvalPolicy === "ask" || value.approvalPolicy === "never") && (value.sandboxMode === null || value.sandboxMode === void 0 || value.sandboxMode === "read-only" || value.sandboxMode === "workspace-write" || value.sandboxMode === "danger-full-access") && (Array.isArray(value.restrictedTools) || value.restrictedTools === void 0) && (value.diffPatch === null || value.diffPatch === void 0 || typeof value.diffPatch === "string") && (value.outputPath === null || value.outputPath === void 0 || typeof value.outputPath === "string") && (value.diffStat === null || typeof value.diffStat === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord2(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
 }
 function isTask(value) {
-  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence) && (value.verifyCommand === null || value.verifyCommand === void 0 || typeof value.verifyCommand === "string") && (value.module === null || value.module === void 0 || typeof value.module === "string") && (value.contractRef === null || value.contractRef === void 0 || typeof value.contractRef === "string") && Array.isArray(value.requirementRefs) && value.requirementRefs.every((item) => typeof item === "string") && (value.kind === void 0 || value.kind === "new" || value.kind === "fix") && (value.integration === void 0 || typeof value.integration === "boolean") && (value.originTaskId === null || value.originTaskId === void 0 || typeof value.originTaskId === "string") && (value.docsSynced === void 0 || typeof value.docsSynced === "boolean") && (value.diagnosis === void 0 || typeof value.diagnosis === "string") && (value.plan === void 0 || typeof value.plan === "string");
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence) && (value.verifyCommand === null || value.verifyCommand === void 0 || typeof value.verifyCommand === "string") && (value.module === null || value.module === void 0 || typeof value.module === "string") && (value.contractRef === null || value.contractRef === void 0 || typeof value.contractRef === "string") && Array.isArray(value.requirementRefs) && value.requirementRefs.every((item) => typeof item === "string") && (value.timeoutSeconds === null || value.timeoutSeconds === void 0 || typeof value.timeoutSeconds === "number" && Number.isSafeInteger(value.timeoutSeconds) && value.timeoutSeconds > 0) && (value.riskTier === void 0 || value.riskTier === "trivial" || value.riskTier === "normal" || value.riskTier === "critical") && (value.kind === void 0 || value.kind === "new" || value.kind === "fix") && (value.integration === void 0 || typeof value.integration === "boolean") && (value.originTaskId === null || value.originTaskId === void 0 || typeof value.originTaskId === "string") && (value.docsSynced === void 0 || typeof value.docsSynced === "boolean") && (value.diagnosis === void 0 || typeof value.diagnosis === "string") && (value.plan === void 0 || typeof value.plan === "string");
 }
 function isMergeRisk(value) {
   return value === "low" || value === "medium" || value === "high";
@@ -1405,6 +1416,8 @@ function createSeedState(now) {
     module: null,
     contractRef: null,
     requirementRefs: [],
+    timeoutSeconds: null,
+    riskTier: "normal",
     kind: "new",
     diagnosis: "",
     plan: "",
@@ -1994,7 +2007,8 @@ async function createMergeProposal(ctx, taskId, input) {
           409
         );
       }
-      if (latestReview === void 0 || latestReview.runId !== boundRun.id) {
+      const reviewRequired = task.riskTier !== "trivial" || latestVerification?.passed !== true;
+      if (reviewRequired && (latestReview === void 0 || latestReview.runId !== boundRun.id)) {
         throw new StudioStoreError(
           "review_stale",
           "\u6700\u65B0\u8BC4\u5BA1\u4E0D\u5C5E\u4E8E\u5F53\u524D\u63D0\u4EA4\uFF0C\u8BF7\u91CD\u65B0\u8BC4\u5BA1",
@@ -2478,6 +2492,8 @@ async function acceptTrigger(ctx, triggerId, input = {}) {
       module: null,
       contractRef: null,
       requirementRefs: [`trigger:${trigger.id}`],
+      timeoutSeconds: null,
+      riskTier: "normal",
       kind: "new",
       diagnosis: "",
       plan: "",
@@ -2575,6 +2591,8 @@ async function createTask(ctx, input) {
       module: optionalText(input.module, "module", 120) || null,
       contractRef: optionalText(input.contractRef, "contractRef", 300) || null,
       requirementRefs: textList(input.requirementRefs, "requirementRefs", 30),
+      timeoutSeconds: input.timeoutSeconds ?? null,
+      riskTier: input.riskTier ?? "normal",
       kind: input.kind === "fix" ? "fix" : "new",
       diagnosis: optionalText(input.diagnosis, "diagnosis", 4e3),
       plan: optionalText(input.plan, "plan", 4e3),
@@ -2742,7 +2760,11 @@ async function transitionTask(ctx, taskId, next) {
       const reviewPassed = boundCommit === null ? state.reviews.some(
         (review) => review.taskId === task.id && review.verdict === "pass"
       ) : latestReview?.verdict === "pass" && latestReview.runId === latestCodeRun?.id;
-      if (project?.repoPath !== null && project?.repoPath !== void 0 && hasCodeRun && !reviewPassed) {
+      const verificationPassed = state.verifications.some(
+        (verification) => verification.taskId === task.id && verification.passed
+      );
+      const reviewRequired = task.riskTier !== "trivial" || !verificationPassed;
+      if (project?.repoPath !== null && project?.repoPath !== void 0 && hasCodeRun && reviewRequired && !reviewPassed) {
         throw new StudioStoreError(
           "review_required",
           boundCommit === null ? "\u4EE3\u7801\u4EFB\u52A1\u5B8C\u6210\u524D\u5FC5\u987B\u6709\u4E00\u6B21\u901A\u8FC7\u7684\u72EC\u7ACB\u8BC4\u5BA1" : "\u5F53\u524D\u63D0\u4EA4\u7F3A\u5C11\u901A\u8FC7\u7684\u72EC\u7ACB\u8BC4\u5BA1\uFF0C\u8BF7\u91CD\u65B0\u8BC4\u5BA1",
@@ -2820,6 +2842,8 @@ function scheduleIntegrationGate(ctx, state, projectId, at) {
     module: null,
     contractRef: null,
     requirementRefs: [],
+    timeoutSeconds: null,
+    riskTier: "normal",
     kind: "new",
     diagnosis: "",
     plan: "",
@@ -3384,6 +3408,34 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
     return structuredClone(run);
   });
 }
+async function timeoutRun(ctx, runId, message) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const run = state.runs.find((item) => item.id === runId);
+    if (run === void 0) {
+      throw new StudioStoreError("run_not_found", "Agent Run \u4E0D\u5B58\u5728", 404);
+    }
+    const at = ctx.now();
+    run.status = "timeout";
+    run.error = message.slice(0, 4e3);
+    run.endedAt = at;
+    const task = state.tasks.find((item) => item.id === run.taskId);
+    if (task !== void 0 && task.status === "running") {
+      task.status = "blocked";
+      task.updatedAt = at;
+    }
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "agent.timeout",
+      at,
+      projectId: run.projectId,
+      taskId: run.taskId,
+      payload: { runId, error: run.error }
+    });
+    await ctx.save();
+    return structuredClone(run);
+  });
+}
 async function failRun(ctx, runId, error) {
   return ctx.runExclusive(async () => {
     const state = ctx.requireState();
@@ -3535,6 +3587,8 @@ function escalateRepeatedFailure(ctx, state, task, at, reason, run) {
         module: task.module,
         contractRef: task.contractRef,
         requirementRefs: task.requirementRefs,
+        timeoutSeconds: null,
+        riskTier: "normal",
         kind: "fix",
         diagnosis: "",
         plan: "",
@@ -5238,6 +5292,9 @@ var StudioStore = class {
       });
     } catch {
     }
+  }
+  async timeoutRun(runId, message) {
+    return timeoutRun(this.context, runId, message);
   }
   async failRun(runId, error) {
     return failRun(this.context, runId, error);

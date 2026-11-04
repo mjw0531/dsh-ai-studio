@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 30;
-export const STUDIO_PLUGIN_VERSION = "3.7.0";
+export const STUDIO_SCHEMA_VERSION = 31;
+export const STUDIO_PLUGIN_VERSION = "3.8.0";
 
 export type TaskStatus =
   | "backlog"
@@ -306,7 +306,7 @@ export interface ProviderFailureCount {
 
 export interface ProviderRecentRun {
   id: string;
-  status: "succeeded" | "failed" | "running" | "queued";
+  status: "succeeded" | "failed" | "running" | "queued" | "timeout";
   model: string | null;
   startedAt: string;
   endedAt: string | null;
@@ -433,6 +433,8 @@ export interface Task {
   module: string | null;
   contractRef: string | null;
   requirementRefs: string[];
+  timeoutSeconds: number | null;
+  riskTier: "trivial" | "normal" | "critical";
   kind: TaskKind;
   diagnosis: string;
   plan: string;
@@ -503,7 +505,7 @@ export interface MergeProposal {
   mergedAt: string | null;
 }
 
-export type AgentRunStatus = "queued" | "running" | "succeeded" | "failed";
+export type AgentRunStatus = "queued" | "running" | "succeeded" | "failed" | "timeout";
 
 export interface AgentReceiptArtifact {
   kind: string;
@@ -942,6 +944,7 @@ export const AGENT_RUN_STATUS_LABELS: Record<AgentRunStatus, string> = {
   running: "执行中",
   succeeded: "已完成",
   failed: "失败",
+  timeout: "超时",
 };
 
 export const DECISION_STATUS_LABELS: Record<DecisionStatus, string> = {
@@ -1070,6 +1073,8 @@ export interface CreateTaskInput {
   module?: string | null;
   contractRef?: string | null;
   requirementRefs?: string[];
+  timeoutSeconds?: number | null;
+  riskTier?: "trivial" | "normal" | "critical";
   kind?: TaskKind;
   diagnosis?: string;
   plan?: string;
@@ -1094,6 +1099,8 @@ export interface UpdateTaskInput {
   module?: string | null;
   contractRef?: string | null;
   requirementRefs?: string[];
+  timeoutSeconds?: number | null;
+  riskTier?: "trivial" | "normal" | "critical";
   kind?: TaskKind;
   diagnosis?: string;
   plan?: string;

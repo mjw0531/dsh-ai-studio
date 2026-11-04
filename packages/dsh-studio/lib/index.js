@@ -2,8 +2,8 @@
 import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 30;
-var STUDIO_PLUGIN_VERSION = "3.7.0";
+var STUDIO_SCHEMA_VERSION = 31;
+var STUDIO_PLUGIN_VERSION = "3.8.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -529,10 +529,21 @@ function migrateState(value) {
   if (state.schemaVersion === 29) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 30,
       runs: state.runs.map((run3) => ({
         ...run3,
         outputPath: null
+      }))
+    };
+  }
+  if (state.schemaVersion === 30) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      tasks: state.tasks.map((task) => ({
+        ...task,
+        timeoutSeconds: null,
+        riskTier: "normal"
       }))
     };
   }
@@ -568,7 +579,7 @@ function isAgentRun(value) {
   return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.providerProfileId === null || typeof value.providerProfileId === "string") && (value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && (value.provider === null || typeof value.provider === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.branchName === null || typeof value.branchName === "string") && (value.workspacePath === null || typeof value.workspacePath === "string") && (value.commitSha === null || value.commitSha === void 0 || typeof value.commitSha === "string") && (value.baseSha === null || value.baseSha === void 0 || typeof value.baseSha === "string") && (value.agentPreset === null || value.agentPreset === void 0 || typeof value.agentPreset === "string") && (value.approvalPolicy === null || value.approvalPolicy === void 0 || value.approvalPolicy === "ask" || value.approvalPolicy === "never") && (value.sandboxMode === null || value.sandboxMode === void 0 || value.sandboxMode === "read-only" || value.sandboxMode === "workspace-write" || value.sandboxMode === "danger-full-access") && (Array.isArray(value.restrictedTools) || value.restrictedTools === void 0) && (value.diffPatch === null || value.diffPatch === void 0 || typeof value.diffPatch === "string") && (value.outputPath === null || value.outputPath === void 0 || typeof value.outputPath === "string") && (value.diffStat === null || typeof value.diffStat === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord2(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
 }
 function isTask(value) {
-  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence) && (value.verifyCommand === null || value.verifyCommand === void 0 || typeof value.verifyCommand === "string") && (value.module === null || value.module === void 0 || typeof value.module === "string") && (value.contractRef === null || value.contractRef === void 0 || typeof value.contractRef === "string") && Array.isArray(value.requirementRefs) && value.requirementRefs.every((item) => typeof item === "string") && (value.kind === void 0 || value.kind === "new" || value.kind === "fix") && (value.integration === void 0 || typeof value.integration === "boolean") && (value.originTaskId === null || value.originTaskId === void 0 || typeof value.originTaskId === "string") && (value.docsSynced === void 0 || typeof value.docsSynced === "boolean") && (value.diagnosis === void 0 || typeof value.diagnosis === "string") && (value.plan === void 0 || typeof value.plan === "string");
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence) && (value.verifyCommand === null || value.verifyCommand === void 0 || typeof value.verifyCommand === "string") && (value.module === null || value.module === void 0 || typeof value.module === "string") && (value.contractRef === null || value.contractRef === void 0 || typeof value.contractRef === "string") && Array.isArray(value.requirementRefs) && value.requirementRefs.every((item) => typeof item === "string") && (value.timeoutSeconds === null || value.timeoutSeconds === void 0 || typeof value.timeoutSeconds === "number" && Number.isSafeInteger(value.timeoutSeconds) && value.timeoutSeconds > 0) && (value.riskTier === void 0 || value.riskTier === "trivial" || value.riskTier === "normal" || value.riskTier === "critical") && (value.kind === void 0 || value.kind === "new" || value.kind === "fix") && (value.integration === void 0 || typeof value.integration === "boolean") && (value.originTaskId === null || value.originTaskId === void 0 || typeof value.originTaskId === "string") && (value.docsSynced === void 0 || typeof value.docsSynced === "boolean") && (value.diagnosis === void 0 || typeof value.diagnosis === "string") && (value.plan === void 0 || typeof value.plan === "string");
 }
 function isMergeRisk(value) {
   return value === "low" || value === "medium" || value === "high";
@@ -1516,6 +1527,8 @@ function createSeedState(now) {
     module: null,
     contractRef: null,
     requirementRefs: [],
+    timeoutSeconds: null,
+    riskTier: "normal",
     kind: "new",
     diagnosis: "",
     plan: "",
@@ -2105,7 +2118,8 @@ async function createMergeProposal(ctx, taskId, input) {
           409
         );
       }
-      if (latestReview === void 0 || latestReview.runId !== boundRun.id) {
+      const reviewRequired = task.riskTier !== "trivial" || latestVerification?.passed !== true;
+      if (reviewRequired && (latestReview === void 0 || latestReview.runId !== boundRun.id)) {
         throw new StudioStoreError(
           "review_stale",
           "\u6700\u65B0\u8BC4\u5BA1\u4E0D\u5C5E\u4E8E\u5F53\u524D\u63D0\u4EA4\uFF0C\u8BF7\u91CD\u65B0\u8BC4\u5BA1",
@@ -2589,6 +2603,8 @@ async function acceptTrigger(ctx, triggerId, input = {}) {
       module: null,
       contractRef: null,
       requirementRefs: [`trigger:${trigger.id}`],
+      timeoutSeconds: null,
+      riskTier: "normal",
       kind: "new",
       diagnosis: "",
       plan: "",
@@ -2686,6 +2702,8 @@ async function createTask(ctx, input) {
       module: optionalText(input.module, "module", 120) || null,
       contractRef: optionalText(input.contractRef, "contractRef", 300) || null,
       requirementRefs: textList(input.requirementRefs, "requirementRefs", 30),
+      timeoutSeconds: input.timeoutSeconds ?? null,
+      riskTier: input.riskTier ?? "normal",
       kind: input.kind === "fix" ? "fix" : "new",
       diagnosis: optionalText(input.diagnosis, "diagnosis", 4e3),
       plan: optionalText(input.plan, "plan", 4e3),
@@ -2853,7 +2871,11 @@ async function transitionTask(ctx, taskId, next) {
       const reviewPassed = boundCommit === null ? state.reviews.some(
         (review) => review.taskId === task.id && review.verdict === "pass"
       ) : latestReview?.verdict === "pass" && latestReview.runId === latestCodeRun?.id;
-      if (project?.repoPath !== null && project?.repoPath !== void 0 && hasCodeRun && !reviewPassed) {
+      const verificationPassed = state.verifications.some(
+        (verification) => verification.taskId === task.id && verification.passed
+      );
+      const reviewRequired = task.riskTier !== "trivial" || !verificationPassed;
+      if (project?.repoPath !== null && project?.repoPath !== void 0 && hasCodeRun && reviewRequired && !reviewPassed) {
         throw new StudioStoreError(
           "review_required",
           boundCommit === null ? "\u4EE3\u7801\u4EFB\u52A1\u5B8C\u6210\u524D\u5FC5\u987B\u6709\u4E00\u6B21\u901A\u8FC7\u7684\u72EC\u7ACB\u8BC4\u5BA1" : "\u5F53\u524D\u63D0\u4EA4\u7F3A\u5C11\u901A\u8FC7\u7684\u72EC\u7ACB\u8BC4\u5BA1\uFF0C\u8BF7\u91CD\u65B0\u8BC4\u5BA1",
@@ -2931,6 +2953,8 @@ function scheduleIntegrationGate(ctx, state, projectId, at) {
     module: null,
     contractRef: null,
     requirementRefs: [],
+    timeoutSeconds: null,
+    riskTier: "normal",
     kind: "new",
     diagnosis: "",
     plan: "",
@@ -3495,6 +3519,34 @@ ${otherBranch?.name ?? conflict.branchId}: ${conflict.change}`,
     return structuredClone(run3);
   });
 }
+async function timeoutRun(ctx, runId, message) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const run3 = state.runs.find((item) => item.id === runId);
+    if (run3 === void 0) {
+      throw new StudioStoreError("run_not_found", "Agent Run \u4E0D\u5B58\u5728", 404);
+    }
+    const at = ctx.now();
+    run3.status = "timeout";
+    run3.error = message.slice(0, 4e3);
+    run3.endedAt = at;
+    const task = state.tasks.find((item) => item.id === run3.taskId);
+    if (task !== void 0 && task.status === "running") {
+      task.status = "blocked";
+      task.updatedAt = at;
+    }
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "agent.timeout",
+      at,
+      projectId: run3.projectId,
+      taskId: run3.taskId,
+      payload: { runId, error: run3.error }
+    });
+    await ctx.save();
+    return structuredClone(run3);
+  });
+}
 async function failRun(ctx, runId, error) {
   return ctx.runExclusive(async () => {
     const state = ctx.requireState();
@@ -3646,6 +3698,8 @@ function escalateRepeatedFailure(ctx, state, task, at, reason, run3) {
         module: task.module,
         contractRef: task.contractRef,
         requirementRefs: task.requirementRefs,
+        timeoutSeconds: null,
+        riskTier: "normal",
         kind: "fix",
         diagnosis: "",
         plan: "",
@@ -5350,6 +5404,9 @@ var StudioStore = class {
     } catch {
     }
   }
+  async timeoutRun(runId, message) {
+    return timeoutRun(this.context, runId, message);
+  }
   async failRun(runId, error) {
     return failRun(this.context, runId, error);
   }
@@ -6342,7 +6399,7 @@ var AgentDispatcher = class {
       model: selection.model
     });
     if (executor === "dsh") {
-      void this.execute(run3, selection, workspace);
+      void this.execute(run3, selection, workspace, context.task.timeoutSeconds);
     } else if (workspace !== void 0) {
       void this.executeExternal(run3, prompt, workspace, executor);
     }
@@ -6440,7 +6497,7 @@ var AgentDispatcher = class {
     if (first !== null) return first;
     throw new Error(`\u6CA1\u6709\u53EF\u7528\u7684\u6A21\u578B\u8DEF\u7531\uFF08\u8BF7\u6C42\u6A21\u578B\uFF1A${wanted}\uFF09`);
   }
-  async execute(run3, selection, workspace) {
+  async execute(run3, selection, workspace, timeoutSeconds) {
     let handle = null;
     let runtime = null;
     try {
@@ -6467,24 +6524,34 @@ var AgentDispatcher = class {
         content: [{ type: "text", text: run3.prompt }],
         source: { kind: "user" }
       });
-      const deadline = Date.now() + (workspace === void 0 ? 12e4 : 3e5);
+      const timeout = timeoutSeconds ?? (workspace === void 0 ? 120 : 300);
+      const deadline = Date.now() + timeout * 1e3;
       let output = "";
       let idleTicks = 0;
+      let finished = false;
       while (Date.now() < deadline) {
         output = assistantText(handle.agent.session.deriveMessages());
         if (handle.agent.status === "idle") {
-          if (output !== "") break;
+          if (output !== "") {
+            finished = true;
+            break;
+          }
           idleTicks += 1;
-          if (idleTicks >= 10) break;
+          if (idleTicks >= 10) {
+            finished = true;
+            break;
+          }
         } else {
           idleTicks = 0;
         }
         await new Promise((resolve) => setTimeout(resolve, 400));
       }
-      if (output === "") {
-        throw new Error(
-          `Agent \u5728 ${workspace === void 0 ? "120" : "300"} \u79D2\u5185\u6CA1\u6709\u4EA7\u51FA\uFF08\u6CA1\u6709 assistant \u6D88\u606F\uFF09`
+      if (!finished) {
+        await this.store.timeoutRun(
+          run3.id,
+          `Agent \u5728 ${String(timeout)} \u79D2\u5185\u6CA1\u6709\u5B8C\u6210\uFF1Bworktree \u5DF2\u4FDD\u7559\uFF0C\u8BF7\u4EBA\u5DE5\u63A5\u7BA1`
         );
+        return;
       }
       const idleDeadline = Date.now() + 3e4;
       while (handle.agent.status !== "idle" && Date.now() < idleDeadline) {
@@ -7061,6 +7128,18 @@ function asStringArray(value, field) {
   }
   return value;
 }
+function asOptionalTimeout(value, field) {
+  if (value === void 0 || value === null) return void 0;
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) {
+    throw new HttpError(400, "invalid_input", `${field} \u5FC5\u987B\u662F\u6B63\u6574\u6570\u79D2`);
+  }
+  return value;
+}
+function asRiskTier(value) {
+  if (value === void 0 || value === null) return void 0;
+  if (value === "trivial" || value === "normal" || value === "critical") return value;
+  throw new HttpError(400, "invalid_input", "riskTier \u5FC5\u987B\u662F trivial/normal/critical");
+}
 function asTaskStatus(value) {
   if (typeof value !== "string") {
     throw new HttpError(400, "invalid_input", "status \u5FC5\u987B\u662F\u5B57\u7B26\u4E32");
@@ -7270,6 +7349,8 @@ function asCreateTask(body) {
     module: asOptionalString(body.module, "module") ?? null,
     contractRef: asOptionalString(body.contractRef, "contractRef") ?? null,
     requirementRefs: asStringArray(body.requirementRefs, "requirementRefs") ?? [],
+    timeoutSeconds: asOptionalTimeout(body.timeoutSeconds, "timeoutSeconds"),
+    riskTier: asRiskTier(body.riskTier),
     diagnosis: asOptionalString(body.diagnosis, "diagnosis") ?? "",
     plan: asOptionalString(body.plan, "plan") ?? "",
     kind,
@@ -7319,6 +7400,15 @@ function asUpdateTask(body) {
   }
   if (body.requirementRefs !== void 0) {
     result.requirementRefs = asStringArray(body.requirementRefs, "requirementRefs") ?? [];
+  }
+  if (body.timeoutSeconds !== void 0) {
+    result.timeoutSeconds = asOptionalTimeout(
+      body.timeoutSeconds,
+      "timeoutSeconds"
+    );
+  }
+  if (body.riskTier !== void 0) {
+    result.riskTier = asRiskTier(body.riskTier);
   }
   if (body.kind !== void 0) {
     if (body.kind !== "new" && body.kind !== "fix") {

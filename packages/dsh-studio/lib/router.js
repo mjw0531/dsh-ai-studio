@@ -2,7 +2,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_PLUGIN_VERSION = "3.7.0";
+var STUDIO_PLUGIN_VERSION = "3.8.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -156,6 +156,18 @@ function asStringArray(value, field) {
     );
   }
   return value;
+}
+function asOptionalTimeout(value, field) {
+  if (value === void 0 || value === null) return void 0;
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) {
+    throw new HttpError(400, "invalid_input", `${field} \u5FC5\u987B\u662F\u6B63\u6574\u6570\u79D2`);
+  }
+  return value;
+}
+function asRiskTier(value) {
+  if (value === void 0 || value === null) return void 0;
+  if (value === "trivial" || value === "normal" || value === "critical") return value;
+  throw new HttpError(400, "invalid_input", "riskTier \u5FC5\u987B\u662F trivial/normal/critical");
 }
 function asTaskStatus(value) {
   if (typeof value !== "string") {
@@ -366,6 +378,8 @@ function asCreateTask(body) {
     module: asOptionalString(body.module, "module") ?? null,
     contractRef: asOptionalString(body.contractRef, "contractRef") ?? null,
     requirementRefs: asStringArray(body.requirementRefs, "requirementRefs") ?? [],
+    timeoutSeconds: asOptionalTimeout(body.timeoutSeconds, "timeoutSeconds"),
+    riskTier: asRiskTier(body.riskTier),
     diagnosis: asOptionalString(body.diagnosis, "diagnosis") ?? "",
     plan: asOptionalString(body.plan, "plan") ?? "",
     kind,
@@ -415,6 +429,15 @@ function asUpdateTask(body) {
   }
   if (body.requirementRefs !== void 0) {
     result.requirementRefs = asStringArray(body.requirementRefs, "requirementRefs") ?? [];
+  }
+  if (body.timeoutSeconds !== void 0) {
+    result.timeoutSeconds = asOptionalTimeout(
+      body.timeoutSeconds,
+      "timeoutSeconds"
+    );
+  }
+  if (body.riskTier !== void 0) {
+    result.riskTier = asRiskTier(body.riskTier);
   }
   if (body.kind !== void 0) {
     if (body.kind !== "new" && body.kind !== "fix") {

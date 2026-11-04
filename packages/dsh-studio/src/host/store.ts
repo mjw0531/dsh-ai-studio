@@ -171,6 +171,7 @@ import {
   completeRun as completeRunImpl,
   enforceContractScope as enforceContractScopeImpl,
   failRun as failRunImpl,
+  timeoutRun as timeoutRunImpl,
   recordRunRuntime as recordRunRuntimeImpl,
 } from "./store/runs.js";
 import { getDispatchContext as getDispatchContextImpl } from "./store/runs.js";
@@ -783,6 +784,10 @@ export class StudioStore {
     } catch {
       // Output externalization is best-effort; the run already completed.
     }
+  }
+
+  async timeoutRun(runId: string, message: string): Promise<AgentRun> {
+    return timeoutRunImpl(this.context, runId, message);
   }
 
   async failRun(runId: string, error: string): Promise<AgentRun> {

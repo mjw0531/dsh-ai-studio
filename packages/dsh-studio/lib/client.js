@@ -119,7 +119,8 @@ var AGENT_RUN_STATUS_LABELS = {
   queued: "\u6392\u961F\u4E2D",
   running: "\u6267\u884C\u4E2D",
   succeeded: "\u5DF2\u5B8C\u6210",
-  failed: "\u5931\u8D25"
+  failed: "\u5931\u8D25",
+  timeout: "\u8D85\u65F6"
 };
 var DECISION_STATUS_LABELS = {
   pending: "\u5F85\u88C1\u51B3",
@@ -5562,7 +5563,7 @@ function TaskAgentPanel({
 }
 function runTone(status) {
   if (status === "succeeded") return "ok";
-  if (status === "failed") return "p0";
+  if (status === "failed" || status === "timeout") return "p0";
   if (status === "running") return "accent";
   return "p2";
 }
@@ -6529,6 +6530,10 @@ function TaskForm({
   const [acceptanceText, setAcceptanceText] = (0, import_react19.useState)("");
   const [branch, setBranch] = (0, import_react19.useState)("");
   const [verifyCommand, setVerifyCommand] = (0, import_react19.useState)("npm test");
+  const [timeoutSeconds, setTimeoutSeconds] = (0, import_react19.useState)("");
+  const [riskTier, setRiskTier] = (0, import_react19.useState)(
+    "normal"
+  );
   const [moduleName, setModuleName] = (0, import_react19.useState)("");
   const [contractRef, setContractRef] = (0, import_react19.useState)("");
   const [requirementRefs, setRequirementRefs] = (0, import_react19.useState)("");
@@ -6566,6 +6571,8 @@ function TaskForm({
       acceptance,
       branch: branch.trim() || void 0,
       verifyCommand: verifyCommand.trim() || void 0,
+      timeoutSeconds: timeoutSeconds.trim() === "" ? void 0 : Number(timeoutSeconds),
+      riskTier,
       module: moduleName.trim() || void 0,
       contractRef: contractRef.trim() || void 0,
       requirementRefs: requirementRefs.split(/[\n,]/u).map((line) => line.trim()).filter(Boolean),
@@ -6664,6 +6671,40 @@ function TaskForm({
             }
           ),
           /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "studio-hint", children: "\u7531 Studio Host \u5728 worktree \u5185\u72EC\u7ACB\u6267\u884C\uFF1B\u901A\u8FC7\u4F1A\u5199 evidence\uFF0C\u4F46\u4E0D\u81EA\u52A8\u901A\u8FC7\u9A8C\u6536\u3002" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "task-timeout", children: "\u8D85\u65F6\u79D2\u6570\uFF08\u53EF\u9009\uFF09" }),
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+              "input",
+              {
+                id: "task-timeout",
+                type: "number",
+                min: "1",
+                value: timeoutSeconds,
+                onChange: (event) => setTimeoutSeconds(event.target.value),
+                placeholder: "\u9ED8\u8BA4 300"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "task-risk", children: "\u98CE\u9669\u7EA7\u522B" }),
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(
+              "select",
+              {
+                id: "task-risk",
+                value: riskTier,
+                onChange: (event) => setRiskTier(
+                  event.target.value
+                ),
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("option", { value: "trivial", children: "trivial" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("option", { value: "normal", children: "normal" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("option", { value: "critical", children: "critical" })
+                ]
+              }
+            )
+          ] })
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field-row", children: [
           /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [

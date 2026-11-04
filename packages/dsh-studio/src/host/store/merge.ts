@@ -117,7 +117,12 @@ export async function createMergeProposal(
             409,
           );
         }
-        if (latestReview === undefined || latestReview.runId !== boundRun.id) {
+        const reviewRequired =
+          task.riskTier !== "trivial" || latestVerification?.passed !== true;
+        if (
+          reviewRequired &&
+          (latestReview === undefined || latestReview.runId !== boundRun.id)
+        ) {
           throw new StudioStoreError(
             "review_stale",
             "最新评审不属于当前提交，请重新评审",

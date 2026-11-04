@@ -253,3 +253,27 @@ test("externalizes run output outside studio.json", async () => {
     await rm(dir, { recursive: true, force: true });
   }
 });
+test("marks a run timeout without treating it as failed", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "studio-b1-timeout-"));
+  try {
+    const store = new StudioStore({ dataDir: dir });
+    await store.init();
+    const data = await store.bootstrap();
+    const task = await store.createTask({
+      title: "超时任务",
+      acceptance: ["完成"],
+      ownerRoleId: data.roles[0].id,
+      reviewerRoleId: data.roles[1].id,
+      timeoutSeconds: 1,
+    });
+    await store.transitionTask(task.id, "ready");
+    const run = await store.beginRun(task.id, "slow");
+    await store.timeoutRun(run.id, "timeout");
+    const next = await store.bootstrap();
+    assert.equal(next.runs.find((item) => item.id === run.id)?.status, "timeout");
+    assert.equal(next.tasks.find((item) => item.id === task.id)?.status, "blocked");
+    assert.equal(next.tasks.find((item) => item.id === task.id)?.timeoutSeconds, 1);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

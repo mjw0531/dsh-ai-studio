@@ -235,6 +235,15 @@ function isTask(value: unknown): value is Task {
       typeof value.contractRef === "string") &&
     Array.isArray(value.requirementRefs) &&
     value.requirementRefs.every((item) => typeof item === "string") &&
+    (value.timeoutSeconds === null ||
+      value.timeoutSeconds === undefined ||
+      (typeof value.timeoutSeconds === "number" &&
+        Number.isSafeInteger(value.timeoutSeconds) &&
+        value.timeoutSeconds > 0)) &&
+    (value.riskTier === undefined ||
+      value.riskTier === "trivial" ||
+      value.riskTier === "normal" ||
+      value.riskTier === "critical") &&
     (value.kind === undefined ||
       value.kind === "new" ||
       value.kind === "fix") &&

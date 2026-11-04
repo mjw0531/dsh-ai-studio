@@ -603,7 +603,7 @@ export class AgentDispatcher {
       model: selection.model,
     });
     if (executor === "dsh") {
-      void this.execute(run, selection, workspace);
+      void this.execute(run, selection, workspace, context.task.timeoutSeconds);
     } else if (workspace !== undefined) {
       void this.executeExternal(run, prompt, workspace, executor);
     }
@@ -738,6 +738,7 @@ export class AgentDispatcher {
     run: AgentRun,
     selection: { provider: string; model: string },
     workspace?: TaskWorkspace,
+    timeoutSeconds?: number | null,
   ): Promise<void> {
     let handle: AgentHandleLike | null = null;
     let runtime: StudioRuntime | null = null;
@@ -766,26 +767,34 @@ export class AgentDispatcher {
         source: { kind: "user" },
       });
 
-      const deadline = Date.now() + (workspace === undefined ? 120_000 : 300_000);
+      const timeout = timeoutSeconds ?? (workspace === undefined ? 120 : 300);
+      const deadline = Date.now() + timeout * 1000;
       let output = "";
       let idleTicks = 0;
+      let finished = false;
       while (Date.now() < deadline) {
         output = assistantText(handle.agent.session.deriveMessages());
         if (handle.agent.status === "idle") {
-          if (output !== "") break;
+          if (output !== "") {
+            finished = true;
+            break;
+          }
           idleTicks += 1;
-          if (idleTicks >= 10) break;
+          if (idleTicks >= 10) {
+            finished = true;
+            break;
+          }
         } else {
           idleTicks = 0;
         }
         await new Promise((resolve) => setTimeout(resolve, 400));
       }
-      if (output === "") {
-        throw new Error(
-          `Agent 在 ${
-            workspace === undefined ? "120" : "300"
-          } 秒内没有产出（没有 assistant 消息）`,
+      if (!finished) {
+        await this.store.timeoutRun(
+          run.id,
+          `Agent 在 ${String(timeout)} 秒内没有完成；worktree 已保留，请人工接管`,
         );
+        return;
       }
       const idleDeadline = Date.now() + 30_000;
       while (handle.agent.status !== "idle" && Date.now() < idleDeadline) {

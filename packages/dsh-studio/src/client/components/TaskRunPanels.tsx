@@ -245,7 +245,7 @@ export function TaskAgentPanel({
 
 function runTone(status: AgentRun["status"]): string {
   if (status === "succeeded") return "ok";
-  if (status === "failed") return "p0";
+  if (status === "failed" || status === "timeout") return "p0";
   if (status === "running") return "accent";
   return "p2";
 }

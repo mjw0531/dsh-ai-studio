@@ -243,6 +243,20 @@ function asStringArray(value: unknown, field: string): string[] | undefined {
   return value;
 }
 
+function asOptionalTimeout(value: unknown, field: string): number | null | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) {
+    throw new HttpError(400, "invalid_input", `${field} 必须是正整数秒`);
+  }
+  return value;
+}
+
+function asRiskTier(value: unknown): "trivial" | "normal" | "critical" | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (value === "trivial" || value === "normal" || value === "critical") return value;
+  throw new HttpError(400, "invalid_input", "riskTier 必须是 trivial/normal/critical");
+}
+
 function asTaskStatus(value: unknown): TaskStatus {
   if (typeof value !== "string") {
     throw new HttpError(400, "invalid_input", "status 必须是字符串");
@@ -530,6 +544,8 @@ function asCreateTask(body: Record<string, unknown>): CreateTaskInput {
     contractRef:
       asOptionalString(body.contractRef, "contractRef") ?? null,
     requirementRefs: asStringArray(body.requirementRefs, "requirementRefs") ?? [],
+    timeoutSeconds: asOptionalTimeout(body.timeoutSeconds, "timeoutSeconds"),
+    riskTier: asRiskTier(body.riskTier),
     diagnosis: asOptionalString(body.diagnosis, "diagnosis") ?? "",
     plan: asOptionalString(body.plan, "plan") ?? "",
     kind,
@@ -602,6 +618,15 @@ function asUpdateTask(body: Record<string, unknown>): UpdateTaskInput {
   if (body.requirementRefs !== undefined) {
     result.requirementRefs =
       asStringArray(body.requirementRefs, "requirementRefs") ?? [];
+  }
+  if (body.timeoutSeconds !== undefined) {
+    result.timeoutSeconds = asOptionalTimeout(
+      body.timeoutSeconds,
+      "timeoutSeconds",
+    );
+  }
+  if (body.riskTier !== undefined) {
+    result.riskTier = asRiskTier(body.riskTier);
   }
   if (body.kind !== undefined) {
     if (body.kind !== "new" && body.kind !== "fix") {

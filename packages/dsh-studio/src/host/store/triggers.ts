@@ -330,6 +330,8 @@ export async function acceptTrigger(
         module: null,
         contractRef: null,
         requirementRefs: [`trigger:${trigger.id}`],
+        timeoutSeconds: null,
+        riskTier: "normal",
         kind: "new",
         diagnosis: "",
         plan: "",

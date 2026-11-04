@@ -490,7 +490,7 @@ var AgentDispatcher = class {
       model: selection.model
     });
     if (executor === "dsh") {
-      void this.execute(run, selection, workspace);
+      void this.execute(run, selection, workspace, context.task.timeoutSeconds);
     } else if (workspace !== void 0) {
       void this.executeExternal(run, prompt, workspace, executor);
     }
@@ -588,7 +588,7 @@ var AgentDispatcher = class {
     if (first !== null) return first;
     throw new Error(`\u6CA1\u6709\u53EF\u7528\u7684\u6A21\u578B\u8DEF\u7531\uFF08\u8BF7\u6C42\u6A21\u578B\uFF1A${wanted}\uFF09`);
   }
-  async execute(run, selection, workspace) {
+  async execute(run, selection, workspace, timeoutSeconds) {
     let handle = null;
     let runtime = null;
     try {
@@ -615,24 +615,34 @@ var AgentDispatcher = class {
         content: [{ type: "text", text: run.prompt }],
         source: { kind: "user" }
       });
-      const deadline = Date.now() + (workspace === void 0 ? 12e4 : 3e5);
+      const timeout = timeoutSeconds ?? (workspace === void 0 ? 120 : 300);
+      const deadline = Date.now() + timeout * 1e3;
       let output = "";
       let idleTicks = 0;
+      let finished = false;
       while (Date.now() < deadline) {
         output = assistantText(handle.agent.session.deriveMessages());
         if (handle.agent.status === "idle") {
-          if (output !== "") break;
+          if (output !== "") {
+            finished = true;
+            break;
+          }
           idleTicks += 1;
-          if (idleTicks >= 10) break;
+          if (idleTicks >= 10) {
+            finished = true;
+            break;
+          }
         } else {
           idleTicks = 0;
         }
         await new Promise((resolve) => setTimeout(resolve, 400));
       }
-      if (output === "") {
-        throw new Error(
-          `Agent \u5728 ${workspace === void 0 ? "120" : "300"} \u79D2\u5185\u6CA1\u6709\u4EA7\u51FA\uFF08\u6CA1\u6709 assistant \u6D88\u606F\uFF09`
+      if (!finished) {
+        await this.store.timeoutRun(
+          run.id,
+          `Agent \u5728 ${String(timeout)} \u79D2\u5185\u6CA1\u6709\u5B8C\u6210\uFF1Bworktree \u5DF2\u4FDD\u7559\uFF0C\u8BF7\u4EBA\u5DE5\u63A5\u7BA1`
         );
+        return;
       }
       const idleDeadline = Date.now() + 3e4;
       while (handle.agent.status !== "idle" && Date.now() < idleDeadline) {

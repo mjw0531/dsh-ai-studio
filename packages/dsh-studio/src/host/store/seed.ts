@@ -128,6 +128,8 @@ export function createSeedState(now: () => Date): StudioState {
       module: null,
       contractRef: null,
       requirementRefs: [],
+      timeoutSeconds: null,
+      riskTier: "normal",
       kind: "new",
       diagnosis: "",
       plan: "",

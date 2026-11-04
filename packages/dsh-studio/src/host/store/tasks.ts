@@ -60,6 +60,8 @@ export async function createTask(
         contractRef:
           optionalText(input.contractRef, "contractRef", 300) || null,
         requirementRefs: textList(input.requirementRefs, "requirementRefs", 30),
+        timeoutSeconds: input.timeoutSeconds ?? null,
+        riskTier: input.riskTier ?? "normal",
         kind: input.kind === "fix" ? "fix" : "new",
         diagnosis: optionalText(input.diagnosis, "diagnosis", 4000),
         plan: optionalText(input.plan, "plan", 4000),
@@ -249,10 +251,17 @@ export async function transitionTask(
               )
             : latestReview?.verdict === "pass" &&
               latestReview.runId === latestCodeRun?.id;
+        const verificationPassed = state.verifications.some(
+          (verification) =>
+            verification.taskId === task.id && verification.passed,
+        );
+        const reviewRequired =
+          task.riskTier !== "trivial" || !verificationPassed;
         if (
           project?.repoPath !== null &&
           project?.repoPath !== undefined &&
           hasCodeRun &&
+          reviewRequired &&
           !reviewPassed
         ) {
           throw new StudioStoreError(
@@ -352,6 +361,8 @@ export function scheduleIntegrationGate(
       module: null,
       contractRef: null,
       requirementRefs: [],
+      timeoutSeconds: null,
+      riskTier: "normal",
       kind: "new",
       diagnosis: "",
       plan: "",

@@ -487,6 +487,39 @@ export async function completeRun(
     });
   }
 
+export async function timeoutRun(
+  ctx: StoreContext,
+  runId: string,
+  message: string,
+): Promise<AgentRun> {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const run = state.runs.find((item) => item.id === runId);
+    if (run === undefined) {
+      throw new StudioStoreError("run_not_found", "Agent Run 不存在", 404);
+    }
+    const at = ctx.now();
+    run.status = "timeout";
+    run.error = message.slice(0, 4000);
+    run.endedAt = at;
+    const task = state.tasks.find((item) => item.id === run.taskId);
+    if (task !== undefined && task.status === "running") {
+      task.status = "blocked";
+      task.updatedAt = at;
+    }
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "agent.timeout",
+      at,
+      projectId: run.projectId,
+      taskId: run.taskId,
+      payload: { runId, error: run.error },
+    });
+    await ctx.save();
+    return structuredClone(run);
+  });
+}
+
 export async function failRun(
   ctx: StoreContext,runId: string, error: string): Promise<AgentRun> {
     return ctx.runExclusive(async () => {
@@ -681,6 +714,8 @@ export function escalateRepeatedFailure(
           module: task.module,
           contractRef: task.contractRef,
           requirementRefs: task.requirementRefs,
+          timeoutSeconds: null,
+          riskTier: "normal",
           kind: "fix",
           diagnosis: "",
           plan: "",

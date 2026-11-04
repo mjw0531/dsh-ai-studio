@@ -30,6 +30,10 @@ export function TaskForm({
   const [acceptanceText, setAcceptanceText] = useState("");
   const [branch, setBranch] = useState("");
   const [verifyCommand, setVerifyCommand] = useState("npm test");
+  const [timeoutSeconds, setTimeoutSeconds] = useState("");
+  const [riskTier, setRiskTier] = useState<"trivial" | "normal" | "critical">(
+    "normal",
+  );
   const [moduleName, setModuleName] = useState("");
   const [contractRef, setContractRef] = useState("");
   const [requirementRefs, setRequirementRefs] = useState("");
@@ -74,6 +78,9 @@ export function TaskForm({
       acceptance,
       branch: branch.trim() || undefined,
       verifyCommand: verifyCommand.trim() || undefined,
+      timeoutSeconds:
+        timeoutSeconds.trim() === "" ? undefined : Number(timeoutSeconds),
+      riskTier,
       module: moduleName.trim() || undefined,
       contractRef: contractRef.trim() || undefined,
       requirementRefs: requirementRefs
@@ -167,6 +174,35 @@ export function TaskForm({
           />
           <div className="studio-hint">
             由 Studio Host 在 worktree 内独立执行；通过会写 evidence，但不自动通过验收。
+          </div>
+        </div>
+        <div className="studio-field-row">
+          <div className="studio-field">
+            <label htmlFor="task-timeout">超时秒数（可选）</label>
+            <input
+              id="task-timeout"
+              type="number"
+              min="1"
+              value={timeoutSeconds}
+              onChange={(event) => setTimeoutSeconds(event.target.value)}
+              placeholder="默认 300"
+            />
+          </div>
+          <div className="studio-field">
+            <label htmlFor="task-risk">风险级别</label>
+            <select
+              id="task-risk"
+              value={riskTier}
+              onChange={(event) =>
+                setRiskTier(
+                  event.target.value as "trivial" | "normal" | "critical",
+                )
+              }
+            >
+              <option value="trivial">trivial</option>
+              <option value="normal">normal</option>
+              <option value="critical">critical</option>
+            </select>
           </div>
         </div>
         <div className="studio-field-row">

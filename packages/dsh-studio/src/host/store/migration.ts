@@ -380,10 +380,21 @@ export function migrateState(value: unknown): StudioState {
   if (state.schemaVersion === 29) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 30,
       runs: state.runs.map((run) => ({
         ...run,
         outputPath: null,
+      })),
+    };
+  }
+  if (state.schemaVersion === 30) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      tasks: state.tasks.map((task) => ({
+        ...task,
+        timeoutSeconds: null,
+        riskTier: "normal",
       })),
     };
   }
