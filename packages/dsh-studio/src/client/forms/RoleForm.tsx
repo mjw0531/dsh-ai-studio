@@ -60,7 +60,7 @@ export function RoleForm({
         .map((line) => line.trim())
         .filter(Boolean),
       providerProfileId: providerProfileId || null,
-      model: model.trim() || null,
+      model: model.trim() || undefined,
       executor,
       tokenBudget: budgets.tokenBudget,
       dailyTokenBudget: budgets.dailyTokenBudget,

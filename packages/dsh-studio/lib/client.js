@@ -513,10 +513,10 @@ var StudioClient = class {
     );
     return data.run;
   }
-  async verifyTask(taskId, command) {
+  async verifyTask(taskId) {
     const data = await this.request(
       `/tasks/${encodeURIComponent(taskId)}/verify`,
-      { method: "POST", body: command === void 0 ? {} : { command } }
+      { method: "POST", body: {} }
     );
     return data.verification;
   }
@@ -756,7 +756,7 @@ function createStudioActions({
       async () => {
         if (client === null || data === null || data.project === null) return;
         await client.updateProject(data.project.id, {
-          repoPath: repoPath.trim() || null
+          repoPath: repoPath.trim() || void 0
         });
       },
       "\u9879\u76EE\u4ED3\u5E93\u5DF2\u66F4\u65B0"
@@ -1007,7 +1007,11 @@ function createStudioActions({
     return run(
       async () => {
         if (client === null) return;
-        await client.verifyTask(task.id, command);
+        const next = command.trim();
+        if (next !== (task.verifyCommand ?? "")) {
+          await client.updateTask(task.id, { verifyCommand: next });
+        }
+        await client.verifyTask(task.id);
       },
       "\u9A8C\u8BC1\u547D\u4EE4\u5DF2\u6267\u884C"
     );
@@ -6133,7 +6137,7 @@ function ProjectForm({
         template,
         name: name2.trim(),
         description: description.trim(),
-        repoPath: repoPath.trim() || null
+        repoPath: repoPath.trim() || void 0
       });
       return;
     }
@@ -6141,7 +6145,7 @@ function ProjectForm({
       name: name2.trim(),
       description: description.trim(),
       tokenBudget: budget,
-      repoPath: repoPath.trim() || null
+      repoPath: repoPath.trim() || void 0
     });
   };
   return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
@@ -6349,7 +6353,7 @@ function RoleForm({
       mission: mission.trim(),
       responsibilities: responsibilities.split("\n").map((line) => line.trim()).filter(Boolean),
       providerProfileId: providerProfileId || null,
-      model: model.trim() || null,
+      model: model.trim() || void 0,
       executor,
       tokenBudget: budgets.tokenBudget,
       dailyTokenBudget: budgets.dailyTokenBudget
@@ -6560,10 +6564,10 @@ function TaskForm({
       ownerRoleId: ownerRoleId || null,
       reviewerRoleId: reviewerRoleId || null,
       acceptance,
-      branch: branch.trim() || null,
-      verifyCommand: verifyCommand.trim() || null,
-      module: moduleName.trim() || null,
-      contractRef: contractRef.trim() || null,
+      branch: branch.trim() || void 0,
+      verifyCommand: verifyCommand.trim() || void 0,
+      module: moduleName.trim() || void 0,
+      contractRef: contractRef.trim() || void 0,
       requirementRefs: requirementRefs.split(/[\n,]/u).map((line) => line.trim()).filter(Boolean),
       kind,
       diagnosis: diagnosis.trim(),

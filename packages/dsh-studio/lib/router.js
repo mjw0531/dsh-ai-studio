@@ -2,7 +2,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_PLUGIN_VERSION = "3.4.0";
+var STUDIO_PLUGIN_VERSION = "3.5.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -136,16 +136,24 @@ function asString(value, field) {
   return value;
 }
 function asOptionalString(value, field) {
-  if (value === void 0) return void 0;
+  if (value === void 0 || value === null) return void 0;
   if (typeof value !== "string") {
-    throw new HttpError(400, "invalid_input", `${field} \u5FC5\u987B\u662F\u5B57\u7B26\u4E32`);
+    throw new HttpError(
+      400,
+      "invalid_input",
+      `${field} \u5FC5\u987B\u662F\u5B57\u7B26\u4E32\uFF1B\u7559\u7A7A\u8BF7\u7701\u7565\u6216\u4F20 null`
+    );
   }
-  return value;
+  return value.trim() === "" ? void 0 : value;
 }
 function asStringArray(value, field) {
-  if (value === void 0) return void 0;
+  if (value === void 0 || value === null) return void 0;
   if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) {
-    throw new HttpError(400, "invalid_input", `${field} \u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u6570\u7EC4`);
+    throw new HttpError(
+      400,
+      "invalid_input",
+      `${field} \u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u6570\u7EC4\uFF1B\u7559\u7A7A\u8BF7\u7701\u7565\u6216\u4F20 null`
+    );
   }
   return value;
 }
@@ -534,6 +542,7 @@ var StudioRouter = class {
   compatibility;
   connection;
   bootNonce;
+  rateBuckets = /* @__PURE__ */ new Map();
   getBootPayload;
   dispatchTask;
   verifyTask;
@@ -586,6 +595,10 @@ var StudioRouter = class {
     }
     if (parsed.pathname === `${API_PREFIX}/boot`) {
       this.requireMethod(parsed, ["GET"]);
+      if (!this.allowRate("boot", req, 30)) {
+        sendError(res, 429, "rate_limited", "\u542F\u52A8\u53C2\u6570\u8BF7\u6C42\u8FC7\u4E8E\u9891\u7E41\uFF0C\u8BF7\u7A0D\u540E\u518D\u8BD5");
+        return;
+      }
       const origin = req.headers.origin;
       if (origin === "null" || origin?.startsWith("file://")) {
         sendError(
@@ -1097,12 +1110,24 @@ var StudioRouter = class {
     const taskVerify = /^\/studio-api\/tasks\/([^/]+)\/verify$/.exec(parsed.pathname);
     if (taskVerify !== null) {
       this.requireMethod(parsed, ["POST"]);
+      if (!this.allowRate("verify", req, 30)) {
+        throw new HttpError(
+          429,
+          "rate_limited",
+          "\u9A8C\u8BC1\u8BF7\u6C42\u8FC7\u4E8E\u9891\u7E41\uFF0C\u8BF7\u7A0D\u540E\u518D\u8BD5"
+        );
+      }
       assertJsonRequest(req);
       const body = await readJson(req);
-      const command = body.command === void 0 ? void 0 : asOptionalString(body.command, "command");
+      if (body.command !== void 0 && body.command !== null) {
+        throw new HttpError(
+          400,
+          "verify_command_override",
+          "\u9A8C\u8BC1\u547D\u4EE4\u53EA\u80FD\u5728\u4EFB\u52A1\u91CC\u4FEE\u6539\uFF1B/verify \u4E0D\u518D\u63A5\u53D7\u4E34\u65F6\u547D\u4EE4"
+        );
+      }
       const verification = await this.verifyTask(
-        decodeSegment(taskVerify[1] ?? ""),
-        command
+        decodeSegment(taskVerify[1] ?? "")
       );
       sendJson(res, 200, { ok: true, verification });
       return;
@@ -1226,9 +1251,23 @@ var StudioRouter = class {
     const authorization = req.headers.authorization;
     const bearer = typeof authorization === "string" && authorization.toLowerCase().startsWith("bearer ") ? authorization.slice(7).trim() : "";
     const candidate = typeof headerToken === "string" ? headerToken.trim() : bearer;
-    if (candidate === "" || candidate !== this.token) {
+    const expected = Buffer.from(this.token);
+    const supplied = Buffer.from(candidate);
+    if (candidate === "" || supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) {
       throw new HttpError(401, "unauthorized", "\u7F3A\u5C11\u6216\u65E0\u6548\u7684 Studio \u8BBF\u95EE\u4EE4\u724C");
     }
+  }
+  allowRate(bucket, req, limit) {
+    const key = `${bucket}:${req.socket?.remoteAddress ?? "unknown"}`;
+    const now = Date.now();
+    const current = this.rateBuckets.get(key);
+    if (current === void 0 || current.resetAt <= now) {
+      this.rateBuckets.set(key, { count: 1, resetAt: now + 6e4 });
+      return true;
+    }
+    if (current.count >= limit) return false;
+    current.count += 1;
+    return true;
   }
   requireMethod(parsed, methods) {
     if (!methods.includes(parsed.method)) {

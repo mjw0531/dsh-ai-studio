@@ -205,7 +205,7 @@ export function createStudioActions({
       async () => {
         if (client === null || data === null || data.project === null) return;
         await client.updateProject(data.project.id, {
-          repoPath: repoPath.trim() || null,
+          repoPath: repoPath.trim() || undefined,
         });
       },
       "项目仓库已更新",
@@ -535,7 +535,11 @@ export function createStudioActions({
     return run(
       async () => {
         if (client === null) return;
-        await client.verifyTask(task.id, command);
+        const next = command.trim();
+        if (next !== (task.verifyCommand ?? "")) {
+          await client.updateTask(task.id, { verifyCommand: next });
+        }
+        await client.verifyTask(task.id);
       },
       "验证命令已执行",
     );

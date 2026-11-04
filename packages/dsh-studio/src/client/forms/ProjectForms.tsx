@@ -44,7 +44,7 @@ export function ProjectForm({
         template,
         name: name.trim(),
         description: description.trim(),
-        repoPath: repoPath.trim() || null,
+        repoPath: repoPath.trim() || undefined,
       });
       return;
     }
@@ -52,7 +52,7 @@ export function ProjectForm({
       name: name.trim(),
       description: description.trim(),
       tokenBudget: budget,
-      repoPath: repoPath.trim() || null,
+      repoPath: repoPath.trim() || undefined,
     });
   };
 

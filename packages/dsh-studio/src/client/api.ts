@@ -576,10 +576,10 @@ export class StudioClient {
     return data.run;
   }
 
-  async verifyTask(taskId: string, command?: string): Promise<Verification> {
+  async verifyTask(taskId: string): Promise<Verification> {
     const data = await this.request<{ verification: Verification }>(
       `/tasks/${encodeURIComponent(taskId)}/verify`,
-      { method: "POST", body: command === undefined ? {} : { command } },
+      { method: "POST", body: {} },
     );
     return data.verification;
   }

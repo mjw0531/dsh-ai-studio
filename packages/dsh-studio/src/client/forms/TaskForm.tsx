@@ -72,10 +72,10 @@ export function TaskForm({
       ownerRoleId: ownerRoleId || null,
       reviewerRoleId: reviewerRoleId || null,
       acceptance,
-      branch: branch.trim() || null,
-      verifyCommand: verifyCommand.trim() || null,
-      module: moduleName.trim() || null,
-      contractRef: contractRef.trim() || null,
+      branch: branch.trim() || undefined,
+      verifyCommand: verifyCommand.trim() || undefined,
+      module: moduleName.trim() || undefined,
+      contractRef: contractRef.trim() || undefined,
       requirementRefs: requirementRefs
         .split(/[\n,]/u)
         .map((line) => line.trim())

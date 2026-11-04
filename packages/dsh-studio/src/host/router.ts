@@ -65,7 +65,7 @@ interface StudioRouterOptions {
   bootNonce: string;
   getBootPayload: () => unknown;
   dispatchTask: (taskId: string) => Promise<AgentRun>;
-  verifyTask: (taskId: string, command?: string) => Promise<Verification>;
+  verifyTask: (taskId: string) => Promise<Verification>;
   reviewTask: (taskId: string) => Promise<IndependentReview>;
   executeMerge: (proposalId: string) => Promise<MergeProposal>;
   rollbackMerge: (proposalId: string) => Promise<MergeProposal>;
@@ -220,17 +220,25 @@ function asString(value: unknown, field: string): string {
 }
 
 function asOptionalString(value: unknown, field: string): string | undefined {
-  if (value === undefined) return undefined;
+  if (value === undefined || value === null) return undefined;
   if (typeof value !== "string") {
-    throw new HttpError(400, "invalid_input", `${field} 必须是字符串`);
+    throw new HttpError(
+      400,
+      "invalid_input",
+      `${field} 必须是字符串；留空请省略或传 null`,
+    );
   }
-  return value;
+  return value.trim() === "" ? undefined : value;
 }
 
 function asStringArray(value: unknown, field: string): string[] | undefined {
-  if (value === undefined) return undefined;
+  if (value === undefined || value === null) return undefined;
   if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) {
-    throw new HttpError(400, "invalid_input", `${field} 必须是字符串数组`);
+    throw new HttpError(
+      400,
+      "invalid_input",
+      `${field} 必须是字符串数组；留空请省略或传 null`,
+    );
   }
   return value;
 }
@@ -761,12 +769,13 @@ export class StudioRouter {
   private readonly compatibility: CompatibilityInfo;
   private readonly connection: ConnectionLike;
   private readonly bootNonce: string;
+  private readonly rateBuckets = new Map<
+    string,
+    { count: number; resetAt: number }
+  >();
   private readonly getBootPayload: () => unknown;
   private readonly dispatchTask: (taskId: string) => Promise<AgentRun>;
-  private readonly verifyTask: (
-    taskId: string,
-    command?: string,
-  ) => Promise<Verification>;
+  private readonly verifyTask: (taskId: string) => Promise<Verification>;
   private readonly reviewTask: (
     taskId: string,
   ) => Promise<IndependentReview>;
@@ -834,6 +843,10 @@ export class StudioRouter {
 
     if (parsed.pathname === `${API_PREFIX}/boot`) {
       this.requireMethod(parsed, ["GET"]);
+      if (!this.allowRate("boot", req, 30)) {
+        sendError(res, 429, "rate_limited", "启动参数请求过于频繁，请稍后再试");
+        return;
+      }
       const origin = req.headers.origin;
       if (origin === "null" || origin?.startsWith("file://")) {
         sendError(
@@ -1423,15 +1436,24 @@ export class StudioRouter {
       /^\/studio-api\/tasks\/([^/]+)\/verify$/.exec(parsed.pathname);
     if (taskVerify !== null) {
       this.requireMethod(parsed, ["POST"]);
+      if (!this.allowRate("verify", req, 30)) {
+        throw new HttpError(
+          429,
+          "rate_limited",
+          "验证请求过于频繁，请稍后再试",
+        );
+      }
       assertJsonRequest(req);
       const body = (await readJson(req)) as { command?: unknown };
-      const command =
-        body.command === undefined
-          ? undefined
-          : asOptionalString(body.command, "command");
+      if (body.command !== undefined && body.command !== null) {
+        throw new HttpError(
+          400,
+          "verify_command_override",
+          "验证命令只能在任务里修改；/verify 不再接受临时命令",
+        );
+      }
       const verification = await this.verifyTask(
         decodeSegment(taskVerify[1] ?? ""),
-        command,
       );
       sendJson(res, 200, { ok: true, verification });
       return;
@@ -1585,9 +1607,32 @@ export class StudioRouter {
         : "";
     const candidate =
       typeof headerToken === "string" ? headerToken.trim() : bearer;
-    if (candidate === "" || candidate !== this.token) {
+    const expected = Buffer.from(this.token);
+    const supplied = Buffer.from(candidate);
+    if (
+      candidate === "" ||
+      supplied.length !== expected.length ||
+      !timingSafeEqual(supplied, expected)
+    ) {
       throw new HttpError(401, "unauthorized", "缺少或无效的 Studio 访问令牌");
     }
+  }
+
+  private allowRate(
+    bucket: string,
+    req: IncomingMessage,
+    limit: number,
+  ): boolean {
+    const key = `${bucket}:${req.socket?.remoteAddress ?? "unknown"}`;
+    const now = Date.now();
+    const current = this.rateBuckets.get(key);
+    if (current === undefined || current.resetAt <= now) {
+      this.rateBuckets.set(key, { count: 1, resetAt: now + 60_000 });
+      return true;
+    }
+    if (current.count >= limit) return false;
+    current.count += 1;
+    return true;
   }
 
   private requireMethod(parsed: ParsedRequest, methods: string[]): void {

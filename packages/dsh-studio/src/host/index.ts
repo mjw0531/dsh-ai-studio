@@ -147,7 +147,7 @@ export async function apply(ctx: StudioHostContext): Promise<void> {
     bootNonce: nonce,
     getBootPayload: () => bootPayload,
     dispatchTask: (taskId) => dispatcher.dispatch(taskId),
-    verifyTask: (taskId, command) => verifier.verify(taskId, command),
+    verifyTask: (taskId) => verifier.verify(taskId),
     reviewTask: (taskId) => dispatcher.review(taskId),
     executeMerge: (proposalId) => merger.execute(proposalId),
     rollbackMerge: (proposalId) => merger.rollback(proposalId),
