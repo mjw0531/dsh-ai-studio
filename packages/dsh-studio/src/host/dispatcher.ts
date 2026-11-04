@@ -215,17 +215,65 @@ function assistantText(messages: AgentMessage[]): string {
     .trim();
 }
 
-function extractJsonObject(text: string): unknown {
-  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(text);
-  const candidate = fenced?.[1] ?? text;
-  const start = candidate.indexOf("{");
-  const end = candidate.lastIndexOf("}");
-  if (start < 0 || end <= start) return undefined;
-  try {
-    return JSON.parse(candidate.slice(start, end + 1));
-  } catch {
-    return undefined;
+function balancedJsonAt(source: string, start: number): string | null {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = start; index < source.length; index += 1) {
+    const char = source[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+    if (char === "{") depth += 1;
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) return source.slice(start, index + 1);
+    }
   }
+  return null;
+}
+
+export function extractJsonObject(text: string): unknown {
+  const fenced = [
+    ...text.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi),
+  ].map((match) => match[1] ?? "");
+  const sources = [...fenced, text];
+  for (const source of sources) {
+    const starts: number[] = [];
+    for (let index = 0; index < source.length; index += 1) {
+      if (source[index] === "{") starts.push(index);
+    }
+    for (let index = starts.length - 1; index >= 0; index -= 1) {
+      const start = starts[index];
+      if (start === undefined) continue;
+      const candidate = balancedJsonAt(source, start);
+      if (candidate === null) continue;
+      try {
+        const parsed: unknown = JSON.parse(candidate);
+        if (
+          typeof parsed === "object" &&
+          parsed !== null &&
+          !Array.isArray(parsed)
+        ) {
+          return parsed;
+        }
+      } catch {
+        // keep scanning; prose often contains unbalanced braces
+      }
+    }
+  }
+  return undefined;
 }
 
 function stringArray(value: unknown): string[] {
@@ -774,6 +822,7 @@ export class AgentDispatcher {
             diffPatch: workingPatch,
             commitSha: null,
           });
+          await this.store.externalizeRunOutput(run.id, output);
           return;
         }
       }
@@ -801,6 +850,7 @@ export class AgentDispatcher {
         diffPatch,
         commitSha,
       });
+      await this.store.externalizeRunOutput(run.id, output);
     } catch (error) {
       await this.store
         .failRun(
@@ -848,6 +898,7 @@ export class AgentDispatcher {
           diffPatch: workingPatch,
           commitSha: null,
         });
+        await this.store.externalizeRunOutput(run.id, output);
         return;
       }
       const commitSha =
@@ -869,6 +920,7 @@ export class AgentDispatcher {
         diffPatch,
         commitSha,
       });
+      await this.store.externalizeRunOutput(run.id, output);
     } catch (error) {
       await this.store
         .failRun(

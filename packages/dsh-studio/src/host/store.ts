@@ -762,6 +762,29 @@ export class StudioStore {
     return recordRunRuntimeImpl(this.context, runId, runtime);
   }
 
+  async externalizeRunOutput(
+    runId: string,
+    output: string,
+  ): Promise<void> {
+    try {
+      const dir = path.join(this.dataDir, "runs");
+      await mkdir(dir, { recursive: true });
+      const file = path.join(dir, `${runId}.txt`);
+      await writeFile(file, output, "utf8");
+      await this.runExclusive(async () => {
+        const run = this.requireState().runs.find(
+          (item) => item.id === runId,
+        );
+        if (run === undefined) return;
+        run.outputPath = file;
+        run.output = output.slice(0, 2000);
+        await this.save();
+      });
+    } catch {
+      // Output externalization is best-effort; the run already completed.
+    }
+  }
+
   async failRun(runId: string, error: string): Promise<AgentRun> {
     return failRunImpl(this.context, runId, error);
   }

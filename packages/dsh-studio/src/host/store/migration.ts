@@ -370,10 +370,20 @@ export function migrateState(value: unknown): StudioState {
   if (state.schemaVersion === 28) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 29,
       runs: state.runs.map((run) => ({
         ...run,
         diffPatch: null,
+      })),
+    };
+  }
+  if (state.schemaVersion === 29) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      runs: state.runs.map((run) => ({
+        ...run,
+        outputPath: null,
       })),
     };
   }

@@ -4,7 +4,7 @@
 
 一套构建在 **DeepSeek Harness（DSH）** 之上的多角色 AI Studio：把「一个聊天窗口」变成一间**有工作室仪表盘、Agent 派单、token 预算、决策台、支线/契约冲突、worktree 代码执行、项目、角色、任务、验收、合并治理**的工作室。
 
-> 当前状态：**v3.6.0 可运行**。已完成工作室级 Owner Dashboard、Agent 派单与结构化回执、角色模型/token 预算、DSH token 计量、决策台、支线/契约冲突自动升级、git worktree 代码执行与自动提交、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、ADR 草稿与落盘、人工触发 Git merge 与合并后回归、合并失败升级与回滚、改修票诊断/计划门禁、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、Claude Code / Codex CLI 执行器、项目包导出、数据导出/导入恢复、项目/角色/任务/验收/证据持久化、合并治理，并在 DSH `0.2.1-rc.2` 和真实外部仓库上完成派单→验证→评审→merge→回归的 dogfood。
+> 当前状态：**v3.7.0 可运行**。已完成工作室级 Owner Dashboard、Agent 派单与结构化回执、角色模型/token 预算、DSH token 计量、决策台、支线/契约冲突自动升级、git worktree 代码执行与自动提交、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、ADR 草稿与落盘、人工触发 Git merge 与合并后回归、合并失败升级与回滚、改修票诊断/计划门禁、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、Claude Code / Codex CLI 执行器、项目包导出、数据导出/导入恢复、项目/角色/任务/验收/证据持久化、合并治理，并在 DSH `0.2.1-rc.2` 和真实外部仓库上完成派单→验证→评审→merge→回归的 dogfood。
 
 ## 现在能做什么
 
@@ -76,6 +76,7 @@
 - **3.4.0 运行隔离**：worker/review 显式挂载 `standard`；worker 限制 creator/子代理工具；评审/研讨会只读沙箱；Run 记录预设、审批、沙箱和限制工具。
 - **3.5.0 反馈修复**：API 可选字段接受 `null`；`/verify` 只跑任务里保存的命令；Bearer 定时安全比较；boot/verify 限流；GitHub Actions 检查 `src/lib` 漂移。
 - **3.6.0 评审证据**：Run 保存真实 `git diff` patch；评审注入 patch + base/branch；契约越界改为提交前检查，越界不产生正常任务分支提交。
+- **3.7.0 运行数据**：Run 全文外置到 `runs/<id>.txt`，state 只留 2KB 预览；回执 JSON 改为扫描所有块并从后往前解析。
 - **Agent 分析派单**：Task Room 把任务派给负责人角色，Agent 返回结构化回执；回执缺 `summary`/`evidence` 时任务退回可开始，不能进入验收。
 - **薪资与预算**：角色配置模型、单任务/每日 token 预算；项目配置总 token 预算。
 - **独立工作台页面**：DSH 侧栏点击「工作台」，进入公司仪表盘，不占用聊天会话。
@@ -112,7 +113,7 @@ dsh --profile web
 4. 派单 → 看回执 → 在任务详情运行 Host 验证；
 5. 独立评审 → 勾验收 → 创建合并提案。
 
-如果表单留空后报「必须是字符串」，请升级到 v3.6.0 或更新版本；这是已修复的 `null` 边界问题。
+如果表单留空后报「必须是字符串」，请升级到 v3.7.0 或更新版本；这是已修复的 `null` 边界问题。
 
 详细安装、打包分发、安全说明见 [插件 README](packages/dsh-studio/README.md)；想先理解整体工作流、角色和开发术语，读 [项目介绍与开发指南](docs/06-项目介绍.md)；对 Super-agent / Router / Thread 的架构启发见 [Super-agent 启发](docs/07-Super-agent-启发.md)；后续版本安排见 [迭代计划](docs/08-迭代计划.md)；完整操作步骤见 [使用说明书](docs/05-使用说明书.md)；兼容性、升级、备份见 [兼容性与安装](docs/04-兼容性与安装.md)。
 
@@ -283,8 +284,9 @@ dsh --profile web --no-open --port 0
 - **v3.3.0**：执行层绑定；boot nonce、项目包按项目、路径校验、提交绑定、schema 27、local Git 身份。
 - **v3.4.0**：运行隔离；worker/review 显式挂载 standard、工具限制、只读沙箱、Run 记录预设/审批/沙箱，schema 28。
 - **v3.5.0**：反馈修复；null 输入、verify 命令来源、timing-safe、限流、CI/lib 校验。
-- **v3.6.0（当前）**：评审证据；真实 patch、review prompt、契约检查前置、schema 29。
-- **下一步**：B2 剩余超时/解析、Run 外置、riskTier。
+- **v3.6.0**：评审证据；真实 patch、review prompt、契约检查前置、schema 29。
+- **v3.7.0（当前）**：运行数据；Run 输出外置、2KB 预览、回执解析加固、schema 30。
+- **下一步**：B2 剩余超时与 riskTier。
 - **v1.0**：用工作台完成一个完整垂直切片，再抽象为可复用插件。
 
 升级、备份与兼容性见 [兼容性与安装](docs/04-兼容性与安装.md)。

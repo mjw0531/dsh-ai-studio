@@ -194,6 +194,9 @@ function isAgentRun(value: unknown): value is AgentRun {
     (value.diffPatch === null ||
       value.diffPatch === undefined ||
       typeof value.diffPatch === "string") &&
+    (value.outputPath === null ||
+      value.outputPath === undefined ||
+      typeof value.outputPath === "string") &&
     (value.diffStat === null || typeof value.diffStat === "string") &&
     (value.sessionId === null || typeof value.sessionId === "string") &&
     isAgentRunStatus(value.status) &&

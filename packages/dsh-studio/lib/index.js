@@ -2,8 +2,8 @@
 import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 29;
-var STUDIO_PLUGIN_VERSION = "3.6.0";
+var STUDIO_SCHEMA_VERSION = 30;
+var STUDIO_PLUGIN_VERSION = "3.7.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -519,10 +519,20 @@ function migrateState(value) {
   if (state.schemaVersion === 28) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 29,
       runs: state.runs.map((run3) => ({
         ...run3,
         diffPatch: null
+      }))
+    };
+  }
+  if (state.schemaVersion === 29) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      runs: state.runs.map((run3) => ({
+        ...run3,
+        outputPath: null
       }))
     };
   }
@@ -555,7 +565,7 @@ function isAgentRunStatus(value) {
   return value === "queued" || value === "running" || value === "succeeded" || value === "failed";
 }
 function isAgentRun(value) {
-  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.providerProfileId === null || typeof value.providerProfileId === "string") && (value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && (value.provider === null || typeof value.provider === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.branchName === null || typeof value.branchName === "string") && (value.workspacePath === null || typeof value.workspacePath === "string") && (value.commitSha === null || value.commitSha === void 0 || typeof value.commitSha === "string") && (value.baseSha === null || value.baseSha === void 0 || typeof value.baseSha === "string") && (value.agentPreset === null || value.agentPreset === void 0 || typeof value.agentPreset === "string") && (value.approvalPolicy === null || value.approvalPolicy === void 0 || value.approvalPolicy === "ask" || value.approvalPolicy === "never") && (value.sandboxMode === null || value.sandboxMode === void 0 || value.sandboxMode === "read-only" || value.sandboxMode === "workspace-write" || value.sandboxMode === "danger-full-access") && (Array.isArray(value.restrictedTools) || value.restrictedTools === void 0) && (value.diffPatch === null || value.diffPatch === void 0 || typeof value.diffPatch === "string") && (value.diffStat === null || typeof value.diffStat === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord2(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.providerProfileId === null || typeof value.providerProfileId === "string") && (value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && (value.provider === null || typeof value.provider === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.branchName === null || typeof value.branchName === "string") && (value.workspacePath === null || typeof value.workspacePath === "string") && (value.commitSha === null || value.commitSha === void 0 || typeof value.commitSha === "string") && (value.baseSha === null || value.baseSha === void 0 || typeof value.baseSha === "string") && (value.agentPreset === null || value.agentPreset === void 0 || typeof value.agentPreset === "string") && (value.approvalPolicy === null || value.approvalPolicy === void 0 || value.approvalPolicy === "ask" || value.approvalPolicy === "never") && (value.sandboxMode === null || value.sandboxMode === void 0 || value.sandboxMode === "read-only" || value.sandboxMode === "workspace-write" || value.sandboxMode === "danger-full-access") && (Array.isArray(value.restrictedTools) || value.restrictedTools === void 0) && (value.diffPatch === null || value.diffPatch === void 0 || typeof value.diffPatch === "string") && (value.outputPath === null || value.outputPath === void 0 || typeof value.outputPath === "string") && (value.diffStat === null || typeof value.diffStat === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord2(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
 }
 function isTask(value) {
   return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence) && (value.verifyCommand === null || value.verifyCommand === void 0 || typeof value.verifyCommand === "string") && (value.module === null || value.module === void 0 || typeof value.module === "string") && (value.contractRef === null || value.contractRef === void 0 || typeof value.contractRef === "string") && Array.isArray(value.requirementRefs) && value.requirementRefs.every((item) => typeof item === "string") && (value.kind === void 0 || value.kind === "new" || value.kind === "fix") && (value.integration === void 0 || typeof value.integration === "boolean") && (value.originTaskId === null || value.originTaskId === void 0 || typeof value.originTaskId === "string") && (value.docsSynced === void 0 || typeof value.docsSynced === "boolean") && (value.diagnosis === void 0 || typeof value.diagnosis === "string") && (value.plan === void 0 || typeof value.plan === "string");
@@ -3181,6 +3191,7 @@ async function beginRun(ctx, taskId, prompt, workspace, execution) {
       sandboxMode: null,
       restrictedTools: [],
       diffPatch: null,
+      outputPath: null,
       diffStat: null,
       sessionId: null,
       status: "queued",
@@ -5321,6 +5332,24 @@ var StudioStore = class {
   async recordRunRuntime(runId, runtime) {
     return recordRunRuntime(this.context, runId, runtime);
   }
+  async externalizeRunOutput(runId, output) {
+    try {
+      const dir = path2.join(this.dataDir, "runs");
+      await mkdir(dir, { recursive: true });
+      const file = path2.join(dir, `${runId}.txt`);
+      await writeFile(file, output, "utf8");
+      await this.runExclusive(async () => {
+        const run3 = this.requireState().runs.find(
+          (item) => item.id === runId
+        );
+        if (run3 === void 0) return;
+        run3.outputPath = file;
+        run3.output = output.slice(0, 2e3);
+        await this.save();
+      });
+    } catch {
+    }
+  }
   async failRun(runId, error) {
     return failRun(this.context, runId, error);
   }
@@ -6032,17 +6061,59 @@ function assistantText(messages) {
   if (assistant === void 0) return "";
   return assistant.content.filter((block) => block.type === "text").map((block) => block.text ?? "").join("\n").trim();
 }
-function extractJsonObject(text2) {
-  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(text2);
-  const candidate = fenced?.[1] ?? text2;
-  const start = candidate.indexOf("{");
-  const end = candidate.lastIndexOf("}");
-  if (start < 0 || end <= start) return void 0;
-  try {
-    return JSON.parse(candidate.slice(start, end + 1));
-  } catch {
-    return void 0;
+function balancedJsonAt(source, start) {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = start; index < source.length; index += 1) {
+    const char = source[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+    if (char === "{") depth += 1;
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) return source.slice(start, index + 1);
+    }
   }
+  return null;
+}
+function extractJsonObject(text2) {
+  const fenced = [
+    ...text2.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)
+  ].map((match) => match[1] ?? "");
+  const sources = [...fenced, text2];
+  for (const source of sources) {
+    const starts = [];
+    for (let index = 0; index < source.length; index += 1) {
+      if (source[index] === "{") starts.push(index);
+    }
+    for (let index = starts.length - 1; index >= 0; index -= 1) {
+      const start = starts[index];
+      if (start === void 0) continue;
+      const candidate = balancedJsonAt(source, start);
+      if (candidate === null) continue;
+      try {
+        const parsed = JSON.parse(candidate);
+        if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+          return parsed;
+        }
+      } catch {
+      }
+    }
+  }
+  return void 0;
 }
 function stringArray(value) {
   if (!Array.isArray(value)) return [];
@@ -6441,6 +6512,7 @@ var AgentDispatcher = class {
             diffPatch: workingPatch,
             commitSha: null
           });
+          await this.store.externalizeRunOutput(run3.id, output);
           return;
         }
       }
@@ -6457,6 +6529,7 @@ var AgentDispatcher = class {
         diffPatch,
         commitSha
       });
+      await this.store.externalizeRunOutput(run3.id, output);
     } catch (error) {
       await this.store.failRun(
         run3.id,
@@ -6496,6 +6569,7 @@ var AgentDispatcher = class {
           diffPatch: workingPatch,
           commitSha: null
         });
+        await this.store.externalizeRunOutput(run3.id, output);
         return;
       }
       const commitSha = diffStat !== "" ? this.workspaces.commit(
@@ -6511,6 +6585,7 @@ var AgentDispatcher = class {
         diffPatch,
         commitSha
       });
+      await this.store.externalizeRunOutput(run3.id, output);
     } catch (error) {
       await this.store.failRun(
         run3.id,

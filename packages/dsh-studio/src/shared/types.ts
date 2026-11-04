@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 29;
-export const STUDIO_PLUGIN_VERSION = "3.6.0";
+export const STUDIO_SCHEMA_VERSION = 30;
+export const STUDIO_PLUGIN_VERSION = "3.7.0";
 
 export type TaskStatus =
   | "backlog"
@@ -554,6 +554,7 @@ export interface AgentRun {
   sandboxMode: "read-only" | "workspace-write" | "danger-full-access" | null;
   restrictedTools: string[];
   diffPatch: string | null;
+  outputPath: string | null;
   diffStat: string | null;
   sessionId: string | null;
   status: AgentRunStatus;

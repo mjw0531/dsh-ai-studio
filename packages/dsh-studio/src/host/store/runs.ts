@@ -125,6 +125,7 @@ export async function beginRun(
         sandboxMode: null,
         restrictedTools: [],
         diffPatch: null,
+        outputPath: null,
         diffStat: null,
         sessionId: null,
         status: "queued",

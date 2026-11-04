@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -210,6 +210,45 @@ test("rate-limits repeated boot requests", async () => {
       lastStatus = res.statusCode;
     }
     assert.equal(lastStatus, 429);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("externalizes run output outside studio.json", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "studio-b1-output-"));
+  try {
+    const store = new StudioStore({ dataDir: dir });
+    await store.init();
+    const data = await store.bootstrap();
+    const task = await store.createTask({
+      title: "输出外置",
+      acceptance: ["完成"],
+      ownerRoleId: data.roles[0].id,
+      reviewerRoleId: data.roles[1].id,
+    });
+    await store.transitionTask(task.id, "ready");
+    const run = await store.beginRun(task.id, "analysis");
+    await store.completeRun(run.id, {
+      output: "x".repeat(5000),
+      receipt: {
+        summary: "完成",
+        evidence: ["ok"],
+        artifacts: [],
+        decisions: [],
+        contractDeltas: [],
+        rejectedOptions: [],
+        blockers: [],
+      },
+      tokens: null,
+    });
+    await store.externalizeRunOutput(run.id, "x".repeat(5000));
+    const saved = (await store.bootstrap()).runs.find(
+      (item) => item.id === run.id,
+    );
+    assert.ok(saved?.outputPath);
+    assert.equal(saved.output.length, 2000);
+    assert.equal((await readFile(saved.outputPath, "utf8")).length, 5000);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
