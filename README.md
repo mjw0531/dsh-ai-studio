@@ -103,6 +103,16 @@ dsh plugin --profile web add "D:\dsh-ai-studio\packages\dsh-studio"
 dsh --profile web
 ```
 
+首次 5 分钟闭环：
+
+1. 完全退出并重启 DSH（插件安装/升级后必须做，不需要重装）；
+2. 打开「AI 工作室」→「公司」→ 新建项目；
+3. 新建任务，至少写一条验收标准；分支、模块、验证命令可以留空；
+4. 派单 → 看回执 → 在任务详情运行 Host 验证；
+5. 独立评审 → 勾验收 → 创建合并提案。
+
+如果表单留空后报「必须是字符串」，请升级到 v3.5.0 或更新版本；这是已修复的 `null` 边界问题。
+
 详细安装、打包分发、安全说明见 [插件 README](packages/dsh-studio/README.md)；想先理解整体工作流、角色和开发术语，读 [项目介绍与开发指南](docs/06-项目介绍.md)；对 Super-agent / Router / Thread 的架构启发见 [Super-agent 启发](docs/07-Super-agent-启发.md)；后续版本安排见 [迭代计划](docs/08-迭代计划.md)；完整操作步骤见 [使用说明书](docs/05-使用说明书.md)；兼容性、升级、备份见 [兼容性与安装](docs/04-兼容性与安装.md)。
 
 DSH 生态发现：GitHub topic 为 `dsh-plugin`，npm keywords 包含 `dsh-plugin` / `deepseek-harness` / `dsh`，包内提供 `dsh.bundle.patch` 与 `dsh.client.platform`。
