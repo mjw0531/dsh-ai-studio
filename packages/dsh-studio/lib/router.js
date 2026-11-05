@@ -2,7 +2,7 @@
 import { timingSafeEqual as timingSafeEqual3 } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_PLUGIN_VERSION = "3.12.0";
+var STUDIO_PLUGIN_VERSION = "3.13.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -569,7 +569,9 @@ function asCreateWorkshop(body) {
     participantRoleIds: asStringArray(
       body.participantRoleIds,
       "participantRoleIds"
-    )
+    ),
+    meetingType: body.meetingType === "prd" || body.meetingType === "architecture" || body.meetingType === "balance" || body.meetingType === "custom" ? body.meetingType : void 0,
+    agenda: asStringArray(body.agenda, "agenda")
   };
 }
 function asWorkshopNote(body) {
@@ -684,6 +686,9 @@ var StudioRouter = class {
   readProjectDoc;
   runWorkshop;
   summarizeWorkshop;
+  sayWorkshop;
+  sideSayWorkshop;
+  summarizeMeetingWorkshop;
   probeProviderProfile;
   constructor(options) {
     this.store = options.store;
@@ -704,6 +709,9 @@ var StudioRouter = class {
     this.readProjectDoc = options.readProjectDoc;
     this.runWorkshop = options.runWorkshop;
     this.summarizeWorkshop = options.summarizeWorkshop;
+    this.sayWorkshop = options.sayWorkshop;
+    this.sideSayWorkshop = options.sideSayWorkshop;
+    this.summarizeMeetingWorkshop = options.summarizeMeetingWorkshop;
     this.probeProviderProfile = options.probeProviderProfile;
   }
   async handle(req, res) {
@@ -1236,6 +1244,123 @@ var StudioRouter = class {
       requireMethod(parsed, ["POST"]);
       const workshop = await this.summarizeWorkshop(
         decodeSegment(workshopSummarize[1] ?? "")
+      );
+      sendJson(res, 200, { ok: true, workshop });
+      return;
+    }
+    const workshopSpeak = /^\/studio-api\/workshops\/([^/]+)\/messages$/.exec(parsed.pathname);
+    if (workshopSpeak !== null) {
+      requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const workshopId = decodeSegment(workshopSpeak[1] ?? "");
+      const body = await readJson(req);
+      const content = asString(body.content, "content");
+      const targetRoleId = body.targetRoleId === null || body.targetRoleId === void 0 ? null : asString(body.targetRoleId, "targetRoleId");
+      await this.store.addWorkshopMessage(workshopId, {
+        roleId: null,
+        roleName: "Owner",
+        content
+      });
+      const workshop = targetRoleId === null ? (await this.store.getWorkshopContext(workshopId)).workshop : await this.sayWorkshop(workshopId, targetRoleId, content);
+      sendJson(res, 200, { ok: true, workshop });
+      return;
+    }
+    const workshopSideSpeak = /^\/studio-api\/workshops\/([^/]+)\/side-chats\/([^/]+)\/messages$/.exec(
+      parsed.pathname
+    );
+    if (workshopSideSpeak !== null) {
+      requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const workshopId = decodeSegment(workshopSideSpeak[1] ?? "");
+      const roleId = decodeSegment(workshopSideSpeak[2] ?? "");
+      const body = await readJson(req);
+      const content = asString(body.content, "content");
+      await this.store.addWorkshopSideOwnerMessage(workshopId, roleId, content);
+      const workshop = await this.sideSayWorkshop(workshopId, roleId, content);
+      sendJson(res, 200, { ok: true, workshop });
+      return;
+    }
+    const workshopMessageEdit = /^\/studio-api\/workshops\/([^/]+)\/messages\/([^/]+)$/.exec(
+      parsed.pathname
+    );
+    if (workshopMessageEdit !== null) {
+      requireMethod(parsed, ["PATCH"]);
+      assertJsonRequest(req);
+      const body = await readJson(req);
+      const workshop = await this.store.updateWorkshopMessage(
+        decodeSegment(workshopMessageEdit[1] ?? ""),
+        decodeSegment(workshopMessageEdit[2] ?? ""),
+        { content: asString(body.content, "content") }
+      );
+      sendJson(res, 200, { ok: true, workshop });
+      return;
+    }
+    const workshopAgenda = /^\/studio-api\/workshops\/([^/]+)\/agenda$/.exec(parsed.pathname);
+    if (workshopAgenda !== null) {
+      requireMethod(parsed, ["PUT"]);
+      assertJsonRequest(req);
+      const body = await readJson(req);
+      if (!Array.isArray(body.items)) {
+        throw new HttpError(400, "invalid_input", "items \u5FC5\u987B\u662F\u6570\u7EC4");
+      }
+      const items = body.items.map((item) => {
+        if (typeof item !== "object" || item === null || typeof item.id !== "string" || item.status !== "open" && item.status !== "closed" && item.status !== "deferred") {
+          throw new HttpError(400, "invalid_input", "\u8BAE\u7A0B\u9879\u65E0\u6548");
+        }
+        return {
+          id: item.id,
+          status: item.status
+        };
+      });
+      const workshop = await this.store.setWorkshopAgenda(
+        decodeSegment(workshopAgenda[1] ?? ""),
+        items
+      );
+      sendJson(res, 200, { ok: true, workshop });
+      return;
+    }
+    const workshopSettle = /^\/studio-api\/workshops\/([^/]+)\/settle$/.exec(parsed.pathname);
+    if (workshopSettle !== null) {
+      requireMethod(parsed, ["POST"]);
+      const workshop = await this.store.settleWorkshop(
+        decodeSegment(workshopSettle[1] ?? "")
+      );
+      sendJson(res, 200, { ok: true, workshop });
+      return;
+    }
+    const workshopMinutes = /^\/studio-api\/workshops\/([^/]+)\/minutes$/.exec(parsed.pathname);
+    if (workshopMinutes !== null) {
+      requireMethod(parsed, ["PUT"]);
+      assertJsonRequest(req);
+      const body = await readJson(req);
+      const workshop = await this.store.saveWorkshopMinutes(
+        decodeSegment(workshopMinutes[1] ?? ""),
+        {
+          consensus: asStringArray(body.consensus, "consensus") ?? [],
+          disagreements: asStringArray(body.disagreements, "disagreements") ?? [],
+          openQuestions: asStringArray(body.openQuestions, "openQuestions") ?? [],
+          decisionDraft: asOptionalString(body.decisionDraft, "decisionDraft") ?? ""
+        }
+      );
+      sendJson(res, 200, { ok: true, workshop });
+      return;
+    }
+    const workshopMinutesAi = /^\/studio-api\/workshops\/([^/]+)\/summarize-minutes$/.exec(
+      parsed.pathname
+    );
+    if (workshopMinutesAi !== null) {
+      requireMethod(parsed, ["POST"]);
+      const workshop = await this.summarizeMeetingWorkshop(
+        decodeSegment(workshopMinutesAi[1] ?? "")
+      );
+      sendJson(res, 200, { ok: true, workshop });
+      return;
+    }
+    const workshopDecision = /^\/studio-api\/workshops\/([^/]+)\/decision$/.exec(parsed.pathname);
+    if (workshopDecision !== null) {
+      requireMethod(parsed, ["POST"]);
+      const workshop = await this.store.createWorkshopDecision(
+        decodeSegment(workshopDecision[1] ?? "")
       );
       sendJson(res, 200, { ok: true, workshop });
       return;

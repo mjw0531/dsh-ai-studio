@@ -144,6 +144,29 @@ interface StudioRuntime {
   restrictedTools: string[];
 }
 
+function restrictKnownTools(
+  restrict: (filter: { deny: string[] }) => unknown,
+  deny: string[],
+): string[] {
+  let remaining = [...deny];
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      restrict({ deny: remaining });
+      return remaining;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const quoted = [...message.matchAll(/"([^"]+)"/g)].map(
+        (match) => match[1] ?? "",
+      );
+      const unknown = new Set(quoted.filter(Boolean));
+      const next = remaining.filter((name) => !unknown.has(name));
+      if (next.length === remaining.length) throw error;
+      remaining = next;
+    }
+  }
+  throw new Error("tools.restrict 无法收敛到当前宿主的工具集");
+}
+
 export async function bindStudioRuntime(
   ctx: DispatcherContext,
   agentCtx: unknown,
@@ -173,12 +196,15 @@ export async function bindStudioRuntime(
       "tools.restrict unavailable; refusing to run without a tool boundary",
     );
   }
-  tools.restrict({ deny: options.restrictedTools });
+  const restrictedTools = restrictKnownTools(
+    tools.restrict.bind(tools),
+    options.restrictedTools,
+  );
   return {
     agentPreset: WORKER_PRESET,
     approvalPolicy: "never",
     sandboxMode: options.sandboxMode,
-    restrictedTools: [...options.restrictedTools],
+    restrictedTools,
   };
 }
 

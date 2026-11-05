@@ -519,6 +519,7 @@ function isThread(value: unknown): value is Thread {
 function isWorkshopStatus(value: unknown): value is WorkshopStatus {
   return (
     value === "collecting" ||
+    value === "settled" ||
     value === "synthesized" ||
     value === "decided" ||
     value === "cancelled"
@@ -557,6 +558,47 @@ function isWorkshopAiSummary(value: unknown): value is WorkshopAiSummary {
   );
 }
 
+function isWorkshopMessage(value: unknown): value is import("../../shared/types.js").WorkshopMessage {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    (value.roleId === null || typeof value.roleId === "string") &&
+    typeof value.roleName === "string" &&
+    (value.kind === "owner" || value.kind === "role" || value.kind === "system") &&
+    typeof value.content === "string" &&
+    (value.originalContent === null || typeof value.originalContent === "string") &&
+    (value.editedAt === null || typeof value.editedAt === "string") &&
+    typeof value.createdAt === "string"
+  );
+}
+
+function isWorkshopAgendaItem(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.text === "string" &&
+    (value.status === "open" ||
+      value.status === "closed" ||
+      value.status === "deferred")
+  );
+}
+
+function isWorkshopMinutes(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.consensus) &&
+    value.consensus.every((item) => typeof item === "string") &&
+    Array.isArray(value.disagreements) &&
+    value.disagreements.every((item) => typeof item === "string") &&
+    Array.isArray(value.openQuestions) &&
+    value.openQuestions.every((item) => typeof item === "string") &&
+    typeof value.decisionDraft === "string" &&
+    typeof value.savedAt === "string" &&
+    (value.model === null || typeof value.model === "string") &&
+    typeof value.editedByOwner === "boolean"
+  );
+}
+
 function isWorkshop(value: unknown): value is Workshop {
   return (
     isRecord(value) &&
@@ -568,6 +610,26 @@ function isWorkshop(value: unknown): value is Workshop {
     isWorkshopStatus(value.status) &&
     Array.isArray(value.participantRoleIds) &&
     value.participantRoleIds.every((item) => typeof item === "string") &&
+    (value.meetingType === "prd" ||
+      value.meetingType === "architecture" ||
+      value.meetingType === "balance" ||
+      value.meetingType === "custom") &&
+    Array.isArray(value.agenda) &&
+    value.agenda.every(isWorkshopAgendaItem) &&
+    Array.isArray(value.messages) &&
+    value.messages.every(isWorkshopMessage) &&
+    Array.isArray(value.sideChats) &&
+    value.sideChats.every(
+      (chat) =>
+        isRecord(chat) &&
+        typeof chat.roleId === "string" &&
+        Array.isArray(chat.messages) &&
+        chat.messages.every(isWorkshopMessage) &&
+        typeof chat.updatedAt === "string",
+    ) &&
+    (value.minutes === null || isWorkshopMinutes(value.minutes)) &&
+    (value.decisionId === null || typeof value.decisionId === "string") &&
+    (value.settledAt === null || typeof value.settledAt === "string") &&
     Array.isArray(value.notes) &&
     value.notes.every(isWorkshopNote) &&
     (value.aiSummary === null || isWorkshopAiSummary(value.aiSummary)) &&

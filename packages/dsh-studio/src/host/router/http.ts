@@ -82,6 +82,17 @@ export interface StudioRouterOptions {
   readProjectDoc: (path: string) => Promise<ProjectDoc>;
   runWorkshop: (workshopId: string) => Promise<Workshop>;
   summarizeWorkshop: (workshopId: string) => Promise<Workshop>;
+  sayWorkshop: (
+    workshopId: string,
+    roleId: string,
+    content: string,
+  ) => Promise<Workshop>;
+  sideSayWorkshop: (
+    workshopId: string,
+    roleId: string,
+    content: string,
+  ) => Promise<Workshop>;
+  summarizeMeetingWorkshop: (workshopId: string) => Promise<Workshop>;
   probeProviderProfile: (profileId: string) => Promise<ProviderProbeResult>;
 }
 

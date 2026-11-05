@@ -158,7 +158,7 @@ export function CompanyView({
       <div className="studio-page-head">
         <div>
           <div className="studio-eyebrow">Owner Dashboard</div>
-          <h1 className="studio-title">赛博公司</h1>
+          <h1 className="studio-title">{company.name}</h1>
           <p className="studio-subtitle">
             老板视角：项目组合是否健康、哪里需要你拍板、产能花在哪。
             这里展示真实控制面数据；token 消耗来自 DSH 计量，金额成本等报价接入后再显示。

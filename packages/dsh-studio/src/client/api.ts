@@ -28,6 +28,9 @@ import type {
   ApproveStageGateInput,
   CreateTriggerInput,
   CreateWorkshopInput,
+  UpdateWorkshopMessageInput,
+  Workshop,
+  WorkshopMinutesInput,
   CreateProviderProfileInput,
   UpdateProviderProfileInput,
   ProviderProfile,
@@ -39,7 +42,6 @@ import type {
   Trigger,
   TriggerRules,
   UpdateTriggerRulesInput,
-  Workshop,
   UpdateStageGateInput,
   UpdateModuleInput,
   Role,
@@ -257,6 +259,88 @@ export class StudioClient {
       method: "POST",
       body: { state },
     });
+  }
+
+  async speakWorkshop(
+    workshopId: string,
+    content: string,
+    targetRoleId: string | null,
+  ): Promise<Workshop> {
+    const data = await this.request<{ workshop: Workshop }>(
+      `/workshops/${encodeURIComponent(workshopId)}/messages`,
+      { method: "POST", body: { content, targetRoleId } },
+    );
+    return data.workshop;
+  }
+
+  async sideSpeakWorkshop(
+    workshopId: string,
+    roleId: string,
+    content: string,
+  ): Promise<Workshop> {
+    const data = await this.request<{ workshop: Workshop }>(
+      `/workshops/${encodeURIComponent(workshopId)}/side-chats/${encodeURIComponent(roleId)}/messages`,
+      { method: "POST", body: { content } },
+    );
+    return data.workshop;
+  }
+
+  async updateWorkshopMessage(
+    workshopId: string,
+    messageId: string,
+    input: UpdateWorkshopMessageInput,
+  ): Promise<Workshop> {
+    const data = await this.request<{ workshop: Workshop }>(
+      `/workshops/${encodeURIComponent(workshopId)}/messages/${encodeURIComponent(messageId)}`,
+      { method: "PATCH", body: input },
+    );
+    return data.workshop;
+  }
+
+  async updateWorkshopAgenda(
+    workshopId: string,
+    items: Array<{ id: string; status: "open" | "closed" | "deferred" }>,
+  ): Promise<Workshop> {
+    const data = await this.request<{ workshop: Workshop }>(
+      `/workshops/${encodeURIComponent(workshopId)}/agenda`,
+      { method: "PUT", body: { items } },
+    );
+    return data.workshop;
+  }
+
+  async settleWorkshop(workshopId: string): Promise<Workshop> {
+    const data = await this.request<{ workshop: Workshop }>(
+      `/workshops/${encodeURIComponent(workshopId)}/settle`,
+      { method: "POST" },
+    );
+    return data.workshop;
+  }
+
+  async saveWorkshopMinutes(
+    workshopId: string,
+    input: WorkshopMinutesInput,
+  ): Promise<Workshop> {
+    const data = await this.request<{ workshop: Workshop }>(
+      `/workshops/${encodeURIComponent(workshopId)}/minutes`,
+      { method: "PUT", body: input },
+    );
+    return data.workshop;
+  }
+
+  async summarizeWorkshopMinutes(workshopId: string): Promise<Workshop> {
+    const data = await this.request<{ workshop: Workshop }>(
+      `/workshops/${encodeURIComponent(workshopId)}/summarize-minutes`,
+      { method: "POST" },
+    );
+    return data.workshop;
+  }
+
+  async createWorkshopDecision(workshopId: string): Promise<Workshop> {
+    const data = await this.request<{ workshop: Workshop }>(
+      `/workshops/${encodeURIComponent(workshopId)}/decision`,
+      { method: "POST" },
+    );
+    return data.workshop;
   }
 
   async createProject(input: CreateProjectInput): Promise<Project> {

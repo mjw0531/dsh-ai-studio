@@ -40,6 +40,7 @@ import type {
   UpdateStageGateInput,
   UpdateTriggerRulesInput,
   Workshop,
+  WorkshopMinutesInput,
 } from "../shared/types.js";
 import { TASK_STATUS_LABELS } from "../shared/types.js";
 
@@ -483,6 +484,108 @@ export function createStudioActions({
     );
   };
 
+  const speakWorkshop = async (
+    workshopId: string,
+    content: string,
+    targetRoleId: string | null,
+  ): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.speakWorkshop(workshopId, content, targetRoleId);
+      },
+      "会议发言已记录",
+    );
+  };
+
+  const sideSpeakWorkshop = async (
+    workshopId: string,
+    roleId: string,
+    content: string,
+  ): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.sideSpeakWorkshop(workshopId, roleId, content);
+      },
+      "单聊已记录",
+    );
+  };
+
+  const updateWorkshopMessage = async (
+    workshopId: string,
+    messageId: string,
+    content: string,
+  ): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.updateWorkshopMessage(workshopId, messageId, { content });
+      },
+      "发言已编辑，原文保留",
+    );
+  };
+
+  const updateWorkshopAgenda = async (
+    workshopId: string,
+    items: Array<{ id: string; status: "open" | "closed" | "deferred" }>,
+  ): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.updateWorkshopAgenda(workshopId, items);
+      },
+      "议程状态已更新",
+    );
+  };
+
+  const settleWorkshop = async (workshopId: string): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.settleWorkshop(workshopId);
+      },
+      "会议已结束，进入结算",
+    );
+  };
+
+  const saveWorkshopMinutes = async (
+    workshopId: string,
+    input: WorkshopMinutesInput,
+  ): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.saveWorkshopMinutes(workshopId, input);
+      },
+      "会议纪要已保存",
+    );
+  };
+
+  const summarizeWorkshopMinutes = async (
+    workshopId: string,
+  ): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.summarizeWorkshopMinutes(workshopId);
+      },
+      "AI 会议纪要已生成",
+    );
+  };
+
+  const createWorkshopDecision = async (
+    workshopId: string,
+  ): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.createWorkshopDecision(workshopId);
+      },
+      "决策草案已进入决策台",
+    );
+  };
+
   const readProjectDoc = async (
     docPath: string,
   ): Promise<ProjectDoc | null> => {
@@ -854,6 +957,14 @@ export function createStudioActions({
     decideWorkshop,
     runWorkshop,
     summarizeWorkshopAi,
+    speakWorkshop,
+    sideSpeakWorkshop,
+    updateWorkshopMessage,
+    updateWorkshopAgenda,
+    settleWorkshop,
+    saveWorkshopMinutes,
+    summarizeWorkshopMinutes,
+    createWorkshopDecision,
     readProjectDoc,
     createModule,
     transitionTask,

@@ -106,6 +106,7 @@ import {
 } from "./components/ui.js";
 import type { Tab } from "./components/ui.js";
 import { CompanyView } from "./views/CompanyView.js";
+import { MeetingView } from "./features/MeetingView.js";
 import { BoardroomView } from "./views/BoardroomView.js";
 import { KnowledgeView } from "./views/KnowledgeView.js";
 import { BranchPanel, Roster, TeamView } from "./views/TeamView.js";
@@ -149,9 +150,10 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: "company", label: "公司", caption: "Owner Dashboard" },
+  { id: "company", label: "工作室", caption: "Studio Dashboard" },
+  { id: "knowledge", label: "知识库", caption: "PRD / Modules" },
+  { id: "meeting", label: "会议室", caption: "Meeting Room" },
   { id: "boardroom", label: "决策台", caption: "Decision Desk" },
-  { id: "knowledge", label: "知识", caption: "PRD / Modules" },
   { id: "mission", label: "项目", caption: "Mission Control" },
   { id: "tasks", label: "任务", caption: "Task Board" },
   { id: "merges", label: "合并", caption: "Merge Queue" },
@@ -465,6 +467,14 @@ export function StudioPage() {
     decideWorkshop,
     runWorkshop,
     summarizeWorkshopAi,
+    speakWorkshop,
+    sideSpeakWorkshop,
+    updateWorkshopMessage,
+    updateWorkshopAgenda,
+    settleWorkshop,
+    saveWorkshopMinutes,
+    summarizeWorkshopMinutes,
+    createWorkshopDecision,
     readProjectDoc,
     createModule,
     transitionTask,
@@ -495,10 +505,7 @@ export function StudioPage() {
       <header className="studio-header">
         <div className="studio-brand">
           <div className="studio-mark">S</div>
-          <div>
-            <div className="studio-brand-name">{data.company.name}</div>
-            <div className="studio-brand-sub">AI Studio</div>
-          </div>
+          <div className="studio-brand-name">AI Studio</div>
         </div>
 
         <div className="studio-project-picker">
@@ -569,29 +576,11 @@ export function StudioPage() {
               <IconMoon width={15} height={15} />
             )}
           </button>
-          <button
-            className="studio-btn"
-            data-variant="primary"
-            type="button"
-            onClick={() => setModal({ kind: "task" })}
-            disabled={project === null || data.roles.length === 0}
-            title={
-              project === null
-                ? "请先创建项目"
-                : data.roles.length === 0
-                  ? "请先创建至少一个角色"
-                  : "新建任务"
-            }
-          >
-            <IconPlus width={14} height={14} />
-            新建任务
-          </button>
         </div>
       </header>
 
       <div className="studio-body">
         <nav className="studio-nav" aria-label="Studio 导航">
-          <div className="studio-nav-label">Workspace</div>
           {NAV_ITEMS.map((item) => (
             <button
               key={item.id}
@@ -626,7 +615,7 @@ export function StudioPage() {
           <div className="studio-nav-footer">
             <strong>
               {tab === "company"
-                ? "赛博公司"
+                ? data.company.name
                 : (project?.name ?? "未选择项目")}
             </strong>
             {tab === "company"
@@ -671,6 +660,25 @@ export function StudioPage() {
               />
             ) : null}
 
+            {tab === "meeting" ? (
+              <MeetingView
+                project={data.project}
+                roles={data.roles}
+                workshops={data.workshops}
+                busy={busy}
+                onCreate={createWorkshop}
+                onSpeak={speakWorkshop}
+                onSideSpeak={sideSpeakWorkshop}
+                onUpdateAgenda={updateWorkshopAgenda}
+                onUpdateMessage={updateWorkshopMessage}
+                onSettle={settleWorkshop}
+                onSaveMinutes={saveWorkshopMinutes}
+                onSummarize={summarizeWorkshopMinutes}
+                onCreateDecision={createWorkshopDecision}
+                onOpenBoardroom={() => setTab("boardroom")}
+              />
+            ) : null}
+
             {tab === "boardroom" ? (
               <BoardroomView
                 decisions={data.decisions}
@@ -691,6 +699,13 @@ export function StudioPage() {
                 onSaveDocs={updateProjectDocs}
                 onReadDoc={readProjectDoc}
                 onNewModule={() => setModal({ kind: "module" })}
+                freezes={data.freezes}
+                changeRequests={data.freezeChangeRequests}
+                decisions={data.requirementDecisions}
+                onCreateFreeze={createFreeze}
+                onCreateFreezeChangeRequest={createFreezeChangeRequest}
+                onDecideFreezeChangeRequest={decideFreezeChangeRequest}
+                onCreateRequirementDecision={createRequirementDecision}
               />
             ) : null}
 
@@ -728,6 +743,7 @@ export function StudioPage() {
               <TasksView
                 data={data}
                 onOpenTask={setSelectedTaskId}
+                onNewTask={() => setModal({ kind: "task" })}
               />
             ) : null}
 

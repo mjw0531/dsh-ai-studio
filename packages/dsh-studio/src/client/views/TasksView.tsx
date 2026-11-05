@@ -13,14 +13,16 @@ import type {
 } from "../../shared/types.js";
 import { StatusPill } from "../components/ui.js";
 import { TaskBoard } from "../components/TaskBoard.js";
-import { IconKanban } from "../icons.js";
+import { IconKanban, IconPlus } from "../icons.js";
 
 export function TasksView({
   data,
   onOpenTask,
+  onNewTask,
 }: {
   data: BootstrapResponse;
   onOpenTask: (id: string) => void;
+  onNewTask: () => void;
 }) {
   const [filter, setFilter] = useState<TaskStatus | "all">("all");
   const tasks =
@@ -38,6 +40,16 @@ export function TasksView({
             任务状态、负责人和验收标准是同一份事实。Agent 不能自己把任务标记为完成。
           </p>
         </div>
+        <button
+          type="button"
+          className="studio-btn"
+          data-variant="primary"
+          onClick={onNewTask}
+          disabled={data.project === null || data.roles.length === 0}
+        >
+          <IconPlus width={14} height={14} />
+          新建任务
+        </button>
       </div>
 
       <div className="studio-toolbar">

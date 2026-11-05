@@ -652,6 +652,14 @@ export function asCreateWorkshop(
       body.participantRoleIds,
       "participantRoleIds",
     ),
+    meetingType:
+      body.meetingType === "prd" ||
+      body.meetingType === "architecture" ||
+      body.meetingType === "balance" ||
+      body.meetingType === "custom"
+        ? body.meetingType
+        : undefined,
+    agenda: asStringArray(body.agenda, "agenda"),
   };
 }
 

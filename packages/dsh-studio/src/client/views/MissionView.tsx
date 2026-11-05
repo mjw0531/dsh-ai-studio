@@ -47,8 +47,6 @@ import { TaskBoard } from "../components/TaskBoard.js";
 import { ModalShell } from "../components/ModalShell.js";
 import { TriggerInbox } from "../features/TriggerInbox.js";
 import { StagePanel } from "../features/StagePanel.js";
-import { FreezePanel } from "../features/FreezePanel.js";
-import { WorkshopPanel } from "../features/WorkshopPanel.js";
 import { PrototypeDemoPanel } from "../features/PrototypeDemoPanel.js";
 import { BranchPanel, Roster } from "./TeamView.js";
 import {
@@ -396,17 +394,7 @@ export function MissionView({
             onApprove={onApproveStageGate}
             onReject={onRejectStageGate}
           />
-          <FreezePanel
-            project={project}
-            freezes={data.freezes}
-            decisions={data.requirementDecisions}
-            changeRequests={data.freezeChangeRequests}
-            busy={busy}
-            onCreateFreeze={onCreateFreeze}
-            onCreateChangeRequest={onFreezeChangeRequest}
-            onDecideChangeRequest={onDecideFreezeChangeRequest}
-            onCreateDecision={onCreateRequirementDecision}
-          />
+
         </>
       ) : null}
 
@@ -432,20 +420,6 @@ export function MissionView({
         />
       ) : null}
 
-      {project !== null ? (
-        <WorkshopPanel
-          project={project}
-          roles={data.roles}
-          workshops={data.workshops}
-          busy={busy}
-          onCreate={onCreateWorkshop}
-          onAddNote={onAddWorkshopNote}
-          onSynthesize={onSynthesizeWorkshop}
-          onDecide={onDecideWorkshop}
-          onRun={onRunWorkshop}
-          onSummarize={onSummarizeWorkshop}
-        />
-      ) : null}
 
       <div className="studio-grid-stats">
         <StatCard

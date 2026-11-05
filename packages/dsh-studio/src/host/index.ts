@@ -32,6 +32,8 @@ export const inject = [
   "agentDefaultModel",
   "llm",
   "tokenMeter",
+  "approval",
+  "sandboxPolicy",
 ];
 
 interface WebServerLike {
@@ -159,6 +161,12 @@ export async function apply(ctx: StudioHostContext): Promise<void> {
     readProjectDoc: (path) => docs.read(path),
     runWorkshop: (workshopId) => workshopRunner.run(workshopId),
     summarizeWorkshop: (workshopId) => workshopRunner.summarize(workshopId),
+    sayWorkshop: (workshopId, roleId, content) =>
+      workshopRunner.say(workshopId, roleId, content),
+    sideSayWorkshop: (workshopId, roleId, content) =>
+      workshopRunner.sideSay(workshopId, roleId, content),
+    summarizeMeetingWorkshop: (workshopId) =>
+      workshopRunner.summarizeMeeting(workshopId),
     probeProviderProfile: (profileId) => providerProbe.check(profileId),
   });
 

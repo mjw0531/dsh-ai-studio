@@ -2,6 +2,19 @@
 
 所有版本按里程碑记录。当前版本只保留最近五个版本；更早版本见 Git 历史与 `docs/08-迭代计划.md`。
 
+## [3.13.0] - 2026-11-05
+
+### Added
+
+- 独立「会议室」页面：议程、参会角色、群聊点名发言、单聊、结算编辑、AI 纪要、决策草案。
+- 会议发言保留原始版本；Owner 编辑不覆盖历史。
+- 单聊与群聊隔离；会议纪要不会自动进入开发 Agent 上下文。
+- 知识库页面接收 PRD/架构冻结；侧栏顺序调整；新建任务移入任务页。
+
+### Changed
+
+- schema 33 → 34：Workshop 增加 meetingType/agenda/messages/sideChats/minutes/decisionId/settledAt。
+
 ## [3.12.0] - 2026-11-04
 
 ### Fixed

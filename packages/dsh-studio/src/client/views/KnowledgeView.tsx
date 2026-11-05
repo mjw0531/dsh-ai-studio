@@ -1,8 +1,19 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 
-import type { Module, Project, ProjectDoc } from "../../shared/types.js";
+import type {
+  CreateFreezeChangeRequestInput,
+  CreateProjectFreezeInput,
+  CreateRequirementDecisionInput,
+  FreezeChangeRequest,
+  Module,
+  Project,
+  ProjectDoc,
+  ProjectFreeze,
+  RequirementDecision,
+} from "../../shared/types.js";
 import { IconPlus } from "../icons.js";
+import { FreezePanel } from "../features/FreezePanel.js";
 
 export function KnowledgeView({
   project,
@@ -11,10 +22,31 @@ export function KnowledgeView({
   onSaveDocs,
   onReadDoc,
   onNewModule,
+  freezes,
+  changeRequests,
+  decisions,
+  onCreateFreeze,
+  onCreateFreezeChangeRequest,
+  onDecideFreezeChangeRequest,
+  onCreateRequirementDecision,
 }: {
   project: Project | null;
   modules: Module[];
   busy: boolean;
+  freezes: ProjectFreeze[];
+  changeRequests: FreezeChangeRequest[];
+  decisions: RequirementDecision[];
+  onCreateFreeze: (input: CreateProjectFreezeInput) => Promise<boolean>;
+  onCreateFreezeChangeRequest: (
+    input: CreateFreezeChangeRequestInput,
+  ) => Promise<boolean>;
+  onDecideFreezeChangeRequest: (
+    requestId: string,
+    status: "accepted" | "rejected",
+  ) => Promise<boolean>;
+  onCreateRequirementDecision: (
+    input: CreateRequirementDecisionInput,
+  ) => Promise<boolean>;
   onSaveDocs: (docs: {
     prdPath: string | null;
     invariantsPath: string | null;
@@ -56,8 +88,8 @@ export function KnowledgeView({
     <div className="studio-page">
       <div className="studio-page-head">
         <div>
-          <div className="studio-eyebrow">PROJECT KNOWLEDGE</div>
-          <h1>知识层</h1>
+          <div className="studio-eyebrow">KNOWLEDGE BASE</div>
+          <h1>知识库</h1>
           <p>
             PRD 是需求唯一事实源；模块契约卡把 Agent 的上下文喂窄。
             这里只读展示仓库里的文档，不复制第二份正文。
@@ -201,6 +233,20 @@ export function KnowledgeView({
           )}
         </section>
       </div>
+
+      {project !== null ? (
+        <FreezePanel
+          project={project}
+          freezes={freezes}
+          decisions={decisions}
+          changeRequests={changeRequests}
+          busy={busy}
+          onCreateFreeze={onCreateFreeze}
+          onCreateChangeRequest={onCreateFreezeChangeRequest}
+          onDecideChangeRequest={onDecideFreezeChangeRequest}
+          onCreateDecision={onCreateRequirementDecision}
+        />
+      ) : null}
     </div>
   );
 }

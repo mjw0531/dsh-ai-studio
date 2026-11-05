@@ -21,6 +21,26 @@ function Base({ children, ...props }: IconProps) {
   );
 }
 
+export function IconBook(props: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={props.width ?? 16}
+      height={props.height ?? 16}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z" />
+      <path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H20" />
+      <path d="M8 7h8M8 10.5h5" />
+    </svg>
+  );
+}
+
 export function IconGrid(props: IconProps) {
   return (
     <Base {...props}>

@@ -59,6 +59,11 @@ import type {
   CreateTaskInput,
   CreateTriggerInput,
   CreateWorkshopInput,
+  UpdateWorkshopMessageInput,
+  WorkshopMessage,
+  WorkshopMinutesInput,
+  WorkshopSideChatInput,
+  WorkshopSpeakInput,
   AddWorkshopNoteInput,
   CreateProviderProfileInput,
   UpdateProviderProfileInput,
@@ -183,10 +188,18 @@ import {
 } from "./store/runs.js";
 import { getDispatchContext as getDispatchContextImpl } from "./store/runs.js";
 import {
+  addWorkshopMessage as addWorkshopMessageImpl,
+  addWorkshopSideMessage as addWorkshopSideMessageImpl,
+  addWorkshopSideOwnerMessage as addWorkshopSideOwnerMessageImpl,
   addWorkshopNote as addWorkshopNoteImpl,
   createPrototypeDemo as createPrototypeDemoImpl,
   createWorkshop as createWorkshopImpl,
+  createWorkshopDecision as createWorkshopDecisionImpl,
   decideWorkshop as decideWorkshopImpl,
+  saveWorkshopMinutes as saveWorkshopMinutesImpl,
+  setWorkshopAgenda as setWorkshopAgendaImpl,
+  settleWorkshop as settleWorkshopImpl,
+  updateWorkshopMessage as updateWorkshopMessageImpl,
   getWorkshopContext as getWorkshopContextImpl,
   setWorkshopAiSummary as setWorkshopAiSummaryImpl,
   synthesizeWorkshop as synthesizeWorkshopImpl,
@@ -731,6 +744,82 @@ export class StudioStore {
     input: AddWorkshopNoteInput,
   ): Promise<Workshop> {
     return addWorkshopNoteImpl(this.context, workshopId, input);
+  }
+
+  async addWorkshopMessage(
+    workshopId: string,
+    input: { roleId: string | null; roleName: string; content: string },
+  ): Promise<WorkshopMessage> {
+    return addWorkshopMessageImpl(this.context, workshopId, input);
+  }
+
+  async addWorkshopSideOwnerMessage(
+    workshopId: string,
+    roleId: string,
+    content: string,
+  ): Promise<WorkshopMessage> {
+    return addWorkshopSideOwnerMessageImpl(
+      this.context,
+      workshopId,
+      roleId,
+      content,
+    );
+  }
+
+  async addWorkshopSideMessage(
+    workshopId: string,
+    roleId: string,
+    input: WorkshopSideChatInput & { roleName: string },
+  ): Promise<WorkshopMessage> {
+    return addWorkshopSideMessageImpl(
+      this.context,
+      workshopId,
+      roleId,
+      input,
+    );
+  }
+
+  async updateWorkshopMessage(
+    workshopId: string,
+    messageId: string,
+    input: UpdateWorkshopMessageInput,
+  ): Promise<Workshop> {
+    return updateWorkshopMessageImpl(
+      this.context,
+      workshopId,
+      messageId,
+      input,
+    );
+  }
+
+  async settleWorkshop(workshopId: string): Promise<Workshop> {
+    return settleWorkshopImpl(this.context, workshopId);
+  }
+
+  async setWorkshopAgenda(
+    workshopId: string,
+    items: Array<{ id: string; status: "open" | "closed" | "deferred" }>,
+  ): Promise<Workshop> {
+    return setWorkshopAgendaImpl(this.context, workshopId, items);
+  }
+
+  async saveWorkshopMinutes(
+    workshopId: string,
+    input: WorkshopMinutesInput,
+    model: string | null = null,
+    editedByOwner = true,
+  ): Promise<Workshop> {
+    return saveWorkshopMinutesImpl(
+      this.context,
+      workshopId,
+      input,
+      model,
+      editedByOwner,
+    );
+  }
+
+  async createWorkshopDecision(workshopId: string): Promise<Workshop> {
+    return createWorkshopDecisionImpl(this.context, workshopId);
   }
 
   async setWorkshopAiSummary(

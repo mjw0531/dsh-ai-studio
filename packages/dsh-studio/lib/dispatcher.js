@@ -166,6 +166,25 @@ var STUDIO_REVIEW_POLICY = {
   sandboxMode: REVIEW_SANDBOX,
   restrictedTools: REVIEW_RESTRICTED
 };
+function restrictKnownTools(restrict, deny) {
+  let remaining = [...deny];
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      restrict({ deny: remaining });
+      return remaining;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const quoted = [...message.matchAll(/"([^"]+)"/g)].map(
+        (match) => match[1] ?? ""
+      );
+      const unknown = new Set(quoted.filter(Boolean));
+      const next = remaining.filter((name) => !unknown.has(name));
+      if (next.length === remaining.length) throw error;
+      remaining = next;
+    }
+  }
+  throw new Error("tools.restrict \u65E0\u6CD5\u6536\u655B\u5230\u5F53\u524D\u5BBF\u4E3B\u7684\u5DE5\u5177\u96C6");
+}
 async function bindStudioRuntime(ctx, agentCtx, agent, options) {
   const mounted = await ctx.agentPresets.mount(agentCtx, WORKER_PRESET);
   if (mounted.id !== WORKER_PRESET) {
@@ -187,12 +206,15 @@ async function bindStudioRuntime(ctx, agentCtx, agent, options) {
       "tools.restrict unavailable; refusing to run without a tool boundary"
     );
   }
-  tools.restrict({ deny: options.restrictedTools });
+  const restrictedTools = restrictKnownTools(
+    tools.restrict.bind(tools),
+    options.restrictedTools
+  );
   return {
     agentPreset: WORKER_PRESET,
     approvalPolicy: "never",
     sandboxMode: options.sandboxMode,
-    restrictedTools: [...options.restrictedTools]
+    restrictedTools
   };
 }
 function changedFilesFromDiff(diffStat) {

@@ -9,6 +9,7 @@ import type {
   TaskStatus,
 } from "../../shared/types.js";
 import {
+  IconBook,
   IconBuilding,
   IconGitMerge,
   IconGrid,
@@ -22,6 +23,7 @@ export type Tab =
   | "company"
   | "boardroom"
   | "knowledge"
+  | "meeting"
   | "mission"
   | "tasks"
   | "merges"
@@ -35,7 +37,9 @@ export function NavIcon({ tab }: { tab: Tab }) {
     case "boardroom":
       return <IconSpark width={15} height={15} />;
     case "knowledge":
-      return <IconGrid width={15} height={15} />;
+      return <IconBook width={15} height={15} />;
+    case "meeting":
+      return <IconUsers width={15} height={15} />;
     case "mission":
       return <IconGrid width={15} height={15} />;
     case "tasks":

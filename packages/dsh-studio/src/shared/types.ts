@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 33;
-export const STUDIO_PLUGIN_VERSION = "3.12.0";
+export const STUDIO_SCHEMA_VERSION = 34;
+export const STUDIO_PLUGIN_VERSION = "3.13.0";
 
 export type TaskStatus =
   | "backlog"
@@ -227,9 +227,53 @@ export interface Thread {
 
 export type WorkshopStatus =
   | "collecting"
+  | "settled"
   | "synthesized"
   | "decided"
   | "cancelled";
+
+export type WorkshopMeetingType =
+  | "prd"
+  | "architecture"
+  | "balance"
+  | "custom";
+
+export type WorkshopAgendaStatus = "open" | "closed" | "deferred";
+
+export interface WorkshopAgendaItem {
+  id: string;
+  text: string;
+  status: WorkshopAgendaStatus;
+}
+
+export type WorkshopMessageKind = "owner" | "role" | "system";
+
+export interface WorkshopMessage {
+  id: string;
+  roleId: string | null;
+  roleName: string;
+  kind: WorkshopMessageKind;
+  content: string;
+  originalContent: string | null;
+  editedAt: string | null;
+  createdAt: string;
+}
+
+export interface WorkshopSideChat {
+  roleId: string;
+  messages: WorkshopMessage[];
+  updatedAt: string;
+}
+
+export interface WorkshopMinutes {
+  consensus: string[];
+  disagreements: string[];
+  openQuestions: string[];
+  decisionDraft: string;
+  savedAt: string;
+  model: string | null;
+  editedByOwner: boolean;
+}
 
 export interface WorkshopNote {
   id: string;
@@ -259,6 +303,13 @@ export interface Workshop {
   stage: ProjectStage;
   status: WorkshopStatus;
   participantRoleIds: string[];
+  meetingType: WorkshopMeetingType;
+  agenda: WorkshopAgendaItem[];
+  messages: WorkshopMessage[];
+  sideChats: WorkshopSideChat[];
+  minutes: WorkshopMinutes | null;
+  decisionId: string | null;
+  settledAt: string | null;
   notes: WorkshopNote[];
   aiSummary: WorkshopAiSummary | null;
   synthesis: string;
@@ -274,6 +325,28 @@ export interface CreateWorkshopInput {
   topic?: string;
   stage?: ProjectStage;
   participantRoleIds?: string[];
+  meetingType?: WorkshopMeetingType;
+  agenda?: string[];
+}
+
+export interface WorkshopSpeakInput {
+  content: string;
+  targetRoleId?: string | null;
+}
+
+export interface WorkshopSideChatInput {
+  content: string;
+}
+
+export interface UpdateWorkshopMessageInput {
+  content: string;
+}
+
+export interface WorkshopMinutesInput {
+  consensus?: string[];
+  disagreements?: string[];
+  openQuestions?: string[];
+  decisionDraft?: string;
 }
 
 export interface AddWorkshopNoteInput {

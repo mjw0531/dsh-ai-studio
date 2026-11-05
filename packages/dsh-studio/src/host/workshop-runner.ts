@@ -214,6 +214,171 @@ export class WorkshopRunner {
     }
   }
 
+
+  async say(
+    workshopId: string,
+    targetRoleId: string,
+    ownerMessage: string,
+  ): Promise<Workshop> {
+    const context = await this.store.getWorkshopContext(workshopId);
+    const role = context.roles.find((item) => item.id === targetRoleId);
+    if (role === undefined) throw new Error("参会角色不存在");
+    const profile =
+      context.providerProfiles.find(
+        (item) => item.id === role.providerProfileId,
+      ) ?? null;
+    const prompt = [
+      `你是「${role.name}」（${role.title || "参会角色"}）。`,
+      `会议：${context.workshop.title}`,
+      context.workshop.topic ? `议题：${context.workshop.topic}` : "",
+      "你正在参加一场由 Owner 主持的会议。以下是公开会议记录。",
+      "你看不到其他人的单聊，也不要假设他们同意你。",
+      "只回复你的观点；不要修改文件、不要执行命令、不要替 Owner 决策。",
+      "公开记录：",
+      this.transcript(context.workshop),
+      "",
+      "Owner 刚刚说：",
+      ownerMessage,
+      "",
+      "请直接回答 Owner 点名的问题，控制在 800 字以内。",
+    ]
+      .filter((line) => line !== "")
+      .join("\n");
+    const output = await this.runText(context.project.repoPath, role, profile, prompt);
+    await this.store.addWorkshopMessage(workshopId, {
+      roleId: role.id,
+      roleName: role.name,
+      content: output,
+    });
+    return (await this.store.getWorkshopContext(workshopId)).workshop;
+  }
+
+  async sideSay(
+    workshopId: string,
+    targetRoleId: string,
+    ownerMessage: string,
+  ): Promise<Workshop> {
+    const context = await this.store.getWorkshopContext(workshopId);
+    const role = context.roles.find((item) => item.id === targetRoleId);
+    if (role === undefined) throw new Error("参会角色不存在");
+    const profile =
+      context.providerProfiles.find(
+        (item) => item.id === role.providerProfileId,
+      ) ?? null;
+    const chat = context.workshop.sideChats.find(
+      (item) => item.roleId === targetRoleId,
+    );
+    const sideText =
+      chat?.messages
+        .map((message) => `${message.roleName}：${message.content}`)
+        .join("\n") ?? "";
+    const prompt = [
+      `你是「${role.name}」（${role.title || "参会角色"}）。`,
+      `会议：${context.workshop.title}`,
+      context.workshop.topic ? `议题：${context.workshop.topic}` : "",
+      "这是 Owner 与你的单独沟通，不会自动进入公开会议记录。",
+      "公开会议记录仅供你理解上下文；不要引用你未看到的单聊。",
+      this.transcript(context.workshop),
+      "",
+      sideText ? `你们之前的单聊：\n${sideText}` : "",
+      "",
+      `Owner 私下对你说：\n${ownerMessage}`,
+      "",
+      "直接回答 Owner，控制在 600 字以内。",
+    ]
+      .filter((line) => line !== "")
+      .join("\n");
+    const output = await this.runText(context.project.repoPath, role, profile, prompt);
+    await this.store.addWorkshopSideMessage(workshopId, targetRoleId, {
+      roleName: role.name,
+      content: output,
+    });
+    return (await this.store.getWorkshopContext(workshopId)).workshop;
+  }
+
+  async summarizeMeeting(workshopId: string): Promise<Workshop> {
+    const context = await this.store.getWorkshopContext(workshopId);
+    const role = context.roles[0];
+    if (role === undefined) throw new Error("会议没有参会角色");
+    const profile =
+      context.providerProfiles.find(
+        (item) => item.id === role.providerProfileId,
+      ) ?? null;
+    const prompt = [
+      "你是会议记录员。请汇总公开会议记录，不要替 Owner 做最终决策。",
+      `会议：${context.workshop.title}`,
+      context.workshop.topic ? `议题：${context.workshop.topic}` : "",
+      "议程：",
+      context.workshop.agenda
+        .map((item) => `- [${item.status}] ${item.text}`)
+        .join("\n") || "（无）",
+      "",
+      "公开记录：",
+      this.transcript(context.workshop),
+      "",
+      "只返回 JSON，不要 Markdown：",
+      '{"consensus":["共识"],"disagreements":["分歧"],"openQuestions":["未决问题"],"decisionDraft":"建议 Owner 决定的草案"}',
+      "必须保留分歧；如果确实没有分歧，在 disagreements 中写「无分歧（需 Owner 复核）」。",
+    ]
+      .filter((line) => line !== "")
+      .join("\n");
+    const output = await this.runText(context.project.repoPath, role, profile, prompt);
+    const record = extractJson(output);
+    return this.store.saveWorkshopMinutes(
+      workshopId,
+      {
+        consensus: strings(record.consensus),
+        disagreements: strings(record.disagreements),
+        openQuestions: strings(record.openQuestions),
+        decisionDraft: text(record.decisionDraft),
+      },
+      role.model ?? null,
+      false,
+    );
+  }
+
+  private transcript(workshop: Workshop): string {
+    return workshop.messages
+      .map((message) => `${message.roleName}：${message.content}`)
+      .join("\n");
+  }
+
+  private async runText(
+    repoPath: string | null,
+    role: Role,
+    profile: ProviderProfile | null,
+    prompt: string,
+  ): Promise<string> {
+    const selection = await this.resolveModel(role, profile);
+    let handle: AgentHandleLike | null = null;
+    try {
+      handle = await this.ctx.agents.create({
+        sessionId: `meeting-${randomUUID()}`,
+        meta: { cwd: repoPath ?? process.cwd() },
+        agentOptions: selection,
+        setup: async (agentCtx, agent) => {
+          await bindStudioRuntime(this.ctx, agentCtx, agent, STUDIO_REVIEW_POLICY);
+        },
+      });
+      handle.agent.followup({
+        role: "user",
+        content: [{ type: "text", text: prompt }],
+        source: { kind: "user" },
+      });
+      const deadline = Date.now() + 120_000;
+      let output = "";
+      while (Date.now() < deadline) {
+        output = assistantText(handle.agent.session.deriveMessages());
+        if (handle.agent.status === "idle" && output !== "") break;
+        await new Promise((resolve) => setTimeout(resolve, 400));
+      }
+      if (output === "") throw new Error("参会角色在 120 秒内没有回复");
+      return output;
+    } finally {
+      await handle?.dispose().catch(() => undefined);
+    }
+  }
+
   private async ask(
     workshop: Workshop,
     repoPath: string | null,

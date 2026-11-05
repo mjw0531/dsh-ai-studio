@@ -13,8 +13,8 @@ import os from "node:os";
 import path3 from "node:path";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 33;
-var STUDIO_PLUGIN_VERSION = "3.12.0";
+var STUDIO_SCHEMA_VERSION = 34;
+var STUDIO_PLUGIN_VERSION = "3.13.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -451,8 +451,24 @@ function migrateState(value) {
   if (state.schemaVersion === 32) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 33,
       freezeChangeRequests: []
+    };
+  }
+  if (state.schemaVersion === 33) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      workshops: state.workshops.map((workshop) => ({
+        ...workshop,
+        meetingType: "custom",
+        agenda: [],
+        messages: [],
+        sideChats: [],
+        minutes: null,
+        decisionId: null,
+        settledAt: null
+      }))
     };
   }
   return state;
@@ -538,7 +554,7 @@ function isThread(value) {
   return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.key === "string" && isTriggerSource(value.source) && typeof value.title === "string" && (value.taskId === null || typeof value.taskId === "string") && Array.isArray(value.triggerIds) && value.triggerIds.every((item) => typeof item === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
 }
 function isWorkshopStatus(value) {
-  return value === "collecting" || value === "synthesized" || value === "decided" || value === "cancelled";
+  return value === "collecting" || value === "settled" || value === "synthesized" || value === "decided" || value === "cancelled";
 }
 function isWorkshopNote(value) {
   return isRecord2(value) && typeof value.id === "string" && typeof value.roleId === "string" && typeof value.roleName === "string" && typeof value.summary === "string" && Array.isArray(value.objections) && value.objections.every((item) => typeof item === "string") && Array.isArray(value.risks) && value.risks.every((item) => typeof item === "string") && typeof value.recommendation === "string" && typeof value.createdAt === "string";
@@ -546,8 +562,19 @@ function isWorkshopNote(value) {
 function isWorkshopAiSummary(value) {
   return isRecord2(value) && Array.isArray(value.consensus) && value.consensus.every((item) => typeof item === "string") && Array.isArray(value.disagreements) && value.disagreements.every((item) => typeof item === "string") && Array.isArray(value.openQuestions) && value.openQuestions.every((item) => typeof item === "string") && Array.isArray(value.candidates) && value.candidates.every((item) => typeof item === "string") && typeof value.generatedAt === "string" && (value.model === null || typeof value.model === "string");
 }
+function isWorkshopMessage(value) {
+  return isRecord2(value) && typeof value.id === "string" && (value.roleId === null || typeof value.roleId === "string") && typeof value.roleName === "string" && (value.kind === "owner" || value.kind === "role" || value.kind === "system") && typeof value.content === "string" && (value.originalContent === null || typeof value.originalContent === "string") && (value.editedAt === null || typeof value.editedAt === "string") && typeof value.createdAt === "string";
+}
+function isWorkshopAgendaItem(value) {
+  return isRecord2(value) && typeof value.id === "string" && typeof value.text === "string" && (value.status === "open" || value.status === "closed" || value.status === "deferred");
+}
+function isWorkshopMinutes(value) {
+  return isRecord2(value) && Array.isArray(value.consensus) && value.consensus.every((item) => typeof item === "string") && Array.isArray(value.disagreements) && value.disagreements.every((item) => typeof item === "string") && Array.isArray(value.openQuestions) && value.openQuestions.every((item) => typeof item === "string") && typeof value.decisionDraft === "string" && typeof value.savedAt === "string" && (value.model === null || typeof value.model === "string") && typeof value.editedByOwner === "boolean";
+}
 function isWorkshop(value) {
-  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.topic === "string" && isProjectStage(value.stage) && isWorkshopStatus(value.status) && Array.isArray(value.participantRoleIds) && value.participantRoleIds.every((item) => typeof item === "string") && Array.isArray(value.notes) && value.notes.every(isWorkshopNote) && (value.aiSummary === null || isWorkshopAiSummary(value.aiSummary)) && typeof value.synthesis === "string" && typeof value.decision === "string" && typeof value.decidedBy === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.topic === "string" && isProjectStage(value.stage) && isWorkshopStatus(value.status) && Array.isArray(value.participantRoleIds) && value.participantRoleIds.every((item) => typeof item === "string") && (value.meetingType === "prd" || value.meetingType === "architecture" || value.meetingType === "balance" || value.meetingType === "custom") && Array.isArray(value.agenda) && value.agenda.every(isWorkshopAgendaItem) && Array.isArray(value.messages) && value.messages.every(isWorkshopMessage) && Array.isArray(value.sideChats) && value.sideChats.every(
+    (chat) => isRecord2(chat) && typeof chat.roleId === "string" && Array.isArray(chat.messages) && chat.messages.every(isWorkshopMessage) && typeof chat.updatedAt === "string"
+  ) && (value.minutes === null || isWorkshopMinutes(value.minutes)) && (value.decisionId === null || typeof value.decisionId === "string") && (value.settledAt === null || typeof value.settledAt === "string") && Array.isArray(value.notes) && value.notes.every(isWorkshopNote) && (value.aiSummary === null || isWorkshopAiSummary(value.aiSummary)) && typeof value.synthesis === "string" && typeof value.decision === "string" && typeof value.decidedBy === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
 }
 function isBranchStatus(value) {
   return value === "open" || value === "review" || value === "merged" || value === "abandoned";
@@ -3930,6 +3957,8 @@ async function createWorkshop(ctx, input) {
         "\u7814\u8BA8\u4F1A\u81F3\u5C11\u9700\u8981\u4E00\u4E2A\u53C2\u4E0E\u89D2\u8272"
       );
     }
+    const meetingType = input.meetingType === "prd" || input.meetingType === "architecture" || input.meetingType === "balance" ? input.meetingType : "custom";
+    const agenda = (input.agenda ?? []).map((text) => text.trim()).filter((text) => text !== "").slice(0, 20).map((text) => ({ id: newId("agenda"), text, status: "open" }));
     const at = ctx.now();
     const workshop = {
       id: newId("workshop"),
@@ -3939,6 +3968,13 @@ async function createWorkshop(ctx, input) {
       stage: isProjectStage(input.stage) ? input.stage : project.stage,
       status: "collecting",
       participantRoleIds: participants,
+      meetingType,
+      agenda,
+      messages: [],
+      sideChats: [],
+      minutes: null,
+      decisionId: null,
+      settledAt: null,
       notes: [],
       aiSummary: null,
       synthesis: "",
@@ -4013,6 +4049,270 @@ async function addWorkshopNote(ctx, workshopId, input) {
       at,
       projectId: workshop.projectId,
       payload: { workshopId, roleId }
+    });
+    await ctx.save();
+    return structuredClone(workshop);
+  });
+}
+function appendMessage(workshop, input, at) {
+  const message = {
+    id: newId("msg"),
+    roleId: input.roleId,
+    roleName: input.roleName,
+    kind: input.kind,
+    content: input.content,
+    originalContent: input.content,
+    editedAt: null,
+    createdAt: at
+  };
+  workshop.messages.push(message);
+  return message;
+}
+async function addWorkshopMessage(ctx, workshopId, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const workshop = findWorkshop(state, workshopId);
+    if (workshop.status === "decided" || workshop.status === "cancelled") {
+      throw new StudioStoreError(
+        "workshop_closed",
+        "\u5DF2\u7ED3\u675F\u7684\u4F1A\u8BAE\u4E0D\u80FD\u7EE7\u7EED\u53D1\u8A00",
+        409
+      );
+    }
+    const at = ctx.now();
+    const message = appendMessage(
+      workshop,
+      {
+        roleId: input.roleId,
+        roleName: input.roleName,
+        kind: input.roleId === null ? "owner" : "role",
+        content: requiredText(input.content, "content", 12e3)
+      },
+      at
+    );
+    workshop.updatedAt = at;
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "workshop.message",
+      at,
+      projectId: workshop.projectId,
+      payload: { workshopId, messageId: message.id, kind: message.kind }
+    });
+    await ctx.save();
+    return structuredClone(message);
+  });
+}
+async function addWorkshopSideMessage(ctx, workshopId, roleId, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const workshop = findWorkshop(state, workshopId);
+    if (!workshop.participantRoleIds.includes(roleId)) {
+      throw new StudioStoreError("participant_required", "\u8BE5\u89D2\u8272\u4E0D\u5728\u4F1A\u8BAE\u4E2D", 409);
+    }
+    const at = ctx.now();
+    let chat = workshop.sideChats.find((item) => item.roleId === roleId);
+    if (chat === void 0) {
+      chat = { roleId, messages: [], updatedAt: at };
+      workshop.sideChats.push(chat);
+    }
+    const message = {
+      id: newId("side"),
+      roleId,
+      roleName: input.roleName,
+      kind: "role",
+      content: requiredText(input.content, "content", 12e3),
+      originalContent: input.content,
+      editedAt: null,
+      createdAt: at
+    };
+    chat.messages.push(message);
+    chat.updatedAt = at;
+    workshop.updatedAt = at;
+    state.updatedAt = at;
+    await ctx.save();
+    return structuredClone(message);
+  });
+}
+async function addWorkshopSideOwnerMessage(ctx, workshopId, roleId, content) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const workshop = findWorkshop(state, workshopId);
+    if (!workshop.participantRoleIds.includes(roleId)) {
+      throw new StudioStoreError("participant_required", "\u8BE5\u89D2\u8272\u4E0D\u5728\u4F1A\u8BAE\u4E2D", 409);
+    }
+    const at = ctx.now();
+    let chat = workshop.sideChats.find((item) => item.roleId === roleId);
+    if (chat === void 0) {
+      chat = { roleId, messages: [], updatedAt: at };
+      workshop.sideChats.push(chat);
+    }
+    const message = {
+      id: newId("side"),
+      roleId: null,
+      roleName: "Owner",
+      kind: "owner",
+      content: requiredText(content, "content", 12e3),
+      originalContent: content,
+      editedAt: null,
+      createdAt: at
+    };
+    chat.messages.push(message);
+    chat.updatedAt = at;
+    workshop.updatedAt = at;
+    state.updatedAt = at;
+    await ctx.save();
+    return structuredClone(message);
+  });
+}
+async function updateWorkshopMessage(ctx, workshopId, messageId, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const workshop = findWorkshop(state, workshopId);
+    const everywhere = [
+      ...workshop.messages,
+      ...workshop.sideChats.flatMap((chat) => chat.messages)
+    ];
+    const message = everywhere.find((item) => item.id === messageId);
+    if (message === void 0) {
+      throw new StudioStoreError("message_not_found", "\u53D1\u8A00\u4E0D\u5B58\u5728", 404);
+    }
+    const at = ctx.now();
+    message.content = requiredText(input.content, "content", 12e3);
+    message.editedAt = at;
+    workshop.updatedAt = at;
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "workshop.message_edited",
+      at,
+      projectId: workshop.projectId,
+      payload: { workshopId, messageId }
+    });
+    await ctx.save();
+    return structuredClone(workshop);
+  });
+}
+async function setWorkshopAgenda(ctx, workshopId, items) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const workshop = findWorkshop(state, workshopId);
+    for (const update of items) {
+      const item = workshop.agenda.find((entry) => entry.id === update.id);
+      if (item !== void 0) item.status = update.status;
+    }
+    workshop.updatedAt = ctx.now();
+    state.updatedAt = workshop.updatedAt;
+    await ctx.save();
+    return structuredClone(workshop);
+  });
+}
+async function settleWorkshop(ctx, workshopId) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const workshop = findWorkshop(state, workshopId);
+    if (workshop.messages.length === 0 && workshop.notes.length === 0) {
+      throw new StudioStoreError("meeting_empty", "\u4F1A\u8BAE\u8FD8\u6CA1\u6709\u4EFB\u4F55\u53D1\u8A00", 409);
+    }
+    if (workshop.agenda.some((item) => item.status === "open")) {
+      throw new StudioStoreError(
+        "agenda_open",
+        "\u8FD8\u6709\u8BAE\u7A0B\u672A\u5173\u95ED\uFF1B\u8BF7\u5173\u95ED\u6216\u6807\u8BB0\u4E3A\u6682\u4E0D\u89E3\u51B3\u540E\u518D\u7ED3\u675F\u4F1A\u8BAE",
+        409
+      );
+    }
+    const at = ctx.now();
+    workshop.status = "settled";
+    workshop.settledAt = at;
+    workshop.updatedAt = at;
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "workshop.settled",
+      at,
+      projectId: workshop.projectId,
+      payload: { workshopId }
+    });
+    await ctx.save();
+    return structuredClone(workshop);
+  });
+}
+async function saveWorkshopMinutes(ctx, workshopId, input, model = null, editedByOwner = true) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const workshop = findWorkshop(state, workshopId);
+    const at = ctx.now();
+    const minutes = {
+      consensus: textList(input.consensus, "consensus", 30),
+      disagreements: textList(input.disagreements, "disagreements", 30),
+      openQuestions: textList(input.openQuestions, "openQuestions", 30),
+      decisionDraft: input.decisionDraft?.trim() ?? "",
+      savedAt: at,
+      model,
+      editedByOwner
+    };
+    workshop.minutes = minutes;
+    workshop.synthesis = minutes.decisionDraft;
+    workshop.updatedAt = at;
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "workshop.minutes_saved",
+      at,
+      projectId: workshop.projectId,
+      payload: { workshopId }
+    });
+    await ctx.save();
+    return structuredClone(workshop);
+  });
+}
+async function createWorkshopDecision(ctx, workshopId) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const workshop = findWorkshop(state, workshopId);
+    if (workshop.minutes === null) {
+      throw new StudioStoreError(
+        "minutes_required",
+        "\u5148\u4FDD\u5B58\u4F1A\u8BAE\u7EAA\u8981\uFF0C\u518D\u751F\u6210\u51B3\u7B56\u8349\u6848",
+        409
+      );
+    }
+    if (workshop.decisionId !== null) {
+      throw new StudioStoreError(
+        "decision_exists",
+        "\u8FD9\u573A\u4F1A\u8BAE\u5DF2\u7ECF\u751F\u6210\u8FC7\u51B3\u7B56\u8349\u6848",
+        409
+      );
+    }
+    const at = ctx.now();
+    const decision = {
+      id: newId("decision"),
+      projectId: workshop.projectId,
+      taskId: null,
+      runId: null,
+      title: "\u4F1A\u8BAE\u51B3\u7B56\uFF1A" + workshop.title.slice(0, 190),
+      context: [
+        workshop.topic,
+        workshop.minutes.disagreements.length > 0 ? "\u5206\u6B67\uFF1A" + workshop.minutes.disagreements.join("\uFF1B") : ""
+      ].filter(Boolean).join("\n"),
+      options: [],
+      recommendation: workshop.minutes.decisionDraft,
+      reversible: true,
+      adrDraft: null,
+      adrPath: null,
+      status: "pending",
+      decision: "",
+      note: "",
+      decidedBy: "",
+      tokenCost: null,
+      createdAt: at,
+      decidedAt: null
+    };
+    state.decisions.push(decision);
+    workshop.decisionId = decision.id;
+    workshop.updatedAt = at;
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "workshop.decision_draft",
+      at,
+      projectId: workshop.projectId,
+      payload: { workshopId, decisionId: decision.id }
     });
     await ctx.save();
     return structuredClone(workshop);
@@ -5675,6 +5975,51 @@ var StudioStore = class {
   }
   async addWorkshopNote(workshopId, input) {
     return addWorkshopNote(this.context, workshopId, input);
+  }
+  async addWorkshopMessage(workshopId, input) {
+    return addWorkshopMessage(this.context, workshopId, input);
+  }
+  async addWorkshopSideOwnerMessage(workshopId, roleId, content) {
+    return addWorkshopSideOwnerMessage(
+      this.context,
+      workshopId,
+      roleId,
+      content
+    );
+  }
+  async addWorkshopSideMessage(workshopId, roleId, input) {
+    return addWorkshopSideMessage(
+      this.context,
+      workshopId,
+      roleId,
+      input
+    );
+  }
+  async updateWorkshopMessage(workshopId, messageId, input) {
+    return updateWorkshopMessage(
+      this.context,
+      workshopId,
+      messageId,
+      input
+    );
+  }
+  async settleWorkshop(workshopId) {
+    return settleWorkshop(this.context, workshopId);
+  }
+  async setWorkshopAgenda(workshopId, items) {
+    return setWorkshopAgenda(this.context, workshopId, items);
+  }
+  async saveWorkshopMinutes(workshopId, input, model = null, editedByOwner = true) {
+    return saveWorkshopMinutes(
+      this.context,
+      workshopId,
+      input,
+      model,
+      editedByOwner
+    );
+  }
+  async createWorkshopDecision(workshopId) {
+    return createWorkshopDecision(this.context, workshopId);
   }
   async setWorkshopAiSummary(workshopId, summary) {
     return setWorkshopAiSummary(this.context, workshopId, summary);

@@ -2,8 +2,8 @@
 import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 33;
-var STUDIO_PLUGIN_VERSION = "3.12.0";
+var STUDIO_SCHEMA_VERSION = 34;
+var STUDIO_PLUGIN_VERSION = "3.13.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -562,8 +562,24 @@ function migrateState(value) {
   if (state.schemaVersion === 32) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 33,
       freezeChangeRequests: []
+    };
+  }
+  if (state.schemaVersion === 33) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      workshops: state.workshops.map((workshop) => ({
+        ...workshop,
+        meetingType: "custom",
+        agenda: [],
+        messages: [],
+        sideChats: [],
+        minutes: null,
+        decisionId: null,
+        settledAt: null
+      }))
     };
   }
   return state;
@@ -649,7 +665,7 @@ function isThread(value) {
   return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.key === "string" && isTriggerSource(value.source) && typeof value.title === "string" && (value.taskId === null || typeof value.taskId === "string") && Array.isArray(value.triggerIds) && value.triggerIds.every((item) => typeof item === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
 }
 function isWorkshopStatus(value) {
-  return value === "collecting" || value === "synthesized" || value === "decided" || value === "cancelled";
+  return value === "collecting" || value === "settled" || value === "synthesized" || value === "decided" || value === "cancelled";
 }
 function isWorkshopNote(value) {
   return isRecord2(value) && typeof value.id === "string" && typeof value.roleId === "string" && typeof value.roleName === "string" && typeof value.summary === "string" && Array.isArray(value.objections) && value.objections.every((item) => typeof item === "string") && Array.isArray(value.risks) && value.risks.every((item) => typeof item === "string") && typeof value.recommendation === "string" && typeof value.createdAt === "string";
@@ -657,8 +673,19 @@ function isWorkshopNote(value) {
 function isWorkshopAiSummary(value) {
   return isRecord2(value) && Array.isArray(value.consensus) && value.consensus.every((item) => typeof item === "string") && Array.isArray(value.disagreements) && value.disagreements.every((item) => typeof item === "string") && Array.isArray(value.openQuestions) && value.openQuestions.every((item) => typeof item === "string") && Array.isArray(value.candidates) && value.candidates.every((item) => typeof item === "string") && typeof value.generatedAt === "string" && (value.model === null || typeof value.model === "string");
 }
+function isWorkshopMessage(value) {
+  return isRecord2(value) && typeof value.id === "string" && (value.roleId === null || typeof value.roleId === "string") && typeof value.roleName === "string" && (value.kind === "owner" || value.kind === "role" || value.kind === "system") && typeof value.content === "string" && (value.originalContent === null || typeof value.originalContent === "string") && (value.editedAt === null || typeof value.editedAt === "string") && typeof value.createdAt === "string";
+}
+function isWorkshopAgendaItem(value) {
+  return isRecord2(value) && typeof value.id === "string" && typeof value.text === "string" && (value.status === "open" || value.status === "closed" || value.status === "deferred");
+}
+function isWorkshopMinutes(value) {
+  return isRecord2(value) && Array.isArray(value.consensus) && value.consensus.every((item) => typeof item === "string") && Array.isArray(value.disagreements) && value.disagreements.every((item) => typeof item === "string") && Array.isArray(value.openQuestions) && value.openQuestions.every((item) => typeof item === "string") && typeof value.decisionDraft === "string" && typeof value.savedAt === "string" && (value.model === null || typeof value.model === "string") && typeof value.editedByOwner === "boolean";
+}
 function isWorkshop(value) {
-  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.topic === "string" && isProjectStage(value.stage) && isWorkshopStatus(value.status) && Array.isArray(value.participantRoleIds) && value.participantRoleIds.every((item) => typeof item === "string") && Array.isArray(value.notes) && value.notes.every(isWorkshopNote) && (value.aiSummary === null || isWorkshopAiSummary(value.aiSummary)) && typeof value.synthesis === "string" && typeof value.decision === "string" && typeof value.decidedBy === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.topic === "string" && isProjectStage(value.stage) && isWorkshopStatus(value.status) && Array.isArray(value.participantRoleIds) && value.participantRoleIds.every((item) => typeof item === "string") && (value.meetingType === "prd" || value.meetingType === "architecture" || value.meetingType === "balance" || value.meetingType === "custom") && Array.isArray(value.agenda) && value.agenda.every(isWorkshopAgendaItem) && Array.isArray(value.messages) && value.messages.every(isWorkshopMessage) && Array.isArray(value.sideChats) && value.sideChats.every(
+    (chat) => isRecord2(chat) && typeof chat.roleId === "string" && Array.isArray(chat.messages) && chat.messages.every(isWorkshopMessage) && typeof chat.updatedAt === "string"
+  ) && (value.minutes === null || isWorkshopMinutes(value.minutes)) && (value.decisionId === null || typeof value.decisionId === "string") && (value.settledAt === null || typeof value.settledAt === "string") && Array.isArray(value.notes) && value.notes.every(isWorkshopNote) && (value.aiSummary === null || isWorkshopAiSummary(value.aiSummary)) && typeof value.synthesis === "string" && typeof value.decision === "string" && typeof value.decidedBy === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
 }
 function isBranchStatus(value) {
   return value === "open" || value === "review" || value === "merged" || value === "abandoned";
@@ -4041,6 +4068,8 @@ async function createWorkshop(ctx, input) {
         "\u7814\u8BA8\u4F1A\u81F3\u5C11\u9700\u8981\u4E00\u4E2A\u53C2\u4E0E\u89D2\u8272"
       );
     }
+    const meetingType = input.meetingType === "prd" || input.meetingType === "architecture" || input.meetingType === "balance" ? input.meetingType : "custom";
+    const agenda = (input.agenda ?? []).map((text2) => text2.trim()).filter((text2) => text2 !== "").slice(0, 20).map((text2) => ({ id: newId("agenda"), text: text2, status: "open" }));
     const at = ctx.now();
     const workshop = {
       id: newId("workshop"),
@@ -4050,6 +4079,13 @@ async function createWorkshop(ctx, input) {
       stage: isProjectStage(input.stage) ? input.stage : project.stage,
       status: "collecting",
       participantRoleIds: participants,
+      meetingType,
+      agenda,
+      messages: [],
+      sideChats: [],
+      minutes: null,
+      decisionId: null,
+      settledAt: null,
       notes: [],
       aiSummary: null,
       synthesis: "",
@@ -4124,6 +4160,270 @@ async function addWorkshopNote(ctx, workshopId, input) {
       at,
       projectId: workshop.projectId,
       payload: { workshopId, roleId }
+    });
+    await ctx.save();
+    return structuredClone(workshop);
+  });
+}
+function appendMessage(workshop, input, at) {
+  const message = {
+    id: newId("msg"),
+    roleId: input.roleId,
+    roleName: input.roleName,
+    kind: input.kind,
+    content: input.content,
+    originalContent: input.content,
+    editedAt: null,
+    createdAt: at
+  };
+  workshop.messages.push(message);
+  return message;
+}
+async function addWorkshopMessage(ctx, workshopId, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const workshop = findWorkshop(state, workshopId);
+    if (workshop.status === "decided" || workshop.status === "cancelled") {
+      throw new StudioStoreError(
+        "workshop_closed",
+        "\u5DF2\u7ED3\u675F\u7684\u4F1A\u8BAE\u4E0D\u80FD\u7EE7\u7EED\u53D1\u8A00",
+        409
+      );
+    }
+    const at = ctx.now();
+    const message = appendMessage(
+      workshop,
+      {
+        roleId: input.roleId,
+        roleName: input.roleName,
+        kind: input.roleId === null ? "owner" : "role",
+        content: requiredText(input.content, "content", 12e3)
+      },
+      at
+    );
+    workshop.updatedAt = at;
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "workshop.message",
+      at,
+      projectId: workshop.projectId,
+      payload: { workshopId, messageId: message.id, kind: message.kind }
+    });
+    await ctx.save();
+    return structuredClone(message);
+  });
+}
+async function addWorkshopSideMessage(ctx, workshopId, roleId, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const workshop = findWorkshop(state, workshopId);
+    if (!workshop.participantRoleIds.includes(roleId)) {
+      throw new StudioStoreError("participant_required", "\u8BE5\u89D2\u8272\u4E0D\u5728\u4F1A\u8BAE\u4E2D", 409);
+    }
+    const at = ctx.now();
+    let chat = workshop.sideChats.find((item) => item.roleId === roleId);
+    if (chat === void 0) {
+      chat = { roleId, messages: [], updatedAt: at };
+      workshop.sideChats.push(chat);
+    }
+    const message = {
+      id: newId("side"),
+      roleId,
+      roleName: input.roleName,
+      kind: "role",
+      content: requiredText(input.content, "content", 12e3),
+      originalContent: input.content,
+      editedAt: null,
+      createdAt: at
+    };
+    chat.messages.push(message);
+    chat.updatedAt = at;
+    workshop.updatedAt = at;
+    state.updatedAt = at;
+    await ctx.save();
+    return structuredClone(message);
+  });
+}
+async function addWorkshopSideOwnerMessage(ctx, workshopId, roleId, content) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const workshop = findWorkshop(state, workshopId);
+    if (!workshop.participantRoleIds.includes(roleId)) {
+      throw new StudioStoreError("participant_required", "\u8BE5\u89D2\u8272\u4E0D\u5728\u4F1A\u8BAE\u4E2D", 409);
+    }
+    const at = ctx.now();
+    let chat = workshop.sideChats.find((item) => item.roleId === roleId);
+    if (chat === void 0) {
+      chat = { roleId, messages: [], updatedAt: at };
+      workshop.sideChats.push(chat);
+    }
+    const message = {
+      id: newId("side"),
+      roleId: null,
+      roleName: "Owner",
+      kind: "owner",
+      content: requiredText(content, "content", 12e3),
+      originalContent: content,
+      editedAt: null,
+      createdAt: at
+    };
+    chat.messages.push(message);
+    chat.updatedAt = at;
+    workshop.updatedAt = at;
+    state.updatedAt = at;
+    await ctx.save();
+    return structuredClone(message);
+  });
+}
+async function updateWorkshopMessage(ctx, workshopId, messageId, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const workshop = findWorkshop(state, workshopId);
+    const everywhere = [
+      ...workshop.messages,
+      ...workshop.sideChats.flatMap((chat) => chat.messages)
+    ];
+    const message = everywhere.find((item) => item.id === messageId);
+    if (message === void 0) {
+      throw new StudioStoreError("message_not_found", "\u53D1\u8A00\u4E0D\u5B58\u5728", 404);
+    }
+    const at = ctx.now();
+    message.content = requiredText(input.content, "content", 12e3);
+    message.editedAt = at;
+    workshop.updatedAt = at;
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "workshop.message_edited",
+      at,
+      projectId: workshop.projectId,
+      payload: { workshopId, messageId }
+    });
+    await ctx.save();
+    return structuredClone(workshop);
+  });
+}
+async function setWorkshopAgenda(ctx, workshopId, items) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const workshop = findWorkshop(state, workshopId);
+    for (const update of items) {
+      const item = workshop.agenda.find((entry) => entry.id === update.id);
+      if (item !== void 0) item.status = update.status;
+    }
+    workshop.updatedAt = ctx.now();
+    state.updatedAt = workshop.updatedAt;
+    await ctx.save();
+    return structuredClone(workshop);
+  });
+}
+async function settleWorkshop(ctx, workshopId) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const workshop = findWorkshop(state, workshopId);
+    if (workshop.messages.length === 0 && workshop.notes.length === 0) {
+      throw new StudioStoreError("meeting_empty", "\u4F1A\u8BAE\u8FD8\u6CA1\u6709\u4EFB\u4F55\u53D1\u8A00", 409);
+    }
+    if (workshop.agenda.some((item) => item.status === "open")) {
+      throw new StudioStoreError(
+        "agenda_open",
+        "\u8FD8\u6709\u8BAE\u7A0B\u672A\u5173\u95ED\uFF1B\u8BF7\u5173\u95ED\u6216\u6807\u8BB0\u4E3A\u6682\u4E0D\u89E3\u51B3\u540E\u518D\u7ED3\u675F\u4F1A\u8BAE",
+        409
+      );
+    }
+    const at = ctx.now();
+    workshop.status = "settled";
+    workshop.settledAt = at;
+    workshop.updatedAt = at;
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "workshop.settled",
+      at,
+      projectId: workshop.projectId,
+      payload: { workshopId }
+    });
+    await ctx.save();
+    return structuredClone(workshop);
+  });
+}
+async function saveWorkshopMinutes(ctx, workshopId, input, model = null, editedByOwner = true) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const workshop = findWorkshop(state, workshopId);
+    const at = ctx.now();
+    const minutes = {
+      consensus: textList(input.consensus, "consensus", 30),
+      disagreements: textList(input.disagreements, "disagreements", 30),
+      openQuestions: textList(input.openQuestions, "openQuestions", 30),
+      decisionDraft: input.decisionDraft?.trim() ?? "",
+      savedAt: at,
+      model,
+      editedByOwner
+    };
+    workshop.minutes = minutes;
+    workshop.synthesis = minutes.decisionDraft;
+    workshop.updatedAt = at;
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "workshop.minutes_saved",
+      at,
+      projectId: workshop.projectId,
+      payload: { workshopId }
+    });
+    await ctx.save();
+    return structuredClone(workshop);
+  });
+}
+async function createWorkshopDecision(ctx, workshopId) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const workshop = findWorkshop(state, workshopId);
+    if (workshop.minutes === null) {
+      throw new StudioStoreError(
+        "minutes_required",
+        "\u5148\u4FDD\u5B58\u4F1A\u8BAE\u7EAA\u8981\uFF0C\u518D\u751F\u6210\u51B3\u7B56\u8349\u6848",
+        409
+      );
+    }
+    if (workshop.decisionId !== null) {
+      throw new StudioStoreError(
+        "decision_exists",
+        "\u8FD9\u573A\u4F1A\u8BAE\u5DF2\u7ECF\u751F\u6210\u8FC7\u51B3\u7B56\u8349\u6848",
+        409
+      );
+    }
+    const at = ctx.now();
+    const decision = {
+      id: newId("decision"),
+      projectId: workshop.projectId,
+      taskId: null,
+      runId: null,
+      title: "\u4F1A\u8BAE\u51B3\u7B56\uFF1A" + workshop.title.slice(0, 190),
+      context: [
+        workshop.topic,
+        workshop.minutes.disagreements.length > 0 ? "\u5206\u6B67\uFF1A" + workshop.minutes.disagreements.join("\uFF1B") : ""
+      ].filter(Boolean).join("\n"),
+      options: [],
+      recommendation: workshop.minutes.decisionDraft,
+      reversible: true,
+      adrDraft: null,
+      adrPath: null,
+      status: "pending",
+      decision: "",
+      note: "",
+      decidedBy: "",
+      tokenCost: null,
+      createdAt: at,
+      decidedAt: null
+    };
+    state.decisions.push(decision);
+    workshop.decisionId = decision.id;
+    workshop.updatedAt = at;
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "workshop.decision_draft",
+      at,
+      projectId: workshop.projectId,
+      payload: { workshopId, decisionId: decision.id }
     });
     await ctx.save();
     return structuredClone(workshop);
@@ -5787,6 +6087,51 @@ var StudioStore = class {
   async addWorkshopNote(workshopId, input) {
     return addWorkshopNote(this.context, workshopId, input);
   }
+  async addWorkshopMessage(workshopId, input) {
+    return addWorkshopMessage(this.context, workshopId, input);
+  }
+  async addWorkshopSideOwnerMessage(workshopId, roleId, content) {
+    return addWorkshopSideOwnerMessage(
+      this.context,
+      workshopId,
+      roleId,
+      content
+    );
+  }
+  async addWorkshopSideMessage(workshopId, roleId, input) {
+    return addWorkshopSideMessage(
+      this.context,
+      workshopId,
+      roleId,
+      input
+    );
+  }
+  async updateWorkshopMessage(workshopId, messageId, input) {
+    return updateWorkshopMessage(
+      this.context,
+      workshopId,
+      messageId,
+      input
+    );
+  }
+  async settleWorkshop(workshopId) {
+    return settleWorkshop(this.context, workshopId);
+  }
+  async setWorkshopAgenda(workshopId, items) {
+    return setWorkshopAgenda(this.context, workshopId, items);
+  }
+  async saveWorkshopMinutes(workshopId, input, model = null, editedByOwner = true) {
+    return saveWorkshopMinutes(
+      this.context,
+      workshopId,
+      input,
+      model,
+      editedByOwner
+    );
+  }
+  async createWorkshopDecision(workshopId) {
+    return createWorkshopDecision(this.context, workshopId);
+  }
   async setWorkshopAiSummary(workshopId, summary) {
     return setWorkshopAiSummary(this.context, workshopId, summary);
   }
@@ -6515,6 +6860,25 @@ var STUDIO_REVIEW_POLICY = {
   sandboxMode: REVIEW_SANDBOX,
   restrictedTools: REVIEW_RESTRICTED
 };
+function restrictKnownTools(restrict, deny) {
+  let remaining = [...deny];
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      restrict({ deny: remaining });
+      return remaining;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const quoted = [...message.matchAll(/"([^"]+)"/g)].map(
+        (match) => match[1] ?? ""
+      );
+      const unknown = new Set(quoted.filter(Boolean));
+      const next = remaining.filter((name2) => !unknown.has(name2));
+      if (next.length === remaining.length) throw error;
+      remaining = next;
+    }
+  }
+  throw new Error("tools.restrict \u65E0\u6CD5\u6536\u655B\u5230\u5F53\u524D\u5BBF\u4E3B\u7684\u5DE5\u5177\u96C6");
+}
 async function bindStudioRuntime(ctx, agentCtx, agent, options) {
   const mounted = await ctx.agentPresets.mount(agentCtx, WORKER_PRESET);
   if (mounted.id !== WORKER_PRESET) {
@@ -6536,12 +6900,15 @@ async function bindStudioRuntime(ctx, agentCtx, agent, options) {
       "tools.restrict unavailable; refusing to run without a tool boundary"
     );
   }
-  tools.restrict({ deny: options.restrictedTools });
+  const restrictedTools = restrictKnownTools(
+    tools.restrict.bind(tools),
+    options.restrictedTools
+  );
   return {
     agentPreset: WORKER_PRESET,
     approvalPolicy: "never",
     sandboxMode: options.sandboxMode,
-    restrictedTools: [...options.restrictedTools]
+    restrictedTools
   };
 }
 function changedFilesFromDiff(diffStat) {
@@ -7989,7 +8356,9 @@ function asCreateWorkshop(body) {
     participantRoleIds: asStringArray(
       body.participantRoleIds,
       "participantRoleIds"
-    )
+    ),
+    meetingType: body.meetingType === "prd" || body.meetingType === "architecture" || body.meetingType === "balance" || body.meetingType === "custom" ? body.meetingType : void 0,
+    agenda: asStringArray(body.agenda, "agenda")
   };
 }
 function asWorkshopNote(body) {
@@ -8104,6 +8473,9 @@ var StudioRouter = class {
   readProjectDoc;
   runWorkshop;
   summarizeWorkshop;
+  sayWorkshop;
+  sideSayWorkshop;
+  summarizeMeetingWorkshop;
   probeProviderProfile;
   constructor(options) {
     this.store = options.store;
@@ -8124,6 +8496,9 @@ var StudioRouter = class {
     this.readProjectDoc = options.readProjectDoc;
     this.runWorkshop = options.runWorkshop;
     this.summarizeWorkshop = options.summarizeWorkshop;
+    this.sayWorkshop = options.sayWorkshop;
+    this.sideSayWorkshop = options.sideSayWorkshop;
+    this.summarizeMeetingWorkshop = options.summarizeMeetingWorkshop;
     this.probeProviderProfile = options.probeProviderProfile;
   }
   async handle(req, res) {
@@ -8660,6 +9035,123 @@ var StudioRouter = class {
       sendJson(res, 200, { ok: true, workshop });
       return;
     }
+    const workshopSpeak = /^\/studio-api\/workshops\/([^/]+)\/messages$/.exec(parsed.pathname);
+    if (workshopSpeak !== null) {
+      requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const workshopId = decodeSegment(workshopSpeak[1] ?? "");
+      const body = await readJson(req);
+      const content = asString(body.content, "content");
+      const targetRoleId = body.targetRoleId === null || body.targetRoleId === void 0 ? null : asString(body.targetRoleId, "targetRoleId");
+      await this.store.addWorkshopMessage(workshopId, {
+        roleId: null,
+        roleName: "Owner",
+        content
+      });
+      const workshop = targetRoleId === null ? (await this.store.getWorkshopContext(workshopId)).workshop : await this.sayWorkshop(workshopId, targetRoleId, content);
+      sendJson(res, 200, { ok: true, workshop });
+      return;
+    }
+    const workshopSideSpeak = /^\/studio-api\/workshops\/([^/]+)\/side-chats\/([^/]+)\/messages$/.exec(
+      parsed.pathname
+    );
+    if (workshopSideSpeak !== null) {
+      requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const workshopId = decodeSegment(workshopSideSpeak[1] ?? "");
+      const roleId = decodeSegment(workshopSideSpeak[2] ?? "");
+      const body = await readJson(req);
+      const content = asString(body.content, "content");
+      await this.store.addWorkshopSideOwnerMessage(workshopId, roleId, content);
+      const workshop = await this.sideSayWorkshop(workshopId, roleId, content);
+      sendJson(res, 200, { ok: true, workshop });
+      return;
+    }
+    const workshopMessageEdit = /^\/studio-api\/workshops\/([^/]+)\/messages\/([^/]+)$/.exec(
+      parsed.pathname
+    );
+    if (workshopMessageEdit !== null) {
+      requireMethod(parsed, ["PATCH"]);
+      assertJsonRequest(req);
+      const body = await readJson(req);
+      const workshop = await this.store.updateWorkshopMessage(
+        decodeSegment(workshopMessageEdit[1] ?? ""),
+        decodeSegment(workshopMessageEdit[2] ?? ""),
+        { content: asString(body.content, "content") }
+      );
+      sendJson(res, 200, { ok: true, workshop });
+      return;
+    }
+    const workshopAgenda = /^\/studio-api\/workshops\/([^/]+)\/agenda$/.exec(parsed.pathname);
+    if (workshopAgenda !== null) {
+      requireMethod(parsed, ["PUT"]);
+      assertJsonRequest(req);
+      const body = await readJson(req);
+      if (!Array.isArray(body.items)) {
+        throw new HttpError(400, "invalid_input", "items \u5FC5\u987B\u662F\u6570\u7EC4");
+      }
+      const items = body.items.map((item) => {
+        if (typeof item !== "object" || item === null || typeof item.id !== "string" || item.status !== "open" && item.status !== "closed" && item.status !== "deferred") {
+          throw new HttpError(400, "invalid_input", "\u8BAE\u7A0B\u9879\u65E0\u6548");
+        }
+        return {
+          id: item.id,
+          status: item.status
+        };
+      });
+      const workshop = await this.store.setWorkshopAgenda(
+        decodeSegment(workshopAgenda[1] ?? ""),
+        items
+      );
+      sendJson(res, 200, { ok: true, workshop });
+      return;
+    }
+    const workshopSettle = /^\/studio-api\/workshops\/([^/]+)\/settle$/.exec(parsed.pathname);
+    if (workshopSettle !== null) {
+      requireMethod(parsed, ["POST"]);
+      const workshop = await this.store.settleWorkshop(
+        decodeSegment(workshopSettle[1] ?? "")
+      );
+      sendJson(res, 200, { ok: true, workshop });
+      return;
+    }
+    const workshopMinutes = /^\/studio-api\/workshops\/([^/]+)\/minutes$/.exec(parsed.pathname);
+    if (workshopMinutes !== null) {
+      requireMethod(parsed, ["PUT"]);
+      assertJsonRequest(req);
+      const body = await readJson(req);
+      const workshop = await this.store.saveWorkshopMinutes(
+        decodeSegment(workshopMinutes[1] ?? ""),
+        {
+          consensus: asStringArray(body.consensus, "consensus") ?? [],
+          disagreements: asStringArray(body.disagreements, "disagreements") ?? [],
+          openQuestions: asStringArray(body.openQuestions, "openQuestions") ?? [],
+          decisionDraft: asOptionalString(body.decisionDraft, "decisionDraft") ?? ""
+        }
+      );
+      sendJson(res, 200, { ok: true, workshop });
+      return;
+    }
+    const workshopMinutesAi = /^\/studio-api\/workshops\/([^/]+)\/summarize-minutes$/.exec(
+      parsed.pathname
+    );
+    if (workshopMinutesAi !== null) {
+      requireMethod(parsed, ["POST"]);
+      const workshop = await this.summarizeMeetingWorkshop(
+        decodeSegment(workshopMinutesAi[1] ?? "")
+      );
+      sendJson(res, 200, { ok: true, workshop });
+      return;
+    }
+    const workshopDecision = /^\/studio-api\/workshops\/([^/]+)\/decision$/.exec(parsed.pathname);
+    if (workshopDecision !== null) {
+      requireMethod(parsed, ["POST"]);
+      const workshop = await this.store.createWorkshopDecision(
+        decodeSegment(workshopDecision[1] ?? "")
+      );
+      sendJson(res, 200, { ok: true, workshop });
+      return;
+    }
     if (parsed.pathname === `${API_PREFIX}/roles`) {
       requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
@@ -9028,6 +9520,138 @@ ${note.summary}
       await handle?.dispose().catch(() => void 0);
     }
   }
+  async say(workshopId, targetRoleId, ownerMessage) {
+    const context = await this.store.getWorkshopContext(workshopId);
+    const role = context.roles.find((item) => item.id === targetRoleId);
+    if (role === void 0) throw new Error("\u53C2\u4F1A\u89D2\u8272\u4E0D\u5B58\u5728");
+    const profile = context.providerProfiles.find(
+      (item) => item.id === role.providerProfileId
+    ) ?? null;
+    const prompt = [
+      `\u4F60\u662F\u300C${role.name}\u300D\uFF08${role.title || "\u53C2\u4F1A\u89D2\u8272"}\uFF09\u3002`,
+      `\u4F1A\u8BAE\uFF1A${context.workshop.title}`,
+      context.workshop.topic ? `\u8BAE\u9898\uFF1A${context.workshop.topic}` : "",
+      "\u4F60\u6B63\u5728\u53C2\u52A0\u4E00\u573A\u7531 Owner \u4E3B\u6301\u7684\u4F1A\u8BAE\u3002\u4EE5\u4E0B\u662F\u516C\u5F00\u4F1A\u8BAE\u8BB0\u5F55\u3002",
+      "\u4F60\u770B\u4E0D\u5230\u5176\u4ED6\u4EBA\u7684\u5355\u804A\uFF0C\u4E5F\u4E0D\u8981\u5047\u8BBE\u4ED6\u4EEC\u540C\u610F\u4F60\u3002",
+      "\u53EA\u56DE\u590D\u4F60\u7684\u89C2\u70B9\uFF1B\u4E0D\u8981\u4FEE\u6539\u6587\u4EF6\u3001\u4E0D\u8981\u6267\u884C\u547D\u4EE4\u3001\u4E0D\u8981\u66FF Owner \u51B3\u7B56\u3002",
+      "\u516C\u5F00\u8BB0\u5F55\uFF1A",
+      this.transcript(context.workshop),
+      "",
+      "Owner \u521A\u521A\u8BF4\uFF1A",
+      ownerMessage,
+      "",
+      "\u8BF7\u76F4\u63A5\u56DE\u7B54 Owner \u70B9\u540D\u7684\u95EE\u9898\uFF0C\u63A7\u5236\u5728 800 \u5B57\u4EE5\u5185\u3002"
+    ].filter((line) => line !== "").join("\n");
+    const output = await this.runText(context.project.repoPath, role, profile, prompt);
+    await this.store.addWorkshopMessage(workshopId, {
+      roleId: role.id,
+      roleName: role.name,
+      content: output
+    });
+    return (await this.store.getWorkshopContext(workshopId)).workshop;
+  }
+  async sideSay(workshopId, targetRoleId, ownerMessage) {
+    const context = await this.store.getWorkshopContext(workshopId);
+    const role = context.roles.find((item) => item.id === targetRoleId);
+    if (role === void 0) throw new Error("\u53C2\u4F1A\u89D2\u8272\u4E0D\u5B58\u5728");
+    const profile = context.providerProfiles.find(
+      (item) => item.id === role.providerProfileId
+    ) ?? null;
+    const chat = context.workshop.sideChats.find(
+      (item) => item.roleId === targetRoleId
+    );
+    const sideText = chat?.messages.map((message) => `${message.roleName}\uFF1A${message.content}`).join("\n") ?? "";
+    const prompt = [
+      `\u4F60\u662F\u300C${role.name}\u300D\uFF08${role.title || "\u53C2\u4F1A\u89D2\u8272"}\uFF09\u3002`,
+      `\u4F1A\u8BAE\uFF1A${context.workshop.title}`,
+      context.workshop.topic ? `\u8BAE\u9898\uFF1A${context.workshop.topic}` : "",
+      "\u8FD9\u662F Owner \u4E0E\u4F60\u7684\u5355\u72EC\u6C9F\u901A\uFF0C\u4E0D\u4F1A\u81EA\u52A8\u8FDB\u5165\u516C\u5F00\u4F1A\u8BAE\u8BB0\u5F55\u3002",
+      "\u516C\u5F00\u4F1A\u8BAE\u8BB0\u5F55\u4EC5\u4F9B\u4F60\u7406\u89E3\u4E0A\u4E0B\u6587\uFF1B\u4E0D\u8981\u5F15\u7528\u4F60\u672A\u770B\u5230\u7684\u5355\u804A\u3002",
+      this.transcript(context.workshop),
+      "",
+      sideText ? `\u4F60\u4EEC\u4E4B\u524D\u7684\u5355\u804A\uFF1A
+${sideText}` : "",
+      "",
+      `Owner \u79C1\u4E0B\u5BF9\u4F60\u8BF4\uFF1A
+${ownerMessage}`,
+      "",
+      "\u76F4\u63A5\u56DE\u7B54 Owner\uFF0C\u63A7\u5236\u5728 600 \u5B57\u4EE5\u5185\u3002"
+    ].filter((line) => line !== "").join("\n");
+    const output = await this.runText(context.project.repoPath, role, profile, prompt);
+    await this.store.addWorkshopSideMessage(workshopId, targetRoleId, {
+      roleName: role.name,
+      content: output
+    });
+    return (await this.store.getWorkshopContext(workshopId)).workshop;
+  }
+  async summarizeMeeting(workshopId) {
+    const context = await this.store.getWorkshopContext(workshopId);
+    const role = context.roles[0];
+    if (role === void 0) throw new Error("\u4F1A\u8BAE\u6CA1\u6709\u53C2\u4F1A\u89D2\u8272");
+    const profile = context.providerProfiles.find(
+      (item) => item.id === role.providerProfileId
+    ) ?? null;
+    const prompt = [
+      "\u4F60\u662F\u4F1A\u8BAE\u8BB0\u5F55\u5458\u3002\u8BF7\u6C47\u603B\u516C\u5F00\u4F1A\u8BAE\u8BB0\u5F55\uFF0C\u4E0D\u8981\u66FF Owner \u505A\u6700\u7EC8\u51B3\u7B56\u3002",
+      `\u4F1A\u8BAE\uFF1A${context.workshop.title}`,
+      context.workshop.topic ? `\u8BAE\u9898\uFF1A${context.workshop.topic}` : "",
+      "\u8BAE\u7A0B\uFF1A",
+      context.workshop.agenda.map((item) => `- [${item.status}] ${item.text}`).join("\n") || "\uFF08\u65E0\uFF09",
+      "",
+      "\u516C\u5F00\u8BB0\u5F55\uFF1A",
+      this.transcript(context.workshop),
+      "",
+      "\u53EA\u8FD4\u56DE JSON\uFF0C\u4E0D\u8981 Markdown\uFF1A",
+      '{"consensus":["\u5171\u8BC6"],"disagreements":["\u5206\u6B67"],"openQuestions":["\u672A\u51B3\u95EE\u9898"],"decisionDraft":"\u5EFA\u8BAE Owner \u51B3\u5B9A\u7684\u8349\u6848"}',
+      "\u5FC5\u987B\u4FDD\u7559\u5206\u6B67\uFF1B\u5982\u679C\u786E\u5B9E\u6CA1\u6709\u5206\u6B67\uFF0C\u5728 disagreements \u4E2D\u5199\u300C\u65E0\u5206\u6B67\uFF08\u9700 Owner \u590D\u6838\uFF09\u300D\u3002"
+    ].filter((line) => line !== "").join("\n");
+    const output = await this.runText(context.project.repoPath, role, profile, prompt);
+    const record = extractJson(output);
+    return this.store.saveWorkshopMinutes(
+      workshopId,
+      {
+        consensus: strings(record.consensus),
+        disagreements: strings(record.disagreements),
+        openQuestions: strings(record.openQuestions),
+        decisionDraft: text(record.decisionDraft)
+      },
+      role.model ?? null,
+      false
+    );
+  }
+  transcript(workshop) {
+    return workshop.messages.map((message) => `${message.roleName}\uFF1A${message.content}`).join("\n");
+  }
+  async runText(repoPath, role, profile, prompt) {
+    const selection = await this.resolveModel(role, profile);
+    let handle = null;
+    try {
+      handle = await this.ctx.agents.create({
+        sessionId: `meeting-${randomUUID7()}`,
+        meta: { cwd: repoPath ?? process.cwd() },
+        agentOptions: selection,
+        setup: async (agentCtx, agent) => {
+          await bindStudioRuntime(this.ctx, agentCtx, agent, STUDIO_REVIEW_POLICY);
+        }
+      });
+      handle.agent.followup({
+        role: "user",
+        content: [{ type: "text", text: prompt }],
+        source: { kind: "user" }
+      });
+      const deadline = Date.now() + 12e4;
+      let output = "";
+      while (Date.now() < deadline) {
+        output = assistantText2(handle.agent.session.deriveMessages());
+        if (handle.agent.status === "idle" && output !== "") break;
+        await new Promise((resolve) => setTimeout(resolve, 400));
+      }
+      if (output === "") throw new Error("\u53C2\u4F1A\u89D2\u8272\u5728 120 \u79D2\u5185\u6CA1\u6709\u56DE\u590D");
+      return output;
+    } finally {
+      await handle?.dispose().catch(() => void 0);
+    }
+  }
   async ask(workshop, repoPath, role, profile) {
     const selection = await this.resolveModel(role, profile);
     let handle = null;
@@ -9223,7 +9847,9 @@ var inject = [
   "agentPresets",
   "agentDefaultModel",
   "llm",
-  "tokenMeter"
+  "tokenMeter",
+  "approval",
+  "sandboxPolicy"
 ];
 async function apply(ctx) {
   const runtime = await readRuntimeInfo();
@@ -9285,6 +9911,9 @@ async function apply(ctx) {
     readProjectDoc: (path10) => docs.read(path10),
     runWorkshop: (workshopId) => workshopRunner.run(workshopId),
     summarizeWorkshop: (workshopId) => workshopRunner.summarize(workshopId),
+    sayWorkshop: (workshopId, roleId, content) => workshopRunner.say(workshopId, roleId, content),
+    sideSayWorkshop: (workshopId, roleId, content) => workshopRunner.sideSay(workshopId, roleId, content),
+    summarizeMeetingWorkshop: (workshopId) => workshopRunner.summarizeMeeting(workshopId),
     probeProviderProfile: (profileId) => providerProbe.check(profileId)
   });
   const install = () => {
