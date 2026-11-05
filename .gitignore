@@ -16,6 +16,8 @@ docs/legacy/
 .worktrees/
 studio.json
 studio.json.*
+runs/
+history/
 .workbench/runtime/
 .workbench/**/*.lock
 .workbench/**/*.tmp
