@@ -31,6 +31,7 @@ jobs:
       - name: Verify tag matches package version
         run: node tools/check-release-version.mjs "${GITHUB_REF_NAME}"
       - name: Publish to npm
+        if: ${{ secrets.NPM_TOKEN != '' }}
         run: npm publish ./packages/dsh-studio --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
