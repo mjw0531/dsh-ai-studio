@@ -2212,7 +2212,7 @@ var AGENDA_TEMPLATES = {
   ],
   balance: [
     "\u5F53\u524D\u4F24\u5BB3/\u51B7\u5374/\u8D44\u6E90\u5FAA\u73AF\u662F\u5426\u8FC7\u5F3A\u6216\u8FC7\u5F31\uFF1F",
-    "\u54EA\u4E9B\u6539\u52A8\u4F1A\u5F71\u54CD\u5176\u4ED6\u82F1\u96C4\u6216\u7CFB\u7EDF\uFF1F",
+    "\u54EA\u4E9B\u6539\u52A8\u4F1A\u5F71\u54CD\u5176\u4ED6\u89D2\u8272\u6216\u7CFB\u7EDF\uFF1F",
     "\u7528\u4EC0\u4E48\u53EF\u89C2\u5BDF\u6307\u6807\u9A8C\u8BC1\u5E73\u8861\uFF1F"
   ],
   custom: ["\u672C\u6B21\u4F1A\u8BAE\u8981\u5173\u95ED\u54EA\u4E9B\u95EE\u9898\uFF1F"]
@@ -7524,7 +7524,7 @@ function RoleForm({
               id: "role-responsibilities",
               value: responsibilities,
               onChange: (event) => setResponsibilities(event.target.value),
-              placeholder: "\u5B9E\u73B0\u6280\u80FD/\u79FB\u52A8/\u51B7\u5374\n\u8865\u5355\u6D4B\n\u7EF4\u62A4\u6784\u5EFA"
+              placeholder: "\u5B9E\u73B0\u80FD\u529B/\u79FB\u52A8/\u51B7\u5374\n\u8865\u5355\u6D4B\n\u7EF4\u62A4\u6784\u5EFA"
             }
           )
         ] }),
@@ -7707,7 +7707,7 @@ function TaskForm({
               id: "task-title",
               value: title,
               onChange: (event) => setTitle(event.target.value),
-              placeholder: "\u4F8B\u5982\uFF1A\u5B9E\u73B0\u6280\u80FD\u51B7\u5374\u4E0E\u65BD\u6CD5\u524D\u6447",
+              placeholder: "\u4F8B\u5982\uFF1A\u5B9E\u73B0\u80FD\u529B\u51B7\u5374\u4E0E\u65BD\u6CD5\u524D\u6447",
               autoFocus: true
             }
           )
