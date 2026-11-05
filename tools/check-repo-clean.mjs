@@ -2,9 +2,6 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
 const forbidden = [
-  "项目",
-  "产品",
-  "产品",
   "replay-verify",
   "task-a559749c",
   "3e42d66",

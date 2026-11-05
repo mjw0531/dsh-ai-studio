@@ -50,7 +50,7 @@ test("runs a meeting from agenda through minutes and decision draft", async () =
     const ownerMessage = await store.addWorkshopMessage(workshop.id, {
       roleId: null,
       roleName: "Owner",
-      content: "测试角色觉得验收判定过重，@架构师 怎么看？",
+      content: "验收角色觉得验收标准过重，@架构师 怎么看？",
     });
     assert.equal(ownerMessage.kind, "owner");
 

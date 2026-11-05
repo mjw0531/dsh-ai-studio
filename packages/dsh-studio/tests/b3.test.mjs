@@ -92,7 +92,7 @@ test("freezes PRD and architecture versions with drift detection", async () => {
     const decision = await store.createRequirementDecision(project.id, {
       title: "采用垂直切片",
       source: "AI 架构师",
-      recommendation: "先做 核心 验证",
+      recommendation: "先做核心闭环",
       status: "accepted",
       rationale: "最小可玩闭环",
       freezeId: prd.id,
