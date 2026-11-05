@@ -445,7 +445,7 @@ export function MeetingView({
   );
   const [message, setMessage] = useState("");
   const [targetRoleId, setTargetRoleId] = useState("");
-  const [sideRoleId, setSideRoleId] = useState("");
+  const [chatTab, setChatTab] = useState<string>("group");
   const [sideMessage, setSideMessage] = useState("");
   const [showComposer, setShowComposer] = useState(workshops.length === 0);
 
@@ -461,7 +461,7 @@ export function MeetingView({
     }
     setSelectedId(active.id);
     setTargetRoleId(active.participantRoleIds[0] ?? "");
-    setSideRoleId(active.participantRoleIds[0] ?? "");
+    setChatTab("group");
     setMessage("");
     setSideMessage("");
   }, [active?.id]);
@@ -483,10 +483,6 @@ export function MeetingView({
   const participantRoles = roles.filter((role) =>
     active?.participantRoleIds.includes(role.id),
   );
-  const sideChat =
-    active === null
-      ? undefined
-      : active.sideChats.find((chat) => chat.roleId === sideRoleId);
   const canTalk = active !== null && active.status === "collecting";
   const settled = active !== null && active.status !== "collecting";
 
@@ -495,19 +491,13 @@ export function MeetingView({
       <div className="studio-page-head">
         <div>
           <div className="studio-eyebrow">MEETING ROOM</div>
-          <h1 className="studio-title">会议室</h1>
-          <p>
-            人控制发言节奏；单聊不进群聊；会议产出是纪要，不是开发上下文。
-          </p>
+          <div className="studio-meeting-title-row">
+            <h1 className="studio-title">会议室</h1>
+            <p className="studio-meeting-subtitle">
+              人控制发言节奏；单聊不进群聊；会议产出是纪要，不是开发上下文。
+            </p>
+          </div>
         </div>
-        <button
-          className="studio-btn"
-          type="button"
-          onClick={() => setShowComposer((current) => !current)}
-        >
-          <IconPlus width={14} height={14} />
-          {showComposer ? "收起新建" : "新建会议"}
-        </button>
       </div>
 
       {showComposer ? (
@@ -541,6 +531,16 @@ export function MeetingView({
               ))
             )}
           </div>
+          <div className="studio-meeting-list-foot">
+            <button
+              className="studio-btn"
+              type="button"
+              onClick={() => setShowComposer((current) => !current)}
+            >
+              <IconPlus width={14} height={14} />
+              {showComposer ? "收起新建" : "新建会议"}
+            </button>
+          </div>
         </aside>
 
         <main className="studio-meeting-main">
@@ -548,13 +548,13 @@ export function MeetingView({
             <div className="studio-empty">新建一场会议，或从左侧选择。</div>
           ) : (
             <>
-              <div className="studio-panel">
-                <div className="studio-panel-head">
-                  <h3>{active.title}</h3>
+              <details className="studio-panel studio-meeting-content" open>
+                <summary className="studio-panel-head">
+                  <h3>会议内容：{active.title}</h3>
                   <span className="studio-muted">
                     {MEETING_TYPE_LABELS[active.meetingType]} · {active.status}
                   </span>
-                </div>
+                </summary>
                 <div className="studio-panel-body">
                   {active.topic !== "" ? (
                     <p className="studio-meeting-topic">{active.topic}</p>
@@ -573,138 +573,149 @@ export function MeetingView({
                     ))}
                   </div>
                 </div>
-              </div>
+              </details>
 
               {!settled ? (
-                <>
-                  <div className="studio-panel">
-                    <div className="studio-panel-head">
-                      <h3>群聊</h3>
-                      <span className="studio-muted">
-                        你发一句，选择一位角色回答
-                      </span>
-                    </div>
-                    <div className="studio-panel-body">
-                      <div className="studio-meeting-messages">
-                        {active.messages.map((item) => (
-                          <div
-                            className="studio-meeting-message"
-                            key={item.id}
-                            data-kind={item.kind}
-                          >
-                            <div className="studio-meeting-message-head">
-                              <strong>{item.roleName}</strong>
-                              <span className="studio-faint">
-                                {formatDate(item.createdAt)}
-                              </span>
-                            </div>
-                            <div className="studio-meeting-message-content">
-                              {item.content}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="studio-meeting-speak">
-                        <textarea
-                          value={message}
-                          onChange={(event) => setMessage(event.target.value)}
-                          placeholder="输入你的发言；选择一位角色回答"
-                        />
-                        <div className="studio-meeting-speak-actions">
-                          <select
-                            value={targetRoleId}
-                            onChange={(event) =>
-                              setTargetRoleId(event.target.value)
-                            }
-                          >
-                            {participantRoles.map((role) => (
-                              <option key={role.id} value={role.id}>
-                                @ {role.name}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            className="studio-btn"
-                            data-variant="primary"
-                            type="button"
-                            disabled={busy || message.trim() === "" || !canTalk}
-                            onClick={() =>
-                              void (async () => {
-                                const ok = await onSpeak(
-                                  active.id,
-                                  message.trim(),
-                                  targetRoleId || null,
-                                );
-                                if (ok) setMessage("");
-                              })()
-                            }
-                          >
-                            发言并让角色回答
-                          </button>
-                        </div>
-                      </div>
+                <div className="studio-panel studio-chat-panel">
+                  <div className="studio-meeting-tabs" role="tablist">
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={chatTab === "group"}
+                      data-active={chatTab === "group"}
+                      onClick={() => setChatTab("group")}
+                    >
+                      群聊
+                    </button>
+                    {participantRoles.map((role) => (
                       <button
-                        className="studio-btn"
+                        key={role.id}
                         type="button"
-                        disabled={busy || active.messages.length === 0}
-                        onClick={() => void onSettle(active.id)}
+                        role="tab"
+                        aria-selected={chatTab === role.id}
+                        data-active={chatTab === role.id}
+                        onClick={() => setChatTab(role.id)}
                       >
-                        结束会议，进入结算
+                        单聊 · {role.name}
                       </button>
-                    </div>
+                    ))}
                   </div>
 
-                  <div className="studio-panel">
-                    <div className="studio-panel-head">
-                      <h3>单聊</h3>
-                      <span className="studio-muted">
-                        单聊内容不进入群聊，也不自动进入纪要
-                      </span>
-                    </div>
-                    <div className="studio-panel-body">
-                      <select
-                        value={sideRoleId}
-                        onChange={(event) => setSideRoleId(event.target.value)}
-                      >
-                        {participantRoles.map((role) => (
-                          <option key={role.id} value={role.id}>
-                            {role.name}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="studio-meeting-side-messages">
-                        {(sideChat?.messages ?? []).map((item) => (
-                          <div className="studio-meeting-side-message" key={item.id}>
-                            <strong>{item.roleName}</strong>
-                            <span>{item.content}</span>
+                  <div className="studio-panel-body">
+                    {chatTab === "group" ? (
+                      <>
+                        <div className="studio-meeting-messages">
+                          {active.messages.length === 0 ? (
+                            <div className="studio-empty">
+                              还没有发言。输入一句话，选择一位角色回答。
+                            </div>
+                          ) : (
+                            active.messages.map((item) => (
+                              <div
+                                className="studio-meeting-message"
+                                key={item.id}
+                                data-kind={item.kind}
+                              >
+                                <div className="studio-meeting-message-head">
+                                  <strong>{item.roleName}</strong>
+                                  <span className="studio-faint">
+                                    {formatDate(item.createdAt)}
+                                  </span>
+                                </div>
+                                <div className="studio-meeting-message-content">
+                                  {item.content}
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                        <div className="studio-meeting-speak">
+                          <textarea
+                            value={message}
+                            onChange={(event) => setMessage(event.target.value)}
+                            placeholder="输入你的发言；选择一位角色回答"
+                          />
+                          <div className="studio-meeting-speak-actions">
+                            <select
+                              value={targetRoleId}
+                              onChange={(event) =>
+                                setTargetRoleId(event.target.value)
+                              }
+                            >
+                              {participantRoles.map((role) => (
+                                <option key={role.id} value={role.id}>
+                                  @ {role.name}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              className="studio-btn"
+                              data-variant="primary"
+                              type="button"
+                              disabled={busy || message.trim() === "" || !canTalk}
+                              onClick={() =>
+                                void (async () => {
+                                  const ok = await onSpeak(
+                                    active.id,
+                                    message.trim(),
+                                    targetRoleId || null,
+                                  );
+                                  if (ok) setMessage("");
+                                })()
+                              }
+                            >
+                              发言并让角色回答
+                            </button>
                           </div>
-                        ))}
-                      </div>
-                      <textarea
-                        value={sideMessage}
-                        onChange={(event) => setSideMessage(event.target.value)}
-                        placeholder="只和这个角色说的话"
-                      />
-                      <button
-                        className="studio-btn"
-                        type="button"
-                        disabled={busy || sideMessage.trim() === "" || sideRoleId === ""}
-                        onClick={() =>
-                          void (async () => {
-                            const ok = await onSideSpeak(
-                              active.id,
-                              sideRoleId,
-                              sideMessage.trim(),
-                            );
-                            if (ok) setSideMessage("");
-                          })()
-                        }
-                      >
-                        发送单聊
-                      </button>
-                    </div>
+                        </div>
+                        <button
+                          className="studio-btn"
+                          type="button"
+                          disabled={busy || active.messages.length === 0}
+                          onClick={() => void onSettle(active.id)}
+                        >
+                          结束会议，进入结算
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <div className="studio-meeting-tab-note">
+                          与 {participantRoles.find((role) => role.id === chatTab)?.name ?? "该角色"} 的单聊；内容不进入群聊，也不自动进入纪要。
+                        </div>
+                        <div className="studio-meeting-side-messages">
+                          {(active.sideChats.find((chat) => chat.roleId === chatTab)?.messages ?? []).map((item) => (
+                            <div className="studio-meeting-side-message" key={item.id}>
+                              <strong>{item.roleName}</strong>
+                              <span>{item.content}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <textarea
+                          value={sideMessage}
+                          onChange={(event) => setSideMessage(event.target.value)}
+                          placeholder="只和这个角色说的话"
+                        />
+                        <button
+                          className="studio-btn"
+                          type="button"
+                          disabled={busy || sideMessage.trim() === ""}
+                          onClick={() =>
+                            void (async () => {
+                              const ok = await onSideSpeak(
+                                active.id,
+                                chatTab,
+                                sideMessage.trim(),
+                              );
+                              if (ok) setSideMessage("");
+                            })()
+                          }
+                        >
+                          发送单聊
+                        </button>
+                      </>
+                    )}
                   </div>
-                </>
+                </div>
               ) : (
                 <Settlement
                   workshop={active}

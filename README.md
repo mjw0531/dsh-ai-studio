@@ -132,7 +132,7 @@ npm 发布后，市场目录来自 [awesome-dsh-plugin](https://github.com/aweso
 
 ### 表单留空报「必须是字符串」
 
-升级到 v3.13.0 或更新版本。旧版本对可选字段的 `null` 处理有 bug。
+升级到 v3.13.1 或更新版本。旧版本对可选字段的 `null` 处理有 bug。
 
 ### 阶段门禁过不去
 
@@ -185,4 +185,4 @@ DSH Web/Desktop
 
 ## 版本
 
-当前版本 **3.13.0**。版本历史见 [CHANGELOG](CHANGELOG.md)。
+当前版本 **3.13.1**。版本历史见 [CHANGELOG](CHANGELOG.md)。

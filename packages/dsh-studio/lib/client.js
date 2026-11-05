@@ -2499,7 +2499,7 @@ function MeetingView({
   );
   const [message, setMessage] = (0, import_react2.useState)("");
   const [targetRoleId, setTargetRoleId] = (0, import_react2.useState)("");
-  const [sideRoleId, setSideRoleId] = (0, import_react2.useState)("");
+  const [chatTab, setChatTab] = (0, import_react2.useState)("group");
   const [sideMessage, setSideMessage] = (0, import_react2.useState)("");
   const [showComposer, setShowComposer] = (0, import_react2.useState)(workshops.length === 0);
   const active = (0, import_react2.useMemo)(
@@ -2513,7 +2513,7 @@ function MeetingView({
     }
     setSelectedId(active.id);
     setTargetRoleId(active.participantRoleIds[0] ?? "");
-    setSideRoleId(active.participantRoleIds[0] ?? "");
+    setChatTab("group");
     setMessage("");
     setSideMessage("");
   }, [active?.id]);
@@ -2527,29 +2527,16 @@ function MeetingView({
   const participantRoles = roles.filter(
     (role) => active?.participantRoleIds.includes(role.id)
   );
-  const sideChat = active === null ? void 0 : active.sideChats.find((chat) => chat.roleId === sideRoleId);
   const canTalk = active !== null && active.status === "collecting";
   const settled = active !== null && active.status !== "collecting";
   return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-page", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-page-head", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "studio-eyebrow", children: "MEETING ROOM" }),
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "studio-page-head", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "studio-eyebrow", children: "MEETING ROOM" }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-meeting-title-row", children: [
         /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("h1", { className: "studio-title", children: "\u4F1A\u8BAE\u5BA4" }),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("p", { children: "\u4EBA\u63A7\u5236\u53D1\u8A00\u8282\u594F\uFF1B\u5355\u804A\u4E0D\u8FDB\u7FA4\u804A\uFF1B\u4F1A\u8BAE\u4EA7\u51FA\u662F\u7EAA\u8981\uFF0C\u4E0D\u662F\u5F00\u53D1\u4E0A\u4E0B\u6587\u3002" })
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
-        "button",
-        {
-          className: "studio-btn",
-          type: "button",
-          onClick: () => setShowComposer((current) => !current),
-          children: [
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconPlus, { width: 14, height: 14 }),
-            showComposer ? "\u6536\u8D77\u65B0\u5EFA" : "\u65B0\u5EFA\u4F1A\u8BAE"
-          ]
-        }
-      )
-    ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("p", { className: "studio-meeting-subtitle", children: "\u4EBA\u63A7\u5236\u53D1\u8A00\u8282\u594F\uFF1B\u5355\u804A\u4E0D\u8FDB\u7FA4\u804A\uFF1B\u4F1A\u8BAE\u4EA7\u51FA\u662F\u7EAA\u8981\uFF0C\u4E0D\u662F\u5F00\u53D1\u4E0A\u4E0B\u6587\u3002" })
+      ] })
+    ] }) }),
     showComposer ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(MeetingComposer, { roles, busy, onCreate }) : null,
     /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-meeting-layout", children: [
       /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("aside", { className: "studio-panel studio-meeting-list", children: [
@@ -2575,12 +2562,27 @@ function MeetingView({
             ]
           },
           workshop.id
-        )) })
+        )) }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "studio-meeting-list-foot", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
+          "button",
+          {
+            className: "studio-btn",
+            type: "button",
+            onClick: () => setShowComposer((current) => !current),
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(IconPlus, { width: 14, height: 14 }),
+              showComposer ? "\u6536\u8D77\u65B0\u5EFA" : "\u65B0\u5EFA\u4F1A\u8BAE"
+            ]
+          }
+        ) })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("main", { className: "studio-meeting-main", children: active === null ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "studio-empty", children: "\u65B0\u5EFA\u4E00\u573A\u4F1A\u8BAE\uFF0C\u6216\u4ECE\u5DE6\u4FA7\u9009\u62E9\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(import_jsx_runtime4.Fragment, { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-panel", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-panel-head", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("h3", { children: active.title }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("details", { className: "studio-panel studio-meeting-content", open: true, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("summary", { className: "studio-panel-head", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("h3", { children: [
+              "\u4F1A\u8BAE\u5185\u5BB9\uFF1A",
+              active.title
+            ] }),
             /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { className: "studio-muted", children: [
               MEETING_TYPE_LABELS[active.meetingType],
               " \xB7 ",
@@ -2599,126 +2601,138 @@ function MeetingView({
             /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "studio-meeting-participants", children: participantRoles.map((role) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "studio-pill", children: role.name }, role.id)) })
           ] })
         ] }),
-        !settled ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(import_jsx_runtime4.Fragment, { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-panel", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-panel-head", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("h3", { children: "\u7FA4\u804A" }),
-              /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "studio-muted", children: "\u4F60\u53D1\u4E00\u53E5\uFF0C\u9009\u62E9\u4E00\u4F4D\u89D2\u8272\u56DE\u7B54" })
-            ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-panel-body", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "studio-meeting-messages", children: active.messages.map((item) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
-                "div",
-                {
-                  className: "studio-meeting-message",
-                  "data-kind": item.kind,
-                  children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-meeting-message-head", children: [
-                      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("strong", { children: item.roleName }),
-                      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "studio-faint", children: formatDate(item.createdAt) })
-                    ] }),
-                    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "studio-meeting-message-content", children: item.content })
-                  ]
-                },
-                item.id
-              )) }),
-              /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-meeting-speak", children: [
-                /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-                  "textarea",
-                  {
-                    value: message,
-                    onChange: (event) => setMessage(event.target.value),
-                    placeholder: "\u8F93\u5165\u4F60\u7684\u53D1\u8A00\uFF1B\u9009\u62E9\u4E00\u4F4D\u89D2\u8272\u56DE\u7B54"
-                  }
-                ),
-                /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-meeting-speak-actions", children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-                    "select",
-                    {
-                      value: targetRoleId,
-                      onChange: (event) => setTargetRoleId(event.target.value),
-                      children: participantRoles.map((role) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("option", { value: role.id, children: [
-                        "@ ",
-                        role.name
-                      ] }, role.id))
-                    }
-                  ),
-                  /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-                    "button",
-                    {
-                      className: "studio-btn",
-                      "data-variant": "primary",
-                      type: "button",
-                      disabled: busy || message.trim() === "" || !canTalk,
-                      onClick: () => void (async () => {
-                        const ok = await onSpeak(
-                          active.id,
-                          message.trim(),
-                          targetRoleId || null
-                        );
-                        if (ok) setMessage("");
-                      })(),
-                      children: "\u53D1\u8A00\u5E76\u8BA9\u89D2\u8272\u56DE\u7B54"
-                    }
-                  )
-                ] })
-              ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-                "button",
-                {
-                  className: "studio-btn",
-                  type: "button",
-                  disabled: busy || active.messages.length === 0,
-                  onClick: () => void onSettle(active.id),
-                  children: "\u7ED3\u675F\u4F1A\u8BAE\uFF0C\u8FDB\u5165\u7ED3\u7B97"
-                }
-              )
-            ] })
+        !settled ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-panel studio-chat-panel", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-meeting-tabs", role: "tablist", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+              "button",
+              {
+                type: "button",
+                role: "tab",
+                "aria-selected": chatTab === "group",
+                "data-active": chatTab === "group",
+                onClick: () => setChatTab("group"),
+                children: "\u7FA4\u804A"
+              }
+            ),
+            participantRoles.map((role) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
+              "button",
+              {
+                type: "button",
+                role: "tab",
+                "aria-selected": chatTab === role.id,
+                "data-active": chatTab === role.id,
+                onClick: () => setChatTab(role.id),
+                children: [
+                  "\u5355\u804A \xB7 ",
+                  role.name
+                ]
+              },
+              role.id
+            ))
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-panel", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-panel-head", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("h3", { children: "\u5355\u804A" }),
-              /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "studio-muted", children: "\u5355\u804A\u5185\u5BB9\u4E0D\u8FDB\u5165\u7FA4\u804A\uFF0C\u4E5F\u4E0D\u81EA\u52A8\u8FDB\u5165\u7EAA\u8981" })
-            ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-panel-body", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-                "select",
-                {
-                  value: sideRoleId,
-                  onChange: (event) => setSideRoleId(event.target.value),
-                  children: participantRoles.map((role) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("option", { value: role.id, children: role.name }, role.id))
-                }
-              ),
-              /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "studio-meeting-side-messages", children: (sideChat?.messages ?? []).map((item) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-meeting-side-message", children: [
-                /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("strong", { children: item.roleName }),
-                /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: item.content })
-              ] }, item.id)) }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "studio-panel-body", children: chatTab === "group" ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(import_jsx_runtime4.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "studio-meeting-messages", children: active.messages.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "studio-empty", children: "\u8FD8\u6CA1\u6709\u53D1\u8A00\u3002\u8F93\u5165\u4E00\u53E5\u8BDD\uFF0C\u9009\u62E9\u4E00\u4F4D\u89D2\u8272\u56DE\u7B54\u3002" }) : active.messages.map((item) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
+              "div",
+              {
+                className: "studio-meeting-message",
+                "data-kind": item.kind,
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-meeting-message-head", children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("strong", { children: item.roleName }),
+                    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "studio-faint", children: formatDate(item.createdAt) })
+                  ] }),
+                  /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "studio-meeting-message-content", children: item.content })
+                ]
+              },
+              item.id
+            )) }),
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-meeting-speak", children: [
               /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
                 "textarea",
                 {
-                  value: sideMessage,
-                  onChange: (event) => setSideMessage(event.target.value),
-                  placeholder: "\u53EA\u548C\u8FD9\u4E2A\u89D2\u8272\u8BF4\u7684\u8BDD"
+                  value: message,
+                  onChange: (event) => setMessage(event.target.value),
+                  placeholder: "\u8F93\u5165\u4F60\u7684\u53D1\u8A00\uFF1B\u9009\u62E9\u4E00\u4F4D\u89D2\u8272\u56DE\u7B54"
                 }
               ),
-              /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-                "button",
-                {
-                  className: "studio-btn",
-                  type: "button",
-                  disabled: busy || sideMessage.trim() === "" || sideRoleId === "",
-                  onClick: () => void (async () => {
-                    const ok = await onSideSpeak(
-                      active.id,
-                      sideRoleId,
-                      sideMessage.trim()
-                    );
-                    if (ok) setSideMessage("");
-                  })(),
-                  children: "\u53D1\u9001\u5355\u804A"
-                }
-              )
-            ] })
-          ] })
+              /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-meeting-speak-actions", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+                  "select",
+                  {
+                    value: targetRoleId,
+                    onChange: (event) => setTargetRoleId(event.target.value),
+                    children: participantRoles.map((role) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("option", { value: role.id, children: [
+                      "@ ",
+                      role.name
+                    ] }, role.id))
+                  }
+                ),
+                /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+                  "button",
+                  {
+                    className: "studio-btn",
+                    "data-variant": "primary",
+                    type: "button",
+                    disabled: busy || message.trim() === "" || !canTalk,
+                    onClick: () => void (async () => {
+                      const ok = await onSpeak(
+                        active.id,
+                        message.trim(),
+                        targetRoleId || null
+                      );
+                      if (ok) setMessage("");
+                    })(),
+                    children: "\u53D1\u8A00\u5E76\u8BA9\u89D2\u8272\u56DE\u7B54"
+                  }
+                )
+              ] })
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+              "button",
+              {
+                className: "studio-btn",
+                type: "button",
+                disabled: busy || active.messages.length === 0,
+                onClick: () => void onSettle(active.id),
+                children: "\u7ED3\u675F\u4F1A\u8BAE\uFF0C\u8FDB\u5165\u7ED3\u7B97"
+              }
+            )
+          ] }) : /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(import_jsx_runtime4.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-meeting-tab-note", children: [
+              "\u4E0E ",
+              participantRoles.find((role) => role.id === chatTab)?.name ?? "\u8BE5\u89D2\u8272",
+              " \u7684\u5355\u804A\uFF1B\u5185\u5BB9\u4E0D\u8FDB\u5165\u7FA4\u804A\uFF0C\u4E5F\u4E0D\u81EA\u52A8\u8FDB\u5165\u7EAA\u8981\u3002"
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "studio-meeting-side-messages", children: (active.sideChats.find((chat) => chat.roleId === chatTab)?.messages ?? []).map((item) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-meeting-side-message", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("strong", { children: item.roleName }),
+              /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: item.content })
+            ] }, item.id)) }),
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+              "textarea",
+              {
+                value: sideMessage,
+                onChange: (event) => setSideMessage(event.target.value),
+                placeholder: "\u53EA\u548C\u8FD9\u4E2A\u89D2\u8272\u8BF4\u7684\u8BDD"
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+              "button",
+              {
+                className: "studio-btn",
+                type: "button",
+                disabled: busy || sideMessage.trim() === "",
+                onClick: () => void (async () => {
+                  const ok = await onSideSpeak(
+                    active.id,
+                    chatTab,
+                    sideMessage.trim()
+                  );
+                  if (ok) setSideMessage("");
+                })(),
+                children: "\u53D1\u9001\u5355\u804A"
+              }
+            )
+          ] }) })
         ] }) : /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
           Settlement,
           {
@@ -10132,6 +10146,18 @@ var views = `
 
 // src/client/styles/meeting.ts
 var meeting = `
+.studio-meeting-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.studio-meeting-subtitle {
+  margin: 0;
+  color: var(--st-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
 .studio-meeting-layout {
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);
@@ -10143,9 +10169,25 @@ var meeting = `
   gap: 14px;
   min-width: 0;
 }
+.studio-meeting-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
 .studio-meeting-list .studio-panel-body {
   display: grid;
   gap: 6px;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.studio-meeting-list-foot {
+  padding: 10px 14px;
+  border-top: 1px solid var(--st-border);
+}
+.studio-meeting-list-foot .studio-btn {
+  width: 100%;
+  justify-content: center;
 }
 .studio-meeting-list-row {
   display: grid;
@@ -10167,6 +10209,64 @@ var meeting = `
 .studio-meeting-list-row strong {
   font-size: 12px;
   font-weight: 600;
+}
+.studio-meeting-content {
+  overflow: hidden;
+}
+.studio-meeting-content > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.studio-meeting-content > summary::-webkit-details-marker {
+  display: none;
+}
+.studio-meeting-content > summary::after {
+  content: "\u25BE";
+  color: var(--st-faint);
+  font-size: 11px;
+  margin-left: 8px;
+}
+.studio-meeting-content:not([open]) > summary::after {
+  content: "\u25B8";
+}
+.studio-meeting-content:not([open]) > .studio-panel-body {
+  display: none;
+}
+.studio-meeting-tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  padding: 10px 14px 0;
+  border-bottom: 1px solid var(--st-border);
+  overflow-x: auto;
+}
+.studio-meeting-tabs button {
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 9px 9px 0 0;
+  background: transparent;
+  color: var(--st-muted);
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.studio-meeting-tabs button:hover {
+  background: var(--st-panel-2);
+  color: var(--st-text);
+}
+.studio-meeting-tabs button[data-active="true"] {
+  border-color: var(--st-border);
+  background: var(--st-panel);
+  color: var(--st-text);
+  margin-bottom: -1px;
+}
+.studio-meeting-tab-note {
+  margin-bottom: 8px;
+  color: var(--st-muted);
+  font-size: 11px;
+  line-height: 1.6;
 }
 .studio-meeting-topic {
   margin: 0 0 10px;
