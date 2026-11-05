@@ -75,21 +75,21 @@ test("freezes PRD and architecture versions with drift detection", async () => {
       checklist: [{ id: "x", text: "边界", done: true }],
     });
     assert.equal(arch.kind, "architecture");
-    const request = store.createFreezeChangeRequest(project.id, {
+    const request = await store.createFreezeChangeRequest(project.id, {
       freezeId: prd.id,
       title: "加入 2v2",
       reason: "测试范围扩大",
       impact: "架构需增加房间",
     });
     assert.equal(request.status, "pending");
-    const decided = store.decideFreezeChangeRequest(
+    const decided = await store.decideFreezeChangeRequest(
       project.id,
       request.id,
       "accepted",
     );
     assert.equal(decided.status, "accepted");
 
-    const decision = store.createRequirementDecision(project.id, {
+    const decision = await store.createRequirementDecision(project.id, {
       title: "采用垂直切片",
       source: "AI 架构师",
       recommendation: "先做 核心 验证",
@@ -101,6 +101,12 @@ test("freezes PRD and architecture versions with drift detection", async () => {
     const after = await store.bootstrap(project.id);
     assert.equal(after.freezes.length, 2);
     assert.equal(after.requirementDecisions.length, 1);
+
+    const reloaded = new StudioStore({ dataDir });
+    await reloaded.init();
+    const persisted = await reloaded.bootstrap(project.id);
+    assert.equal(persisted.freezeChangeRequests.length, 1);
+    assert.equal(persisted.requirementDecisions.length, 1);
   } finally {
     await rm(repo, { recursive: true, force: true });
     await rm(dataDir, { recursive: true, force: true });

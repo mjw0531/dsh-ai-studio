@@ -249,11 +249,11 @@ export function listRequirementDecisions(
     .map((decision) => structuredClone(decision));
 }
 
-export function createRequirementDecision(
+export async function createRequirementDecision(
   ctx: StoreContext,
   projectId: string,
   input: CreateRequirementDecisionInput,
-): RequirementDecision {
+): Promise<RequirementDecision> {
   const state = ctx.requireState();
   findProject(state, projectId);
   const at = ctx.now();
@@ -285,14 +285,15 @@ export function createRequirementDecision(
     projectId,
     payload: { decisionId: decision.id, status, source: decision.source },
   });
-  return decision;
+  await ctx.save();
+  return structuredClone(decision);
 }
 
-export function createFreezeChangeRequest(
+export async function createFreezeChangeRequest(
   ctx: StoreContext,
   projectId: string,
   input: CreateFreezeChangeRequestInput,
-): FreezeChangeRequest {
+): Promise<FreezeChangeRequest> {
   const state = ctx.requireState();
   findProject(state, projectId);
   const freeze = state.freezes.find(
@@ -321,15 +322,16 @@ export function createFreezeChangeRequest(
     projectId,
     payload: { requestId: request.id, freezeId: freeze.id, version: freeze.version },
   });
+  await ctx.save();
   return structuredClone(request);
 }
 
-export function decideFreezeChangeRequest(
+export async function decideFreezeChangeRequest(
   ctx: StoreContext,
   projectId: string,
   requestId: string,
   status: "accepted" | "rejected",
-): FreezeChangeRequest {
+): Promise<FreezeChangeRequest> {
   const state = ctx.requireState();
   findProject(state, projectId);
   const request = state.freezeChangeRequests.find(
@@ -354,6 +356,7 @@ export function decideFreezeChangeRequest(
     projectId,
     payload: { requestId: request.id, status },
   });
+  await ctx.save();
   return structuredClone(request);
 }
 

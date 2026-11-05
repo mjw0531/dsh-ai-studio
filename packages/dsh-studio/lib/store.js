@@ -497,7 +497,7 @@ function isRole(value) {
   return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.name === "string" && typeof value.title === "string" && typeof value.mission === "string" && Array.isArray(value.responsibilities) && Array.isArray(value.nonGoals) && Array.isArray(value.decisionRights) && (value.providerProfileId === null || typeof value.providerProfileId === "string") && (value.model === null || typeof value.model === "string") && (value.executor === void 0 || value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && (value.tokenBudget === null || typeof value.tokenBudget === "number") && (value.dailyTokenBudget === null || typeof value.dailyTokenBudget === "number");
 }
 function isAgentRunStatus(value) {
-  return value === "queued" || value === "running" || value === "succeeded" || value === "failed";
+  return value === "queued" || value === "running" || value === "succeeded" || value === "failed" || value === "timeout";
 }
 function isAgentRun(value) {
   return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.providerProfileId === null || typeof value.providerProfileId === "string") && (value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && (value.provider === null || typeof value.provider === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.branchName === null || typeof value.branchName === "string") && (value.workspacePath === null || typeof value.workspacePath === "string") && (value.commitSha === null || value.commitSha === void 0 || typeof value.commitSha === "string") && (value.baseSha === null || value.baseSha === void 0 || typeof value.baseSha === "string") && (value.agentPreset === null || value.agentPreset === void 0 || typeof value.agentPreset === "string") && (value.approvalPolicy === null || value.approvalPolicy === void 0 || value.approvalPolicy === "ask" || value.approvalPolicy === "never") && (value.sandboxMode === null || value.sandboxMode === void 0 || value.sandboxMode === "read-only" || value.sandboxMode === "workspace-write" || value.sandboxMode === "danger-full-access") && (Array.isArray(value.restrictedTools) || value.restrictedTools === void 0) && (value.diffPatch === null || value.diffPatch === void 0 || typeof value.diffPatch === "string") && (value.outputPath === null || value.outputPath === void 0 || typeof value.outputPath === "string") && (value.diffStat === null || typeof value.diffStat === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord2(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
@@ -3657,8 +3657,8 @@ function escalateRepeatedFailure(ctx, state, task, at, reason, run) {
         timeoutSeconds: null,
         riskTier: "normal",
         kind: "fix",
-        diagnosis: "",
-        plan: "",
+        diagnosis: `\u8FDE\u7EED\u5931\u8D25 ${String(failures)} \u6B21\uFF1B\u5148\u8BCA\u65AD\u6839\u56E0\uFF0C\u518D\u91CD\u62C6\u4EFB\u52A1\u4E0E\u9A8C\u6536\u6807\u51C6\u3002\u6700\u540E\u4E00\u6B21\u5931\u8D25\uFF1A${reason}`,
+        plan: "\u8BFB\u53D6\u5931\u8D25 Run \u4E0E\u9A8C\u8BC1\u8F93\u51FA\uFF1B\u786E\u8BA4\u6839\u56E0\uFF1B\u91CD\u5199\u9A8C\u6536\u6807\u51C6\uFF1B\u62C6\u51FA\u53EF\u6267\u884C\u7684\u65B0 ticket\u3002",
         integration: false,
         originTaskId: task.id,
         docsSynced: false,
@@ -4854,7 +4854,7 @@ function listFreezes(state, projectId) {
 function listRequirementDecisions(state, projectId) {
   return state.requirementDecisions.filter((decision) => decision.projectId === projectId).map((decision) => structuredClone(decision));
 }
-function createRequirementDecision(ctx, projectId, input) {
+async function createRequirementDecision(ctx, projectId, input) {
   const state = ctx.requireState();
   findProject(state, projectId);
   const at = ctx.now();
@@ -4886,9 +4886,10 @@ function createRequirementDecision(ctx, projectId, input) {
     projectId,
     payload: { decisionId: decision.id, status, source: decision.source }
   });
-  return decision;
+  await ctx.save();
+  return structuredClone(decision);
 }
-function createFreezeChangeRequest(ctx, projectId, input) {
+async function createFreezeChangeRequest(ctx, projectId, input) {
   const state = ctx.requireState();
   findProject(state, projectId);
   const freeze = state.freezes.find(
@@ -4917,9 +4918,10 @@ function createFreezeChangeRequest(ctx, projectId, input) {
     projectId,
     payload: { requestId: request.id, freezeId: freeze.id, version: freeze.version }
   });
+  await ctx.save();
   return structuredClone(request);
 }
-function decideFreezeChangeRequest(ctx, projectId, requestId, status) {
+async function decideFreezeChangeRequest(ctx, projectId, requestId, status) {
   const state = ctx.requireState();
   findProject(state, projectId);
   const request = state.freezeChangeRequests.find(
@@ -4944,6 +4946,7 @@ function decideFreezeChangeRequest(ctx, projectId, requestId, status) {
     projectId,
     payload: { requestId: request.id, status }
   });
+  await ctx.save();
   return structuredClone(request);
 }
 function listFreezeChangeRequests(state, projectId) {
@@ -5645,6 +5648,7 @@ async function importProjectSlice(ctx, slice, repoPath) {
     state.verifications.push(...slice.verifications);
     state.reviews.push(...slice.reviews);
     state.events.push(...slice.events);
+    assertState(state);
     state.activeProjectId = project.id;
     state.updatedAt = project.updatedAt;
     ctx.recordEvent(state, {
@@ -5899,16 +5903,16 @@ var StudioStore = class {
   async assertFreezeCurrent(projectId, kind) {
     return assertFreezeCurrent(this.context, projectId, kind);
   }
-  createRequirementDecision(projectId, input) {
+  async createRequirementDecision(projectId, input) {
     return createRequirementDecision(this.context, projectId, input);
   }
   listRequirementDecisions(projectId) {
     return listRequirementDecisions(this.requireState(), projectId);
   }
-  createFreezeChangeRequest(projectId, input) {
+  async createFreezeChangeRequest(projectId, input) {
     return createFreezeChangeRequest(this.context, projectId, input);
   }
-  decideFreezeChangeRequest(projectId, requestId, status) {
+  async decideFreezeChangeRequest(projectId, requestId, status) {
     return decideFreezeChangeRequest(
       this.context,
       projectId,

@@ -461,7 +461,7 @@ export class StudioRouter {
         return;
       }
       assertJsonRequest(req);
-      const decision = this.store.createRequirementDecision(
+      const decision = await this.store.createRequirementDecision(
         projectId,
         inputs.asRequirementDecision(await readJson(req)),
       );
@@ -484,7 +484,7 @@ export class StudioRouter {
         return;
       }
       assertJsonRequest(req);
-      const request = this.store.createFreezeChangeRequest(
+      const request = await this.store.createFreezeChangeRequest(
         projectId,
         inputs.asCreateFreezeChangeRequest(await readJson(req)),
       );
@@ -505,7 +505,7 @@ export class StudioRouter {
       if (body.status !== "accepted" && body.status !== "rejected") {
         throw new HttpError(400, "invalid_input", "status 无效");
       }
-      const request = this.store.decideFreezeChangeRequest(
+      const request = await this.store.decideFreezeChangeRequest(
         projectId,
         requestId,
         body.status,

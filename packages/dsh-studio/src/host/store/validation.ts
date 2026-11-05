@@ -151,7 +151,8 @@ function isAgentRunStatus(value: unknown): value is AgentRunStatus {
     value === "queued" ||
     value === "running" ||
     value === "succeeded" ||
-    value === "failed"
+    value === "failed" ||
+    value === "timeout"
   );
 }
 

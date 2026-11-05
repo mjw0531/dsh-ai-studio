@@ -588,10 +588,10 @@ export class StudioStore {
     return assertFreezeCurrentImpl(this.context, projectId, kind);
   }
 
-  createRequirementDecision(
+  async createRequirementDecision(
     projectId: string,
     input: CreateRequirementDecisionInput,
-  ): RequirementDecision {
+  ): Promise<RequirementDecision> {
     return createRequirementDecisionImpl(this.context, projectId, input);
   }
 
@@ -599,18 +599,18 @@ export class StudioStore {
     return listRequirementDecisionsImpl(this.requireState(), projectId);
   }
 
-  createFreezeChangeRequest(
+  async createFreezeChangeRequest(
     projectId: string,
     input: CreateFreezeChangeRequestInput,
-  ): FreezeChangeRequest {
+  ): Promise<FreezeChangeRequest> {
     return createFreezeChangeRequestImpl(this.context, projectId, input);
   }
 
-  decideFreezeChangeRequest(
+  async decideFreezeChangeRequest(
     projectId: string,
     requestId: string,
     status: "accepted" | "rejected",
-  ): FreezeChangeRequest {
+  ): Promise<FreezeChangeRequest> {
     return decideFreezeChangeRequestImpl(
       this.context,
       projectId,

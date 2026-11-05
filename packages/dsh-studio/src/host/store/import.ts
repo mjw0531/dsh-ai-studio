@@ -2,6 +2,7 @@ import { STUDIO_SCHEMA_VERSION } from "../../shared/types.js";
 import type { Project, ProjectSlice } from "../../shared/types.js";
 import { StudioStoreError, type StoreContext } from "./core.js";
 import { requiredText } from "./inputs.js";
+import { assertState } from "./validation.js";
 
 function idsOf(items: Array<{ id: string }>): string[] {
   return items.map((item) => item.id);
@@ -102,6 +103,7 @@ export async function importProjectSlice(
     state.verifications.push(...slice.verifications);
     state.reviews.push(...slice.reviews);
     state.events.push(...slice.events);
+    assertState(state);
     state.activeProjectId = project.id;
     state.updatedAt = project.updatedAt;
     ctx.recordEvent(state, {

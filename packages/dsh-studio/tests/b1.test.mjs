@@ -273,6 +273,11 @@ test("marks a run timeout without treating it as failed", async () => {
     assert.equal(next.runs.find((item) => item.id === run.id)?.status, "timeout");
     assert.equal(next.tasks.find((item) => item.id === task.id)?.status, "blocked");
     assert.equal(next.tasks.find((item) => item.id === task.id)?.timeoutSeconds, 1);
+    const reloaded = new StudioStore({ dataDir: dir });
+    await reloaded.init();
+    const afterRestart = await reloaded.bootstrap();
+    assert.equal(afterRestart.project?.id, next.project?.id);
+    assert.equal(afterRestart.runs.find((item) => item.id === run.id)?.status, "timeout");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

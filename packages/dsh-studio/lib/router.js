@@ -979,7 +979,7 @@ var StudioRouter = class {
         return;
       }
       assertJsonRequest(req);
-      const decision = this.store.createRequirementDecision(
+      const decision = await this.store.createRequirementDecision(
         projectId,
         asRequirementDecision(await readJson(req))
       );
@@ -1000,7 +1000,7 @@ var StudioRouter = class {
         return;
       }
       assertJsonRequest(req);
-      const request = this.store.createFreezeChangeRequest(
+      const request = await this.store.createFreezeChangeRequest(
         projectId,
         asCreateFreezeChangeRequest(await readJson(req))
       );
@@ -1019,7 +1019,7 @@ var StudioRouter = class {
       if (body.status !== "accepted" && body.status !== "rejected") {
         throw new HttpError(400, "invalid_input", "status \u65E0\u6548");
       }
-      const request = this.store.decideFreezeChangeRequest(
+      const request = await this.store.decideFreezeChangeRequest(
         projectId,
         requestId,
         body.status
