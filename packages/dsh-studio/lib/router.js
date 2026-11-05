@@ -2,7 +2,7 @@
 import { timingSafeEqual as timingSafeEqual3 } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_PLUGIN_VERSION = "3.13.1";
+var STUDIO_PLUGIN_VERSION = "3.14.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -571,7 +571,21 @@ function asCreateWorkshop(body) {
       "participantRoleIds"
     ),
     meetingType: body.meetingType === "prd" || body.meetingType === "architecture" || body.meetingType === "balance" || body.meetingType === "custom" ? body.meetingType : void 0,
-    agenda: asStringArray(body.agenda, "agenda")
+    agenda: asStringArray(body.agenda, "agenda"),
+    freezeId: body.freezeId === null || body.freezeId === void 0 ? null : asOptionalString(body.freezeId, "freezeId") ?? null,
+    perspectives: body.perspectives === void 0 ? void 0 : Array.isArray(body.perspectives) ? body.perspectives.flatMap((item) => {
+      if (typeof item !== "object" || item === null || typeof item.roleId !== "string" || item.perspective !== "experience" && item.perspective !== "competitor" && item.perspective !== "feasibility" && item.perspective !== "contrarian") {
+        throw new HttpError(400, "invalid_input", "perspectives \u65E0\u6548");
+      }
+      return [
+        {
+          roleId: item.roleId,
+          perspective: item.perspective
+        }
+      ];
+    }) : (() => {
+      throw new HttpError(400, "invalid_input", "perspectives \u5FC5\u987B\u662F\u6570\u7EC4");
+    })()
   };
 }
 function asWorkshopNote(body) {
@@ -1339,7 +1353,11 @@ var StudioRouter = class {
           consensus: asStringArray(body.consensus, "consensus") ?? [],
           disagreements: asStringArray(body.disagreements, "disagreements") ?? [],
           openQuestions: asStringArray(body.openQuestions, "openQuestions") ?? [],
-          decisionDraft: asOptionalString(body.decisionDraft, "decisionDraft") ?? ""
+          decisionDraft: asOptionalString(body.decisionDraft, "decisionDraft") ?? "",
+          noDisagreementReason: asOptionalString(
+            body.noDisagreementReason,
+            "noDisagreementReason"
+          ) ?? null
         }
       );
       sendJson(res, 200, { ok: true, workshop });

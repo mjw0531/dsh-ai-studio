@@ -660,6 +660,36 @@ export function asCreateWorkshop(
         ? body.meetingType
         : undefined,
     agenda: asStringArray(body.agenda, "agenda"),
+    freezeId:
+      body.freezeId === null || body.freezeId === undefined
+        ? null
+        : asOptionalString(body.freezeId, "freezeId") ?? null,
+    perspectives:
+      body.perspectives === undefined
+        ? undefined
+        : Array.isArray(body.perspectives)
+          ? body.perspectives.flatMap((item) => {
+              if (
+                typeof item !== "object" ||
+                item === null ||
+                typeof (item as { roleId?: unknown }).roleId !== "string" ||
+                ((item as { perspective?: unknown }).perspective !== "experience" &&
+                  (item as { perspective?: unknown }).perspective !== "competitor" &&
+                  (item as { perspective?: unknown }).perspective !== "feasibility" &&
+                  (item as { perspective?: unknown }).perspective !== "contrarian")
+              ) {
+                throw new HttpError(400, "invalid_input", "perspectives 无效");
+              }
+              return [
+                {
+                  roleId: (item as { roleId: string }).roleId,
+                  perspective: (item as { perspective: "experience" | "competitor" | "feasibility" | "contrarian" }).perspective,
+                },
+              ];
+            })
+          : (() => {
+              throw new HttpError(400, "invalid_input", "perspectives 必须是数组");
+            })(),
   };
 }
 

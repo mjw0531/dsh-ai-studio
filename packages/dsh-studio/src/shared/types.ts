@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 34;
-export const STUDIO_PLUGIN_VERSION = "3.13.1";
+export const STUDIO_SCHEMA_VERSION = 35;
+export const STUDIO_PLUGIN_VERSION = "3.14.0";
 
 export type TaskStatus =
   | "backlog"
@@ -246,6 +246,17 @@ export interface WorkshopAgendaItem {
   status: WorkshopAgendaStatus;
 }
 
+export type WorkshopPerspective =
+  | "experience"
+  | "competitor"
+  | "feasibility"
+  | "contrarian";
+
+export interface WorkshopParticipantPerspective {
+  roleId: string;
+  perspective: WorkshopPerspective;
+}
+
 export type WorkshopMessageKind = "owner" | "role" | "system";
 
 export interface WorkshopMessage {
@@ -270,6 +281,7 @@ export interface WorkshopMinutes {
   disagreements: string[];
   openQuestions: string[];
   decisionDraft: string;
+  noDisagreementReason: string | null;
   savedAt: string;
   model: string | null;
   editedByOwner: boolean;
@@ -303,6 +315,8 @@ export interface Workshop {
   stage: ProjectStage;
   status: WorkshopStatus;
   participantRoleIds: string[];
+  participantPerspectives: WorkshopParticipantPerspective[];
+  freezeId: string | null;
   meetingType: WorkshopMeetingType;
   agenda: WorkshopAgendaItem[];
   messages: WorkshopMessage[];
@@ -327,6 +341,8 @@ export interface CreateWorkshopInput {
   participantRoleIds?: string[];
   meetingType?: WorkshopMeetingType;
   agenda?: string[];
+  freezeId?: string | null;
+  perspectives?: Array<{ roleId: string; perspective: WorkshopPerspective }>;
 }
 
 export interface WorkshopSpeakInput {
@@ -347,6 +363,7 @@ export interface WorkshopMinutesInput {
   disagreements?: string[];
   openQuestions?: string[];
   decisionDraft?: string;
+  noDisagreementReason?: string | null;
 }
 
 export interface AddWorkshopNoteInput {

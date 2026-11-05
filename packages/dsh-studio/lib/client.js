@@ -1169,6 +1169,18 @@ function createStudioActions({
       status === "done" ? "\u4EFB\u52A1\u5DF2\u9A8C\u6536\u5B8C\u6210" : `\u4EFB\u52A1\u5DF2\u5207\u6362\u5230\u300C${TASK_STATUS_LABELS[status]}\u300D`
     );
   };
+  const acceptAllTrivial = async (task) => {
+    if (task.riskTier !== "trivial") return false;
+    if (task.evidence.length === 0) return false;
+    const acceptance = task.acceptance.map((item) => ({ ...item, done: true }));
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.updateTask(task.id, { acceptance });
+      },
+      "trivial \u4EFB\u52A1\u9A8C\u6536\u9879\u5DF2\u6279\u91CF\u52FE\u9009"
+    );
+  };
   const toggleAcceptance = async (task, acceptanceId) => {
     const acceptance = task.acceptance.map(
       (item) => item.id === acceptanceId ? { ...item, done: !item.done } : item
@@ -1452,6 +1464,7 @@ function createStudioActions({
     readProjectDoc,
     createModule,
     transitionTask,
+    acceptAllTrivial,
     toggleAcceptance,
     toggleDocsSynced,
     addEvidence,
@@ -2195,6 +2208,7 @@ function lines(value) {
 }
 function MeetingComposer({
   roles,
+  freezes,
   busy,
   onCreate
 }) {
@@ -2207,6 +2221,14 @@ function MeetingComposer({
   const [agendaText, setAgendaText] = (0, import_react2.useState)(
     AGENDA_TEMPLATES.prd.join("\n")
   );
+  const [freezeId, setFreezeId] = (0, import_react2.useState)(freezes[0]?.id ?? "");
+  const [perspectives, setPerspectives] = (0, import_react2.useState)({});
+  const perspectiveOrder = [
+    "experience",
+    "competitor",
+    "feasibility",
+    "contrarian"
+  ];
   const [error, setError] = (0, import_react2.useState)(null);
   const changeType = (next) => {
     setMeetingType(next);
@@ -2234,7 +2256,12 @@ function MeetingComposer({
       topic: topic.trim(),
       meetingType,
       participantRoleIds: participants,
-      agenda: agendaFrom(agendaText)
+      agenda: agendaFrom(agendaText),
+      freezeId: freezeId || null,
+      perspectives: participants.map((roleId, index) => ({
+        roleId,
+        perspective: perspectives[roleId] ?? perspectiveOrder[index % 4] ?? "experience"
+      }))
     });
     if (ok) {
       setTitle("");
@@ -2288,6 +2315,24 @@ function MeetingComposer({
         )
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-field", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("label", { children: "\u7ED1\u5B9A\u51BB\u7ED3\u7248\u672C\uFF08\u53EF\u9009\uFF09" }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
+          "select",
+          {
+            value: freezeId,
+            onChange: (event) => setFreezeId(event.target.value),
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("option", { value: "", children: "\u4E0D\u7ED1\u5B9A" }),
+              freezes.map((freeze) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("option", { value: freeze.id, children: [
+                freeze.kind === "prd" ? "PRD" : "\u67B6\u6784",
+                " ",
+                freeze.version
+              ] }, freeze.id))
+            ]
+          }
+        )
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-field", children: [
         /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("label", { children: "\u53C2\u4F1A\u89D2\u8272" }),
         /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "studio-check-grid", children: roles.map((role) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("label", { className: "studio-check", children: [
           /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
@@ -2300,7 +2345,23 @@ function MeetingComposer({
               )
             }
           ),
-          role.name
+          role.name,
+          participants.includes(role.id) ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
+            "select",
+            {
+              value: perspectives[role.id] ?? perspectiveOrder[Math.max(0, participants.indexOf(role.id)) % 4],
+              onChange: (event) => setPerspectives((current) => ({
+                ...current,
+                [role.id]: event.target.value
+              })),
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("option", { value: "experience", children: "\u4F53\u9A8C" }),
+                /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("option", { value: "competitor", children: "\u7ADE\u54C1" }),
+                /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("option", { value: "feasibility", children: "\u6280\u672F\u53EF\u884C\u6027" }),
+                /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("option", { value: "contrarian", children: "\u53CD\u65B9" })
+              ]
+            }
+          ) : null
         ] }, role.id)) })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-field", children: [
@@ -2371,18 +2432,23 @@ function Settlement({
   const [draft, setDraft] = (0, import_react2.useState)(
     workshop.minutes?.decisionDraft ?? ""
   );
+  const [noDisagreementReason, setNoDisagreementReason] = (0, import_react2.useState)(
+    workshop.minutes?.noDisagreementReason ?? ""
+  );
   (0, import_react2.useEffect)(() => {
     setConsensus(workshop.minutes?.consensus.join("\n") ?? "");
     setDisagreements(workshop.minutes?.disagreements.join("\n") ?? "");
     setOpenQuestions(workshop.minutes?.openQuestions.join("\n") ?? "");
     setDraft(workshop.minutes?.decisionDraft ?? "");
+    setNoDisagreementReason(workshop.minutes?.noDisagreementReason ?? "");
   }, [workshop.id, workshop.minutes?.savedAt]);
   const saveMinutes = async () => {
     await onSaveMinutes(workshop.id, {
       consensus: lines(consensus),
       disagreements: lines(disagreements),
       openQuestions: lines(openQuestions),
-      decisionDraft: draft
+      decisionDraft: draft,
+      noDisagreementReason: noDisagreementReason.trim() || null
     });
   };
   return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-meeting-settlement", children: [
@@ -2456,6 +2522,16 @@ function Settlement({
         )
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-field", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("label", { children: "\u65E0\u5206\u6B67\u7406\u7531\uFF08\u5206\u6B67\u4E3A\u7A7A\u65F6\u5FC5\u586B\uFF09" }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+          "input",
+          {
+            value: noDisagreementReason,
+            onChange: (event) => setNoDisagreementReason(event.target.value)
+          }
+        )
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-field", children: [
         /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("label", { children: "\u51B3\u7B56\u8349\u6848" }),
         /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("textarea", { value: draft, onChange: (event) => setDraft(event.target.value) })
       ] }),
@@ -2481,6 +2557,7 @@ function Settlement({
 function MeetingView({
   project,
   roles,
+  freezes,
   workshops,
   busy,
   onCreate,
@@ -2537,7 +2614,15 @@ function MeetingView({
         /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("p", { className: "studio-meeting-subtitle", children: "\u4EBA\u63A7\u5236\u53D1\u8A00\u8282\u594F\uFF1B\u5355\u804A\u4E0D\u8FDB\u7FA4\u804A\uFF1B\u4F1A\u8BAE\u4EA7\u51FA\u662F\u7EAA\u8981\uFF0C\u4E0D\u662F\u5F00\u53D1\u4E0A\u4E0B\u6587\u3002" })
       ] })
     ] }) }),
-    showComposer ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(MeetingComposer, { roles, busy, onCreate }) : null,
+    showComposer ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+      MeetingComposer,
+      {
+        roles,
+        freezes,
+        busy,
+        onCreate
+      }
+    ) : null,
     /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-meeting-layout", children: [
       /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("aside", { className: "studio-panel studio-meeting-list", children: [
         /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-panel-head", children: [
@@ -2598,7 +2683,19 @@ function MeetingView({
                 onUpdate: (itemId, status) => void onUpdateAgenda(active.id, [{ id: itemId, status }])
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "studio-meeting-participants", children: participantRoles.map((role) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "studio-pill", children: role.name }, role.id)) })
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-meeting-participants", children: [
+              participantRoles.map((role) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "studio-pill", children: role.name }, role.id)),
+              active.freezeId !== null ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { className: "studio-pill", "data-tone": "accent", children: [
+                "\u51BB\u7ED3\uFF1A",
+                (() => {
+                  const freeze = freezes.find(
+                    (item) => item.id === active.freezeId
+                  );
+                  return freeze === void 0 ? active.freezeId : `${freeze.kind === "prd" ? "PRD" : "\u67B6\u6784"} ${freeze.version}`;
+                })()
+              ] }) : null,
+              active.status !== "collecting" && active.decisionId === null ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "studio-pill", "data-tone": "p0", children: "\u672A\u95ED\u73AF" }) : null
+            ] })
           ] })
         ] }),
         !settled ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-panel studio-chat-panel", children: [
@@ -6595,6 +6692,7 @@ function TaskDrawer({
   onToggleDocs,
   onTransition,
   onToggleAcceptance,
+  onAcceptAllTrivial,
   onAddEvidence,
   onCreateMerge,
   onApproveMerge,
@@ -6671,7 +6769,18 @@ function TaskDrawer({
                   "\u9A8C\u6536\u6807\u51C6 \xB7 ",
                   done,
                   "/",
-                  total
+                  total,
+                  task.riskTier === "trivial" && done < total && hasEvidence ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+                    "button",
+                    {
+                      type: "button",
+                      className: "studio-btn",
+                      "data-size": "sm",
+                      disabled: busy,
+                      onClick: () => void onAcceptAllTrivial(),
+                      children: "\u6279\u91CF\u52FE\u9009"
+                    }
+                  ) : null
                 ] }),
                 /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-acceptance", children: task.acceptance.map((item) => /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
                   "label",
@@ -8062,6 +8171,7 @@ function StudioPage() {
     readProjectDoc,
     createModule,
     transitionTask,
+    acceptAllTrivial,
     toggleAcceptance,
     toggleDocsSynced,
     addEvidence,
@@ -8209,6 +8319,7 @@ function StudioPage() {
           {
             project: data.project,
             roles: data.roles,
+            freezes: data.freezes,
             workshops: data.workshops,
             busy,
             onCreate: createWorkshop,
@@ -8356,6 +8467,7 @@ function StudioPage() {
         onToggleDocs: () => toggleDocsSynced(selectedTask),
         onTransition: (status) => void transitionTask(selectedTask, status),
         onToggleAcceptance: (id) => void toggleAcceptance(selectedTask, id),
+        onAcceptAllTrivial: () => acceptAllTrivial(selectedTask),
         onAddEvidence: (text) => addEvidence(selectedTask, text),
         onCreateMerge: (input) => createMerge(selectedTask, input),
         onApproveMerge: (note) => {

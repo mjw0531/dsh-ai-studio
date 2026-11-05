@@ -631,6 +631,19 @@ export function createStudioActions({
     );
   };
 
+  const acceptAllTrivial = async (task: Task): Promise<boolean> => {
+    if (task.riskTier !== "trivial") return false;
+    if (task.evidence.length === 0) return false;
+    const acceptance = task.acceptance.map((item) => ({ ...item, done: true }));
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.updateTask(task.id, { acceptance });
+      },
+      "trivial 任务验收项已批量勾选",
+    );
+  };
+
   const toggleAcceptance = async (
     task: Task,
     acceptanceId: string,
@@ -968,6 +981,7 @@ export function createStudioActions({
     readProjectDoc,
     createModule,
     transitionTask,
+    acceptAllTrivial,
     toggleAcceptance,
     toggleDocsSynced,
     addEvidence,

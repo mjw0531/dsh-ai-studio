@@ -594,6 +594,8 @@ function isWorkshopMinutes(value: unknown): boolean {
     Array.isArray(value.openQuestions) &&
     value.openQuestions.every((item) => typeof item === "string") &&
     typeof value.decisionDraft === "string" &&
+    (value.noDisagreementReason === null ||
+      typeof value.noDisagreementReason === "string") &&
     typeof value.savedAt === "string" &&
     (value.model === null || typeof value.model === "string") &&
     typeof value.editedByOwner === "boolean"
@@ -611,6 +613,17 @@ function isWorkshop(value: unknown): value is Workshop {
     isWorkshopStatus(value.status) &&
     Array.isArray(value.participantRoleIds) &&
     value.participantRoleIds.every((item) => typeof item === "string") &&
+    Array.isArray(value.participantPerspectives) &&
+    value.participantPerspectives.every(
+      (item) =>
+        isRecord(item) &&
+        typeof item.roleId === "string" &&
+        (item.perspective === "experience" ||
+          item.perspective === "competitor" ||
+          item.perspective === "feasibility" ||
+          item.perspective === "contrarian"),
+    ) &&
+    (value.freezeId === null || typeof value.freezeId === "string") &&
     (value.meetingType === "prd" ||
       value.meetingType === "architecture" ||
       value.meetingType === "balance" ||

@@ -201,6 +201,29 @@ export async function createWorkshop(
         .filter((text) => text !== "")
         .slice(0, 20)
         .map((text) => ({ id: newId("agenda"), text, status: "open" }));
+      const freezeId = input.freezeId ?? null;
+      if (
+        freezeId !== null &&
+        !state.freezes.some(
+          (freeze) => freeze.id === freezeId && freeze.projectId === project.id,
+        )
+      ) {
+        throw new StudioStoreError("freeze_not_found", "冻结版本不属于当前项目", 404);
+      }
+      const perspectiveOrder = [
+        "experience",
+        "competitor",
+        "feasibility",
+        "contrarian",
+      ] as const;
+      const participantPerspectives = participants.map((roleId, index) => ({
+        roleId,
+        perspective:
+          input.perspectives?.find((item) => item.roleId === roleId)
+            ?.perspective ??
+          perspectiveOrder[index % perspectiveOrder.length] ??
+          "experience",
+      }));
       const at = ctx.now();
       const workshop: Workshop = {
         id: newId("workshop"),
@@ -210,6 +233,8 @@ export async function createWorkshop(
         stage: isProjectStage(input.stage) ? input.stage : project.stage,
         status: "collecting",
         participantRoleIds: participants,
+        participantPerspectives,
+        freezeId,
         meetingType,
         agenda,
         messages: [],
@@ -539,12 +564,24 @@ export async function saveWorkshopMinutes(
   return ctx.runExclusive(async () => {
     const state = ctx.requireState();
     const workshop = findWorkshop(state, workshopId);
+    const disagreements = textList(input.disagreements, "disagreements", 30);
+    const noDisagreementReason =
+      input.noDisagreementReason?.trim() ?? "";
+    if (disagreements.length === 0 && noDisagreementReason === "") {
+      throw new StudioStoreError(
+        "disagreement_required",
+        "会议纪要必须保留至少一条分歧；确实没有分歧时填写理由",
+        409,
+      );
+    }
     const at = ctx.now();
     const minutes: WorkshopMinutes = {
       consensus: textList(input.consensus, "consensus", 30),
-      disagreements: textList(input.disagreements, "disagreements", 30),
+      disagreements,
       openQuestions: textList(input.openQuestions, "openQuestions", 30),
       decisionDraft: input.decisionDraft?.trim() ?? "",
+      noDisagreementReason:
+        noDisagreementReason === "" ? null : noDisagreementReason,
       savedAt: at,
       model,
       editedByOwner,

@@ -888,6 +888,11 @@ export class StudioRouter {
             inputs.asStringArray(body.openQuestions, "openQuestions") ?? [],
           decisionDraft:
             inputs.asOptionalString(body.decisionDraft, "decisionDraft") ?? "",
+          noDisagreementReason:
+            inputs.asOptionalString(
+              body.noDisagreementReason,
+              "noDisagreementReason",
+            ) ?? null,
         },
       );
       sendJson(res, 200, { ok: true, workshop });

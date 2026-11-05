@@ -478,6 +478,7 @@ export function StudioPage() {
     readProjectDoc,
     createModule,
     transitionTask,
+    acceptAllTrivial,
     toggleAcceptance,
     toggleDocsSynced,
     addEvidence,
@@ -664,6 +665,7 @@ export function StudioPage() {
               <MeetingView
                 project={data.project}
                 roles={data.roles}
+                freezes={data.freezes}
                 workshops={data.workshops}
                 busy={busy}
                 onCreate={createWorkshop}
@@ -817,6 +819,7 @@ export function StudioPage() {
           onToggleAcceptance={(id) =>
             void toggleAcceptance(selectedTask, id)
           }
+          onAcceptAllTrivial={() => acceptAllTrivial(selectedTask)}
           onAddEvidence={(text) => addEvidence(selectedTask, text)}
           onCreateMerge={(input) => createMerge(selectedTask, input)}
           onApproveMerge={(note) => {

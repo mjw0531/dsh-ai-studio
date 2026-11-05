@@ -1205,8 +1205,27 @@ export class StudioStore {
     }
   }
 
+  private historyArchived = false;
+
+  private async archiveHistoryIfNeeded(): Promise<void> {
+    if (this.historyArchived) return;
+    const state = this.requireState();
+    if (
+      state.runs.length + state.reviews.length + state.verifications.length <=
+      1500
+    ) {
+      return;
+    }
+    const dir = path.join(this.dataDir, "history");
+    await mkdir(dir, { recursive: true });
+    const stamp = new Date().toISOString().replaceAll(":", "-");
+    await copyFile(this.file, path.join(dir, `studio-${stamp}.json`));
+    this.historyArchived = true;
+  }
+
   private async save(): Promise<void> {
     const state = this.requireState();
+    await this.archiveHistoryIfNeeded();
     state.updatedAt = nowIso(this.now);
     const serialized = `${JSON.stringify(state, null, 2)}\n`;
     const temp = `${this.file}.${randomUUID()}.tmp`;

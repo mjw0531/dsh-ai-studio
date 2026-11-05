@@ -35,6 +35,7 @@ test("runs a meeting from agenda through minutes and decision draft", async () =
     assert.equal(workshop.meetingType, "balance");
     assert.equal(workshop.agenda.length, 2);
     assert.equal(workshop.messages.length, 0);
+    assert.equal(workshop.participantPerspectives.length, 2);
 
     const ownerMessage = await store.addWorkshopMessage(workshop.id, {
       roleId: null,
@@ -82,6 +83,24 @@ test("runs a meeting from agenda through minutes and decision draft", async () =
     assert.equal(settled.status, "settled");
     assert.ok(settled.settledAt !== null);
 
+    await assert.rejects(
+      () =>
+        store.saveWorkshopMinutes(workshop.id, {
+          consensus: ["无分歧"],
+          disagreements: [],
+          openQuestions: [],
+          decisionDraft: "无",
+        }),
+      (error) => error.code === "disagreement_required",
+    );
+    const withReason = await store.saveWorkshopMinutes(workshop.id, {
+      consensus: ["无分歧"],
+      disagreements: [],
+      openQuestions: [],
+      decisionDraft: "无分歧",
+      noDisagreementReason: "议题只涉及一个方案",
+    });
+    assert.equal(withReason.minutes?.noDisagreementReason, "议题只涉及一个方案");
     const withMinutes = await store.saveWorkshopMinutes(workshop.id, {
       consensus: ["先做单机切片"],
       disagreements: ["是否现在做同步"],

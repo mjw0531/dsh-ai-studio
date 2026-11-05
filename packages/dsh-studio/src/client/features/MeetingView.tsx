@@ -4,9 +4,11 @@ import type { FormEvent } from "react";
 import type {
   CreateWorkshopInput,
   Project,
+  ProjectFreeze,
   Role,
   Workshop,
   WorkshopAgendaItem,
+  WorkshopPerspective,
   WorkshopMeetingType,
   WorkshopMinutesInput,
 } from "../../shared/types.js";
@@ -56,10 +58,12 @@ function lines(value: string): string[] {
 
 function MeetingComposer({
   roles,
+  freezes,
   busy,
   onCreate,
 }: {
   roles: Role[];
+  freezes: ProjectFreeze[];
   busy: boolean;
   onCreate: (input: CreateWorkshopInput) => Promise<boolean>;
 }) {
@@ -72,6 +76,14 @@ function MeetingComposer({
   const [agendaText, setAgendaText] = useState(
     AGENDA_TEMPLATES.prd.join("\n"),
   );
+  const [freezeId, setFreezeId] = useState(freezes[0]?.id ?? "");
+  const [perspectives, setPerspectives] = useState<Record<string, WorkshopPerspective>>({});
+  const perspectiveOrder: WorkshopPerspective[] = [
+    "experience",
+    "competitor",
+    "feasibility",
+    "contrarian",
+  ];
   const [error, setError] = useState<string | null>(null);
 
   const changeType = (next: WorkshopMeetingType): void => {
@@ -102,6 +114,14 @@ function MeetingComposer({
       meetingType,
       participantRoleIds: participants,
       agenda: agendaFrom(agendaText),
+      freezeId: freezeId || null,
+      perspectives: participants.map((roleId, index) => ({
+        roleId,
+        perspective:
+          perspectives[roleId] ??
+          perspectiveOrder[index % 4] ??
+          "experience",
+      })),
     });
     if (ok) {
       setTitle("");
@@ -155,6 +175,20 @@ function MeetingComposer({
           />
         </div>
         <div className="studio-field">
+          <label>绑定冻结版本（可选）</label>
+          <select
+            value={freezeId}
+            onChange={(event) => setFreezeId(event.target.value)}
+          >
+            <option value="">不绑定</option>
+            {freezes.map((freeze) => (
+              <option key={freeze.id} value={freeze.id}>
+                {freeze.kind === "prd" ? "PRD" : "架构"} {freeze.version}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="studio-field">
           <label>参会角色</label>
           <div className="studio-check-grid">
             {roles.map((role) => (
@@ -171,6 +205,27 @@ function MeetingComposer({
                   }
                 />
                 {role.name}
+                {participants.includes(role.id) ? (
+                  <select
+                    value={
+                      perspectives[role.id] ??
+                      perspectiveOrder[
+                        Math.max(0, participants.indexOf(role.id)) % 4
+                      ]
+                    }
+                    onChange={(event) =>
+                      setPerspectives((current) => ({
+                        ...current,
+                        [role.id]: event.target.value as WorkshopPerspective,
+                      }))
+                    }
+                  >
+                    <option value="experience">体验</option>
+                    <option value="competitor">竞品</option>
+                    <option value="feasibility">技术可行性</option>
+                    <option value="contrarian">反方</option>
+                  </select>
+                ) : null}
               </label>
             ))}
           </div>
@@ -273,12 +328,16 @@ function Settlement({
   const [draft, setDraft] = useState(
     workshop.minutes?.decisionDraft ?? "",
   );
+  const [noDisagreementReason, setNoDisagreementReason] = useState(
+    workshop.minutes?.noDisagreementReason ?? "",
+  );
 
   useEffect(() => {
     setConsensus(workshop.minutes?.consensus.join("\n") ?? "");
     setDisagreements(workshop.minutes?.disagreements.join("\n") ?? "");
     setOpenQuestions(workshop.minutes?.openQuestions.join("\n") ?? "");
     setDraft(workshop.minutes?.decisionDraft ?? "");
+    setNoDisagreementReason(workshop.minutes?.noDisagreementReason ?? "");
   }, [workshop.id, workshop.minutes?.savedAt]);
 
   const saveMinutes = async (): Promise<void> => {
@@ -287,6 +346,7 @@ function Settlement({
       disagreements: lines(disagreements),
       openQuestions: lines(openQuestions),
       decisionDraft: draft,
+      noDisagreementReason: noDisagreementReason.trim() || null,
     });
   };
 
@@ -361,6 +421,13 @@ function Settlement({
           />
         </div>
         <div className="studio-field">
+          <label>无分歧理由（分歧为空时必填）</label>
+          <input
+            value={noDisagreementReason}
+            onChange={(event) => setNoDisagreementReason(event.target.value)}
+          />
+        </div>
+        <div className="studio-field">
           <label>决策草案</label>
           <textarea value={draft} onChange={(event) => setDraft(event.target.value)} />
         </div>
@@ -394,6 +461,7 @@ function Settlement({
 export function MeetingView({
   project,
   roles,
+  freezes,
   workshops,
   busy,
   onCreate,
@@ -409,6 +477,7 @@ export function MeetingView({
 }: {
   project: Project | null;
   roles: Role[];
+  freezes: ProjectFreeze[];
   workshops: Workshop[];
   busy: boolean;
   onCreate: (input: CreateWorkshopInput) => Promise<boolean>;
@@ -501,7 +570,12 @@ export function MeetingView({
       </div>
 
       {showComposer ? (
-        <MeetingComposer roles={roles} busy={busy} onCreate={onCreate} />
+        <MeetingComposer
+        roles={roles}
+        freezes={freezes}
+        busy={busy}
+        onCreate={onCreate}
+      />
       ) : null}
 
       <div className="studio-meeting-layout">
@@ -571,6 +645,24 @@ export function MeetingView({
                         {role.name}
                       </span>
                     ))}
+                    {active.freezeId !== null ? (
+                      <span className="studio-pill" data-tone="accent">
+                        冻结：
+                        {(() => {
+                          const freeze = freezes.find(
+                            (item) => item.id === active.freezeId,
+                          );
+                          return freeze === undefined
+                            ? active.freezeId
+                            : `${freeze.kind === "prd" ? "PRD" : "架构"} ${freeze.version}`;
+                        })()}
+                      </span>
+                    ) : null}
+                    {active.status !== "collecting" && active.decisionId === null ? (
+                      <span className="studio-pill" data-tone="p0">
+                        未闭环
+                      </span>
+                    ) : null}
                   </div>
                 </div>
               </details>

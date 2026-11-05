@@ -420,7 +420,7 @@ export function migrateState(value: unknown): StudioState {
   if (state.schemaVersion === 33) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 34,
       workshops: state.workshops.map((workshop) => ({
         ...workshop,
         meetingType: "custom",
@@ -430,6 +430,21 @@ export function migrateState(value: unknown): StudioState {
         minutes: null,
         decisionId: null,
         settledAt: null,
+      })),
+    };
+  }
+  if (state.schemaVersion === 34) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      workshops: state.workshops.map((workshop) => ({
+        ...workshop,
+        participantPerspectives: [],
+        freezeId: null,
+        minutes:
+          workshop.minutes === null
+            ? null
+            : { ...workshop.minutes, noDisagreementReason: null },
       })),
     };
   }

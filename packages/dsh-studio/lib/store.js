@@ -13,8 +13,8 @@ import os from "node:os";
 import path3 from "node:path";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 34;
-var STUDIO_PLUGIN_VERSION = "3.13.1";
+var STUDIO_SCHEMA_VERSION = 35;
+var STUDIO_PLUGIN_VERSION = "3.14.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -458,7 +458,7 @@ function migrateState(value) {
   if (state.schemaVersion === 33) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 34,
       workshops: state.workshops.map((workshop) => ({
         ...workshop,
         meetingType: "custom",
@@ -468,6 +468,18 @@ function migrateState(value) {
         minutes: null,
         decisionId: null,
         settledAt: null
+      }))
+    };
+  }
+  if (state.schemaVersion === 34) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      workshops: state.workshops.map((workshop) => ({
+        ...workshop,
+        participantPerspectives: [],
+        freezeId: null,
+        minutes: workshop.minutes === null ? null : { ...workshop.minutes, noDisagreementReason: null }
       }))
     };
   }
@@ -569,10 +581,12 @@ function isWorkshopAgendaItem(value) {
   return isRecord2(value) && typeof value.id === "string" && typeof value.text === "string" && (value.status === "open" || value.status === "closed" || value.status === "deferred");
 }
 function isWorkshopMinutes(value) {
-  return isRecord2(value) && Array.isArray(value.consensus) && value.consensus.every((item) => typeof item === "string") && Array.isArray(value.disagreements) && value.disagreements.every((item) => typeof item === "string") && Array.isArray(value.openQuestions) && value.openQuestions.every((item) => typeof item === "string") && typeof value.decisionDraft === "string" && typeof value.savedAt === "string" && (value.model === null || typeof value.model === "string") && typeof value.editedByOwner === "boolean";
+  return isRecord2(value) && Array.isArray(value.consensus) && value.consensus.every((item) => typeof item === "string") && Array.isArray(value.disagreements) && value.disagreements.every((item) => typeof item === "string") && Array.isArray(value.openQuestions) && value.openQuestions.every((item) => typeof item === "string") && typeof value.decisionDraft === "string" && (value.noDisagreementReason === null || typeof value.noDisagreementReason === "string") && typeof value.savedAt === "string" && (value.model === null || typeof value.model === "string") && typeof value.editedByOwner === "boolean";
 }
 function isWorkshop(value) {
-  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.topic === "string" && isProjectStage(value.stage) && isWorkshopStatus(value.status) && Array.isArray(value.participantRoleIds) && value.participantRoleIds.every((item) => typeof item === "string") && (value.meetingType === "prd" || value.meetingType === "architecture" || value.meetingType === "balance" || value.meetingType === "custom") && Array.isArray(value.agenda) && value.agenda.every(isWorkshopAgendaItem) && Array.isArray(value.messages) && value.messages.every(isWorkshopMessage) && Array.isArray(value.sideChats) && value.sideChats.every(
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.topic === "string" && isProjectStage(value.stage) && isWorkshopStatus(value.status) && Array.isArray(value.participantRoleIds) && value.participantRoleIds.every((item) => typeof item === "string") && Array.isArray(value.participantPerspectives) && value.participantPerspectives.every(
+    (item) => isRecord2(item) && typeof item.roleId === "string" && (item.perspective === "experience" || item.perspective === "competitor" || item.perspective === "feasibility" || item.perspective === "contrarian")
+  ) && (value.freezeId === null || typeof value.freezeId === "string") && (value.meetingType === "prd" || value.meetingType === "architecture" || value.meetingType === "balance" || value.meetingType === "custom") && Array.isArray(value.agenda) && value.agenda.every(isWorkshopAgendaItem) && Array.isArray(value.messages) && value.messages.every(isWorkshopMessage) && Array.isArray(value.sideChats) && value.sideChats.every(
     (chat) => isRecord2(chat) && typeof chat.roleId === "string" && Array.isArray(chat.messages) && chat.messages.every(isWorkshopMessage) && typeof chat.updatedAt === "string"
   ) && (value.minutes === null || isWorkshopMinutes(value.minutes)) && (value.decisionId === null || typeof value.decisionId === "string") && (value.settledAt === null || typeof value.settledAt === "string") && Array.isArray(value.notes) && value.notes.every(isWorkshopNote) && (value.aiSummary === null || isWorkshopAiSummary(value.aiSummary)) && typeof value.synthesis === "string" && typeof value.decision === "string" && typeof value.decidedBy === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
 }
@@ -3959,6 +3973,22 @@ async function createWorkshop(ctx, input) {
     }
     const meetingType = input.meetingType === "prd" || input.meetingType === "architecture" || input.meetingType === "balance" ? input.meetingType : "custom";
     const agenda = (input.agenda ?? []).map((text) => text.trim()).filter((text) => text !== "").slice(0, 20).map((text) => ({ id: newId("agenda"), text, status: "open" }));
+    const freezeId = input.freezeId ?? null;
+    if (freezeId !== null && !state.freezes.some(
+      (freeze) => freeze.id === freezeId && freeze.projectId === project.id
+    )) {
+      throw new StudioStoreError("freeze_not_found", "\u51BB\u7ED3\u7248\u672C\u4E0D\u5C5E\u4E8E\u5F53\u524D\u9879\u76EE", 404);
+    }
+    const perspectiveOrder = [
+      "experience",
+      "competitor",
+      "feasibility",
+      "contrarian"
+    ];
+    const participantPerspectives = participants.map((roleId, index) => ({
+      roleId,
+      perspective: input.perspectives?.find((item) => item.roleId === roleId)?.perspective ?? perspectiveOrder[index % perspectiveOrder.length] ?? "experience"
+    }));
     const at = ctx.now();
     const workshop = {
       id: newId("workshop"),
@@ -3968,6 +3998,8 @@ async function createWorkshop(ctx, input) {
       stage: isProjectStage(input.stage) ? input.stage : project.stage,
       status: "collecting",
       participantRoleIds: participants,
+      participantPerspectives,
+      freezeId,
       meetingType,
       agenda,
       messages: [],
@@ -4238,12 +4270,22 @@ async function saveWorkshopMinutes(ctx, workshopId, input, model = null, editedB
   return ctx.runExclusive(async () => {
     const state = ctx.requireState();
     const workshop = findWorkshop(state, workshopId);
+    const disagreements = textList(input.disagreements, "disagreements", 30);
+    const noDisagreementReason = input.noDisagreementReason?.trim() ?? "";
+    if (disagreements.length === 0 && noDisagreementReason === "") {
+      throw new StudioStoreError(
+        "disagreement_required",
+        "\u4F1A\u8BAE\u7EAA\u8981\u5FC5\u987B\u4FDD\u7559\u81F3\u5C11\u4E00\u6761\u5206\u6B67\uFF1B\u786E\u5B9E\u6CA1\u6709\u5206\u6B67\u65F6\u586B\u5199\u7406\u7531",
+        409
+      );
+    }
     const at = ctx.now();
     const minutes = {
       consensus: textList(input.consensus, "consensus", 30),
-      disagreements: textList(input.disagreements, "disagreements", 30),
+      disagreements,
       openQuestions: textList(input.openQuestions, "openQuestions", 30),
       decisionDraft: input.decisionDraft?.trim() ?? "",
+      noDisagreementReason: noDisagreementReason === "" ? null : noDisagreementReason,
       savedAt: at,
       model,
       editedByOwner
@@ -6210,8 +6252,22 @@ var StudioStore = class {
       await this.save();
     }
   }
+  historyArchived = false;
+  async archiveHistoryIfNeeded() {
+    if (this.historyArchived) return;
+    const state = this.requireState();
+    if (state.runs.length + state.reviews.length + state.verifications.length <= 1500) {
+      return;
+    }
+    const dir = path3.join(this.dataDir, "history");
+    await mkdir(dir, { recursive: true });
+    const stamp = (/* @__PURE__ */ new Date()).toISOString().replaceAll(":", "-");
+    await copyFile(this.file, path3.join(dir, `studio-${stamp}.json`));
+    this.historyArchived = true;
+  }
   async save() {
     const state = this.requireState();
+    await this.archiveHistoryIfNeeded();
     state.updatedAt = nowIso2(this.now);
     const serialized = `${JSON.stringify(state, null, 2)}
 `;

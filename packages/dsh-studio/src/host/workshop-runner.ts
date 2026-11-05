@@ -65,9 +65,24 @@ function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+const PERSPECTIVE_LABELS: Record<string, string> = {
+  experience: "玩家体验",
+  competitor: "竞品分析",
+  feasibility: "技术可行性",
+  contrarian: "反方/唱反调",
+};
+
+function perspectiveOf(workshop: Workshop, roleId: string): string {
+  const perspective = workshop.participantPerspectives.find(
+    (item) => item.roleId === roleId,
+  )?.perspective;
+  return PERSPECTIVE_LABELS[perspective ?? "experience"] ?? "玩家体验";
+}
+
 function buildPrompt(workshop: Workshop, role: Role): string {
   return [
     `你是「${role.name}」（${role.title || "参与角色"}）。`,
+    `你的会议视角：${perspectiveOf(workshop, role.id)}`,
     `研讨会主题：${workshop.title}`,
     workshop.topic ? `议题：${workshop.topic}` : "",
     `项目阶段：${workshop.stage}`,
@@ -229,6 +244,7 @@ export class WorkshopRunner {
       ) ?? null;
     const prompt = [
       `你是「${role.name}」（${role.title || "参会角色"}）。`,
+      `你的会议视角：${perspectiveOf(context.workshop, role.id)}`,
       `会议：${context.workshop.title}`,
       context.workshop.topic ? `议题：${context.workshop.topic}` : "",
       "你正在参加一场由 Owner 主持的会议。以下是公开会议记录。",
@@ -274,6 +290,7 @@ export class WorkshopRunner {
         .join("\n") ?? "";
     const prompt = [
       `你是「${role.name}」（${role.title || "参会角色"}）。`,
+      `你的会议视角：${perspectiveOf(context.workshop, role.id)}`,
       `会议：${context.workshop.title}`,
       context.workshop.topic ? `议题：${context.workshop.topic}` : "",
       "这是 Owner 与你的单独沟通，不会自动进入公开会议记录。",
@@ -331,6 +348,10 @@ export class WorkshopRunner {
         disagreements: strings(record.disagreements),
         openQuestions: strings(record.openQuestions),
         decisionDraft: text(record.decisionDraft),
+        noDisagreementReason:
+          strings(record.disagreements).length === 0
+            ? "AI 未识别到分歧，需 Owner 复核"
+            : null,
       },
       role.model ?? null,
       false,

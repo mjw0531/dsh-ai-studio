@@ -64,6 +64,7 @@ export function TaskDrawer({
   onToggleDocs,
   onTransition,
   onToggleAcceptance,
+  onAcceptAllTrivial,
   onAddEvidence,
   onCreateMerge,
   onApproveMerge,
@@ -87,6 +88,7 @@ export function TaskDrawer({
   onToggleDocs: () => Promise<void>;
   onTransition: (status: TaskStatus) => void;
   onToggleAcceptance: (id: string) => void;
+  onAcceptAllTrivial: () => Promise<boolean>;
   onAddEvidence: (text: string) => Promise<boolean>;
   onCreateMerge: (input: CreateMergeProposalInput) => Promise<boolean>;
   onApproveMerge: (note?: string) => void;
@@ -162,6 +164,17 @@ export function TaskDrawer({
           <section>
             <div className="studio-section-label">
               验收标准 · {done}/{total}
+              {task.riskTier === "trivial" && done < total && hasEvidence ? (
+                <button
+                  type="button"
+                  className="studio-btn"
+                  data-size="sm"
+                  disabled={busy}
+                  onClick={() => void onAcceptAllTrivial()}
+                >
+                  批量勾选
+                </button>
+              ) : null}
             </div>
             <div className="studio-acceptance">
               {task.acceptance.map((item) => (
