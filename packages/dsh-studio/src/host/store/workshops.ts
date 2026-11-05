@@ -11,6 +11,7 @@ import type {
   UpdatePrototypeDemoInput,
   Workshop,
   WorkshopAgendaItem,
+  WorkshopDownstreamInput,
   WorkshopAiSummary,
   WorkshopMeetingType,
   WorkshopMessage,
@@ -235,6 +236,8 @@ export async function createWorkshop(
         participantRoleIds: participants,
         participantPerspectives,
         freezeId,
+        linkedTaskId: null,
+        linkedChangeRequestId: null,
         meetingType,
         agenda,
         messages: [],
@@ -466,6 +469,45 @@ export async function addWorkshopSideOwnerMessage(
     state.updatedAt = at;
     await ctx.save();
     return structuredClone(message);
+  });
+}
+
+export async function linkWorkshopDownstream(
+  ctx: StoreContext,
+  workshopId: string,
+  input: WorkshopDownstreamInput,
+): Promise<Workshop> {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const workshop = findWorkshop(state, workshopId);
+    if (input.linkedTaskId !== undefined) {
+      if (input.linkedTaskId !== null) {
+        const task = state.tasks.find(
+          (item) => item.id === input.linkedTaskId && item.projectId === workshop.projectId,
+        );
+        if (task === undefined) {
+          throw new StudioStoreError("task_not_found", "关联任务不存在", 404);
+        }
+      }
+      workshop.linkedTaskId = input.linkedTaskId;
+    }
+    if (input.linkedChangeRequestId !== undefined) {
+      if (input.linkedChangeRequestId !== null) {
+        const request = state.freezeChangeRequests.find(
+          (item) =>
+            item.id === input.linkedChangeRequestId &&
+            item.projectId === workshop.projectId,
+        );
+        if (request === undefined) {
+          throw new StudioStoreError("change_request_not_found", "关联变更单不存在", 404);
+        }
+      }
+      workshop.linkedChangeRequestId = input.linkedChangeRequestId;
+    }
+    workshop.updatedAt = ctx.now();
+    state.updatedAt = workshop.updatedAt;
+    await ctx.save();
+    return structuredClone(workshop);
   });
 }
 

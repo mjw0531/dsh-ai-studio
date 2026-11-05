@@ -475,6 +475,7 @@ export function StudioPage() {
     saveWorkshopMinutes,
     summarizeWorkshopMinutes,
     createWorkshopDecision,
+    linkWorkshopDownstream,
     readProjectDoc,
     createModule,
     transitionTask,
@@ -677,6 +678,9 @@ export function StudioPage() {
                 onSaveMinutes={saveWorkshopMinutes}
                 onSummarize={summarizeWorkshopMinutes}
                 onCreateDecision={createWorkshopDecision}
+                tasks={data.tasks}
+                changeRequests={data.freezeChangeRequests}
+                onLinkDownstream={linkWorkshopDownstream}
                 onOpenBoardroom={() => setTab("boardroom")}
               />
             ) : null}

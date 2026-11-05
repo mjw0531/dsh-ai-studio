@@ -624,6 +624,9 @@ function isWorkshop(value: unknown): value is Workshop {
           item.perspective === "contrarian"),
     ) &&
     (value.freezeId === null || typeof value.freezeId === "string") &&
+    (value.linkedTaskId === null || typeof value.linkedTaskId === "string") &&
+    (value.linkedChangeRequestId === null ||
+      typeof value.linkedChangeRequestId === "string") &&
     (value.meetingType === "prd" ||
       value.meetingType === "architecture" ||
       value.meetingType === "balance" ||

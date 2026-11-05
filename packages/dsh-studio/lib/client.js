@@ -330,6 +330,13 @@ var StudioClient = class {
     );
     return data.workshop;
   }
+  async linkWorkshopDownstream(workshopId, input) {
+    const data = await this.request(
+      `/workshops/${encodeURIComponent(workshopId)}/downstream`,
+      { method: "POST", body: input }
+    );
+    return data.workshop;
+  }
   async createWorkshopDecision(workshopId) {
     const data = await this.request(
       `/workshops/${encodeURIComponent(workshopId)}/decision`,
@@ -1128,6 +1135,15 @@ function createStudioActions({
       "AI \u4F1A\u8BAE\u7EAA\u8981\u5DF2\u751F\u6210"
     );
   };
+  const linkWorkshopDownstream = async (workshopId, input) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.linkWorkshopDownstream(workshopId, input);
+      },
+      "\u4F1A\u8BAE\u4E0B\u6E38\u5DF2\u5173\u8054"
+    );
+  };
   const createWorkshopDecision = async (workshopId) => {
     return run(
       async () => {
@@ -1461,6 +1477,7 @@ function createStudioActions({
     saveWorkshopMinutes,
     summarizeWorkshopMinutes,
     createWorkshopDecision,
+    linkWorkshopDownstream,
     readProjectDoc,
     createModule,
     transitionTask,
@@ -2569,6 +2586,9 @@ function MeetingView({
   onSaveMinutes,
   onSummarize,
   onCreateDecision,
+  tasks,
+  changeRequests,
+  onLinkDownstream,
   onOpenBoardroom
 }) {
   const [selectedId, setSelectedId] = (0, import_react2.useState)(
@@ -2579,6 +2599,8 @@ function MeetingView({
   const [chatTab, setChatTab] = (0, import_react2.useState)("group");
   const [sideMessage, setSideMessage] = (0, import_react2.useState)("");
   const [showComposer, setShowComposer] = (0, import_react2.useState)(workshops.length === 0);
+  const [linkedTaskId, setLinkedTaskId] = (0, import_react2.useState)("");
+  const [linkedChangeRequestId, setLinkedChangeRequestId] = (0, import_react2.useState)("");
   const active = (0, import_react2.useMemo)(
     () => workshops.find((item) => item.id === selectedId) ?? workshops[0] ?? null,
     [selectedId, workshops]
@@ -2593,6 +2615,8 @@ function MeetingView({
     setChatTab("group");
     setMessage("");
     setSideMessage("");
+    setLinkedTaskId(active.linkedTaskId ?? "");
+    setLinkedChangeRequestId(active.linkedChangeRequestId ?? "");
   }, [active?.id]);
   if (project === null) {
     return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "studio-page", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "studio-page-head", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { children: [
@@ -2683,6 +2707,49 @@ function MeetingView({
                 onUpdate: (itemId, status) => void onUpdateAgenda(active.id, [{ id: itemId, status }])
               }
             ),
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-meeting-downstream", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("label", { children: [
+                "\u5173\u8054\u4EFB\u52A1",
+                /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
+                  "select",
+                  {
+                    value: linkedTaskId,
+                    onChange: (event) => setLinkedTaskId(event.target.value),
+                    children: [
+                      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("option", { value: "", children: "\u4E0D\u5173\u8054" }),
+                      tasks.map((task) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("option", { value: task.id, children: task.title }, task.id))
+                    ]
+                  }
+                )
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("label", { children: [
+                "\u5173\u8054\u53D8\u66F4\u5355",
+                /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
+                  "select",
+                  {
+                    value: linkedChangeRequestId,
+                    onChange: (event) => setLinkedChangeRequestId(event.target.value),
+                    children: [
+                      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("option", { value: "", children: "\u4E0D\u5173\u8054" }),
+                      changeRequests.map((request) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("option", { value: request.id, children: request.title }, request.id))
+                    ]
+                  }
+                )
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+                "button",
+                {
+                  className: "studio-btn",
+                  type: "button",
+                  disabled: busy,
+                  onClick: () => void onLinkDownstream(active.id, {
+                    linkedTaskId: linkedTaskId || null,
+                    linkedChangeRequestId: linkedChangeRequestId || null
+                  }),
+                  children: "\u4FDD\u5B58\u4E0B\u6E38\u5173\u8054"
+                }
+              )
+            ] }),
             /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-meeting-participants", children: [
               participantRoles.map((role) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "studio-pill", children: role.name }, role.id)),
               active.freezeId !== null ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { className: "studio-pill", "data-tone": "accent", children: [
@@ -2694,7 +2761,7 @@ function MeetingView({
                   return freeze === void 0 ? active.freezeId : `${freeze.kind === "prd" ? "PRD" : "\u67B6\u6784"} ${freeze.version}`;
                 })()
               ] }) : null,
-              active.status !== "collecting" && active.decisionId === null ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "studio-pill", "data-tone": "p0", children: "\u672A\u95ED\u73AF" }) : null
+              active.status !== "collecting" && active.decisionId === null && active.linkedTaskId === null && active.linkedChangeRequestId === null ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "studio-pill", "data-tone": "p0", children: "\u672A\u95ED\u73AF" }) : null
             ] })
           ] })
         ] }),
@@ -8168,6 +8235,7 @@ function StudioPage() {
     saveWorkshopMinutes,
     summarizeWorkshopMinutes,
     createWorkshopDecision,
+    linkWorkshopDownstream,
     readProjectDoc,
     createModule,
     transitionTask,
@@ -8331,6 +8399,9 @@ function StudioPage() {
             onSaveMinutes: saveWorkshopMinutes,
             onSummarize: summarizeWorkshopMinutes,
             onCreateDecision: createWorkshopDecision,
+            tasks: data.tasks,
+            changeRequests: data.freezeChangeRequests,
+            onLinkDownstream: linkWorkshopDownstream,
             onOpenBoardroom: () => setTab("boardroom")
           }
         ) : null,

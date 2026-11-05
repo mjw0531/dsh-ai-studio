@@ -25,7 +25,7 @@ test("runs a meeting from agenda through minutes and decision draft", async () =
     assert.ok(project);
     assert.ok(roles.length >= 2);
 
-    const workshop = await store.createWorkshop({
+    let workshop = await store.createWorkshop({
       title: "战斗体系评审",
       topic: "首切片战斗手感",
       meetingType: "balance",
@@ -36,6 +36,16 @@ test("runs a meeting from agenda through minutes and decision draft", async () =
     assert.equal(workshop.agenda.length, 2);
     assert.equal(workshop.messages.length, 0);
     assert.equal(workshop.participantPerspectives.length, 2);
+    const task = await store.createTask({
+      title: "会议下游任务",
+      acceptance: ["完成"],
+      ownerRoleId: roles[0].id,
+      reviewerRoleId: roles[1].id,
+    });
+    workshop = await store.linkWorkshopDownstream(workshop.id, {
+      linkedTaskId: task.id,
+    });
+    assert.equal(workshop.linkedTaskId, task.id);
 
     const ownerMessage = await store.addWorkshopMessage(workshop.id, {
       roleId: null,

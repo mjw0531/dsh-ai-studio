@@ -60,6 +60,7 @@ import type {
   CreateTriggerInput,
   CreateWorkshopInput,
   UpdateWorkshopMessageInput,
+  WorkshopDownstreamInput,
   WorkshopMessage,
   WorkshopMinutesInput,
   WorkshopSideChatInput,
@@ -201,6 +202,7 @@ import {
   settleWorkshop as settleWorkshopImpl,
   updateWorkshopMessage as updateWorkshopMessageImpl,
   getWorkshopContext as getWorkshopContextImpl,
+  linkWorkshopDownstream as linkWorkshopDownstreamImpl,
   setWorkshopAiSummary as setWorkshopAiSummaryImpl,
   synthesizeWorkshop as synthesizeWorkshopImpl,
   updatePrototypeDemo as updatePrototypeDemoImpl,
@@ -820,6 +822,13 @@ export class StudioStore {
 
   async createWorkshopDecision(workshopId: string): Promise<Workshop> {
     return createWorkshopDecisionImpl(this.context, workshopId);
+  }
+
+  async linkWorkshopDownstream(
+    workshopId: string,
+    input: WorkshopDownstreamInput,
+  ): Promise<Workshop> {
+    return linkWorkshopDownstreamImpl(this.context, workshopId, input);
   }
 
   async setWorkshopAiSummary(

@@ -861,6 +861,32 @@ export class StudioRouter {
       return;
     }
 
+
+    const workshopDownstream =
+      /^\/studio-api\/workshops\/([^/]+)\/downstream$/.exec(parsed.pathname);
+    if (workshopDownstream !== null) {
+      requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const body = await readJson(req);
+      const readLink = (value: unknown, field: string): string | null | undefined => {
+        if (value === undefined) return undefined;
+        if (value === null) return null;
+        return inputs.asOptionalString(value, field) ?? null;
+      };
+      const workshop = await this.store.linkWorkshopDownstream(
+        decodeSegment(workshopDownstream[1] ?? ""),
+        {
+          linkedTaskId: readLink(body.linkedTaskId, "linkedTaskId"),
+          linkedChangeRequestId: readLink(
+            body.linkedChangeRequestId,
+            "linkedChangeRequestId",
+          ),
+        },
+      );
+      sendJson(res, 200, { ok: true, workshop });
+      return;
+    }
+
     const workshopSettle =
       /^\/studio-api\/workshops\/([^/]+)\/settle$/.exec(parsed.pathname);
     if (workshopSettle !== null) {

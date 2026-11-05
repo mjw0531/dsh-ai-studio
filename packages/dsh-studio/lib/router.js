@@ -2,7 +2,7 @@
 import { timingSafeEqual as timingSafeEqual3 } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_PLUGIN_VERSION = "3.14.0";
+var STUDIO_PLUGIN_VERSION = "3.14.1";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -1329,6 +1329,29 @@ var StudioRouter = class {
       const workshop = await this.store.setWorkshopAgenda(
         decodeSegment(workshopAgenda[1] ?? ""),
         items
+      );
+      sendJson(res, 200, { ok: true, workshop });
+      return;
+    }
+    const workshopDownstream = /^\/studio-api\/workshops\/([^/]+)\/downstream$/.exec(parsed.pathname);
+    if (workshopDownstream !== null) {
+      requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const body = await readJson(req);
+      const readLink = (value, field) => {
+        if (value === void 0) return void 0;
+        if (value === null) return null;
+        return asOptionalString(value, field) ?? null;
+      };
+      const workshop = await this.store.linkWorkshopDownstream(
+        decodeSegment(workshopDownstream[1] ?? ""),
+        {
+          linkedTaskId: readLink(body.linkedTaskId, "linkedTaskId"),
+          linkedChangeRequestId: readLink(
+            body.linkedChangeRequestId,
+            "linkedChangeRequestId"
+          )
+        }
       );
       sendJson(res, 200, { ok: true, workshop });
       return;

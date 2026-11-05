@@ -40,6 +40,7 @@ import type {
   UpdateStageGateInput,
   UpdateTriggerRulesInput,
   Workshop,
+  WorkshopDownstreamInput,
   WorkshopMinutesInput,
 } from "../shared/types.js";
 import { TASK_STATUS_LABELS } from "../shared/types.js";
@@ -574,6 +575,19 @@ export function createStudioActions({
     );
   };
 
+  const linkWorkshopDownstream = async (
+    workshopId: string,
+    input: WorkshopDownstreamInput,
+  ): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.linkWorkshopDownstream(workshopId, input);
+      },
+      "会议下游已关联",
+    );
+  };
+
   const createWorkshopDecision = async (
     workshopId: string,
   ): Promise<boolean> => {
@@ -978,6 +992,7 @@ export function createStudioActions({
     saveWorkshopMinutes,
     summarizeWorkshopMinutes,
     createWorkshopDecision,
+    linkWorkshopDownstream,
     readProjectDoc,
     createModule,
     transitionTask,

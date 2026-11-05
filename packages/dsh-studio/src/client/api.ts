@@ -30,6 +30,7 @@ import type {
   CreateWorkshopInput,
   UpdateWorkshopMessageInput,
   Workshop,
+  WorkshopDownstreamInput,
   WorkshopMinutesInput,
   CreateProviderProfileInput,
   UpdateProviderProfileInput,
@@ -331,6 +332,17 @@ export class StudioClient {
     const data = await this.request<{ workshop: Workshop }>(
       `/workshops/${encodeURIComponent(workshopId)}/summarize-minutes`,
       { method: "POST" },
+    );
+    return data.workshop;
+  }
+
+  async linkWorkshopDownstream(
+    workshopId: string,
+    input: WorkshopDownstreamInput,
+  ): Promise<Workshop> {
+    const data = await this.request<{ workshop: Workshop }>(
+      `/workshops/${encodeURIComponent(workshopId)}/downstream`,
+      { method: "POST", body: input },
     );
     return data.workshop;
   }

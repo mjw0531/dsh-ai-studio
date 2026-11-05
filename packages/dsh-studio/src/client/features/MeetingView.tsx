@@ -4,10 +4,13 @@ import type { FormEvent } from "react";
 import type {
   CreateWorkshopInput,
   Project,
+  FreezeChangeRequest,
   ProjectFreeze,
   Role,
+  Task,
   Workshop,
   WorkshopAgendaItem,
+  WorkshopDownstreamInput,
   WorkshopPerspective,
   WorkshopMeetingType,
   WorkshopMinutesInput,
@@ -473,6 +476,9 @@ export function MeetingView({
   onSaveMinutes,
   onSummarize,
   onCreateDecision,
+  tasks,
+  changeRequests,
+  onLinkDownstream,
   onOpenBoardroom,
 }: {
   project: Project | null;
@@ -507,6 +513,12 @@ export function MeetingView({
   ) => Promise<boolean>;
   onSummarize: (workshopId: string) => Promise<boolean>;
   onCreateDecision: (workshopId: string) => Promise<boolean>;
+  tasks: Task[];
+  changeRequests: FreezeChangeRequest[];
+  onLinkDownstream: (
+    workshopId: string,
+    input: WorkshopDownstreamInput,
+  ) => Promise<boolean>;
   onOpenBoardroom: () => void;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -517,6 +529,8 @@ export function MeetingView({
   const [chatTab, setChatTab] = useState<string>("group");
   const [sideMessage, setSideMessage] = useState("");
   const [showComposer, setShowComposer] = useState(workshops.length === 0);
+  const [linkedTaskId, setLinkedTaskId] = useState("");
+  const [linkedChangeRequestId, setLinkedChangeRequestId] = useState("");
 
   const active = useMemo(
     () => workshops.find((item) => item.id === selectedId) ?? workshops[0] ?? null,
@@ -533,6 +547,8 @@ export function MeetingView({
     setChatTab("group");
     setMessage("");
     setSideMessage("");
+    setLinkedTaskId(active.linkedTaskId ?? "");
+    setLinkedChangeRequestId(active.linkedChangeRequestId ?? "");
   }, [active?.id]);
 
   if (project === null) {
@@ -639,6 +655,52 @@ export function MeetingView({
                       void onUpdateAgenda(active.id, [{ id: itemId, status }])
                     }
                   />
+                  <div className="studio-meeting-downstream">
+                    <label>
+                      关联任务
+                      <select
+                        value={linkedTaskId}
+                        onChange={(event) => setLinkedTaskId(event.target.value)}
+                      >
+                        <option value="">不关联</option>
+                        {tasks.map((task) => (
+                          <option key={task.id} value={task.id}>
+                            {task.title}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      关联变更单
+                      <select
+                        value={linkedChangeRequestId}
+                        onChange={(event) =>
+                          setLinkedChangeRequestId(event.target.value)
+                        }
+                      >
+                        <option value="">不关联</option>
+                        {changeRequests.map((request) => (
+                          <option key={request.id} value={request.id}>
+                            {request.title}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      className="studio-btn"
+                      type="button"
+                      disabled={busy}
+                      onClick={() =>
+                        void onLinkDownstream(active.id, {
+                          linkedTaskId: linkedTaskId || null,
+                          linkedChangeRequestId:
+                            linkedChangeRequestId || null,
+                        })
+                      }
+                    >
+                      保存下游关联
+                    </button>
+                  </div>
                   <div className="studio-meeting-participants">
                     {participantRoles.map((role) => (
                       <span className="studio-pill" key={role.id}>
@@ -658,7 +720,10 @@ export function MeetingView({
                         })()}
                       </span>
                     ) : null}
-                    {active.status !== "collecting" && active.decisionId === null ? (
+                    {active.status !== "collecting" &&
+                    active.decisionId === null &&
+                    active.linkedTaskId === null &&
+                    active.linkedChangeRequestId === null ? (
                       <span className="studio-pill" data-tone="p0">
                         未闭环
                       </span>
