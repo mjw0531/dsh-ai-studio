@@ -2,7 +2,7 @@
 
 > 即装即用的 DeepSeek Harness AI Studio：**工作室仪表盘、Agent 派单、token 预算、决策台、支线/契约冲突、worktree 代码执行、项目、角色、任务、验收、合并治理**，一个独立页面。
 
-当前版本 **3.14.1**，已在 **DSH 0.2.1-rc.2** 上完成端到端验证（Web/桌面安装、页面渲染、任务创建、验收门禁、合并治理、工作室仪表盘、Agent 派单与结构化回执、token 计量、决策台、支线/契约冲突自动升级、git worktree 代码编辑与自动提交、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、ADR 草稿与写入、人工触发的 Git merge 与合并后回归、合并失败升级与回滚、改修票诊断/计划门禁、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、真实项目 dogfood、数据导出/导入恢复、Claude Code / Codex CLI 执行器、项目包导出/导入、切换 DSH 页面后保持 Studio 导航位置）。
+当前版本 **3.14.2**，已在 **DSH 0.2.1-rc.2** 上完成端到端验证（Web/桌面安装、页面渲染、任务创建、验收门禁、合并治理、工作室仪表盘、Agent 派单与结构化回执、token 计量、决策台、支线/契约冲突自动升级、git worktree 代码编辑与自动提交、Host 独立验证、独立 AI 评审、自动集成分期、文档同步与不可逆决策门禁、ADR 草稿与写入、人工触发的 Git merge 与合并后回归、合并失败升级与回滚、改修票诊断/计划门禁、失败 2 次自动升级与重拆、合并前验证门禁、项目知识/模块契约、契约越界护栏、集成/playtest ticket、真实项目 dogfood、数据导出/导入恢复、Claude Code / Codex CLI 执行器、项目包导出/导入、切换 DSH 页面后保持 Studio 导航位置）。
 
 
 
@@ -89,7 +89,7 @@ Studio 把 DSH 从「一个会话」扩展成「一间工作室」：
 - **3.13.0 会议室与入口重构**：独立会议室、议程/发言/单聊/结算、知识库与冻结、侧栏顺序调整。
 - **3.13.1 会议室布局**：会议内容可折叠、群聊/单聊页签、入口归位。
 - **3.14.0 会议室质量**：视角、冻结绑定、分歧门禁、未闭环、历史归档、trivial 批量验收。
-- **3.14.1 会议下游**：关联 Task / 冻结变更单，未闭环判断扩展。
+- **3.14.1 会议下游**：关联 Task / 冻结变更单，未闭环判断扩展。\n- **3.14.2 评审与验证修复**：评审 diff 回退生成、空输出重试、多行 Host 验证、ACL 快速失败。
 - **角色薪资与预算**：角色可配置模型和单任务/每日 token 预算；项目可配置总 token 预算。
 - **项目**：一个项目边界，下面有角色和任务。
 - **角色**：持久的职责契约（使命、职责、决策权），不是人设卡。
@@ -151,7 +151,7 @@ cd D:\dsh-ai-studio\packages\dsh-studio
 pnpm pack
 ```
 
-把生成的 `dsh-ai-studio-3.14.1.tgz` 发给对方，在 **Add plugin** 里填 tarball 路径即可。
+把生成的 `dsh-ai-studio-3.14.2.tgz` 发给对方，在 **Add plugin** 里填 tarball 路径即可。
 
 ## 使用
 
@@ -267,8 +267,10 @@ packages/dsh-studio/
 - ⏳ 运行中 token 硬停、金额报价。
 - ⏳ 新建型 red→green 强制、完整垂直切片 dogfood。
 - ⏳ Project Book 检索、角色/Scope 强隔离。
-- ⚠️ Windows 沙箱在部分 worktree 上可能报 `SetNamedSecurityInfoW grantWrite`，导致 Agent 能改文件但无法启动 shell 跑测试；这属于环境 ACL 限制，Run 会如实记录 blocker。
-- ✅ v0.6.1 的 Host 独立验证可以绕过 Agent 会话的 shell 限制，由 Studio 直接执行验证命令；仍不会自动合并或自动通过验收。
+- ⚠️ Windows 沙箱在部分盘符（例如 `D:`）的 worktree 上可能报 `SetNamedSecurityInfoW grantWrite`，导致 Agent 能改文件但无法启动 shell 跑测试。Studio 现在会**提前失败并保留 worktree**，不再让 Agent 干等到超时；启动 DSH 前设置 `DSH_STUDIO_WORKTREE_ROOT=C:\Users\<you>\dsh-studio-worktrees` 可把 worktree 放到沙箱可写目录。
+- ✅ Host 独立验证支持**多行命令**：每行一条，按顺序执行，任一步失败即停止；适用于「编译 + 测试」两段验证，完整输出写入 evidence。
+- ✅ 评审前由 Host 重新生成 `git diff base...HEAD`，不再依赖 Run 记录的空 diff；diff 为空时直接报环境错误，不调用评审 Agent。
+- ✅ 评审 Agent 空输出会重试一次，仍为空时记录模型/session 诊断，而不是只写“没有产出”。
 
 v0.6.1 的 Agent 已经能**在独立 worktree 内写代码并产生 diff**，Verifier 可以用 Host 独立验证拿机器证据；但仍不会 merge/push，验收由人决定。
 

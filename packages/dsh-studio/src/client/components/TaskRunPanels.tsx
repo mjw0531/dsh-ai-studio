@@ -130,11 +130,12 @@ export function TaskVerificationPanel({
       ) : (
         <>
           <div className="studio-verify-form">
-            <input
+            <textarea
               value={command}
               onChange={(event) => setCommand(event.target.value)}
               aria-label="验证命令"
-              placeholder="npm test"
+              placeholder={"npm run build\nnpm test"}
+              rows={3}
             />
             <button
               type="button"

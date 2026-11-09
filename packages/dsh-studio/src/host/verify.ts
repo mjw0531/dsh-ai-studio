@@ -59,16 +59,33 @@ export class VerificationService {
         409,
       );
     }
-    const resolved =
+    const configured =
       (command?.trim() || context.task.verifyCommand || "").trim() ||
       "npm test";
+    const commands = configured
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line !== "" && !line.startsWith("#"));
+    if (commands.length === 0) {
+      commands.push("npm test");
+    }
     const workdir = context.run.workspacePath;
-    const { output, exitCode } = await runVerificationCommand(
-      resolved,
-      workdir,
-    );
+    let output = "";
+    let exitCode = 0;
+    for (const step of commands) {
+      const result = await runVerificationCommand(step, workdir);
+      output += `$ ${step}\n${result.output}\n`;
+      if (result.exitCode !== 0) {
+        exitCode = result.exitCode;
+        break;
+      }
+    }
+    const recorded = commands.join("\n");
     return this.store.recordVerification(taskId, {
-      command: resolved,
+      command:
+        recorded.length <= 500
+          ? recorded
+          : `${recorded.slice(0, 497)}...`,
       workdir,
       exitCode,
       output,

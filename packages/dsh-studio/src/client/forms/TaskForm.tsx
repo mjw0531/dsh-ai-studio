@@ -165,15 +165,15 @@ export function TaskForm({
           </div>
         </div>
         <div className="studio-field">
-          <label htmlFor="task-verify">验证命令（可选）</label>
-          <input
+          <label htmlFor="task-verify">验证命令（可选，可多行）</label>
+          <textarea
             id="task-verify"
             value={verifyCommand}
             onChange={(event) => setVerifyCommand(event.target.value)}
-            placeholder="npm test"
+            placeholder={"npm run build\nnpm test"}
           />
           <div className="studio-hint">
-            由 Studio Host 在 worktree 内独立执行；通过会写 evidence，但不自动通过验收。
+            每行一条，Studio Host 在 worktree 内按顺序执行；任一步失败即停止。通过会写 evidence，但不自动通过验收。
           </div>
         </div>
         <div className="studio-field-row">

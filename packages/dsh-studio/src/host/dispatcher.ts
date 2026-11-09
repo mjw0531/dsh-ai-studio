@@ -216,12 +216,11 @@ interface RunContext {
   providerProfile: ProviderProfile | null;
 }
 
-function changedFilesFromDiff(diffStat: string | null): string[] {
-  if (diffStat === null) return [];
-  return diffStat
-    .split("\n")
-    .map((line) => /^[ MARC?]{1,2} (\S.*)$/.exec(line)?.[1]?.trim() ?? "")
-    .filter(Boolean);
+function isSandboxAclFailure(output: string): boolean {
+  return (
+    output.includes("SetNamedSecurityInfoW failed") ||
+    output.includes("grantWrite(")
+  );
 }
 
 function clipPatch(value: string | null): string | null {
@@ -543,6 +542,7 @@ function buildReviewPrompt(context: {
   task: Task;
   project: Project;
   run: AgentRun | null;
+  diffPatch?: string | null;
   verification: {
     command: string;
     exitCode: number;
@@ -567,7 +567,8 @@ function buildReviewPrompt(context: {
     "",
     `base：${context.run?.baseSha ?? "未记录"}；分支：${context.run?.branchName ?? "未记录"}`,
     "实现者 diff：",
-    context.run?.diffPatch ??
+    context.diffPatch ??
+      context.run?.diffPatch ??
       context.run?.diffStat ??
       "（没有代码 diff）",
     "",
@@ -582,6 +583,27 @@ function buildReviewPrompt(context: {
   ]
     .filter((line) => line !== "")
     .join("\n");
+}
+
+async function waitForReviewOutput(
+  handle: AgentHandleLike,
+  timeoutMs: number,
+): Promise<string> {
+  const deadline = Date.now() + timeoutMs;
+  let idleTicks = 0;
+  let output = "";
+  while (Date.now() < deadline) {
+    output = assistantText(handle.agent.session.deriveMessages());
+    if (handle.agent.status === "idle") {
+      if (output !== "") break;
+      idleTicks += 1;
+      if (idleTicks >= 10) break;
+    } else {
+      idleTicks = 0;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 400));
+  }
+  return output;
 }
 
 /**
@@ -645,13 +667,43 @@ export class AgentDispatcher {
       context.role,
       context.providerProfile,
     );
-    const prompt = buildReviewPrompt(context);
+    const run = context.run;
+    const workspacePath = run.workspacePath;
+    if (workspacePath === null) {
+      throw new Error("这个任务还没有可评审的 worktree");
+    }
+    const baseSha = run.baseSha;
+    if (baseSha === null) {
+      throw new Error("这个 Run 没有记录 baseSha，无法生成评审 diff");
+    }
+    const liveDiff = clipPatch(
+      this.workspaces.patch(workspacePath, baseSha, true),
+    );
+    const reviewDiff =
+      liveDiff !== null && liveDiff.trim() !== ""
+        ? liveDiff
+        : (run.diffPatch ?? run.diffStat ?? "");
+    if (reviewDiff.trim() === "") {
+      return await this.store.recordReview(taskId, {
+        reviewerRoleId: context.role.id,
+        model: selection.model,
+        verdict: "fail",
+        summary: "评审环境错误：diff 为空",
+        findings: [
+          `base=${run.baseSha} branch=${run.branchName ?? "未记录"}`,
+          "Host 没有拿到可核对 diff，未调用评审 Agent；先检查 worktree 与 baseSha。",
+        ],
+        tokens: null,
+        runId: run.id,
+      });
+    }
+    const prompt = buildReviewPrompt({ ...context, diffPatch: reviewDiff });
     let handle: AgentHandleLike | null = null;
     let output = "";
     try {
       handle = await this.ctx.agents.create({
         sessionId: `review-${randomUUID()}`,
-        meta: { cwd: context.run.workspacePath },
+        meta: { cwd: workspacePath },
         agentOptions: selection,
         setup: async (agentCtx, agent) => {
           await bindStudioRuntime(this.ctx, agentCtx, agent, {
@@ -665,18 +717,19 @@ export class AgentDispatcher {
         content: [{ type: "text", text: prompt }],
         source: { kind: "user" },
       });
-      const deadline = Date.now() + 180_000;
-      let idleTicks = 0;
-      while (Date.now() < deadline) {
-        output = assistantText(handle.agent.session.deriveMessages());
-        if (handle.agent.status === "idle") {
-          if (output !== "") break;
-          idleTicks += 1;
-          if (idleTicks >= 10) break;
-        } else {
-          idleTicks = 0;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 400));
+      output = await waitForReviewOutput(handle, 180_000);
+      if (output === "") {
+        handle.agent.followup({
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "你上一次没有返回任何内容。请只输出评审 JSON：{\"verdict\":\"pass|fail\",\"summary\":\"...\",\"findings\":[\"...\"]}",
+            },
+          ],
+          source: { kind: "user" },
+        });
+        output = await waitForReviewOutput(handle, 60_000);
       }
       const measured = this.ctx.tokenMeter.measure(handle.agent.session);
       const raw = extractJsonObject(output);
@@ -691,18 +744,20 @@ export class AgentDispatcher {
       const summary =
         textOf(record.summary) ||
         (output === ""
-          ? "独立评审没有产出"
+          ? "评审 Agent 空输出（已重试 1 次）"
           : output.slice(0, 2000));
       const findings = stringArray(record.findings);
+      if (findings.length === 0 && output === "") {
+        findings.push(
+          `评审 Agent 空输出；model=${selection.model}；session=${handle.agent.session.id}`,
+        );
+      }
       return await this.store.recordReview(taskId, {
         reviewerRoleId: context.role.id,
         model: selection.model,
         verdict,
         summary,
-        findings:
-          findings.length === 0 && output === ""
-            ? ["评审 Agent 没有返回内容"]
-            : findings,
+        findings,
         tokens:
           typeof measured.totalTokens === "number"
             ? measured.totalTokens
@@ -800,6 +855,15 @@ export class AgentDispatcher {
       let finished = false;
       while (Date.now() < deadline) {
         output = assistantText(handle.agent.session.deriveMessages());
+        if (isSandboxAclFailure(output)) {
+          await this.store.failRun(
+            run.id,
+            "Windows sandbox ACL 无法给 worktree 授权写权限（SetNamedSecurityInfoW/grantWrite）。" +
+              "请把 DSH_STUDIO_WORKTREE_ROOT 指向沙箱可写的目录（例如 C:\\Users\\<you>\\dsh-studio-worktrees），" +
+              "或由 Owner 在 Host 侧运行验证；worktree 已保留。",
+          );
+          return;
+        }
         if (handle.agent.status === "idle") {
           if (output !== "") {
             finished = true;
@@ -830,11 +894,21 @@ export class AgentDispatcher {
         extractJsonObject(output),
         output,
       );
+      if (isSandboxAclFailure(`${output}\n${receipt.summary}`)) {
+        await this.store.failRun(
+          run.id,
+          "Windows sandbox ACL 无法给 worktree 授权写权限（SetNamedSecurityInfoW/grantWrite）。" +
+            "请把 DSH_STUDIO_WORKTREE_ROOT 指向沙箱可写的目录（例如 C:\\Users\\<you>\\dsh-studio-worktrees），" +
+            "或由 Owner 在 Host 侧运行验证；worktree 已保留。",
+        );
+        await this.store.externalizeRunOutput(run.id, output);
+        return;
+      }
       const measured = this.ctx.tokenMeter.measure(handle.agent.session);
       const diffStat =
         workspace === undefined
           ? null
-          : this.workspaces.diffStat(workspace.path);
+          : this.workspaces.diffStat(workspace.path, workspace.baseSha);
       const workingPatch =
         workspace === undefined
           ? null
@@ -843,7 +917,7 @@ export class AgentDispatcher {
         const violations = await this.store.enforceContractScope(
           run.taskId,
           run.id,
-          changedFilesFromDiff(diffStat),
+          this.workspaces.changedFiles(workspace.path, workspace.baseSha),
         );
         if (violations.length > 0) {
           await this.store.completeRun(run.id, {
@@ -914,14 +988,14 @@ export class AgentDispatcher {
         );
       }
       const output = result.output.trim();
-      const diffStat = this.workspaces.diffStat(workspace.path);
+      const diffStat = this.workspaces.diffStat(workspace.path, workspace.baseSha);
       const workingPatch = clipPatch(
         this.workspaces.patch(workspace.path, workspace.baseSha, true),
       );
       const violations = await this.store.enforceContractScope(
         run.taskId,
         run.id,
-        changedFilesFromDiff(diffStat),
+        this.workspaces.changedFiles(workspace.path, workspace.baseSha),
       );
       const receipt = normalizeReceipt(extractJsonObject(output), output);
       if (violations.length > 0) {

@@ -2,6 +2,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import path from "node:path";
 var WorkspaceError = class extends Error {
   code;
@@ -25,6 +26,9 @@ function git(cwd, args) {
     );
   }
 }
+function repoKey(repoPath) {
+  return createHash("sha1").update(path.resolve(repoPath).toLowerCase()).digest("hex").slice(0, 12);
+}
 function sanitize(taskId) {
   if (taskId.trim() === "" || taskId === "." || taskId === ".." || !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$/.test(taskId)) {
     throw new WorkspaceError(
@@ -35,6 +39,10 @@ function sanitize(taskId) {
   return taskId;
 }
 var WorkspaceManager = class {
+  rootOverride;
+  constructor(rootOverride = process.env.DSH_STUDIO_WORKTREE_ROOT?.trim() ?? "") {
+    this.rootOverride = rootOverride === "" ? null : path.resolve(rootOverride);
+  }
   async prepare(repoPath, taskId) {
     const resolved = path.resolve(repoPath);
     if (!existsSync(resolved)) {
@@ -46,7 +54,7 @@ var WorkspaceManager = class {
     const root = git(resolved, ["rev-parse", "--show-toplevel"]);
     const baseSha = git(root, ["rev-parse", "HEAD"]);
     const key = sanitize(taskId);
-    const worktreeRoot = path.join(root, ".worktrees");
+    const worktreeRoot = this.rootOverride === null ? path.join(root, ".worktrees") : path.join(this.rootOverride, repoKey(root));
     const worktreePath = path.resolve(worktreeRoot, key);
     if (!worktreePath.startsWith(`${path.resolve(worktreeRoot)}${path.sep}`)) {
       throw new WorkspaceError(
@@ -103,11 +111,18 @@ var WorkspaceManager = class {
     ]);
     return git(worktreePath, ["rev-parse", "HEAD"]);
   }
-  diffStat(worktreePath) {
+  diffStat(worktreePath, baseSha) {
     if (!existsSync(worktreePath)) return "";
     const status = git(worktreePath, ["status", "--short"]);
     const stat = git(worktreePath, ["diff", "--stat"]);
-    return [status, stat].filter((line) => line !== "").join("\n").trim();
+    const committed = baseSha === void 0 ? "" : git(worktreePath, ["diff", "--stat", `${baseSha}...HEAD`]);
+    return [status, stat, committed].filter((line) => line !== "").join("\n").trim();
+  }
+  changedFiles(worktreePath, baseSha) {
+    if (!existsSync(worktreePath)) return [];
+    const working = git(worktreePath, ["status", "--porcelain"]).split("\n").map((line) => line.slice(3).trim()).map((line) => line.includes(" -> ") ? line.split(" -> ").pop() ?? line : line).filter(Boolean);
+    const committed = baseSha === void 0 ? [] : git(worktreePath, ["diff", "--name-only", `${baseSha}...HEAD`]).split("\n").map((line) => line.trim()).filter(Boolean);
+    return [.../* @__PURE__ */ new Set([...working, ...committed])];
   }
   patch(worktreePath, baseSha, includeWorkingTree = false) {
     if (!existsSync(worktreePath)) return "";

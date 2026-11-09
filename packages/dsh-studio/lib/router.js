@@ -2,7 +2,7 @@
 import { timingSafeEqual as timingSafeEqual3 } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_PLUGIN_VERSION = "3.14.1";
+var STUDIO_PLUGIN_VERSION = "3.14.2";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",

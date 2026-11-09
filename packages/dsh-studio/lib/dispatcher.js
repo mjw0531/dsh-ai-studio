@@ -9,6 +9,7 @@ import path2 from "node:path";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import path from "node:path";
 var WorkspaceError = class extends Error {
   code;
@@ -32,6 +33,9 @@ function git(cwd, args) {
     );
   }
 }
+function repoKey(repoPath) {
+  return createHash("sha1").update(path.resolve(repoPath).toLowerCase()).digest("hex").slice(0, 12);
+}
 function sanitize(taskId) {
   if (taskId.trim() === "" || taskId === "." || taskId === ".." || !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$/.test(taskId)) {
     throw new WorkspaceError(
@@ -42,6 +46,10 @@ function sanitize(taskId) {
   return taskId;
 }
 var WorkspaceManager = class {
+  rootOverride;
+  constructor(rootOverride = process.env.DSH_STUDIO_WORKTREE_ROOT?.trim() ?? "") {
+    this.rootOverride = rootOverride === "" ? null : path.resolve(rootOverride);
+  }
   async prepare(repoPath, taskId) {
     const resolved = path.resolve(repoPath);
     if (!existsSync(resolved)) {
@@ -53,7 +61,7 @@ var WorkspaceManager = class {
     const root = git(resolved, ["rev-parse", "--show-toplevel"]);
     const baseSha = git(root, ["rev-parse", "HEAD"]);
     const key = sanitize(taskId);
-    const worktreeRoot = path.join(root, ".worktrees");
+    const worktreeRoot = this.rootOverride === null ? path.join(root, ".worktrees") : path.join(this.rootOverride, repoKey(root));
     const worktreePath = path.resolve(worktreeRoot, key);
     if (!worktreePath.startsWith(`${path.resolve(worktreeRoot)}${path.sep}`)) {
       throw new WorkspaceError(
@@ -110,11 +118,18 @@ var WorkspaceManager = class {
     ]);
     return git(worktreePath, ["rev-parse", "HEAD"]);
   }
-  diffStat(worktreePath) {
+  diffStat(worktreePath, baseSha) {
     if (!existsSync(worktreePath)) return "";
     const status = git(worktreePath, ["status", "--short"]);
     const stat = git(worktreePath, ["diff", "--stat"]);
-    return [status, stat].filter((line) => line !== "").join("\n").trim();
+    const committed = baseSha === void 0 ? "" : git(worktreePath, ["diff", "--stat", `${baseSha}...HEAD`]);
+    return [status, stat, committed].filter((line) => line !== "").join("\n").trim();
+  }
+  changedFiles(worktreePath, baseSha) {
+    if (!existsSync(worktreePath)) return [];
+    const working = git(worktreePath, ["status", "--porcelain"]).split("\n").map((line) => line.slice(3).trim()).map((line) => line.includes(" -> ") ? line.split(" -> ").pop() ?? line : line).filter(Boolean);
+    const committed = baseSha === void 0 ? [] : git(worktreePath, ["diff", "--name-only", `${baseSha}...HEAD`]).split("\n").map((line) => line.trim()).filter(Boolean);
+    return [.../* @__PURE__ */ new Set([...working, ...committed])];
   }
   patch(worktreePath, baseSha, includeWorkingTree = false) {
     if (!existsSync(worktreePath)) return "";
@@ -217,9 +232,8 @@ async function bindStudioRuntime(ctx, agentCtx, agent, options) {
     restrictedTools
   };
 }
-function changedFilesFromDiff(diffStat) {
-  if (diffStat === null) return [];
-  return diffStat.split("\n").map((line) => /^[ MARC?]{1,2} (\S.*)$/.exec(line)?.[1]?.trim() ?? "").filter(Boolean);
+function isSandboxAclFailure(output) {
+  return output.includes("SetNamedSecurityInfoW failed") || output.includes("grantWrite(");
 }
 function clipPatch(value) {
   if (value === null || value.length <= 12e4) return value;
@@ -474,7 +488,7 @@ function buildReviewPrompt(context) {
     "",
     `base\uFF1A${context.run?.baseSha ?? "\u672A\u8BB0\u5F55"}\uFF1B\u5206\u652F\uFF1A${context.run?.branchName ?? "\u672A\u8BB0\u5F55"}`,
     "\u5B9E\u73B0\u8005 diff\uFF1A",
-    context.run?.diffPatch ?? context.run?.diffStat ?? "\uFF08\u6CA1\u6709\u4EE3\u7801 diff\uFF09",
+    context.diffPatch ?? context.run?.diffPatch ?? context.run?.diffStat ?? "\uFF08\u6CA1\u6709\u4EE3\u7801 diff\uFF09",
     "",
     context.verification === null ? "\u6CA1\u6709 Host \u72EC\u7ACB\u9A8C\u8BC1\u8BB0\u5F55\u3002" : `Host \u72EC\u7ACB\u9A8C\u8BC1\uFF1A${context.verification.command} \u2192 exit ${String(context.verification.exitCode)}\uFF08${context.verification.passed ? "\u901A\u8FC7" : "\u5931\u8D25"}\uFF09
 ${context.verification.output.slice(0, 6e3)}`,
@@ -484,6 +498,23 @@ ${context.verification.output.slice(0, 6e3)}`,
     "\u8BF7\u8F93\u51FA\u4E00\u4E2A JSON \u5BF9\u8C61\uFF08\u4E0D\u8981\u8F93\u51FA JSON \u4EE5\u5916\u7684\u89E3\u91CA\uFF09\uFF1A",
     '{"verdict":"pass|fail","summary":"\u4E00\u53E5\u8BDD\u7ED3\u8BBA","findings":["\u5177\u4F53\u53D1\u73B0/\u98CE\u9669"]}'
   ].filter((line) => line !== "").join("\n");
+}
+async function waitForReviewOutput(handle, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let idleTicks = 0;
+  let output = "";
+  while (Date.now() < deadline) {
+    output = assistantText(handle.agent.session.deriveMessages());
+    if (handle.agent.status === "idle") {
+      if (output !== "") break;
+      idleTicks += 1;
+      if (idleTicks >= 10) break;
+    } else {
+      idleTicks = 0;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 400));
+  }
+  return output;
 }
 var AgentDispatcher = class {
   ctx;
@@ -527,13 +558,40 @@ var AgentDispatcher = class {
       context.role,
       context.providerProfile
     );
-    const prompt = buildReviewPrompt(context);
+    const run = context.run;
+    const workspacePath = run.workspacePath;
+    if (workspacePath === null) {
+      throw new Error("\u8FD9\u4E2A\u4EFB\u52A1\u8FD8\u6CA1\u6709\u53EF\u8BC4\u5BA1\u7684 worktree");
+    }
+    const baseSha = run.baseSha;
+    if (baseSha === null) {
+      throw new Error("\u8FD9\u4E2A Run \u6CA1\u6709\u8BB0\u5F55 baseSha\uFF0C\u65E0\u6CD5\u751F\u6210\u8BC4\u5BA1 diff");
+    }
+    const liveDiff = clipPatch(
+      this.workspaces.patch(workspacePath, baseSha, true)
+    );
+    const reviewDiff = liveDiff !== null && liveDiff.trim() !== "" ? liveDiff : run.diffPatch ?? run.diffStat ?? "";
+    if (reviewDiff.trim() === "") {
+      return await this.store.recordReview(taskId, {
+        reviewerRoleId: context.role.id,
+        model: selection.model,
+        verdict: "fail",
+        summary: "\u8BC4\u5BA1\u73AF\u5883\u9519\u8BEF\uFF1Adiff \u4E3A\u7A7A",
+        findings: [
+          `base=${run.baseSha} branch=${run.branchName ?? "\u672A\u8BB0\u5F55"}`,
+          "Host \u6CA1\u6709\u62FF\u5230\u53EF\u6838\u5BF9 diff\uFF0C\u672A\u8C03\u7528\u8BC4\u5BA1 Agent\uFF1B\u5148\u68C0\u67E5 worktree \u4E0E baseSha\u3002"
+        ],
+        tokens: null,
+        runId: run.id
+      });
+    }
+    const prompt = buildReviewPrompt({ ...context, diffPatch: reviewDiff });
     let handle = null;
     let output = "";
     try {
       handle = await this.ctx.agents.create({
         sessionId: `review-${randomUUID()}`,
-        meta: { cwd: context.run.workspacePath },
+        meta: { cwd: workspacePath },
         agentOptions: selection,
         setup: async (agentCtx, agent) => {
           await bindStudioRuntime(this.ctx, agentCtx, agent, {
@@ -547,31 +605,37 @@ var AgentDispatcher = class {
         content: [{ type: "text", text: prompt }],
         source: { kind: "user" }
       });
-      const deadline = Date.now() + 18e4;
-      let idleTicks = 0;
-      while (Date.now() < deadline) {
-        output = assistantText(handle.agent.session.deriveMessages());
-        if (handle.agent.status === "idle") {
-          if (output !== "") break;
-          idleTicks += 1;
-          if (idleTicks >= 10) break;
-        } else {
-          idleTicks = 0;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 400));
+      output = await waitForReviewOutput(handle, 18e4);
+      if (output === "") {
+        handle.agent.followup({
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: '\u4F60\u4E0A\u4E00\u6B21\u6CA1\u6709\u8FD4\u56DE\u4EFB\u4F55\u5185\u5BB9\u3002\u8BF7\u53EA\u8F93\u51FA\u8BC4\u5BA1 JSON\uFF1A{"verdict":"pass|fail","summary":"...","findings":["..."]}'
+            }
+          ],
+          source: { kind: "user" }
+        });
+        output = await waitForReviewOutput(handle, 6e4);
       }
       const measured = this.ctx.tokenMeter.measure(handle.agent.session);
       const raw = extractJsonObject(output);
       const record = typeof raw === "object" && raw !== null && !Array.isArray(raw) ? raw : {};
       const verdict = record.verdict === "pass" || record.verdict === "fail" ? record.verdict : "fail";
-      const summary = textOf(record.summary) || (output === "" ? "\u72EC\u7ACB\u8BC4\u5BA1\u6CA1\u6709\u4EA7\u51FA" : output.slice(0, 2e3));
+      const summary = textOf(record.summary) || (output === "" ? "\u8BC4\u5BA1 Agent \u7A7A\u8F93\u51FA\uFF08\u5DF2\u91CD\u8BD5 1 \u6B21\uFF09" : output.slice(0, 2e3));
       const findings = stringArray(record.findings);
+      if (findings.length === 0 && output === "") {
+        findings.push(
+          `\u8BC4\u5BA1 Agent \u7A7A\u8F93\u51FA\uFF1Bmodel=${selection.model}\uFF1Bsession=${handle.agent.session.id}`
+        );
+      }
       return await this.store.recordReview(taskId, {
         reviewerRoleId: context.role.id,
         model: selection.model,
         verdict,
         summary,
-        findings: findings.length === 0 && output === "" ? ["\u8BC4\u5BA1 Agent \u6CA1\u6709\u8FD4\u56DE\u5185\u5BB9"] : findings,
+        findings,
         tokens: typeof measured.totalTokens === "number" ? measured.totalTokens : null,
         runId: context.run.id
       });
@@ -644,6 +708,13 @@ var AgentDispatcher = class {
       let finished = false;
       while (Date.now() < deadline) {
         output = assistantText(handle.agent.session.deriveMessages());
+        if (isSandboxAclFailure(output)) {
+          await this.store.failRun(
+            run.id,
+            "Windows sandbox ACL \u65E0\u6CD5\u7ED9 worktree \u6388\u6743\u5199\u6743\u9650\uFF08SetNamedSecurityInfoW/grantWrite\uFF09\u3002\u8BF7\u628A DSH_STUDIO_WORKTREE_ROOT \u6307\u5411\u6C99\u7BB1\u53EF\u5199\u7684\u76EE\u5F55\uFF08\u4F8B\u5982 C:\\Users\\<you>\\dsh-studio-worktrees\uFF09\uFF0C\u6216\u7531 Owner \u5728 Host \u4FA7\u8FD0\u884C\u9A8C\u8BC1\uFF1Bworktree \u5DF2\u4FDD\u7559\u3002"
+          );
+          return;
+        }
         if (handle.agent.status === "idle") {
           if (output !== "") {
             finished = true;
@@ -674,14 +745,23 @@ var AgentDispatcher = class {
         extractJsonObject(output),
         output
       );
+      if (isSandboxAclFailure(`${output}
+${receipt.summary}`)) {
+        await this.store.failRun(
+          run.id,
+          "Windows sandbox ACL \u65E0\u6CD5\u7ED9 worktree \u6388\u6743\u5199\u6743\u9650\uFF08SetNamedSecurityInfoW/grantWrite\uFF09\u3002\u8BF7\u628A DSH_STUDIO_WORKTREE_ROOT \u6307\u5411\u6C99\u7BB1\u53EF\u5199\u7684\u76EE\u5F55\uFF08\u4F8B\u5982 C:\\Users\\<you>\\dsh-studio-worktrees\uFF09\uFF0C\u6216\u7531 Owner \u5728 Host \u4FA7\u8FD0\u884C\u9A8C\u8BC1\uFF1Bworktree \u5DF2\u4FDD\u7559\u3002"
+        );
+        await this.store.externalizeRunOutput(run.id, output);
+        return;
+      }
       const measured = this.ctx.tokenMeter.measure(handle.agent.session);
-      const diffStat = workspace === void 0 ? null : this.workspaces.diffStat(workspace.path);
+      const diffStat = workspace === void 0 ? null : this.workspaces.diffStat(workspace.path, workspace.baseSha);
       const workingPatch = workspace === void 0 ? null : clipPatch(this.workspaces.patch(workspace.path, workspace.baseSha, true));
       if (workspace !== void 0) {
         const violations = await this.store.enforceContractScope(
           run.taskId,
           run.id,
-          changedFilesFromDiff(diffStat)
+          this.workspaces.changedFiles(workspace.path, workspace.baseSha)
         );
         if (violations.length > 0) {
           await this.store.completeRun(run.id, {
@@ -730,14 +810,14 @@ var AgentDispatcher = class {
         );
       }
       const output = result.output.trim();
-      const diffStat = this.workspaces.diffStat(workspace.path);
+      const diffStat = this.workspaces.diffStat(workspace.path, workspace.baseSha);
       const workingPatch = clipPatch(
         this.workspaces.patch(workspace.path, workspace.baseSha, true)
       );
       const violations = await this.store.enforceContractScope(
         run.taskId,
         run.id,
-        changedFilesFromDiff(diffStat)
+        this.workspaces.changedFiles(workspace.path, workspace.baseSha)
       );
       const receipt = normalizeReceipt(extractJsonObject(output), output);
       if (violations.length > 0) {

@@ -6566,12 +6566,13 @@ function TaskVerificationPanel({
     workspaceRun === void 0 ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-faint", style: { fontSize: 11, marginTop: 9 }, children: "\u8FD8\u6CA1\u6709\u5E26 worktree \u7684 Run\uFF1B\u5148\u6D3E\u5355\u6267\u884C\u4E00\u6B21\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(import_jsx_runtime20.Fragment, { children: [
       /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-verify-form", children: [
         /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
-          "input",
+          "textarea",
           {
             value: command,
             onChange: (event) => setCommand(event.target.value),
             "aria-label": "\u9A8C\u8BC1\u547D\u4EE4",
-            placeholder: "npm test"
+            placeholder: "npm run build\nnpm test",
+            rows: 3
           }
         ),
         /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
@@ -7755,17 +7756,17 @@ function TaskForm({
           ] })
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-verify", children: "\u9A8C\u8BC1\u547D\u4EE4\uFF08\u53EF\u9009\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-verify", children: "\u9A8C\u8BC1\u547D\u4EE4\uFF08\u53EF\u9009\uFF0C\u53EF\u591A\u884C\uFF09" }),
           /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
-            "input",
+            "textarea",
             {
               id: "task-verify",
               value: verifyCommand,
               onChange: (event) => setVerifyCommand(event.target.value),
-              placeholder: "npm test"
+              placeholder: "npm run build\nnpm test"
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "studio-hint", children: "\u7531 Studio Host \u5728 worktree \u5185\u72EC\u7ACB\u6267\u884C\uFF1B\u901A\u8FC7\u4F1A\u5199 evidence\uFF0C\u4F46\u4E0D\u81EA\u52A8\u901A\u8FC7\u9A8C\u6536\u3002" })
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "studio-hint", children: "\u6BCF\u884C\u4E00\u6761\uFF0CStudio Host \u5728 worktree \u5185\u6309\u987A\u5E8F\u6267\u884C\uFF1B\u4EFB\u4E00\u6B65\u5931\u8D25\u5373\u505C\u6B62\u3002\u901A\u8FC7\u4F1A\u5199 evidence\uFF0C\u4F46\u4E0D\u81EA\u52A8\u901A\u8FC7\u9A8C\u6536\u3002" })
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field-row", children: [
           /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [

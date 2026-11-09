@@ -2,6 +2,16 @@
 
 所有版本按里程碑记录。当前版本只保留最近五个版本；更早版本见 Git 历史与 `docs/08-迭代计划.md`。
 
+## [3.14.2] - 2026-11-09
+
+### Fixed
+
+- 评审前由 Host 重新生成 `git diff base...HEAD`，不再依赖 Run 记录的空 diff。
+- 评审 Agent 空输出自动重试一次；仍为空时记录 model/session 诊断。
+- Host 验证支持多行命令，按顺序执行编译与测试，任一步失败即停止。
+- Windows 沙箱 ACL 失败时提前失败并保留 worktree；支持 `DSH_STUDIO_WORKTREE_ROOT` 指定沙箱可写目录。
+- 合同范围检查改为同时读取已提交 diff 与工作区状态。
+
 ## [3.14.1] - 2026-11-05
 
 ### Added

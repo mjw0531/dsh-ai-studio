@@ -37,6 +37,8 @@ test("commits all agent changes in a worktree", async () => {
     assert.match(patch, /b\.txt/);
     assert.match(patch, /\+new/);
     assert.match(patch, /\+b/);
+    assert.match(manager.diffStat(dir, base), /b\.txt/);
+    assert.deepEqual(manager.changedFiles(dir, base).sort(), ["a.txt", "b.txt"]);
     assert.equal(manager.commit(dir, "studio: again"), null);
   } finally {
     await rm(dir, { recursive: true, force: true });
