@@ -131,7 +131,7 @@ pnpm check
 
 ### 表单留空报「必须是字符串」
 
-升级到 v3.14.2 或更新版本。旧版本对可选字段的 `null` 处理有 bug。
+升级到 v3.14.3 或更新版本。旧版本对可选字段的 `null` 处理有 bug。
 
 ### 阶段门禁过不去
 
@@ -184,4 +184,4 @@ DSH Web/Desktop
 
 ## 版本
 
-当前版本 **3.14.2**。版本历史见 [CHANGELOG](CHANGELOG.md)。
+当前版本 **3.14.3**。版本历史见 [CHANGELOG](CHANGELOG.md)。
