@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 36;
-var STUDIO_PLUGIN_VERSION = "3.14.5";
+var STUDIO_PLUGIN_VERSION = "3.15.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -4437,7 +4437,7 @@ async function saveWorkshopMinutes(ctx, workshopId, input, model = null, editedB
   return ctx.runExclusive(async () => {
     const state = ctx.requireState();
     const workshop = findWorkshop(state, workshopId);
-    const disagreements = textList(input.disagreements, "disagreements", 30);
+    const disagreements = truncatedTextList(input.disagreements, 30, 400);
     const noDisagreementReason = input.noDisagreementReason?.trim() ?? "";
     if (disagreements.length === 0 && noDisagreementReason === "") {
       throw new StudioStoreError(
@@ -4448,9 +4448,9 @@ async function saveWorkshopMinutes(ctx, workshopId, input, model = null, editedB
     }
     const at = ctx.now();
     const minutes = {
-      consensus: textList(input.consensus, "consensus", 30),
+      consensus: truncatedTextList(input.consensus, 30, 400),
       disagreements,
-      openQuestions: textList(input.openQuestions, "openQuestions", 30),
+      openQuestions: truncatedTextList(input.openQuestions, 30, 400),
       decisionDraft: input.decisionDraft?.trim() ?? "",
       noDisagreementReason: noDisagreementReason === "" ? null : noDisagreementReason,
       savedAt: at,
@@ -4540,18 +4540,10 @@ async function setWorkshopAiSummary(ctx, workshopId, summary) {
     }
     const at = ctx.now();
     workshop.aiSummary = {
-      consensus: textList(summary.consensus, "consensus", 20),
-      disagreements: textList(
-        summary.disagreements,
-        "disagreements",
-        20
-      ),
-      openQuestions: textList(
-        summary.openQuestions,
-        "openQuestions",
-        20
-      ),
-      candidates: textList(summary.candidates, "candidates", 20),
+      consensus: truncatedTextList(summary.consensus, 20, 400),
+      disagreements: truncatedTextList(summary.disagreements, 20, 400),
+      openQuestions: truncatedTextList(summary.openQuestions, 20, 400),
+      candidates: truncatedTextList(summary.candidates, 20, 400),
       generatedAt: summary.generatedAt || at,
       model: summary.model
     };
