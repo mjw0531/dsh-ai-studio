@@ -82,36 +82,38 @@ export async function importProjectSlice(
       repoPath: requiredText(repoPath, "repoPath", 1000),
       updatedAt: ctx.now(),
     };
-    state.projects.push(project);
-    state.stageGates.push(...slice.stageGates);
-    state.freezes.push(...slice.freezes);
-    state.requirementDecisions.push(...slice.requirementDecisions);
-    state.freezeChangeRequests.push(...slice.freezeChangeRequests);
-    state.triggers.push(...slice.triggers);
-    state.threads.push(...slice.threads);
-    state.workshops.push(...slice.workshops);
-    state.providerProfiles.push(...slice.providerProfiles);
-    state.prototypeDemos.push(...slice.prototypeDemos);
-    state.roles.push(...slice.roles);
-    state.modules.push(...slice.modules);
-    state.tasks.push(...slice.tasks);
-    state.mergeProposals.push(...slice.mergeProposals);
-    state.runs.push(...slice.runs);
-    state.branches.push(...slice.branches);
-    state.contractChanges.push(...slice.contractChanges);
-    state.decisions.push(...slice.decisions);
-    state.verifications.push(...slice.verifications);
-    state.reviews.push(...slice.reviews);
-    state.events.push(...slice.events);
-    assertState(state);
-    state.activeProjectId = project.id;
-    state.updatedAt = project.updatedAt;
-    ctx.recordEvent(state, {
+    const candidate = structuredClone(state);
+    candidate.projects.push(project);
+    candidate.stageGates.push(...slice.stageGates);
+    candidate.freezes.push(...slice.freezes);
+    candidate.requirementDecisions.push(...slice.requirementDecisions);
+    candidate.freezeChangeRequests.push(...slice.freezeChangeRequests);
+    candidate.triggers.push(...slice.triggers);
+    candidate.threads.push(...slice.threads);
+    candidate.workshops.push(...slice.workshops);
+    candidate.providerProfiles.push(...slice.providerProfiles);
+    candidate.prototypeDemos.push(...slice.prototypeDemos);
+    candidate.roles.push(...slice.roles);
+    candidate.modules.push(...slice.modules);
+    candidate.tasks.push(...slice.tasks);
+    candidate.mergeProposals.push(...slice.mergeProposals);
+    candidate.runs.push(...slice.runs);
+    candidate.branches.push(...slice.branches);
+    candidate.contractChanges.push(...slice.contractChanges);
+    candidate.decisions.push(...slice.decisions);
+    candidate.verifications.push(...slice.verifications);
+    candidate.reviews.push(...slice.reviews);
+    candidate.events.push(...slice.events);
+    assertState(candidate);
+    candidate.activeProjectId = project.id;
+    candidate.updatedAt = project.updatedAt;
+    ctx.recordEvent(candidate, {
       type: "project.imported",
       at: project.updatedAt,
       projectId: project.id,
       payload: { projectId: project.id, repoPath },
     });
+    Object.assign(state, candidate);
     await ctx.save();
     return structuredClone(project);
   });

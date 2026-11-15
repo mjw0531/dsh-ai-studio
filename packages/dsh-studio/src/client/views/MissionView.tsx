@@ -15,6 +15,7 @@ import {
 } from "../../shared/types.js";
 import type {
   AddWorkshopNoteInput,
+  ApproveStageGateInput,
   BootstrapResponse,
   Branch,
   CreateModuleInput,
@@ -275,7 +276,7 @@ export function MissionView({
   ) => Promise<boolean>;
   onApproveStageGate: (
     stage: ProjectStage,
-    waiverReason: string,
+    input: ApproveStageGateInput,
   ) => Promise<boolean>;
   onRejectStageGate: (
     stage: ProjectStage,

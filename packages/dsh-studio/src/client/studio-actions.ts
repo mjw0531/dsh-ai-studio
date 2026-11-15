@@ -312,14 +312,12 @@ export function createStudioActions({
 
   const approveStageGate = async (
     stage: ProjectStage,
-    waiverReason: string,
+    input: ApproveStageGateInput,
   ): Promise<boolean> => {
     return run(
       async () => {
         if (client === null || data === null || data.project === null) return;
-        await client.approveStageGate(data.project.id, stage, {
-          waiverReason: waiverReason.trim() || undefined,
-        });
+        await client.approveStageGate(data.project.id, stage, input);
       },
       "阶段已批准，项目进入下一阶段",
     );

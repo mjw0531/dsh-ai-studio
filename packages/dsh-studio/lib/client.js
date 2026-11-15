@@ -940,13 +940,11 @@ function createStudioActions({
       "\u9636\u6BB5\u95E8\u7981\u8349\u7A3F\u5DF2\u4FDD\u5B58"
     );
   };
-  const approveStageGate = async (stage, waiverReason) => {
+  const approveStageGate = async (stage, input) => {
     return run(
       async () => {
         if (client === null || data === null || data.project === null) return;
-        await client.approveStageGate(data.project.id, stage, {
-          waiverReason: waiverReason.trim() || void 0
-        });
+        await client.approveStageGate(data.project.id, stage, input);
       },
       "\u9636\u6BB5\u5DF2\u6279\u51C6\uFF0C\u9879\u76EE\u8FDB\u5165\u4E0B\u4E00\u9636\u6BB5"
     );
@@ -4856,7 +4854,12 @@ function StagePanel({
                 "data-variant": "primary",
                 type: "button",
                 disabled: busy,
-                onClick: () => void onApprove(draft.stage, waiverReason),
+                onClick: () => void onApprove(draft.stage, {
+                  checklist: draft.checklist,
+                  artifacts: draft.artifacts,
+                  note: draft.note,
+                  waiverReason: waiverReason.trim() || void 0
+                }),
                 children: "\u6279\u51C6\u8FDB\u5165"
               }
             ),

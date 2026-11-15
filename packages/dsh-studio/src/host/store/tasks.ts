@@ -251,10 +251,16 @@ export async function transitionTask(
               )
             : latestReview?.verdict === "pass" &&
               latestReview.runId === latestCodeRun?.id;
-        const verificationPassed = state.verifications.some(
-          (verification) =>
-            verification.taskId === task.id && verification.passed,
-        );
+        const latestVerification = [...state.verifications]
+          .filter((verification) => verification.taskId === task.id)
+          .sort((left, right) =>
+            right.createdAt.localeCompare(left.createdAt),
+          )[0];
+        const verificationPassed =
+          boundCommit === null
+            ? latestVerification?.passed === true
+            : latestVerification?.passed === true &&
+              latestVerification.runId === latestCodeRun?.id;
         const reviewRequired =
           task.riskTier !== "trivial" || !verificationPassed;
         if (

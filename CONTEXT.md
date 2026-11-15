@@ -33,7 +33,7 @@ _Avoid_: 产能（产能还需要真实执行与时间数据）
 _Avoid_: 世界书、工作区（workspace 在 DSH 里另有所指）
 
 **Project Stage（项目阶段）**:
-项目在 `discovery → architecture → prototype → development` 中的当前位置；新项目从 discovery 开始，旧项目迁移为 development。
+项目在 `discovery → architecture → prototype → development` 中的当前位置；新项目从 discovery 开始，旧项目迁移为 development；prototype 可派技术验证任务。
 _Avoid_: 任务状态（TaskStatus 是单个任务的流转）
 
 **Stage Gate（阶段门禁）**:

@@ -8,7 +8,7 @@ import type {
   Verification,
 } from "../../shared/types.js";
 import { StudioStoreError, newId, type StoreContext } from "./core.js";
-import { requiredText, textList } from "./inputs.js";
+import { requiredText, truncatedText, truncatedTextList } from "./inputs.js";
 import { findTask } from "./lookups.js";
 
 export async function getReviewContext(
@@ -104,8 +104,8 @@ export async function recordReview(
         reviewerRoleId: input.reviewerRoleId,
         model: input.model,
         verdict: input.verdict,
-        summary: requiredText(input.summary, "summary", 2000),
-        findings: textList(input.findings, "findings", 30),
+        summary: requiredText(truncatedText(input.summary, 2000), "summary", 2000),
+        findings: truncatedTextList(input.findings, 30, 400),
         tokens: input.tokens,
         createdAt: at,
       };

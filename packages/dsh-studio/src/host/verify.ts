@@ -35,6 +35,33 @@ export async function runVerificationCommand(
   }
 }
 
+export async function runVerificationSteps(
+  configured: string,
+  workdir: string,
+): Promise<{ command: string; output: string; exitCode: number }> {
+  const commands = configured
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter((line) => line !== "" && !line.startsWith("#"));
+  if (commands.length === 0) commands.push("npm test");
+  let output = "";
+  let exitCode = 0;
+  for (const step of commands) {
+    const result = await runVerificationCommand(step, workdir);
+    output += `$ ${step}\n${result.output}\n`;
+    if (result.exitCode !== 0) {
+      exitCode = result.exitCode;
+      break;
+    }
+  }
+  const command = commands.join("\n");
+  return {
+    command: command.length <= 500 ? command : `${command.slice(0, 497)}...`,
+    output,
+    exitCode,
+  };
+}
+
 /**
  * Trusted host-side verification.
  *
@@ -62,34 +89,14 @@ export class VerificationService {
     const configured =
       (command?.trim() || context.task.verifyCommand || "").trim() ||
       "npm test";
-    const commands = configured
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line !== "" && !line.startsWith("#"));
-    if (commands.length === 0) {
-      commands.push("npm test");
-    }
     const workdir = context.run.workspacePath;
-    let output = "";
-    let exitCode = 0;
-    for (const step of commands) {
-      const result = await runVerificationCommand(step, workdir);
-      output += `$ ${step}\n${result.output}\n`;
-      if (result.exitCode !== 0) {
-        exitCode = result.exitCode;
-        break;
-      }
-    }
-    const recorded = commands.join("\n");
+    const result = await runVerificationSteps(configured, workdir);
     return this.store.recordVerification(taskId, {
-      command:
-        recorded.length <= 500
-          ? recorded
-          : `${recorded.slice(0, 497)}...`,
+      command: result.command,
       workdir,
-      exitCode,
-      output,
-      passed: exitCode === 0,
+      exitCode: result.exitCode,
+      output: result.output,
+      passed: result.exitCode === 0,
       runId: context.run.id,
     });
   }

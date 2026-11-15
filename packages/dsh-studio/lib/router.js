@@ -28,6 +28,7 @@ var StudioStoreError = class extends Error {
 // src/host/router/http.ts
 import { createHmac, timingSafeEqual } from "node:crypto";
 var MAX_BODY_BYTES = 1024 * 1024;
+var MAX_IMPORT_BODY_BYTES = 20 * 1024 * 1024;
 var API_PREFIX = "/studio-api";
 var HttpError = class extends Error {
   status;
@@ -103,14 +104,18 @@ function verifyWebhookSignature(secret, raw, signature) {
   if (provided.length !== expected.length) return false;
   return timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
 }
-async function readJson(req) {
+async function readJson(req, maxBytes = MAX_BODY_BYTES) {
   const chunks = [];
   let total = 0;
   for await (const chunk of req) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     total += buffer.byteLength;
-    if (total > MAX_BODY_BYTES) {
-      throw new HttpError(413, "payload_too_large", "\u8BF7\u6C42\u4F53\u8D85\u8FC7 1 MB \u9650\u5236");
+    if (total > maxBytes) {
+      throw new HttpError(
+        413,
+        "payload_too_large",
+        `\u8BF7\u6C42\u4F53\u8D85\u8FC7 ${String(Math.floor(maxBytes / (1024 * 1024)))} MB \u9650\u5236`
+      );
     }
     chunks.push(buffer);
   }
@@ -895,7 +900,7 @@ var StudioRouter = class {
     if (parsed.pathname === `${API_PREFIX}/import`) {
       requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
-      const body = await readJson(req);
+      const body = await readJson(req, MAX_IMPORT_BODY_BYTES);
       const state = await this.store.importState(body.state);
       sendJson(res, 200, {
         ok: true,

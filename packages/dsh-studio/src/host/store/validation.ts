@@ -417,6 +417,7 @@ function isStageGateStatus(value: unknown): value is StageGate["status"] {
 export function isStageArtifactKind(value: unknown): value is StageArtifactKind {
   return (
     value === "prd" ||
+    value === "domain_model" ||
     value === "architecture" ||
     value === "demo" ||
     value === "adr" ||

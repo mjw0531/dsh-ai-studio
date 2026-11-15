@@ -109,7 +109,8 @@ export async function createMergeProposal(
       if (boundRun !== null) {
         if (
           latestVerification === undefined ||
-          latestVerification.runId !== boundRun.id
+          latestVerification.runId !== boundRun.id ||
+          !latestVerification.passed
         ) {
           throw new StudioStoreError(
             "verification_stale",

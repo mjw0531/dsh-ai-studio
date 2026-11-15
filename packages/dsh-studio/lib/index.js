@@ -154,7 +154,7 @@ function safeOrigin(ctx) {
 }
 
 // src/host/adr.ts
-import { mkdir as mkdir2, readdir, writeFile as writeFile2 } from "node:fs/promises";
+import { mkdir as mkdir2, readdir as readdir2, writeFile as writeFile2 } from "node:fs/promises";
 import path5 from "node:path";
 
 // src/host/store.ts
@@ -164,8 +164,9 @@ import {
   copyFile,
   mkdir,
   readFile as readFile3,
+  readdir,
   rename,
-  rm,
+  unlink,
   writeFile
 } from "node:fs/promises";
 import os from "node:os";
@@ -664,7 +665,7 @@ function isStageGateStatus(value) {
   return value === "pending" || value === "approved" || value === "rejected";
 }
 function isStageArtifactKind(value) {
-  return value === "prd" || value === "architecture" || value === "demo" || value === "adr" || value === "other";
+  return value === "prd" || value === "domain_model" || value === "architecture" || value === "demo" || value === "adr" || value === "other";
 }
 function isStageCheckItem(value) {
   return isRecord2(value) && typeof value.id === "string" && typeof value.text === "string" && typeof value.done === "boolean";
@@ -1356,6 +1357,14 @@ function textList(value, field, maxItems = 20) {
     throw new StudioStoreError("invalid_input", `${field} \u5FC5\u987B\u662F\u6570\u7EC4`);
   }
   return value.slice(0, maxItems).map((item, index) => requiredText(item, `${field}[${String(index)}]`, 400));
+}
+function truncatedText(value, maxChars) {
+  const text2 = typeof value === "string" ? value.trim() : String(value ?? "").trim();
+  return text2.length <= maxChars ? text2 : `${text2.slice(0, maxChars)}\u2026`;
+}
+function truncatedTextList(value, maxItems = 20, maxChars = 400) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, maxItems).map((item) => truncatedText(item, maxChars)).filter((item) => item !== "");
 }
 function defaultTriggerRules2() {
   return {
@@ -2203,7 +2212,7 @@ async function createMergeProposal(ctx, taskId, input) {
     )[0];
     const boundRun = latestCodeRun?.commitSha === null || latestCodeRun?.commitSha === void 0 ? null : latestCodeRun;
     if (boundRun !== null) {
-      if (latestVerification === void 0 || latestVerification.runId !== boundRun.id) {
+      if (latestVerification === void 0 || latestVerification.runId !== boundRun.id || !latestVerification.passed) {
         throw new StudioStoreError(
           "verification_stale",
           "\u6700\u65B0\u9A8C\u8BC1\u4E0D\u5C5E\u4E8E\u5F53\u524D\u63D0\u4EA4\uFF0C\u8BF7\u91CD\u65B0\u8FD0\u884C Host \u9A8C\u8BC1",
@@ -2963,9 +2972,10 @@ async function transitionTask(ctx, taskId, next) {
       const reviewPassed = boundCommit === null ? state.reviews.some(
         (review) => review.taskId === task.id && review.verdict === "pass"
       ) : latestReview?.verdict === "pass" && latestReview.runId === latestCodeRun?.id;
-      const verificationPassed = state.verifications.some(
-        (verification) => verification.taskId === task.id && verification.passed
-      );
+      const latestVerification = [...state.verifications].filter((verification) => verification.taskId === task.id).sort(
+        (left, right) => right.createdAt.localeCompare(left.createdAt)
+      )[0];
+      const verificationPassed = boundCommit === null ? latestVerification?.passed === true : latestVerification?.passed === true && latestVerification.runId === latestCodeRun?.id;
       const reviewRequired = task.riskTier !== "trivial" || !verificationPassed;
       if (project?.repoPath !== null && project?.repoPath !== void 0 && hasCodeRun && reviewRequired && !reviewPassed) {
         throw new StudioStoreError(
@@ -3131,8 +3141,8 @@ async function recordReview(ctx, taskId, input) {
       reviewerRoleId: input.reviewerRoleId,
       model: input.model,
       verdict: input.verdict,
-      summary: requiredText(input.summary, "summary", 2e3),
-      findings: textList(input.findings, "findings", 30),
+      summary: requiredText(truncatedText(input.summary, 2e3), "summary", 2e3),
+      findings: truncatedTextList(input.findings, 30, 400),
       tokens: input.tokens,
       createdAt: at
     };
@@ -3922,7 +3932,7 @@ async function getDispatchContext(ctx, taskId) {
         404
       );
     }
-    if (project.repoPath !== null && project.stage !== "development") {
+    if (project.repoPath !== null && project.stage !== "prototype" && project.stage !== "development") {
       throw new StudioStoreError(
         "stage_gate_required",
         "\u9879\u76EE\u5C1A\u672A\u901A\u8FC7\u9636\u6BB5\u95E8\u7981\uFF1B\u5B8C\u6210\u67B6\u6784/Demo \u786E\u8BA4\u5E76\u8FDB\u5165\u6301\u7EED\u5F00\u53D1\u540E\u624D\u80FD\u6D3E\u5355",
@@ -5825,36 +5835,38 @@ async function importProjectSlice(ctx, slice, repoPath) {
       repoPath: requiredText(repoPath, "repoPath", 1e3),
       updatedAt: ctx.now()
     };
-    state.projects.push(project);
-    state.stageGates.push(...slice.stageGates);
-    state.freezes.push(...slice.freezes);
-    state.requirementDecisions.push(...slice.requirementDecisions);
-    state.freezeChangeRequests.push(...slice.freezeChangeRequests);
-    state.triggers.push(...slice.triggers);
-    state.threads.push(...slice.threads);
-    state.workshops.push(...slice.workshops);
-    state.providerProfiles.push(...slice.providerProfiles);
-    state.prototypeDemos.push(...slice.prototypeDemos);
-    state.roles.push(...slice.roles);
-    state.modules.push(...slice.modules);
-    state.tasks.push(...slice.tasks);
-    state.mergeProposals.push(...slice.mergeProposals);
-    state.runs.push(...slice.runs);
-    state.branches.push(...slice.branches);
-    state.contractChanges.push(...slice.contractChanges);
-    state.decisions.push(...slice.decisions);
-    state.verifications.push(...slice.verifications);
-    state.reviews.push(...slice.reviews);
-    state.events.push(...slice.events);
-    assertState(state);
-    state.activeProjectId = project.id;
-    state.updatedAt = project.updatedAt;
-    ctx.recordEvent(state, {
+    const candidate = structuredClone(state);
+    candidate.projects.push(project);
+    candidate.stageGates.push(...slice.stageGates);
+    candidate.freezes.push(...slice.freezes);
+    candidate.requirementDecisions.push(...slice.requirementDecisions);
+    candidate.freezeChangeRequests.push(...slice.freezeChangeRequests);
+    candidate.triggers.push(...slice.triggers);
+    candidate.threads.push(...slice.threads);
+    candidate.workshops.push(...slice.workshops);
+    candidate.providerProfiles.push(...slice.providerProfiles);
+    candidate.prototypeDemos.push(...slice.prototypeDemos);
+    candidate.roles.push(...slice.roles);
+    candidate.modules.push(...slice.modules);
+    candidate.tasks.push(...slice.tasks);
+    candidate.mergeProposals.push(...slice.mergeProposals);
+    candidate.runs.push(...slice.runs);
+    candidate.branches.push(...slice.branches);
+    candidate.contractChanges.push(...slice.contractChanges);
+    candidate.decisions.push(...slice.decisions);
+    candidate.verifications.push(...slice.verifications);
+    candidate.reviews.push(...slice.reviews);
+    candidate.events.push(...slice.events);
+    assertState(candidate);
+    candidate.activeProjectId = project.id;
+    candidate.updatedAt = project.updatedAt;
+    ctx.recordEvent(candidate, {
       type: "project.imported",
       at: project.updatedAt,
       projectId: project.id,
       payload: { projectId: project.id, repoPath }
     });
+    Object.assign(state, candidate);
     await ctx.save();
     return structuredClone(project);
   });
@@ -5904,7 +5916,33 @@ var StudioStore = class {
   async init() {
     await this.runExclusive(async () => {
       await this.load();
+      await this.reconcileInterruptedRuns();
     });
+  }
+  async reconcileInterruptedRuns() {
+    if (this.state === null) return;
+    const at = nowIso2(this.now);
+    let changed = false;
+    for (const run3 of this.state.runs) {
+      if (run3.status !== "running" && run3.status !== "queued") continue;
+      run3.status = "failed";
+      run3.error = "Studio restarted before this run completed; worktree preserved.";
+      run3.endedAt = at;
+      const task = this.state.tasks.find((item) => item.id === run3.taskId);
+      if (task !== void 0 && task.status === "running") {
+        task.status = "ready";
+        task.updatedAt = at;
+      }
+      this.recordEvent(this.state, {
+        type: "run.interrupted",
+        at,
+        projectId: run3.projectId,
+        taskId: run3.taskId,
+        payload: { runId: run3.id }
+      });
+      changed = true;
+    }
+    if (changed) await this.save();
   }
   getWarning() {
     return this.warning;
@@ -6372,6 +6410,9 @@ var StudioStore = class {
   }
   async load() {
     await mkdir(this.dataDir, { recursive: true });
+    if (existsSync2(this.file)) {
+      await this.backupCurrentFile();
+    }
     if (!existsSync2(this.file)) {
       this.state = this.seedState();
       await this.save();
@@ -6382,11 +6423,8 @@ var StudioStore = class {
     try {
       parsed = JSON.parse(raw);
     } catch (error) {
-      const backup = `${this.file}.corrupt-${String(Date.now())}`;
-      await rename(this.file, backup).catch(() => void 0);
-      this.state = this.seedState();
-      this.warning = `studio.json \u65E0\u6CD5\u8BFB\u53D6\uFF0C\u5DF2\u5907\u4EFD\u5230 ${backup} \u5E76\u91CD\u5EFA\u6F14\u793A\u6570\u636E\uFF1A${error instanceof Error ? error.message : String(error)}`;
-      await this.save();
+      this.state = null;
+      this.warning = `studio.json \u65E0\u6CD5\u89E3\u6790\uFF1B\u539F\u6587\u4EF6\u4FDD\u7559\u5728 ${this.file}\uFF0C\u672A\u91CD\u5EFA\u6F14\u793A\u6570\u636E\u3002${error instanceof Error ? error.message : String(error)}`;
       return;
     }
     if (isRecord3(parsed) && typeof parsed.schemaVersion === "number" && parsed.schemaVersion > STUDIO_SCHEMA_VERSION) {
@@ -6404,11 +6442,25 @@ var StudioStore = class {
         await this.save();
       }
     } catch (error) {
-      const backup = `${this.file}.corrupt-${String(Date.now())}`;
-      await rename(this.file, backup).catch(() => void 0);
-      this.state = this.seedState();
-      this.warning = `studio.json \u65E0\u6CD5\u8BFB\u53D6\uFF0C\u5DF2\u5907\u4EFD\u5230 ${backup} \u5E76\u91CD\u5EFA\u6F14\u793A\u6570\u636E\uFF1A${error instanceof Error ? error.message : String(error)}`;
-      await this.save();
+      this.state = null;
+      this.warning = `studio.json \u6821\u9A8C\u5931\u8D25\uFF1B\u539F\u6587\u4EF6\u4FDD\u7559\u5728 ${this.file}\uFF0C\u672A\u91CD\u5EFA\u6F14\u793A\u6570\u636E\u3002${error instanceof Error ? error.message : String(error)}`;
+    }
+  }
+  lastBackupDay = null;
+  async backupCurrentFile() {
+    if (!existsSync2(this.file)) return;
+    const day = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+    if (this.lastBackupDay === day) return;
+    const dir = path4.join(this.dataDir, "backups");
+    await mkdir(dir, { recursive: true });
+    const target = path4.join(dir, `studio-${day}.json`);
+    if (!existsSync2(target)) {
+      await copyFile(this.file, target).catch(() => void 0);
+    }
+    this.lastBackupDay = day;
+    const files = (await readdir(dir).catch(() => [])).filter((name2) => /^studio-\d{4}-\d{2}-\d{2}\.json$/u.test(name2)).sort().reverse();
+    for (const stale of files.slice(10)) {
+      await unlink(path4.join(dir, stale)).catch(() => void 0);
     }
   }
   historyArchived = false;
@@ -6426,24 +6478,34 @@ var StudioStore = class {
   }
   async save() {
     const state = this.requireState();
+    await this.backupCurrentFile();
     await this.archiveHistoryIfNeeded();
     state.updatedAt = nowIso2(this.now);
     const serialized = `${JSON.stringify(state, null, 2)}
 `;
     const temp = `${this.file}.${randomUUID5()}.tmp`;
     await writeFile(temp, serialized, "utf8");
-    try {
-      await rename(temp, this.file);
-    } catch {
-      await rm(this.file, { force: true });
-      await rename(temp, this.file);
+    let lastError = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        await rename(temp, this.file);
+        return;
+      } catch (error) {
+        lastError = error;
+        await new Promise((resolve) => setTimeout(resolve, 50 * (attempt + 1)));
+      }
     }
+    throw new StudioStoreError(
+      "save_failed",
+      `\u4FDD\u5B58 studio.json \u5931\u8D25\uFF1B\u539F\u6587\u4EF6\u4FDD\u7559\uFF0C\u4E34\u65F6\u6587\u4EF6\u4FDD\u7559\u5728 ${temp}\uFF1A${lastError instanceof Error ? lastError.message : String(lastError)}`,
+      500
+    );
   }
   requireState() {
     if (this.state === null) {
       throw new StudioStoreError(
         "store_not_ready",
-        "Studio \u6570\u636E\u5C1A\u672A\u521D\u59CB\u5316",
+        `Studio \u6570\u636E\u4E0D\u53EF\u7528\uFF1A${this.warning ?? "\u5C1A\u672A\u521D\u59CB\u5316"}`,
         500
       );
     }
@@ -6465,7 +6527,17 @@ var StudioStore = class {
     }
   }
   runExclusive(work) {
-    const next = this.queue.then(work, work);
+    const execute = async () => {
+      try {
+        return await work();
+      } catch (error) {
+        if (this.state !== null) {
+          await this.load().catch(() => void 0);
+        }
+        throw error;
+      }
+    };
+    const next = this.queue.then(execute, execute);
     this.queue = next.then(
       () => void 0,
       () => void 0
@@ -6504,7 +6576,7 @@ var AdrService = class {
     }
     const dir = path5.join(project.repoPath, "docs", "adr");
     await mkdir2(dir, { recursive: true });
-    const files = await readdir(dir);
+    const files = await readdir2(dir);
     let next = 1;
     for (const file of files) {
       const match = /^(\d{4})-/.exec(file);
@@ -6525,7 +6597,7 @@ import { createHash as createHash2 } from "node:crypto";
 import {
   mkdtemp,
   readFile as readFile4,
-  readdir as readdir2,
+  readdir as readdir3,
   rm as rm2,
   stat as stat2,
   writeFile as writeFile3
@@ -6708,7 +6780,7 @@ var ProjectBundleService = class {
           409
         );
       }
-      const entries = await readdir2(targetPath);
+      const entries = await readdir3(targetPath);
       if (entries.length > 0) {
         throw new StudioStoreError(
           "target_not_empty",
@@ -6803,14 +6875,14 @@ var ProjectBundleService = class {
 // src/host/dispatcher.ts
 import { randomUUID as randomUUID6 } from "node:crypto";
 import { spawn } from "node:child_process";
-import { mkdtemp as mkdtemp2, readFile as readFile5, rm as rm3 } from "node:fs/promises";
+import { mkdtemp as mkdtemp2, readFile as readFile6, rm as rm3 } from "node:fs/promises";
 import os3 from "node:os";
 import path8 from "node:path";
 
 // src/host/workspace.ts
 import { execFileSync } from "node:child_process";
 import { existsSync as existsSync3 } from "node:fs";
-import { mkdir as mkdir3 } from "node:fs/promises";
+import { mkdir as mkdir3, readFile as readFile5, writeFile as writeFile4 } from "node:fs/promises";
 import { createHash as createHash3 } from "node:crypto";
 import path7 from "node:path";
 var WorkspaceError = class extends Error {
@@ -6862,6 +6934,7 @@ var WorkspaceManager = class {
     }
     const root = git(resolved, ["rev-parse", "--show-toplevel"]);
     const baseSha = git(root, ["rev-parse", "HEAD"]);
+    await this.ensureLocalExclude(root);
     const key = sanitize(taskId);
     const worktreeRoot = this.rootOverride === null ? path7.join(root, ".worktrees") : path7.join(this.rootOverride, repoKey(root));
     const worktreePath = path7.resolve(worktreeRoot, key);
@@ -6903,6 +6976,23 @@ var WorkspaceManager = class {
       git(root, ["worktree", "add", worktreePath, branch]);
     }
     return { repoPath: root, path: worktreePath, branch, baseSha };
+  }
+  async ensureLocalExclude(repoPath) {
+    if (this.rootOverride !== null) return;
+    const info = path7.join(repoPath, ".git", "info");
+    const exclude = path7.join(info, "exclude");
+    try {
+      await mkdir3(info, { recursive: true });
+      const current = await readFile5(exclude, "utf8").catch(() => "");
+      if (current.split(/\r?\n/u).some((line) => line.trim() === ".worktrees/")) {
+        return;
+      }
+      const next = current === "" || current.endsWith("\n") ? current : `${current}
+`;
+      await writeFile4(exclude, `${next}.worktrees/
+`, "utf8");
+    } catch {
+    }
   }
   commit(worktreePath, message) {
     if (!existsSync3(worktreePath)) return null;
@@ -7219,7 +7309,7 @@ async function executeExternalCli(executor, prompt, workspace) {
     );
     let output = result.stdout;
     try {
-      output = (await readFile5(messageFile, "utf8")).trim() || output;
+      output = (await readFile6(messageFile, "utf8")).trim() || output;
     } catch {
     }
     return { output, code: result.code, stderr: result.stderr };
@@ -7658,7 +7748,7 @@ ${receipt.summary}`)) {
 };
 
 // src/host/docs.ts
-import { readFile as readFile6 } from "node:fs/promises";
+import { readFile as readFile7 } from "node:fs/promises";
 import path9 from "node:path";
 var MAX_BYTES = 2e5;
 var DocsService = class {
@@ -7692,7 +7782,7 @@ var DocsService = class {
       );
     }
     try {
-      const buffer = await readFile6(resolved);
+      const buffer = await readFile7(resolved);
       const truncated = buffer.byteLength > MAX_BYTES;
       return {
         kind: "custom",
@@ -7737,6 +7827,28 @@ async function runVerificationCommand(command, workdir) {
     };
   }
 }
+async function runVerificationSteps(configured, workdir) {
+  const commands = configured.split(/\r?\n/u).map((line) => line.trim()).filter((line) => line !== "" && !line.startsWith("#"));
+  if (commands.length === 0) commands.push("npm test");
+  let output = "";
+  let exitCode = 0;
+  for (const step of commands) {
+    const result = await runVerificationCommand(step, workdir);
+    output += `$ ${step}
+${result.output}
+`;
+    if (result.exitCode !== 0) {
+      exitCode = result.exitCode;
+      break;
+    }
+  }
+  const command = commands.join("\n");
+  return {
+    command: command.length <= 500 ? command : `${command.slice(0, 497)}...`,
+    output,
+    exitCode
+  };
+}
 var VerificationService = class {
   store;
   constructor(store) {
@@ -7752,30 +7864,14 @@ var VerificationService = class {
       );
     }
     const configured = (command?.trim() || context.task.verifyCommand || "").trim() || "npm test";
-    const commands = configured.split(/\r?\n/).map((line) => line.trim()).filter((line) => line !== "" && !line.startsWith("#"));
-    if (commands.length === 0) {
-      commands.push("npm test");
-    }
     const workdir = context.run.workspacePath;
-    let output = "";
-    let exitCode = 0;
-    for (const step of commands) {
-      const result = await runVerificationCommand(step, workdir);
-      output += `$ ${step}
-${result.output}
-`;
-      if (result.exitCode !== 0) {
-        exitCode = result.exitCode;
-        break;
-      }
-    }
-    const recorded = commands.join("\n");
+    const result = await runVerificationSteps(configured, workdir);
     return this.store.recordVerification(taskId, {
-      command: recorded.length <= 500 ? recorded : `${recorded.slice(0, 497)}...`,
+      command: result.command,
       workdir,
-      exitCode,
-      output,
-      passed: exitCode === 0,
+      exitCode: result.exitCode,
+      output: result.output,
+      passed: result.exitCode === 0,
       runId: context.run.id
     });
   }
@@ -7984,9 +8080,9 @@ var GitMergeService = class {
       commit
     );
     const command = task.verifyCommand?.trim() || "npm test";
-    const result = await runVerificationCommand(command, repo);
+    const result = await runVerificationSteps(command, repo);
     const verification = await this.store.recordVerification(task.id, {
-      command,
+      command: result.command,
       workdir: repo,
       exitCode: result.exitCode,
       output: result.output,
@@ -8016,6 +8112,7 @@ import { timingSafeEqual as timingSafeEqual3 } from "node:crypto";
 // src/host/router/http.ts
 import { createHmac, timingSafeEqual } from "node:crypto";
 var MAX_BODY_BYTES = 1024 * 1024;
+var MAX_IMPORT_BODY_BYTES = 20 * 1024 * 1024;
 var API_PREFIX = "/studio-api";
 var HttpError = class extends Error {
   status;
@@ -8091,14 +8188,18 @@ function verifyWebhookSignature(secret, raw, signature) {
   if (provided.length !== expected.length) return false;
   return timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
 }
-async function readJson(req) {
+async function readJson(req, maxBytes = MAX_BODY_BYTES) {
   const chunks = [];
   let total = 0;
   for await (const chunk of req) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     total += buffer.byteLength;
-    if (total > MAX_BODY_BYTES) {
-      throw new HttpError(413, "payload_too_large", "\u8BF7\u6C42\u4F53\u8D85\u8FC7 1 MB \u9650\u5236");
+    if (total > maxBytes) {
+      throw new HttpError(
+        413,
+        "payload_too_large",
+        `\u8BF7\u6C42\u4F53\u8D85\u8FC7 ${String(Math.floor(maxBytes / (1024 * 1024)))} MB \u9650\u5236`
+      );
     }
     chunks.push(buffer);
   }
@@ -8883,7 +8984,7 @@ var StudioRouter = class {
     if (parsed.pathname === `${API_PREFIX}/import`) {
       requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
-      const body = await readJson(req);
+      const body = await readJson(req, MAX_IMPORT_BODY_BYTES);
       const state = await this.store.importState(body.state);
       sendJson(res, 200, {
         ok: true,

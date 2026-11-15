@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import path from "node:path";
 
@@ -81,6 +81,7 @@ export class WorkspaceManager {
     }
     const root = git(resolved, ["rev-parse", "--show-toplevel"]);
     const baseSha = git(root, ["rev-parse", "HEAD"]);
+    await this.ensureLocalExclude(root);
     const key = sanitize(taskId);
     const worktreeRoot =
       this.rootOverride === null
@@ -127,6 +128,26 @@ export class WorkspaceManager {
       git(root, ["worktree", "add", worktreePath, branch]);
     }
     return { repoPath: root, path: worktreePath, branch, baseSha };
+  }
+
+  private async ensureLocalExclude(repoPath: string): Promise<void> {
+    if (this.rootOverride !== null) return;
+    const info = path.join(repoPath, ".git", "info");
+    const exclude = path.join(info, "exclude");
+    try {
+      await mkdir(info, { recursive: true });
+      const current = await readFile(exclude, "utf8").catch(() => "");
+      if (current.split(/\r?\n/u).some((line) => line.trim() === ".worktrees/")) {
+        return;
+      }
+      const next = current === "" || current.endsWith("\n")
+        ? current
+        : `${current}\n`;
+      await writeFile(exclude, `${next}.worktrees/\n`, "utf8");
+    } catch {
+      // A bare worktree or a read-only .git directory can reject the local
+      // exclude; the merge preflight still reports a dirty tree.
+    }
   }
 
   commit(worktreePath: string, message: string): string | null {

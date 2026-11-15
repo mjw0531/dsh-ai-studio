@@ -52,6 +52,7 @@ import type {
 import type { StudioStore } from "../store.js";
 
 export const MAX_BODY_BYTES = 1024 * 1024;
+export const MAX_IMPORT_BODY_BYTES = 20 * 1024 * 1024;
 export const API_PREFIX = "/studio-api";
 
 export interface ConnectionLike {
@@ -196,14 +197,21 @@ export function verifyWebhookSignature(
   return timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
 }
 
-export async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
+export async function readJson(
+  req: IncomingMessage,
+  maxBytes = MAX_BODY_BYTES,
+): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = [];
   let total = 0;
   for await (const chunk of req) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     total += buffer.byteLength;
-    if (total > MAX_BODY_BYTES) {
-      throw new HttpError(413, "payload_too_large", "请求体超过 1 MB 限制");
+    if (total > maxBytes) {
+      throw new HttpError(
+        413,
+        "payload_too_large",
+        `请求体超过 ${String(Math.floor(maxBytes / (1024 * 1024)))} MB 限制`,
+      );
     }
     chunks.push(buffer);
   }

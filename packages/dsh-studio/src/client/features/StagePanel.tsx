@@ -6,6 +6,7 @@ import {
   nextProjectStage,
 } from "../../shared/types.js";
 import type {
+  ApproveStageGateInput,
   Project,
   ProjectStage,
   Role,
@@ -37,7 +38,7 @@ export function StagePanel({
   busy: boolean;
   onLoad: (stage: ProjectStage) => void;
   onSave: (stage: ProjectStage, input: UpdateStageGateInput) => Promise<boolean>;
-  onApprove: (stage: ProjectStage, waiverReason: string) => Promise<boolean>;
+  onApprove: (stage: ProjectStage, input: ApproveStageGateInput) => Promise<boolean>;
   onReject: (stage: ProjectStage, note: string) => Promise<boolean>;
 }) {
   const nextStage = nextProjectStage(project.stage);
@@ -320,7 +321,12 @@ export function StagePanel({
                     type="button"
                     disabled={busy}
                     onClick={() =>
-                      void onApprove(draft.stage, waiverReason)
+                      void onApprove(draft.stage, {
+                        checklist: draft.checklist,
+                        artifacts: draft.artifacts,
+                        note: draft.note,
+                        waiverReason: waiverReason.trim() || undefined,
+                      })
                     }
                   >
                     批准进入

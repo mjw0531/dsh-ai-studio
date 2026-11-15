@@ -83,6 +83,23 @@ export function textList(value: unknown, field: string, maxItems = 20): string[]
     .map((item, index) => requiredText(item, `${field}[${String(index)}]`, 400));
 }
 
+export function truncatedText(value: unknown, maxChars: number): string {
+  const text = typeof value === "string" ? value.trim() : String(value ?? "").trim();
+  return text.length <= maxChars ? text : `${text.slice(0, maxChars)}…`;
+}
+
+export function truncatedTextList(
+  value: unknown,
+  maxItems = 20,
+  maxChars = 400,
+): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .slice(0, maxItems)
+    .map((item) => truncatedText(item, maxChars))
+    .filter((item) => item !== "");
+}
+
 export function defaultTriggerRules(): TriggerRules {
   return {
     enabled: false,

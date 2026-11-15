@@ -35,12 +35,13 @@ Studio 不替代 Agent，也不替代 Git。它把 Agent 的工作放进可审�
 ## 5 分钟闭环
 
 1. 安装插件并完全重启 DSH。
-2. 打开侧栏「AI 工作室」→「公司」。
+2. 打开侧栏「AI 工作室」→「项目」。
 3. 新建项目，绑定一个 Git 仓库。
-4. 新建任务：写标题，至少一条验收标准；分支、模块、验证命令可留空。
-5. 派单 → 在 Task Room 看回执和 diff。
-6. 运行 Host 验证 → 独立评审 → 勾验收 → 创建合并提案。
-7. 需要时由人在 Task Room 执行真实 `git merge`。
+4. 在项目页按阶段门禁推进到 `development`；如果只是技术验证，`prototype` 阶段也可以派单。
+5. 新建任务：写标题，至少一条验收标准；分支、模块、验证命令可留空。
+6. 派单 → 在 Task Room 看回执和 diff。
+7. 运行 Host 验证 → 独立评审 → 勾验收 → 创建合并提案。
+8. 需要时由人在 Task Room 执行真实 `git merge`。
 
 首次使用不需要先配模型；会跟随 DSH 当前默认模型。
 
@@ -79,12 +80,14 @@ Release 页面下载 `dsh-ai-studio-<version>.tgz`，在 Add plugin 里填 tarba
 
 ## 发布与商店更新
 
-发布链路是：
+当前发布流程是人工的：
 
 ```text
 tag vX.Y.Z
-  → GitHub Actions publish
-  → npm dsh-ai-studio@X.Y.Z
+  → 本地 pnpm check
+  → pnpm pack
+  → GitHub Release 上传 tgz
+  → 手动 npm publish（需要 NPM_TOKEN）
   → awesome-dsh-plugin 目录刷新
   → dshmarket 更新检查
 ```
@@ -98,11 +101,7 @@ pnpm release:check
 pnpm check
 ```
 
-发布 workflow：`.github/workflows/publish.yml`，由 tag 触发，也可以手动指定 tag。
-
-需要仓库 secret `NPM_TOKEN`，且 token 必须对 `dsh-ai-studio` 有发布权限。
-
-npm 发布后，市场目录来自 [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)；如果目录未刷新，向该仓库提交条目的 PR，不要向 dshmarket 仓库提交插件。
+仓库目前**没有**自动 publish workflow；npm 发布需要在本机登录并执行 `npm publish`。npm 发布后，市场目录来自 [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)；如果目录未刷新，向该仓库提交条目的 PR，不要向 dshmarket 仓库提交插件。
 
 ## 数据放在哪
 

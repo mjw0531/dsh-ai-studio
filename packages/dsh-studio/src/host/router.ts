@@ -57,6 +57,7 @@ import { StudioStore, StudioStoreError } from "./store.js";
 
 import {
   API_PREFIX,
+  MAX_IMPORT_BODY_BYTES,
   HttpError,
   assertJsonRequest,
   decodeSegment,
@@ -351,7 +352,7 @@ export class StudioRouter {
     if (parsed.pathname === `${API_PREFIX}/import`) {
       requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);
-      const body = await readJson(req);
+      const body = await readJson(req, MAX_IMPORT_BODY_BYTES);
       const state = await this.store.importState(body.state);
       sendJson(res, 200, {
         ok: true,

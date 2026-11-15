@@ -4,8 +4,10 @@ import {
   copyFile,
   mkdir,
   readFile,
+  readdir,
   rename,
   rm,
+  unlink,
   writeFile,
 } from "node:fs/promises";
 import os from "node:os";
@@ -314,7 +316,34 @@ export class StudioStore {
   async init(): Promise<void> {
     await this.runExclusive(async () => {
       await this.load();
+      await this.reconcileInterruptedRuns();
     });
+  }
+
+  private async reconcileInterruptedRuns(): Promise<void> {
+    if (this.state === null) return;
+    const at = nowIso(this.now);
+    let changed = false;
+    for (const run of this.state.runs) {
+      if (run.status !== "running" && run.status !== "queued") continue;
+      run.status = "failed";
+      run.error = "Studio restarted before this run completed; worktree preserved.";
+      run.endedAt = at;
+      const task = this.state.tasks.find((item) => item.id === run.taskId);
+      if (task !== undefined && task.status === "running") {
+        task.status = "ready";
+        task.updatedAt = at;
+      }
+      this.recordEvent(this.state, {
+        type: "run.interrupted",
+        at,
+        projectId: run.projectId,
+        taskId: run.taskId,
+        payload: { runId: run.id },
+      });
+      changed = true;
+    }
+    if (changed) await this.save();
   }
 
   getWarning(): string | null {
@@ -1163,6 +1192,9 @@ export class StudioStore {
 
   private async load(): Promise<void> {
     await mkdir(this.dataDir, { recursive: true });
+    if (existsSync(this.file)) {
+      await this.backupCurrentFile();
+    }
     if (!existsSync(this.file)) {
       this.state = this.seedState();
       await this.save();
@@ -1173,13 +1205,10 @@ export class StudioStore {
     try {
       parsed = JSON.parse(raw);
     } catch (error) {
-      const backup = `${this.file}.corrupt-${String(Date.now())}`;
-      await rename(this.file, backup).catch(() => undefined);
-      this.state = this.seedState();
-      this.warning = `studio.json 无法读取，已备份到 ${backup} 并重建演示数据：${
+      this.state = null;
+      this.warning = `studio.json 无法解析；原文件保留在 ${this.file}，未重建演示数据。${
         error instanceof Error ? error.message : String(error)
       }`;
-      await this.save();
       return;
     }
     if (
@@ -1204,13 +1233,32 @@ export class StudioStore {
         await this.save();
       }
     } catch (error) {
-      const backup = `${this.file}.corrupt-${String(Date.now())}`;
-      await rename(this.file, backup).catch(() => undefined);
-      this.state = this.seedState();
-      this.warning = `studio.json 无法读取，已备份到 ${backup} 并重建演示数据：${
+      this.state = null;
+      this.warning = `studio.json 校验失败；原文件保留在 ${this.file}，未重建演示数据。${
         error instanceof Error ? error.message : String(error)
       }`;
-      await this.save();
+    }
+  }
+
+  private lastBackupDay: string | null = null;
+
+  private async backupCurrentFile(): Promise<void> {
+    if (!existsSync(this.file)) return;
+    const day = new Date().toISOString().slice(0, 10);
+    if (this.lastBackupDay === day) return;
+    const dir = path.join(this.dataDir, "backups");
+    await mkdir(dir, { recursive: true });
+    const target = path.join(dir, `studio-${day}.json`);
+    if (!existsSync(target)) {
+      await copyFile(this.file, target).catch(() => undefined);
+    }
+    this.lastBackupDay = day;
+    const files = (await readdir(dir).catch(() => []))
+      .filter((name) => /^studio-\d{4}-\d{2}-\d{2}\.json$/u.test(name))
+      .sort()
+      .reverse();
+    for (const stale of files.slice(10)) {
+      await unlink(path.join(dir, stale)).catch(() => undefined);
     }
   }
 
@@ -1234,25 +1282,36 @@ export class StudioStore {
 
   private async save(): Promise<void> {
     const state = this.requireState();
+    await this.backupCurrentFile();
     await this.archiveHistoryIfNeeded();
     state.updatedAt = nowIso(this.now);
     const serialized = `${JSON.stringify(state, null, 2)}\n`;
     const temp = `${this.file}.${randomUUID()}.tmp`;
     await writeFile(temp, serialized, "utf8");
-    try {
-      await rename(temp, this.file);
-    } catch {
-      // Windows can refuse to replace a file that another process briefly holds.
-      await rm(this.file, { force: true });
-      await rename(temp, this.file);
+    let lastError: unknown = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        await rename(temp, this.file);
+        return;
+      } catch (error) {
+        lastError = error;
+        await new Promise((resolve) => setTimeout(resolve, 50 * (attempt + 1)));
+      }
     }
+    throw new StudioStoreError(
+      "save_failed",
+      `保存 studio.json 失败；原文件保留，临时文件保留在 ${temp}：${
+        lastError instanceof Error ? lastError.message : String(lastError)
+      }`,
+      500,
+    );
   }
 
   private requireState(): StudioState {
     if (this.state === null) {
       throw new StudioStoreError(
         "store_not_ready",
-        "Studio 数据尚未初始化",
+        `Studio 数据不可用：${this.warning ?? "尚未初始化"}`,
         500,
       );
     }
@@ -1285,7 +1344,19 @@ export class StudioStore {
   }
 
   private runExclusive<T>(work: () => Promise<T>): Promise<T> {
-    const next = this.queue.then(work, work);
+    const execute = async (): Promise<T> => {
+      try {
+        return await work();
+      } catch (error) {
+        // A rejected mutation must not leave a half-applied in-memory state.
+        // Reload the last successfully saved file before surfacing the error.
+        if (this.state !== null) {
+          await this.load().catch(() => undefined);
+        }
+        throw error;
+      }
+    };
+    const next = this.queue.then(execute, execute);
     this.queue = next.then(
       () => undefined,
       () => undefined,

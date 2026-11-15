@@ -1,14 +1,14 @@
 // src/host/dispatcher.ts
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile as readFile2, rm } from "node:fs/promises";
 import os from "node:os";
 import path2 from "node:path";
 
 // src/host/workspace.ts
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import path from "node:path";
 var WorkspaceError = class extends Error {
@@ -60,6 +60,7 @@ var WorkspaceManager = class {
     }
     const root = git(resolved, ["rev-parse", "--show-toplevel"]);
     const baseSha = git(root, ["rev-parse", "HEAD"]);
+    await this.ensureLocalExclude(root);
     const key = sanitize(taskId);
     const worktreeRoot = this.rootOverride === null ? path.join(root, ".worktrees") : path.join(this.rootOverride, repoKey(root));
     const worktreePath = path.resolve(worktreeRoot, key);
@@ -101,6 +102,23 @@ var WorkspaceManager = class {
       git(root, ["worktree", "add", worktreePath, branch]);
     }
     return { repoPath: root, path: worktreePath, branch, baseSha };
+  }
+  async ensureLocalExclude(repoPath) {
+    if (this.rootOverride !== null) return;
+    const info = path.join(repoPath, ".git", "info");
+    const exclude = path.join(info, "exclude");
+    try {
+      await mkdir(info, { recursive: true });
+      const current = await readFile(exclude, "utf8").catch(() => "");
+      if (current.split(/\r?\n/u).some((line) => line.trim() === ".worktrees/")) {
+        return;
+      }
+      const next = current === "" || current.endsWith("\n") ? current : `${current}
+`;
+      await writeFile(exclude, `${next}.worktrees/
+`, "utf8");
+    } catch {
+    }
   }
   commit(worktreePath, message) {
     if (!existsSync(worktreePath)) return null;
@@ -417,7 +435,7 @@ async function executeExternalCli(executor, prompt, workspace) {
     );
     let output = result.stdout;
     try {
-      output = (await readFile(messageFile, "utf8")).trim() || output;
+      output = (await readFile2(messageFile, "utf8")).trim() || output;
     } catch {
     }
     return { output, code: result.code, stderr: result.stderr };

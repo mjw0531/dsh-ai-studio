@@ -34,6 +34,28 @@ async function runVerificationCommand(command, workdir) {
     };
   }
 }
+async function runVerificationSteps(configured, workdir) {
+  const commands = configured.split(/\r?\n/u).map((line) => line.trim()).filter((line) => line !== "" && !line.startsWith("#"));
+  if (commands.length === 0) commands.push("npm test");
+  let output = "";
+  let exitCode = 0;
+  for (const step of commands) {
+    const result = await runVerificationCommand(step, workdir);
+    output += `$ ${step}
+${result.output}
+`;
+    if (result.exitCode !== 0) {
+      exitCode = result.exitCode;
+      break;
+    }
+  }
+  const command = commands.join("\n");
+  return {
+    command: command.length <= 500 ? command : `${command.slice(0, 497)}...`,
+    output,
+    exitCode
+  };
+}
 
 // src/host/merge.ts
 function git(cwd, args) {
@@ -238,9 +260,9 @@ var GitMergeService = class {
       commit
     );
     const command = task.verifyCommand?.trim() || "npm test";
-    const result = await runVerificationCommand(command, repo);
+    const result = await runVerificationSteps(command, repo);
     const verification = await this.store.recordVerification(task.id, {
-      command,
+      command: result.command,
       workdir: repo,
       exitCode: result.exitCode,
       output: result.output,

@@ -869,7 +869,11 @@ export async function getDispatchContext(
           404,
         );
       }
-      if (project.repoPath !== null && project.stage !== "development") {
+      if (
+        project.repoPath !== null &&
+        project.stage !== "prototype" &&
+        project.stage !== "development"
+      ) {
         throw new StudioStoreError(
           "stage_gate_required",
           "项目尚未通过阶段门禁；完成架构/Demo 确认并进入持续开发后才能派单",

@@ -29,6 +29,7 @@ test("creates one worktree and branch per task", async () => {
     const workspace = await manager.prepare(dir, "task-001");
     assert.equal(workspace.branch, "studio/task-001");
     assert.equal(workspace.baseSha, git(dir, ["rev-parse", "HEAD"]));
+    assert.equal(git(dir, ["status", "--porcelain"]), "");
     await assert.rejects(
       () => manager.prepare(dir, ".."),
       (error) => error.code === "invalid_task_id",

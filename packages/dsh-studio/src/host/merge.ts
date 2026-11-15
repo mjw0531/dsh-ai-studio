@@ -3,7 +3,7 @@ import { execFile } from "node:child_process";
 import type { MergeProposal } from "../shared/types.js";
 import type { StudioStore } from "./store.js";
 import { StudioStoreError } from "./store.js";
-import { runVerificationCommand } from "./verify.js";
+import { runVerificationSteps } from "./verify.js";
 
 interface GitFailure {
   code?: number | string;
@@ -248,9 +248,9 @@ export class GitMergeService {
       commit,
     );
     const command = task.verifyCommand?.trim() || "npm test";
-    const result = await runVerificationCommand(command, repo);
+    const result = await runVerificationSteps(command, repo);
     const verification = await this.store.recordVerification(task.id, {
-      command,
+      command: result.command,
       workdir: repo,
       exitCode: result.exitCode,
       output: result.output,
