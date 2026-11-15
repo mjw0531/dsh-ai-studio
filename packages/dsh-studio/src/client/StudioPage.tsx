@@ -494,6 +494,8 @@ export function StudioPage() {
     completeMerge,
     executeMerge,
     rollbackMerge,
+    listBackups,
+    restoreBackup,
     exportData,
     importData,
     exportBundle,
@@ -793,6 +795,8 @@ export function StudioPage() {
                 onCompany={saveCompany}
                 onBundle={exportBundle}
                 onImportBundle={importBundle}
+                onListBackups={listBackups}
+                onRestoreBackup={restoreBackup}
               />
             ) : null}
           </div>

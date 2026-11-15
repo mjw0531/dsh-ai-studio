@@ -7,6 +7,7 @@ import {
   readFile as readFile2,
   readdir,
   rename,
+  stat as stat2,
   unlink,
   writeFile
 } from "node:fs/promises";
@@ -15,7 +16,7 @@ import path3 from "node:path";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 36;
-var STUDIO_PLUGIN_VERSION = "3.14.3";
+var STUDIO_PLUGIN_VERSION = "3.14.4";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -5836,6 +5837,35 @@ var StudioStore = class {
   getWarning() {
     return this.warning;
   }
+  async listBackups() {
+    const dir = path3.join(this.dataDir, "backups");
+    const names = (await readdir(dir).catch(() => [])).filter((name) => /^studio-\d{4}-\d{2}-\d{2}\.json$/u.test(name)).sort().reverse();
+    const result = [];
+    for (const name of names) {
+      const info = await stat2(path3.join(dir, name)).catch(() => null);
+      if (info === null) continue;
+      result.push({
+        name,
+        createdAt: info.mtime.toISOString(),
+        size: info.size
+      });
+    }
+    return result;
+  }
+  async restoreBackup(name) {
+    return this.runExclusive(async () => {
+      if (!/^studio-\d{4}-\d{2}-\d{2}\.json$/u.test(name)) {
+        throw new StudioStoreError("invalid_backup", "\u5907\u4EFD\u6587\u4EF6\u540D\u65E0\u6548", 400);
+      }
+      const raw = await readFile2(path3.join(this.dataDir, "backups", name), "utf8");
+      const parsed = JSON.parse(raw);
+      const restored = migrateState(parsed);
+      assertState(restored);
+      this.state = restored;
+      await this.save();
+      return structuredClone(restored);
+    });
+  }
   async exportState() {
     return this.runExclusive(async () => {
       return structuredClone(this.requireState());
@@ -6029,20 +6059,26 @@ var StudioStore = class {
     return assertFreezeCurrent(this.context, projectId, kind);
   }
   async createRequirementDecision(projectId, input) {
-    return createRequirementDecision(this.context, projectId, input);
+    return this.runExclusive(
+      () => createRequirementDecision(this.context, projectId, input)
+    );
   }
   listRequirementDecisions(projectId) {
     return listRequirementDecisions(this.requireState(), projectId);
   }
   async createFreezeChangeRequest(projectId, input) {
-    return createFreezeChangeRequest(this.context, projectId, input);
+    return this.runExclusive(
+      () => createFreezeChangeRequest(this.context, projectId, input)
+    );
   }
   async decideFreezeChangeRequest(projectId, requestId, status) {
-    return decideFreezeChangeRequest(
-      this.context,
-      projectId,
-      requestId,
-      status
+    return this.runExclusive(
+      () => decideFreezeChangeRequest(
+        this.context,
+        projectId,
+        requestId,
+        status
+      )
     );
   }
   listFreezeChangeRequests(projectId) {

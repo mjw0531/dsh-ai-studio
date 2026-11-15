@@ -2,6 +2,7 @@ import type {
   AgentRun,
   ApiErrorBody,
   BootstrapResponse,
+  StudioBackupInfo,
   CreateDecisionInput,
   DecideDecisionInput,
   Decision,
@@ -252,6 +253,18 @@ export class StudioClient {
     return this.request("/projects/bundle/import", {
       method: "POST",
       body: { archivePath, targetPath },
+    });
+  }
+
+  async listBackups(): Promise<StudioBackupInfo[]> {
+    const data = await this.request<{ backups: StudioBackupInfo[] }>("/backups");
+    return data.backups;
+  }
+
+  async restoreBackup(name: string): Promise<void> {
+    await this.request(`/backups/${encodeURIComponent(name)}/restore`, {
+      method: "POST",
+      body: {},
     });
   }
 

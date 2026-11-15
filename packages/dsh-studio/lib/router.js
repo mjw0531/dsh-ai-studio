@@ -2,7 +2,7 @@
 import { timingSafeEqual as timingSafeEqual3 } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_PLUGIN_VERSION = "3.14.3";
+var STUDIO_PLUGIN_VERSION = "3.14.4";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -842,6 +842,20 @@ var StudioRouter = class {
       data.app.compatibility = this.compatibility;
       data.app.warning = this.store.getWarning();
       sendJson(res, 200, data);
+      return;
+    }
+    if (parsed.pathname === `${API_PREFIX}/backups`) {
+      requireMethod(parsed, ["GET"]);
+      sendJson(res, 200, { ok: true, backups: await this.store.listBackups() });
+      return;
+    }
+    const restoreBackup = /^\/studio-api\/backups\/([^/]+)\/restore$/.exec(parsed.pathname);
+    if (restoreBackup !== null) {
+      requireMethod(parsed, ["POST"]);
+      const state = await this.store.restoreBackup(
+        decodeSegment(restoreBackup[1] ?? "")
+      );
+      sendJson(res, 200, { ok: true, schemaVersion: state.schemaVersion });
       return;
     }
     if (parsed.pathname === `${API_PREFIX}/export`) {

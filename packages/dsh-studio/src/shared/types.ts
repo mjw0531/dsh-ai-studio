@@ -5,7 +5,7 @@
  */
 
 export const STUDIO_SCHEMA_VERSION = 36;
-export const STUDIO_PLUGIN_VERSION = "3.14.3";
+export const STUDIO_PLUGIN_VERSION = "3.14.4";
 
 export type TaskStatus =
   | "backlog"
@@ -994,6 +994,12 @@ export interface CompanySummary {
   risk: CompanyRisk;
   recentEvents: StudioEvent[];
   generatedAt: string;
+}
+
+export interface StudioBackupInfo {
+  name: string;
+  createdAt: string;
+  size: number;
 }
 
 export interface BootstrapResponse {

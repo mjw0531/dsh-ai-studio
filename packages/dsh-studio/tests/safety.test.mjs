@@ -55,3 +55,20 @@ test("marks an interrupted running run as failed and returns the task to ready",
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("creates a daily backup and restores it", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "studio-backup-"));
+  try {
+    const store = new StudioStore({ dataDir: dir });
+    await store.init();
+    const before = await store.bootstrap();
+    await store.updateCompanyName("新工作室");
+    const backups = await store.listBackups();
+    assert.equal(backups.length, 1);
+    await store.restoreBackup(backups[0].name);
+    const after = await store.bootstrap();
+    assert.equal(after.company.name, before.company.name);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

@@ -6,6 +6,7 @@ import {
   readFile,
   readdir,
   rename,
+  stat,
   rm,
   unlink,
   writeFile,
@@ -92,6 +93,7 @@ import type {
   StageCheckItem,
   StageGate,
   StudioEvent,
+  StudioBackupInfo,
   StudioState,
   StudioStats,
   Task,
@@ -348,6 +350,40 @@ export class StudioStore {
 
   getWarning(): string | null {
     return this.warning;
+  }
+
+  async listBackups(): Promise<StudioBackupInfo[]> {
+    const dir = path.join(this.dataDir, "backups");
+    const names = (await readdir(dir).catch(() => []))
+      .filter((name) => /^studio-\d{4}-\d{2}-\d{2}\.json$/u.test(name))
+      .sort()
+      .reverse();
+    const result: StudioBackupInfo[] = [];
+    for (const name of names) {
+      const info = await stat(path.join(dir, name)).catch(() => null);
+      if (info === null) continue;
+      result.push({
+        name,
+        createdAt: info.mtime.toISOString(),
+        size: info.size,
+      });
+    }
+    return result;
+  }
+
+  async restoreBackup(name: string): Promise<StudioState> {
+    return this.runExclusive(async () => {
+      if (!/^studio-\d{4}-\d{2}-\d{2}\.json$/u.test(name)) {
+        throw new StudioStoreError("invalid_backup", "备份文件名无效", 400);
+      }
+      const raw = await readFile(path.join(this.dataDir, "backups", name), "utf8");
+      const parsed: unknown = JSON.parse(raw);
+      const restored = migrateState(parsed);
+      assertState(restored);
+      this.state = restored;
+      await this.save();
+      return structuredClone(restored);
+    });
   }
 
   async exportState(): Promise<StudioState> {
@@ -623,7 +659,9 @@ export class StudioStore {
     projectId: string,
     input: CreateRequirementDecisionInput,
   ): Promise<RequirementDecision> {
-    return createRequirementDecisionImpl(this.context, projectId, input);
+    return this.runExclusive(() =>
+      createRequirementDecisionImpl(this.context, projectId, input),
+    );
   }
 
   listRequirementDecisions(projectId: string): RequirementDecision[] {
@@ -634,7 +672,9 @@ export class StudioStore {
     projectId: string,
     input: CreateFreezeChangeRequestInput,
   ): Promise<FreezeChangeRequest> {
-    return createFreezeChangeRequestImpl(this.context, projectId, input);
+    return this.runExclusive(() =>
+      createFreezeChangeRequestImpl(this.context, projectId, input),
+    );
   }
 
   async decideFreezeChangeRequest(
@@ -642,11 +682,13 @@ export class StudioStore {
     requestId: string,
     status: "accepted" | "rejected",
   ): Promise<FreezeChangeRequest> {
-    return decideFreezeChangeRequestImpl(
-      this.context,
-      projectId,
-      requestId,
-      status,
+    return this.runExclusive(() =>
+      decideFreezeChangeRequestImpl(
+        this.context,
+        projectId,
+        requestId,
+        status,
+      ),
     );
   }
 

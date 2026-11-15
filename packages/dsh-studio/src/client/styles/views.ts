@@ -836,6 +836,10 @@ export const views = `
 .studio-settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
 .studio-settings-card { padding: 16px; border: 1px solid var(--st-border); border-radius: var(--st-radius); background: var(--st-panel); }
 .studio-settings-card h3 { margin: 0 0 10px; font-size: 13px; }
+.studio-backup-list { display: flex; flex-direction: column; gap: 6px; }
+.studio-backup-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11px; }
+.studio-backup-row code { font-size: 10px; color: var(--st-muted); }
+.studio-backup-row .studio-btn { margin-left: auto; }
 
 .studio-events { display: flex; flex-direction: column; gap: 7px; }
 .studio-event { display: flex; align-items: flex-start; gap: 8px; font-size: 11px; }

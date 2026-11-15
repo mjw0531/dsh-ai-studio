@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import type { BootstrapResponse } from "../../shared/types.js";
+import type { BootstrapResponse, StudioBackupInfo } from "../../shared/types.js";
 import { readStudioBoot } from "../api.js";
 import type { StudioBoot } from "../api.js";
 import { formatDate } from "../lib/format.js";
@@ -17,6 +17,8 @@ export function SettingsView({
   onCompany,
   onBundle,
   onImportBundle,
+  onListBackups,
+  onRestoreBackup,
 }: {
   boot: NonNullable<ReturnType<typeof readStudioBoot>>;
   data: BootstrapResponse;
@@ -28,13 +30,21 @@ export function SettingsView({
   onCompany: (name: string) => Promise<void>;
   onBundle: () => Promise<void>;
   onImportBundle: () => Promise<void>;
+  onListBackups: () => Promise<StudioBackupInfo[]>;
+  onRestoreBackup: (name: string) => Promise<boolean>;
 }) {
   const [companyName, setCompanyName] = useState(data.company.name);
   const [savingCompany, setSavingCompany] = useState(false);
+  const [backups, setBackups] = useState<StudioBackupInfo[]>([]);
+  const [backupBusy, setBackupBusy] = useState(false);
 
   useEffect(() => {
     setCompanyName(data.company.name);
   }, [data.company.name]);
+
+  useEffect(() => {
+    void onListBackups().then(setBackups).catch(() => undefined);
+  }, []);
 
   return (
     <>
@@ -87,6 +97,65 @@ export function SettingsView({
               {savingCompany ? "保存中…" : "保存工作室名称"}
             </button>
           </form>
+        </section>
+
+        <section className="studio-settings-card">
+          <h3>数据备份</h3>
+          <p className="studio-hint">
+            启动和每日首次保存会自动备份，最多保留 10 份。恢复会覆盖当前数据。
+          </p>
+          <div className="studio-head-actions" style={{ marginBottom: 8 }}>
+            <button
+              className="studio-btn"
+              data-size="sm"
+              type="button"
+              disabled={backupBusy}
+              onClick={() =>
+                void (async () => {
+                  setBackupBusy(true);
+                  try {
+                    setBackups(await onListBackups());
+                  } finally {
+                    setBackupBusy(false);
+                  }
+                })()
+              }
+            >
+              刷新备份
+            </button>
+          </div>
+          {backups.length === 0 ? (
+            <div className="studio-faint">还没有备份。</div>
+          ) : (
+            <div className="studio-backup-list">
+              {backups.map((backup) => (
+                <div className="studio-backup-row" key={backup.name}>
+                  <code>{backup.name}</code>
+                  <span className="studio-faint">{formatDate(backup.createdAt)}</span>
+                  <button
+                    className="studio-btn"
+                    data-size="sm"
+                    type="button"
+                    disabled={backupBusy}
+                    onClick={() =>
+                      void (async () => {
+                        setBackupBusy(true);
+                        try {
+                          if (await onRestoreBackup(backup.name)) {
+                            setBackups(await onListBackups());
+                          }
+                        } finally {
+                          setBackupBusy(false);
+                        }
+                      })()
+                    }
+                  >
+                    恢复
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         <section className="studio-settings-card">

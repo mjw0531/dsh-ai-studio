@@ -7,6 +7,7 @@ import type {
   AgentExecutor,
   ApproveStageGateInput,
   BootstrapResponse,
+  StudioBackupInfo,
   CreateDecisionInput,
   CreateMergeProposalInput,
   CreateModuleInput,
@@ -842,6 +843,21 @@ export function createStudioActions({
     );
   };
 
+  const listBackups = async (): Promise<StudioBackupInfo[]> => {
+    return client === null ? [] : client.listBackups();
+  };
+
+  const restoreBackup = async (name: string): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.restoreBackup(name);
+        await load(undefined, false);
+      },
+      "已从备份恢复 Studio 数据",
+    );
+  };
+
   const exportData = async (): Promise<void> => {
     if (client === null) return;
     const data = await client.exportState();
@@ -1009,6 +1025,8 @@ export function createStudioActions({
     completeMerge,
     executeMerge,
     rollbackMerge,
+    listBackups,
+    restoreBackup,
     exportData,
     importData,
     exportBundle,

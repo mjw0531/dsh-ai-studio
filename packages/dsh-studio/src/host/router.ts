@@ -291,6 +291,23 @@ export class StudioRouter {
       return;
     }
 
+    if (parsed.pathname === `${API_PREFIX}/backups`) {
+      requireMethod(parsed, ["GET"]);
+      sendJson(res, 200, { ok: true, backups: await this.store.listBackups() });
+      return;
+    }
+
+    const restoreBackup =
+      /^\/studio-api\/backups\/([^/]+)\/restore$/.exec(parsed.pathname);
+    if (restoreBackup !== null) {
+      requireMethod(parsed, ["POST"]);
+      const state = await this.store.restoreBackup(
+        decodeSegment(restoreBackup[1] ?? ""),
+      );
+      sendJson(res, 200, { ok: true, schemaVersion: state.schemaVersion });
+      return;
+    }
+
     if (parsed.pathname === `${API_PREFIX}/export`) {
       requireMethod(parsed, ["GET"]);
       const state = await this.store.exportState();

@@ -275,6 +275,16 @@ var StudioClient = class {
       body: { archivePath, targetPath }
     });
   }
+  async listBackups() {
+    const data = await this.request("/backups");
+    return data.backups;
+  }
+  async restoreBackup(name2) {
+    await this.request(`/backups/${encodeURIComponent(name2)}/restore`, {
+      method: "POST",
+      body: {}
+    });
+  }
   async importState(state) {
     await this.request("/import", {
       method: "POST",
@@ -1340,6 +1350,19 @@ function createStudioActions({
       "\u5DF2\u56DE\u6EDA\u5408\u5E76\u5E76\u8BB0\u5F55 revert commit"
     );
   };
+  const listBackups = async () => {
+    return client === null ? [] : client.listBackups();
+  };
+  const restoreBackup = async (name2) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.restoreBackup(name2);
+        await load(void 0, false);
+      },
+      "\u5DF2\u4ECE\u5907\u4EFD\u6062\u590D Studio \u6570\u636E"
+    );
+  };
   const exportData = async () => {
     if (client === null) return;
     const data2 = await client.exportState();
@@ -1494,6 +1517,8 @@ function createStudioActions({
     completeMerge,
     executeMerge,
     rollbackMerge,
+    listBackups,
+    restoreBackup,
     exportData,
     importData,
     exportBundle,
@@ -5826,13 +5851,20 @@ function SettingsView({
   onReload,
   onCompany,
   onBundle,
-  onImportBundle
+  onImportBundle,
+  onListBackups,
+  onRestoreBackup
 }) {
   const [companyName, setCompanyName] = (0, import_react13.useState)(data.company.name);
   const [savingCompany, setSavingCompany] = (0, import_react13.useState)(false);
+  const [backups, setBackups] = (0, import_react13.useState)([]);
+  const [backupBusy, setBackupBusy] = (0, import_react13.useState)(false);
   (0, import_react13.useEffect)(() => {
     setCompanyName(data.company.name);
   }, [data.company.name]);
+  (0, import_react13.useEffect)(() => {
+    void onListBackups().then(setBackups).catch(() => void 0);
+  }, []);
   return /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(import_jsx_runtime17.Fragment, { children: [
     /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { className: "studio-page-head", children: [
       /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { children: [
@@ -5883,6 +5915,52 @@ function SettingsView({
             ]
           }
         )
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("section", { className: "studio-settings-card", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("h3", { children: "\u6570\u636E\u5907\u4EFD" }),
+        /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("p", { className: "studio-hint", children: "\u542F\u52A8\u548C\u6BCF\u65E5\u9996\u6B21\u4FDD\u5B58\u4F1A\u81EA\u52A8\u5907\u4EFD\uFF0C\u6700\u591A\u4FDD\u7559 10 \u4EFD\u3002\u6062\u590D\u4F1A\u8986\u76D6\u5F53\u524D\u6570\u636E\u3002" }),
+        /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { className: "studio-head-actions", style: { marginBottom: 8 }, children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
+          "button",
+          {
+            className: "studio-btn",
+            "data-size": "sm",
+            type: "button",
+            disabled: backupBusy,
+            onClick: () => void (async () => {
+              setBackupBusy(true);
+              try {
+                setBackups(await onListBackups());
+              } finally {
+                setBackupBusy(false);
+              }
+            })(),
+            children: "\u5237\u65B0\u5907\u4EFD"
+          }
+        ) }),
+        backups.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { className: "studio-faint", children: "\u8FD8\u6CA1\u6709\u5907\u4EFD\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { className: "studio-backup-list", children: backups.map((backup) => /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { className: "studio-backup-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("code", { children: backup.name }),
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("span", { className: "studio-faint", children: formatDate(backup.createdAt) }),
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
+            "button",
+            {
+              className: "studio-btn",
+              "data-size": "sm",
+              type: "button",
+              disabled: backupBusy,
+              onClick: () => void (async () => {
+                setBackupBusy(true);
+                try {
+                  if (await onRestoreBackup(backup.name)) {
+                    setBackups(await onListBackups());
+                  }
+                } finally {
+                  setBackupBusy(false);
+                }
+              })(),
+              children: "\u6062\u590D"
+            }
+          )
+        ] }, backup.name)) })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("section", { className: "studio-settings-card", children: [
         /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("h3", { children: "\u7248\u672C\u4E0E\u517C\u5BB9\u6027" }),
@@ -8258,6 +8336,8 @@ function StudioPage() {
     completeMerge,
     executeMerge,
     rollbackMerge,
+    listBackups,
+    restoreBackup,
     exportData,
     importData,
     exportBundle,
@@ -8515,7 +8595,9 @@ function StudioPage() {
             onReload: () => void load(void 0, false),
             onCompany: saveCompany,
             onBundle: exportBundle,
-            onImportBundle: importBundle
+            onImportBundle: importBundle,
+            onListBackups: listBackups,
+            onRestoreBackup: restoreBackup
           }
         ) : null
       ] }) })
@@ -10292,6 +10374,10 @@ var views = `
 .studio-settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
 .studio-settings-card { padding: 16px; border: 1px solid var(--st-border); border-radius: var(--st-radius); background: var(--st-panel); }
 .studio-settings-card h3 { margin: 0 0 10px; font-size: 13px; }
+.studio-backup-list { display: flex; flex-direction: column; gap: 6px; }
+.studio-backup-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11px; }
+.studio-backup-row code { font-size: 10px; color: var(--st-muted); }
+.studio-backup-row .studio-btn { margin-left: auto; }
 
 .studio-events { display: flex; flex-direction: column; gap: 7px; }
 .studio-event { display: flex; align-items: flex-start; gap: 8px; font-size: 11px; }

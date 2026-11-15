@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 36;
-var STUDIO_PLUGIN_VERSION = "3.14.3";
+var STUDIO_PLUGIN_VERSION = "3.14.4";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -166,6 +166,7 @@ import {
   readFile as readFile3,
   readdir,
   rename,
+  stat as stat2,
   unlink,
   writeFile
 } from "node:fs/promises";
@@ -5947,6 +5948,35 @@ var StudioStore = class {
   getWarning() {
     return this.warning;
   }
+  async listBackups() {
+    const dir = path4.join(this.dataDir, "backups");
+    const names = (await readdir(dir).catch(() => [])).filter((name2) => /^studio-\d{4}-\d{2}-\d{2}\.json$/u.test(name2)).sort().reverse();
+    const result = [];
+    for (const name2 of names) {
+      const info = await stat2(path4.join(dir, name2)).catch(() => null);
+      if (info === null) continue;
+      result.push({
+        name: name2,
+        createdAt: info.mtime.toISOString(),
+        size: info.size
+      });
+    }
+    return result;
+  }
+  async restoreBackup(name2) {
+    return this.runExclusive(async () => {
+      if (!/^studio-\d{4}-\d{2}-\d{2}\.json$/u.test(name2)) {
+        throw new StudioStoreError("invalid_backup", "\u5907\u4EFD\u6587\u4EF6\u540D\u65E0\u6548", 400);
+      }
+      const raw = await readFile3(path4.join(this.dataDir, "backups", name2), "utf8");
+      const parsed = JSON.parse(raw);
+      const restored = migrateState(parsed);
+      assertState(restored);
+      this.state = restored;
+      await this.save();
+      return structuredClone(restored);
+    });
+  }
   async exportState() {
     return this.runExclusive(async () => {
       return structuredClone(this.requireState());
@@ -6140,20 +6170,26 @@ var StudioStore = class {
     return assertFreezeCurrent(this.context, projectId, kind);
   }
   async createRequirementDecision(projectId, input) {
-    return createRequirementDecision(this.context, projectId, input);
+    return this.runExclusive(
+      () => createRequirementDecision(this.context, projectId, input)
+    );
   }
   listRequirementDecisions(projectId) {
     return listRequirementDecisions(this.requireState(), projectId);
   }
   async createFreezeChangeRequest(projectId, input) {
-    return createFreezeChangeRequest(this.context, projectId, input);
+    return this.runExclusive(
+      () => createFreezeChangeRequest(this.context, projectId, input)
+    );
   }
   async decideFreezeChangeRequest(projectId, requestId, status) {
-    return decideFreezeChangeRequest(
-      this.context,
-      projectId,
-      requestId,
-      status
+    return this.runExclusive(
+      () => decideFreezeChangeRequest(
+        this.context,
+        projectId,
+        requestId,
+        status
+      )
     );
   }
   listFreezeChangeRequests(projectId) {
@@ -6599,7 +6635,7 @@ import {
   readFile as readFile4,
   readdir as readdir3,
   rm as rm2,
-  stat as stat2,
+  stat as stat3,
   writeFile as writeFile3
 } from "node:fs/promises";
 import os2 from "node:os";
@@ -6763,7 +6799,7 @@ var ProjectBundleService = class {
         400
       );
     }
-    const archiveInfo = await stat2(archivePath).catch(() => null);
+    const archiveInfo = await stat3(archivePath).catch(() => null);
     if (archiveInfo === null || !archiveInfo.isFile()) {
       throw new StudioStoreError(
         "bundle_not_found",
@@ -6771,7 +6807,7 @@ var ProjectBundleService = class {
         404
       );
     }
-    const targetInfo = await stat2(targetPath).catch(() => null);
+    const targetInfo = await stat3(targetPath).catch(() => null);
     if (targetInfo !== null) {
       if (!targetInfo.isDirectory()) {
         throw new StudioStoreError(
@@ -7013,9 +7049,9 @@ var WorkspaceManager = class {
   diffStat(worktreePath, baseSha) {
     if (!existsSync3(worktreePath)) return "";
     const status = git(worktreePath, ["status", "--short"]);
-    const stat3 = git(worktreePath, ["diff", "--stat"]);
+    const stat4 = git(worktreePath, ["diff", "--stat"]);
     const committed = baseSha === void 0 ? "" : git(worktreePath, ["diff", "--stat", `${baseSha}...HEAD`]);
-    return [status, stat3, committed].filter((line) => line !== "").join("\n").trim();
+    return [status, stat4, committed].filter((line) => line !== "").join("\n").trim();
   }
   changedFiles(worktreePath, baseSha) {
     if (!existsSync3(worktreePath)) return [];
@@ -8926,6 +8962,20 @@ var StudioRouter = class {
       data.app.compatibility = this.compatibility;
       data.app.warning = this.store.getWarning();
       sendJson(res, 200, data);
+      return;
+    }
+    if (parsed.pathname === `${API_PREFIX}/backups`) {
+      requireMethod(parsed, ["GET"]);
+      sendJson(res, 200, { ok: true, backups: await this.store.listBackups() });
+      return;
+    }
+    const restoreBackup = /^\/studio-api\/backups\/([^/]+)\/restore$/.exec(parsed.pathname);
+    if (restoreBackup !== null) {
+      requireMethod(parsed, ["POST"]);
+      const state = await this.store.restoreBackup(
+        decodeSegment(restoreBackup[1] ?? "")
+      );
+      sendJson(res, 200, { ok: true, schemaVersion: state.schemaVersion });
       return;
     }
     if (parsed.pathname === `${API_PREFIX}/export`) {
