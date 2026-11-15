@@ -56,7 +56,7 @@ test("marks an interrupted running run as failed and returns the task to ready",
   }
 });
 
-test("creates a daily backup and restores it", async () => {
+test("creates backups and restores one", async () => {
   const dir = await mkdtemp(path.join(os.tmpdir(), "studio-backup-"));
   try {
     const store = new StudioStore({ dataDir: dir });

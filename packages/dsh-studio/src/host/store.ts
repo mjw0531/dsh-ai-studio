@@ -12,6 +12,18 @@ import {
   writeFile,
 } from "node:fs/promises";
 import os from "node:os";
+
+const backupName = /^studio-\d{4}-\d{2}-\d{2}(?:-\d{6}(?:-\d+)?)?\.json$/u;
+
+function localDay(date: Date): string {
+  const pad = (value: number): string => String(value).padStart(2, "0");
+  return `${String(date.getFullYear())}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function localStamp(date: Date): string {
+  const pad = (value: number): string => String(value).padStart(2, "0");
+  return `${localDay(date)}-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
+}
 import path from "node:path";
 
 import {
@@ -355,7 +367,7 @@ export class StudioStore {
   async listBackups(): Promise<StudioBackupInfo[]> {
     const dir = path.join(this.dataDir, "backups");
     const names = (await readdir(dir).catch(() => []))
-      .filter((name) => /^studio-\d{4}-\d{2}-\d{2}\.json$/u.test(name))
+      .filter((name) => backupName.test(name))
       .sort()
       .reverse();
     const result: StudioBackupInfo[] = [];
@@ -373,7 +385,7 @@ export class StudioStore {
 
   async restoreBackup(name: string): Promise<StudioState> {
     return this.runExclusive(async () => {
-      if (!/^studio-\d{4}-\d{2}-\d{2}\.json$/u.test(name)) {
+      if (!backupName.test(name)) {
         throw new StudioStoreError("invalid_backup", "备份文件名无效", 400);
       }
       const raw = await readFile(path.join(this.dataDir, "backups", name), "utf8");
@@ -1282,21 +1294,21 @@ export class StudioStore {
     }
   }
 
-  private lastBackupDay: string | null = null;
-
   private async backupCurrentFile(): Promise<void> {
     if (!existsSync(this.file)) return;
-    const day = new Date().toISOString().slice(0, 10);
-    if (this.lastBackupDay === day) return;
+    const now = new Date();
     const dir = path.join(this.dataDir, "backups");
     await mkdir(dir, { recursive: true });
-    const target = path.join(dir, `studio-${day}.json`);
-    if (!existsSync(target)) {
-      await copyFile(this.file, target).catch(() => undefined);
+    const base = `studio-${localStamp(now)}`;
+    let target = path.join(dir, `${base}.json`);
+    let suffix = 1;
+    while (existsSync(target)) {
+      target = path.join(dir, `${base}-${String(suffix)}.json`);
+      suffix += 1;
     }
-    this.lastBackupDay = day;
+    await copyFile(this.file, target).catch(() => undefined);
     const files = (await readdir(dir).catch(() => []))
-      .filter((name) => /^studio-\d{4}-\d{2}-\d{2}\.json$/u.test(name))
+      .filter((name) => backupName.test(name))
       .sort()
       .reverse();
     for (const stale of files.slice(10)) {

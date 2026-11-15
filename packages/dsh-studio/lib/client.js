@@ -5918,7 +5918,7 @@ function SettingsView({
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("section", { className: "studio-settings-card", children: [
         /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("h3", { children: "\u6570\u636E\u5907\u4EFD" }),
-        /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("p", { className: "studio-hint", children: "\u542F\u52A8\u548C\u6BCF\u65E5\u9996\u6B21\u4FDD\u5B58\u4F1A\u81EA\u52A8\u5907\u4EFD\uFF0C\u6700\u591A\u4FDD\u7559 10 \u4EFD\u3002\u6062\u590D\u4F1A\u8986\u76D6\u5F53\u524D\u6570\u636E\u3002" }),
+        /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("p", { className: "studio-hint", children: "\u542F\u52A8\u548C\u6BCF\u6B21\u4FDD\u5B58\u4F1A\u81EA\u52A8\u5907\u4EFD\uFF0C\u6700\u591A\u4FDD\u7559 10 \u4EFD\u3002\u6062\u590D\u4F1A\u8986\u76D6\u5F53\u524D\u6570\u636E\u3002" }),
         /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { className: "studio-head-actions", style: { marginBottom: 8 }, children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
           "button",
           {

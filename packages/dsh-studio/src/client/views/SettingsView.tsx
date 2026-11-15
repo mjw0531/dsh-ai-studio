@@ -102,7 +102,7 @@ export function SettingsView({
         <section className="studio-settings-card">
           <h3>数据备份</h3>
           <p className="studio-hint">
-            启动和每日首次保存会自动备份，最多保留 10 份。恢复会覆盖当前数据。
+            启动和每次保存会自动备份，最多保留 10 份。恢复会覆盖当前数据。
           </p>
           <div className="studio-head-actions" style={{ marginBottom: 8 }}>
             <button

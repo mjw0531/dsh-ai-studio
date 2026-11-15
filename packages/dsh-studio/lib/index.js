@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 36;
-var STUDIO_PLUGIN_VERSION = "3.15.0";
+var STUDIO_PLUGIN_VERSION = "3.15.1";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -5866,6 +5866,15 @@ async function importProjectSlice(ctx, slice, repoPath) {
 }
 
 // src/host/store.ts
+var backupName = /^studio-\d{4}-\d{2}-\d{2}(?:-\d{6}(?:-\d+)?)?\.json$/u;
+function localDay(date) {
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${String(date.getFullYear())}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+function localStamp(date) {
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${localDay(date)}-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
+}
 function defaultStudioDataDir() {
   const override = process.env.DSH_STUDIO_DATA_DIR?.trim();
   if (override !== void 0 && override !== "") {
@@ -5942,7 +5951,7 @@ var StudioStore = class {
   }
   async listBackups() {
     const dir = path4.join(this.dataDir, "backups");
-    const names = (await readdir(dir).catch(() => [])).filter((name2) => /^studio-\d{4}-\d{2}-\d{2}\.json$/u.test(name2)).sort().reverse();
+    const names = (await readdir(dir).catch(() => [])).filter((name2) => backupName.test(name2)).sort().reverse();
     const result = [];
     for (const name2 of names) {
       const info = await stat2(path4.join(dir, name2)).catch(() => null);
@@ -5957,7 +5966,7 @@ var StudioStore = class {
   }
   async restoreBackup(name2) {
     return this.runExclusive(async () => {
-      if (!/^studio-\d{4}-\d{2}-\d{2}\.json$/u.test(name2)) {
+      if (!backupName.test(name2)) {
         throw new StudioStoreError("invalid_backup", "\u5907\u4EFD\u6587\u4EF6\u540D\u65E0\u6548", 400);
       }
       const raw = await readFile3(path4.join(this.dataDir, "backups", name2), "utf8");
@@ -6474,19 +6483,20 @@ var StudioStore = class {
       this.warning = `studio.json \u6821\u9A8C\u5931\u8D25\uFF1B\u539F\u6587\u4EF6\u4FDD\u7559\u5728 ${this.file}\uFF0C\u672A\u91CD\u5EFA\u6F14\u793A\u6570\u636E\u3002${error instanceof Error ? error.message : String(error)}`;
     }
   }
-  lastBackupDay = null;
   async backupCurrentFile() {
     if (!existsSync2(this.file)) return;
-    const day = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
-    if (this.lastBackupDay === day) return;
+    const now = /* @__PURE__ */ new Date();
     const dir = path4.join(this.dataDir, "backups");
     await mkdir(dir, { recursive: true });
-    const target = path4.join(dir, `studio-${day}.json`);
-    if (!existsSync2(target)) {
-      await copyFile(this.file, target).catch(() => void 0);
+    const base = `studio-${localStamp(now)}`;
+    let target = path4.join(dir, `${base}.json`);
+    let suffix = 1;
+    while (existsSync2(target)) {
+      target = path4.join(dir, `${base}-${String(suffix)}.json`);
+      suffix += 1;
     }
-    this.lastBackupDay = day;
-    const files = (await readdir(dir).catch(() => [])).filter((name2) => /^studio-\d{4}-\d{2}-\d{2}\.json$/u.test(name2)).sort().reverse();
+    await copyFile(this.file, target).catch(() => void 0);
+    const files = (await readdir(dir).catch(() => [])).filter((name2) => backupName.test(name2)).sort().reverse();
     for (const stale of files.slice(10)) {
       await unlink(path4.join(dir, stale)).catch(() => void 0);
     }
