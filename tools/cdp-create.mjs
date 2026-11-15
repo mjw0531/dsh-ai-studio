@@ -136,14 +136,33 @@ const result = await evaluate(`(() => {
     cardText: cards.map((el) => (el.textContent ?? '').replace(/\\s+/g, ' ').trim()).find((text) => text.includes('UI 创建的任务')) ?? null,
   };
 })()`);
+if (!opened) {
+  console.error("e2e: new-task button not found; the create flow is out of date");
+  process.exit(1);
+}
+if (!filled.title || !filled.acceptance) {
+  console.error("e2e: task form fields not filled");
+  process.exit(1);
+}
+if (!submitted) {
+  console.error("e2e: create-task submit button not found");
+  process.exit(1);
+}
 console.log("opened:", opened);
 console.log("filled:", JSON.stringify(filled));
 console.log("submitted:", submitted);
 console.log("result:", JSON.stringify(result, null, 2));
+if (!result.hasCreated) {
+  console.error("e2e: created task card not found after submit");
+  process.exit(1);
+}
 
 const shot = await send("Page.captureScreenshot", { format: "png", fromSurface: true });
 await writeFile(screenshotPath, Buffer.from(shot.data, "base64"));
 console.log("screenshot:", screenshotPath);
-if (exceptions.length > 0) console.log("\nEXCEPTIONS:\n" + exceptions.join("\n"));
+if (exceptions.length > 0) {
+  console.error("\nEXCEPTIONS:\n" + exceptions.join("\n"));
+  process.exitCode = 1;
+}
 if (logs.length > 0) console.log("\nCONSOLE:\n" + logs.slice(-30).join("\n"));
 ws.close();

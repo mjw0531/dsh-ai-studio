@@ -115,7 +115,15 @@ const drawer = await evaluate(`(() => {
   };
 })()`);
 
+if (before.clicked !== true) {
+  console.error("e2e: target task card not found; the flow script is out of date");
+  process.exit(1);
+}
 console.log("before:", JSON.stringify(before));
+if (drawer.open !== true) {
+  console.error("e2e: task drawer did not open");
+  process.exit(1);
+}
 console.log("drawer:", JSON.stringify(drawer, null, 2));
 
 if (drawer.open === true) {
@@ -125,6 +133,10 @@ if (drawer.open === true) {
     if (input) { input.click(); return true; }
     return false;
   })()`);
+  if (!toggled) {
+    console.error("e2e: no unchecked acceptance item found");
+    process.exit(1);
+  }
   await sleep(900);
   const afterToggle = await evaluate(`(() => {
     const drawer = document.querySelector('.studio-drawer');
@@ -172,6 +184,10 @@ if (drawer.open === true) {
       })(),
     };
   })()`);
+  if (!evidenceFilled || !evidenceClicked) {
+    console.error("e2e: evidence input/record button not found");
+    process.exit(1);
+  }
   console.log("evidence:", evidenceFilled, evidenceClicked, JSON.stringify(afterEvidence, null, 2));
 
   const accepted = await evaluate(`(() => {
@@ -191,12 +207,19 @@ if (drawer.open === true) {
       drawerText: drawer ? (drawer.textContent ?? '').slice(0, 300) : null,
     };
   })()`);
+  if (!accepted) {
+    console.error("e2e: accept button was disabled or missing");
+    process.exit(1);
+  }
   console.log("accepted:", accepted, JSON.stringify(afterAccept, null, 2));
 }
 
 const shot = await send("Page.captureScreenshot", { format: "png", fromSurface: true });
 await writeFile(screenshotPath, Buffer.from(shot.data, "base64"));
 console.log("screenshot:", screenshotPath);
-if (exceptions.length > 0) console.log("\nEXCEPTIONS:\n" + exceptions.join("\n"));
+if (exceptions.length > 0) {
+  console.error("\nEXCEPTIONS:\n" + exceptions.join("\n"));
+  process.exitCode = 1;
+}
 if (logs.length > 0) console.log("\nCONSOLE:\n" + logs.slice(-40).join("\n"));
 ws.close();
