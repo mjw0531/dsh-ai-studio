@@ -51,6 +51,7 @@ import {
 export function TaskDrawer({
   task,
   roles,
+  tasks,
   mergeProposal,
   runs,
   verifications,
@@ -75,6 +76,7 @@ export function TaskDrawer({
 }: {
   task: Task;
   roles: Role[];
+  tasks: Task[];
   mergeProposal: MergeProposal | null;
   runs: AgentRun[];
   verifications: Verification[];
@@ -137,6 +139,7 @@ export function TaskDrawer({
               ) : null}
             </div>
             <h2>{task.title}</h2>
+            <div className="studio-mono">{task.number}</div>
             <div className="studio-muted">
               {roleName(roles, task.ownerRoleId)} 负责 ·{" "}
               {roleName(roles, task.reviewerRoleId)} 验收

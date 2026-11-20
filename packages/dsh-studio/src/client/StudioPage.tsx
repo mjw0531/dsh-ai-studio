@@ -808,6 +808,7 @@ export function StudioPage() {
           key={selectedTask.id}
           task={selectedTask}
           roles={data.roles}
+          tasks={data.tasks}
           mergeProposal={selectedMerge}
           runs={data.runs.filter((run) => run.taskId === selectedTask.id)}
           verifications={data.verifications.filter(
@@ -857,6 +858,7 @@ export function StudioPage() {
       {modal?.kind === "task" ? (
         <TaskForm
           roles={data.roles}
+          tasks={data.tasks}
           busy={busy}
           onCancel={() => setModal(null)}
           onSubmit={(input) => void createTask(input)}

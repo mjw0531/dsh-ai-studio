@@ -375,6 +375,7 @@ export function asCreateTask(body: Record<string, unknown>): CreateTaskInput {
     ownerRoleId: owner,
     reviewerRoleId: reviewer,
     acceptance: asStringArray(body.acceptance, "acceptance"),
+    dependsOn: asStringArray(body.dependsOn, "dependsOn") ?? [],
     branch: asOptionalString(body.branch, "branch") ?? null,
     verifyCommand:
       asOptionalString(body.verifyCommand, "verifyCommand") ?? null,
@@ -500,6 +501,9 @@ export function asUpdateTask(body: Record<string, unknown>): UpdateTaskInput {
       throw new HttpError(400, "invalid_input", "acceptance 必须是数组");
     }
     result.acceptance = body.acceptance as UpdateTaskInput["acceptance"];
+  }
+  if (body.dependsOn !== undefined) {
+    result.dependsOn = asStringArray(body.dependsOn, "dependsOn") ?? [];
   }
   if (body.evidence !== undefined) {
     if (!Array.isArray(body.evidence)) {

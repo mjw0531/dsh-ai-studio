@@ -260,6 +260,9 @@ export const views = `
   line-height: 1.5;
 }
 .studio-check input { margin: 2px 0 0; accent-color: var(--st-accent); }
+.studio-check-list { display: grid; gap: 6px; }
+.studio-check-list .studio-check { justify-content: flex-start; text-align: left; }
+.studio-check-list .studio-check span { flex: 1; }
 .studio-check[data-done="true"] span { color: var(--st-muted); text-decoration: line-through; }
 
 .studio-evidence { display: flex; flex-direction: column; gap: 6px; }

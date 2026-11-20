@@ -2,7 +2,7 @@
 import { timingSafeEqual as timingSafeEqual3 } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_PLUGIN_VERSION = "3.15.1";
+var STUDIO_PLUGIN_VERSION = "3.16.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -384,6 +384,7 @@ function asCreateTask(body) {
     ownerRoleId: owner,
     reviewerRoleId: reviewer,
     acceptance: asStringArray(body.acceptance, "acceptance"),
+    dependsOn: asStringArray(body.dependsOn, "dependsOn") ?? [],
     branch: asOptionalString(body.branch, "branch") ?? null,
     verifyCommand: asOptionalString(body.verifyCommand, "verifyCommand") ?? null,
     module: asOptionalString(body.module, "module") ?? null,
@@ -463,6 +464,9 @@ function asUpdateTask(body) {
       throw new HttpError(400, "invalid_input", "acceptance \u5FC5\u987B\u662F\u6570\u7EC4");
     }
     result.acceptance = body.acceptance;
+  }
+  if (body.dependsOn !== void 0) {
+    result.dependsOn = asStringArray(body.dependsOn, "dependsOn") ?? [];
   }
   if (body.evidence !== void 0) {
     if (!Array.isArray(body.evidence)) {

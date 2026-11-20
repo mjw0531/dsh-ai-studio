@@ -317,6 +317,7 @@ export async function acceptTrigger(
       const task: Task = {
         id: newId("task"),
         projectId: project.id,
+        number: "T-trigger",
         title: trigger.title,
         goal: trigger.body || trigger.title,
         status: "backlog",
@@ -336,6 +337,7 @@ export async function acceptTrigger(
         diagnosis: "",
         plan: "",
         integration: false,
+        dependsOn: [],
         originTaskId: null,
         docsSynced: false,
         createdAt: at,

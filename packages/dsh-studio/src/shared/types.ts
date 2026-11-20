@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 36;
-export const STUDIO_PLUGIN_VERSION = "3.15.1";
+export const STUDIO_SCHEMA_VERSION = 37;
+export const STUDIO_PLUGIN_VERSION = "3.16.0";
 
 export type TaskStatus =
   | "backlog"
@@ -398,6 +398,7 @@ export interface CreateTriggerInput {
 
 export interface AcceptTriggerInput {
   acceptance?: string[];
+  dependsOn?: string[];
   ownerRoleId?: string | null;
   reviewerRoleId?: string | null;
   priority?: TaskPriority;
@@ -598,6 +599,7 @@ export interface EvidenceItem {
 export interface Task {
   id: string;
   projectId: string;
+  number: string;
   title: string;
   goal: string;
   status: TaskStatus;
@@ -617,6 +619,7 @@ export interface Task {
   diagnosis: string;
   plan: string;
   integration: boolean;
+  dependsOn: string[];
   originTaskId: string | null;
   docsSynced: boolean;
   createdAt: string;
@@ -1261,6 +1264,7 @@ export interface CreateTaskInput {
   ownerRoleId?: string | null;
   reviewerRoleId?: string | null;
   acceptance?: string[];
+  dependsOn?: string[];
   branch?: string | null;
   verifyCommand?: string | null;
   module?: string | null;
@@ -1286,6 +1290,7 @@ export interface UpdateTaskInput {
   ownerRoleId?: string | null;
   reviewerRoleId?: string | null;
   acceptance?: AcceptanceItem[];
+  dependsOn?: string[];
   evidence?: EvidenceItem[];
   branch?: string | null;
   verifyCommand?: string | null;

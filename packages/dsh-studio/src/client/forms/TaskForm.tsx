@@ -4,6 +4,7 @@ import { PRIORITY_LABELS, TASK_KIND_LABELS } from "../../shared/types.js";
 import type {
   CreateTaskInput,
   Role,
+  Task,
   TaskKind,
   TaskPriority,
 } from "../../shared/types.js";
@@ -11,11 +12,13 @@ import { ModalShell } from "../components/ModalShell.js";
 
 export function TaskForm({
   roles,
+  tasks,
   busy,
   onCancel,
   onSubmit,
 }: {
   roles: Role[];
+  tasks: Task[];
   busy: boolean;
   onCancel: () => void;
   onSubmit: (input: CreateTaskInput) => void;
@@ -41,6 +44,7 @@ export function TaskForm({
   const [diagnosis, setDiagnosis] = useState("");
   const [plan, setPlan] = useState("");
   const [integration, setIntegration] = useState(false);
+  const [dependsOn, setDependsOn] = useState<string[]>([]);
   const [localError, setLocalError] = useState<string | null>(null);
 
   const submit = (event: FormEvent): void => {
@@ -91,6 +95,7 @@ export function TaskForm({
       diagnosis: diagnosis.trim(),
       plan: plan.trim(),
       integration,
+      dependsOn,
     });
   };
 
@@ -174,6 +179,31 @@ export function TaskForm({
           />
           <div className="studio-hint">
             每行一条，Studio Host 在 worktree 内按顺序执行；任一步失败即停止。通过会写 evidence，但不自动通过验收。
+          </div>
+        </div>
+        <div className="studio-field">
+          <label>前置任务（可选）</label>
+          <div className="studio-check-list">
+            {tasks
+              .filter((task) => task.status !== "done")
+              .map((task) => (
+                <label className="studio-check" key={task.id}>
+                  <input
+                    type="checkbox"
+                    checked={dependsOn.includes(task.id)}
+                    onChange={(event) =>
+                      setDependsOn((current) =>
+                        event.target.checked
+                          ? [...current, task.id]
+                          : current.filter((id) => id !== task.id),
+                      )
+                    }
+                  />
+                  <span>
+                    {task.number} {task.title}
+                  </span>
+                </label>
+              ))}
           </div>
         </div>
         <div className="studio-field-row">

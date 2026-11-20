@@ -68,6 +68,7 @@ function isPrototypeDemo(value: unknown): value is PrototypeDemo {
     isRecord(value) &&
     typeof value.id === "string" &&
     typeof value.projectId === "string" &&
+    typeof value.number === "string" &&
     typeof value.title === "string" &&
     typeof value.entry === "string" &&
     typeof value.startCommand === "string" &&
@@ -250,6 +251,8 @@ function isTask(value: unknown): value is Task {
       value.kind === "fix") &&
     (value.integration === undefined ||
       typeof value.integration === "boolean") &&
+    Array.isArray(value.dependsOn) &&
+    value.dependsOn.every((item) => typeof item === "string") &&
     (value.originTaskId === null ||
       value.originTaskId === undefined ||
       typeof value.originTaskId === "string") &&

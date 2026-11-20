@@ -451,12 +451,30 @@ export function migrateState(value: unknown): StudioState {
   if (state.schemaVersion === 35) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 36,
       workshops: state.workshops.map((workshop) => ({
         ...workshop,
         linkedTaskId: null,
         linkedChangeRequestId: null,
       })),
+    };
+  }
+  if (state.schemaVersion === 36) {
+    const counters = new Map<string, number>();
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      tasks: [...state.tasks]
+        .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+        .map((task) => {
+          const next = (counters.get(task.projectId) ?? 0) + 1;
+          counters.set(task.projectId, next);
+          return {
+            ...task,
+            number: `T-${String(next).padStart(4, "0")}`,
+            dependsOn: [],
+          };
+        }),
     };
   }
   return state;

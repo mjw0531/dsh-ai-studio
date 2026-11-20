@@ -6828,6 +6828,7 @@ var import_jsx_runtime21 = require("react/jsx-runtime");
 function TaskDrawer({
   task,
   roles,
+  tasks,
   mergeProposal,
   runs,
   verifications,
@@ -6888,6 +6889,7 @@ function TaskDrawer({
                   mergeProposal !== null ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(MergePill, { proposal: mergeProposal }) : null
                 ] }),
                 /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("h2", { children: task.title }),
+                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-mono", children: task.number }),
                 /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "studio-muted", children: [
                   roleName(roles, task.ownerRoleId),
                   " \u8D1F\u8D23 \xB7",
@@ -7693,6 +7695,7 @@ var import_react20 = require("react");
 var import_jsx_runtime25 = require("react/jsx-runtime");
 function TaskForm({
   roles,
+  tasks,
   busy,
   onCancel,
   onSubmit
@@ -7718,6 +7721,7 @@ function TaskForm({
   const [diagnosis, setDiagnosis] = (0, import_react20.useState)("");
   const [plan, setPlan] = (0, import_react20.useState)("");
   const [integration, setIntegration] = (0, import_react20.useState)(false);
+  const [dependsOn, setDependsOn] = (0, import_react20.useState)([]);
   const [localError, setLocalError] = (0, import_react20.useState)(null);
   const submit = (event) => {
     event.preventDefault();
@@ -7756,7 +7760,8 @@ function TaskForm({
       kind,
       diagnosis: diagnosis.trim(),
       plan: plan.trim(),
-      integration
+      integration,
+      dependsOn
     });
   };
   return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
@@ -7848,6 +7853,26 @@ function TaskForm({
             }
           ),
           /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "studio-hint", children: "\u6BCF\u884C\u4E00\u6761\uFF0CStudio Host \u5728 worktree \u5185\u6309\u987A\u5E8F\u6267\u884C\uFF1B\u4EFB\u4E00\u6B65\u5931\u8D25\u5373\u505C\u6B62\u3002\u901A\u8FC7\u4F1A\u5199 evidence\uFF0C\u4F46\u4E0D\u81EA\u52A8\u901A\u8FC7\u9A8C\u6536\u3002" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { children: "\u524D\u7F6E\u4EFB\u52A1\uFF08\u53EF\u9009\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "studio-check-list", children: tasks.filter((task) => task.status !== "done").map((task) => /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("label", { className: "studio-check", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+              "input",
+              {
+                type: "checkbox",
+                checked: dependsOn.includes(task.id),
+                onChange: (event) => setDependsOn(
+                  (current) => event.target.checked ? [...current, task.id] : current.filter((id) => id !== task.id)
+                )
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("span", { children: [
+              task.number,
+              " ",
+              task.title
+            ] })
+          ] }, task.id)) })
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field-row", children: [
           /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
@@ -8607,6 +8632,7 @@ function StudioPage() {
       {
         task: selectedTask,
         roles: data.roles,
+        tasks: data.tasks,
         mergeProposal: selectedMerge,
         runs: data.runs.filter((run2) => run2.taskId === selectedTask.id),
         verifications: data.verifications.filter(
@@ -8655,6 +8681,7 @@ function StudioPage() {
       TaskForm,
       {
         roles: data.roles,
+        tasks: data.tasks,
         busy,
         onCancel: () => setModal(null),
         onSubmit: (input) => void createTask(input)
@@ -9798,6 +9825,9 @@ var views = `
   line-height: 1.5;
 }
 .studio-check input { margin: 2px 0 0; accent-color: var(--st-accent); }
+.studio-check-list { display: grid; gap: 6px; }
+.studio-check-list .studio-check { justify-content: flex-start; text-align: left; }
+.studio-check-list .studio-check span { flex: 1; }
 .studio-check[data-done="true"] span { color: var(--st-muted); text-decoration: line-through; }
 
 .studio-evidence { display: flex; flex-direction: column; gap: 6px; }

@@ -15,8 +15,8 @@ import os from "node:os";
 import path3 from "node:path";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 36;
-var STUDIO_PLUGIN_VERSION = "3.15.1";
+var STUDIO_SCHEMA_VERSION = 37;
+var STUDIO_PLUGIN_VERSION = "3.16.0";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -488,12 +488,28 @@ function migrateState(value) {
   if (state.schemaVersion === 35) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 36,
       workshops: state.workshops.map((workshop) => ({
         ...workshop,
         linkedTaskId: null,
         linkedChangeRequestId: null
       }))
+    };
+  }
+  if (state.schemaVersion === 36) {
+    const counters = /* @__PURE__ */ new Map();
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      tasks: [...state.tasks].sort((left, right) => left.createdAt.localeCompare(right.createdAt)).map((task) => {
+        const next = (counters.get(task.projectId) ?? 0) + 1;
+        counters.set(task.projectId, next);
+        return {
+          ...task,
+          number: `T-${String(next).padStart(4, "0")}`,
+          dependsOn: []
+        };
+      })
     };
   }
   return state;
@@ -510,7 +526,7 @@ function isPrototypeDemoResult(value) {
   return value === "passed" || value === "failed";
 }
 function isPrototypeDemo(value) {
-  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.entry === "string" && typeof value.startCommand === "string" && typeof value.steps === "string" && isPrototypeDemoResult(value.result) && typeof value.screenshotPath === "string" && typeof value.notes === "string" && typeof value.recordedBy === "string" && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.number === "string" && typeof value.title === "string" && typeof value.entry === "string" && typeof value.startCommand === "string" && typeof value.steps === "string" && isPrototypeDemoResult(value.result) && typeof value.screenshotPath === "string" && typeof value.notes === "string" && typeof value.recordedBy === "string" && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
 }
 function isProject(value) {
   return isRecord2(value) && typeof value.id === "string" && typeof value.name === "string" && typeof value.description === "string" && (value.tokenBudget === null || typeof value.tokenBudget === "number") && (value.repoPath === null || typeof value.repoPath === "string") && (value.prdPath === null || value.prdPath === void 0 || typeof value.prdPath === "string") && (value.invariantsPath === null || value.invariantsPath === void 0 || typeof value.invariantsPath === "string") && (value.modulesPath === null || value.modulesPath === void 0 || typeof value.modulesPath === "string") && isTriggerRules(value.triggerRules) && isProjectStage(value.stage) && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
@@ -528,7 +544,7 @@ function isAgentRun(value) {
   return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.providerProfileId === null || typeof value.providerProfileId === "string") && (value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && (value.provider === null || typeof value.provider === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.branchName === null || typeof value.branchName === "string") && (value.workspacePath === null || typeof value.workspacePath === "string") && (value.commitSha === null || value.commitSha === void 0 || typeof value.commitSha === "string") && (value.baseSha === null || value.baseSha === void 0 || typeof value.baseSha === "string") && (value.agentPreset === null || value.agentPreset === void 0 || typeof value.agentPreset === "string") && (value.approvalPolicy === null || value.approvalPolicy === void 0 || value.approvalPolicy === "ask" || value.approvalPolicy === "never") && (value.sandboxMode === null || value.sandboxMode === void 0 || value.sandboxMode === "read-only" || value.sandboxMode === "workspace-write" || value.sandboxMode === "danger-full-access") && (Array.isArray(value.restrictedTools) || value.restrictedTools === void 0) && (value.diffPatch === null || value.diffPatch === void 0 || typeof value.diffPatch === "string") && (value.outputPath === null || value.outputPath === void 0 || typeof value.outputPath === "string") && (value.diffStat === null || typeof value.diffStat === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord2(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
 }
 function isTask(value) {
-  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence) && (value.verifyCommand === null || value.verifyCommand === void 0 || typeof value.verifyCommand === "string") && (value.module === null || value.module === void 0 || typeof value.module === "string") && (value.contractRef === null || value.contractRef === void 0 || typeof value.contractRef === "string") && Array.isArray(value.requirementRefs) && value.requirementRefs.every((item) => typeof item === "string") && (value.timeoutSeconds === null || value.timeoutSeconds === void 0 || typeof value.timeoutSeconds === "number" && Number.isSafeInteger(value.timeoutSeconds) && value.timeoutSeconds > 0) && (value.riskTier === void 0 || value.riskTier === "trivial" || value.riskTier === "normal" || value.riskTier === "critical") && (value.kind === void 0 || value.kind === "new" || value.kind === "fix") && (value.integration === void 0 || typeof value.integration === "boolean") && (value.originTaskId === null || value.originTaskId === void 0 || typeof value.originTaskId === "string") && (value.docsSynced === void 0 || typeof value.docsSynced === "boolean") && (value.diagnosis === void 0 || typeof value.diagnosis === "string") && (value.plan === void 0 || typeof value.plan === "string");
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence) && (value.verifyCommand === null || value.verifyCommand === void 0 || typeof value.verifyCommand === "string") && (value.module === null || value.module === void 0 || typeof value.module === "string") && (value.contractRef === null || value.contractRef === void 0 || typeof value.contractRef === "string") && Array.isArray(value.requirementRefs) && value.requirementRefs.every((item) => typeof item === "string") && (value.timeoutSeconds === null || value.timeoutSeconds === void 0 || typeof value.timeoutSeconds === "number" && Number.isSafeInteger(value.timeoutSeconds) && value.timeoutSeconds > 0) && (value.riskTier === void 0 || value.riskTier === "trivial" || value.riskTier === "normal" || value.riskTier === "critical") && (value.kind === void 0 || value.kind === "new" || value.kind === "fix") && (value.integration === void 0 || typeof value.integration === "boolean") && Array.isArray(value.dependsOn) && value.dependsOn.every((item) => typeof item === "string") && (value.originTaskId === null || value.originTaskId === void 0 || typeof value.originTaskId === "string") && (value.docsSynced === void 0 || typeof value.docsSynced === "boolean") && (value.diagnosis === void 0 || typeof value.diagnosis === "string") && (value.plan === void 0 || typeof value.plan === "string");
 }
 function isMergeRisk(value) {
   return value === "low" || value === "medium" || value === "high";
@@ -1502,6 +1518,7 @@ function createSeedState(now) {
   const task = (id, title, goal, status, priority, ownerRoleId, reviewerRoleId, items, branch = null) => ({
     id,
     projectId: project.id,
+    number: id.replace("task-", "T-"),
     title,
     goal,
     status,
@@ -1521,6 +1538,7 @@ function createSeedState(now) {
     diagnosis: "",
     plan: "",
     integration: false,
+    dependsOn: [],
     originTaskId: null,
     docsSynced: false,
     createdAt: at,
@@ -2581,6 +2599,7 @@ async function acceptTrigger(ctx, triggerId, input = {}) {
     const task = {
       id: newId("task"),
       projectId: project.id,
+      number: "T-trigger",
       title: trigger.title,
       goal: trigger.body || trigger.title,
       status: "backlog",
@@ -2600,6 +2619,7 @@ async function acceptTrigger(ctx, triggerId, input = {}) {
       diagnosis: "",
       plan: "",
       integration: false,
+      dependsOn: [],
       originTaskId: null,
       docsSynced: false,
       createdAt: at,
@@ -2657,6 +2677,57 @@ async function ignoreTrigger(ctx, triggerId, note = "") {
 }
 
 // src/host/store/tasks.ts
+function nextTaskNumber(state, projectId) {
+  let max = 0;
+  for (const task of state.tasks) {
+    if (task.projectId !== projectId) continue;
+    const match = /^T-(\d+)$/u.exec(task.number ?? "");
+    if (match !== null) {
+      max = Math.max(max, Number(match[1]));
+    }
+  }
+  return `T-${String(max + 1).padStart(4, "0")}`;
+}
+function normalizeDependsOn(state, projectId, taskId, value) {
+  if (value === void 0) return [];
+  const unique = [...new Set(value.map((item) => item.trim()).filter(Boolean))];
+  for (const dependencyId of unique) {
+    if (dependencyId === taskId) {
+      throw new StudioStoreError("dependency_cycle", "\u4EFB\u52A1\u4E0D\u80FD\u4F9D\u8D56\u81EA\u5DF1", 409);
+    }
+    const dependency = state.tasks.find(
+      (item) => item.id === dependencyId && item.projectId === projectId
+    );
+    if (dependency === void 0) {
+      throw new StudioStoreError(
+        "dependency_not_found",
+        `\u4F9D\u8D56\u4EFB\u52A1 ${dependencyId} \u4E0D\u5B58\u5728\u6216\u4E0D\u5C5E\u4E8E\u5F53\u524D\u9879\u76EE`,
+        404
+      );
+    }
+  }
+  if (taskId !== null) {
+    const visiting = /* @__PURE__ */ new Set();
+    const visit = (currentId) => {
+      if (currentId === taskId) return true;
+      if (visiting.has(currentId)) return false;
+      visiting.add(currentId);
+      const current = state.tasks.find((item) => item.id === currentId);
+      if (current === void 0) return false;
+      return current.dependsOn.some((next) => visit(next));
+    };
+    for (const dependencyId of unique) {
+      if (visit(dependencyId)) {
+        throw new StudioStoreError(
+          "dependency_cycle",
+          "\u4EFB\u52A1\u4F9D\u8D56\u4F1A\u5F62\u6210\u5FAA\u73AF",
+          409
+        );
+      }
+    }
+  }
+  return unique;
+}
 async function createTask(ctx, input) {
   return ctx.runExclusive(async () => {
     const state = ctx.requireState();
@@ -2680,6 +2751,7 @@ async function createTask(ctx, input) {
     const task = {
       id: newId("task"),
       projectId: project.id,
+      number: nextTaskNumber(state, project.id),
       title: requiredText(input.title, "title", 160),
       goal: optionalText(input.goal, "goal", 2e3),
       status: "backlog",
@@ -2699,6 +2771,12 @@ async function createTask(ctx, input) {
       diagnosis: optionalText(input.diagnosis, "diagnosis", 4e3),
       plan: optionalText(input.plan, "plan", 4e3),
       integration: input.integration === true,
+      dependsOn: normalizeDependsOn(
+        state,
+        project.id,
+        null,
+        input.dependsOn
+      ),
       originTaskId: optionalText(input.originTaskId, "originTaskId", 120) || null,
       docsSynced: false,
       createdAt: at,
@@ -2758,6 +2836,20 @@ async function updateTask(ctx, taskId, input) {
     }
     if (input.acceptance !== void 0) {
       task.acceptance = normalizeAcceptance(input.acceptance, task.acceptance);
+    }
+    if (input.dependsOn !== void 0) {
+      task.dependsOn = normalizeDependsOn(
+        state,
+        task.projectId,
+        task.id,
+        input.dependsOn
+      );
+    }
+    if (input.timeoutSeconds !== void 0) {
+      task.timeoutSeconds = input.timeoutSeconds;
+    }
+    if (input.riskTier !== void 0) {
+      task.riskTier = input.riskTier;
     }
     if (input.evidence !== void 0) {
       task.evidence = normalizeEvidence(input.evidence, task.evidence, at);
@@ -2921,6 +3013,7 @@ function scheduleIntegrationGate(ctx, state, projectId, at) {
   const task = {
     id: newId("task"),
     projectId,
+    number: nextTaskNumber(state, projectId),
     title: `\u96C6\u6210\u9A8C\u6536\uFF08\u81EA\u52A8 #${String(index)}\uFF09`,
     goal: "\u6BCF 3 \u4E2A\u5B8C\u6210\u4EFB\u52A1\u540E\u7684\u96C6\u6210 gate\uFF1A\u6253\u5305\u5F53\u524D build\uFF0C\u4EBA\u73A9 10 \u5206\u949F\uFF0C\u8BB0\u5F55\u963B\u65AD\u95EE\u9898\u4E0E\u53EF\u7EE7\u7EED\u8FED\u4EE3\u7684\u5224\u65AD\u3002",
     status: "backlog",
@@ -2951,6 +3044,7 @@ function scheduleIntegrationGate(ctx, state, projectId, at) {
     diagnosis: "",
     plan: "",
     integration: true,
+    dependsOn: [],
     originTaskId: null,
     docsSynced: false,
     createdAt: at,
@@ -3122,6 +3216,16 @@ async function recordVerification(ctx, taskId, input) {
 }
 
 // src/host/store/runs.ts
+function assertTaskDependencies(state, task) {
+  const blockers = task.dependsOn.map((id) => state.tasks.find((item) => item.id === id)).filter((item) => item !== void 0 && item.status !== "done");
+  if (blockers.length > 0) {
+    throw new StudioStoreError(
+      "dependency_not_done",
+      `\u524D\u7F6E\u4EFB\u52A1\u672A\u5B8C\u6210\uFF1A${blockers.map((item) => `${item.number} ${item.title}`).join("\uFF1B")}`,
+      409
+    );
+  }
+}
 async function beginRun(ctx, taskId, prompt, workspace, execution) {
   return ctx.runExclusive(async () => {
     const state = ctx.requireState();
@@ -3133,6 +3237,7 @@ async function beginRun(ctx, taskId, prompt, workspace, execution) {
         409
       );
     }
+    assertTaskDependencies(state, task);
     if (task.ownerRoleId === null) {
       throw new StudioStoreError(
         "owner_required",
@@ -3666,6 +3771,7 @@ function escalateRepeatedFailure(ctx, state, task, at, reason, run) {
       const resplit = {
         id: newId("task"),
         projectId: task.projectId,
+        number: "T-resplit",
         title: `\u91CD\u62C6\uFF1A${task.title}`.slice(0, 160),
         goal: `\u539F\u4EFB\u52A1\u8FDE\u7EED\u5931\u8D25 ${String(failures)} \u6B21\u3002\u5148\u8BCA\u65AD\u6839\u56E0\uFF0C\u91CD\u62C6\u4EFB\u52A1/\u5951\u7EA6\uFF0C\u4EA7\u51FA\u53EF\u6267\u884C\u7684\u65B0 ticket \u4E0E\u9A8C\u6536\u6807\u51C6\uFF1B\u4E0D\u8981\u76F4\u63A5\u5199\u4E1A\u52A1\u4EE3\u7801\u3002\u6700\u540E\u4E00\u6B21\u5931\u8D25\uFF1A${reason}`,
         status: "backlog",
@@ -3696,6 +3802,7 @@ function escalateRepeatedFailure(ctx, state, task, at, reason, run) {
         diagnosis: `\u8FDE\u7EED\u5931\u8D25 ${String(failures)} \u6B21\uFF1B\u5148\u8BCA\u65AD\u6839\u56E0\uFF0C\u518D\u91CD\u62C6\u4EFB\u52A1\u4E0E\u9A8C\u6536\u6807\u51C6\u3002\u6700\u540E\u4E00\u6B21\u5931\u8D25\uFF1A${reason}`,
         plan: "\u8BFB\u53D6\u5931\u8D25 Run \u4E0E\u9A8C\u8BC1\u8F93\u51FA\uFF1B\u786E\u8BA4\u6839\u56E0\uFF1B\u91CD\u5199\u9A8C\u6536\u6807\u51C6\uFF1B\u62C6\u51FA\u53EF\u6267\u884C\u7684\u65B0 ticket\u3002",
         integration: false,
+        dependsOn: [task.id],
         originTaskId: task.id,
         docsSynced: false,
         createdAt: at,
@@ -3797,6 +3904,7 @@ async function getDispatchContext(ctx, taskId) {
   return ctx.runExclusive(async () => {
     const state = ctx.requireState();
     const task = findTask(state, taskId);
+    assertTaskDependencies(state, task);
     if (task.kind === "fix" && !task.integration && (task.diagnosis.trim() === "" || task.plan.trim() === "")) {
       throw new StudioStoreError(
         "plan_required",

@@ -21,6 +21,64 @@ import {
 } from "./inputs.js";
 import { findTask, pickProject, resolveRoleId } from "./lookups.js";
 
+function nextTaskNumber(state: StudioState, projectId: string): string {
+  let max = 0;
+  for (const task of state.tasks) {
+    if (task.projectId !== projectId) continue;
+    const match = /^T-(\d+)$/u.exec(task.number ?? "");
+    if (match !== null) {
+      max = Math.max(max, Number(match[1]));
+    }
+  }
+  return `T-${String(max + 1).padStart(4, "0")}`;
+}
+
+function normalizeDependsOn(
+  state: StudioState,
+  projectId: string,
+  taskId: string | null,
+  value: string[] | undefined,
+): string[] {
+  if (value === undefined) return [];
+  const unique = [...new Set(value.map((item) => item.trim()).filter(Boolean))];
+  for (const dependencyId of unique) {
+    if (dependencyId === taskId) {
+      throw new StudioStoreError("dependency_cycle", "任务不能依赖自己", 409);
+    }
+    const dependency = state.tasks.find(
+      (item) => item.id === dependencyId && item.projectId === projectId,
+    );
+    if (dependency === undefined) {
+      throw new StudioStoreError(
+        "dependency_not_found",
+        `依赖任务 ${dependencyId} 不存在或不属于当前项目`,
+        404,
+      );
+    }
+  }
+  if (taskId !== null) {
+    const visiting = new Set<string>();
+    const visit = (currentId: string): boolean => {
+      if (currentId === taskId) return true;
+      if (visiting.has(currentId)) return false;
+      visiting.add(currentId);
+      const current = state.tasks.find((item) => item.id === currentId);
+      if (current === undefined) return false;
+      return current.dependsOn.some((next) => visit(next));
+    };
+    for (const dependencyId of unique) {
+      if (visit(dependencyId)) {
+        throw new StudioStoreError(
+          "dependency_cycle",
+          "任务依赖会形成循环",
+          409,
+        );
+      }
+    }
+  }
+  return unique;
+}
+
 export async function createTask(
   ctx: StoreContext,input: CreateTaskInput): Promise<Task> {
     return ctx.runExclusive(async () => {
@@ -45,6 +103,7 @@ export async function createTask(
       const task: Task = {
         id: newId("task"),
         projectId: project.id,
+        number: nextTaskNumber(state, project.id),
         title: requiredText(input.title, "title", 160),
         goal: optionalText(input.goal, "goal", 2000),
         status: "backlog",
@@ -66,6 +125,12 @@ export async function createTask(
         diagnosis: optionalText(input.diagnosis, "diagnosis", 4000),
         plan: optionalText(input.plan, "plan", 4000),
         integration: input.integration === true,
+        dependsOn: normalizeDependsOn(
+          state,
+          project.id,
+          null,
+          input.dependsOn,
+        ),
         originTaskId:
           optionalText(input.originTaskId, "originTaskId", 120) || null,
         docsSynced: false,
@@ -128,6 +193,20 @@ export async function updateTask(
       }
       if (input.acceptance !== undefined) {
         task.acceptance = normalizeAcceptance(input.acceptance, task.acceptance);
+      }
+      if (input.dependsOn !== undefined) {
+        task.dependsOn = normalizeDependsOn(
+          state,
+          task.projectId,
+          task.id,
+          input.dependsOn,
+        );
+      }
+      if (input.timeoutSeconds !== undefined) {
+        task.timeoutSeconds = input.timeoutSeconds;
+      }
+      if (input.riskTier !== undefined) {
+        task.riskTier = input.riskTier;
       }
       if (input.evidence !== undefined) {
         task.evidence = normalizeEvidence(input.evidence, task.evidence, at);
@@ -343,6 +422,7 @@ export function scheduleIntegrationGate(
     const task: Task = {
       id: newId("task"),
       projectId,
+      number: nextTaskNumber(state, projectId),
       title: `集成验收（自动 #${String(index)}）`,
       goal: "每 3 个完成任务后的集成 gate：打包当前 build，人玩 10 分钟，记录阻断问题与可继续迭代的判断。",
       status: "backlog",
@@ -373,6 +453,7 @@ export function scheduleIntegrationGate(
       diagnosis: "",
       plan: "",
       integration: true,
+      dependsOn: [],
       originTaskId: null,
       docsSynced: false,
       createdAt: at,

@@ -115,6 +115,7 @@ export function createSeedState(now: () => Date): StudioState {
     ): Task => ({
       id,
       projectId: project.id,
+      number: id.replace("task-", "T-"),
       title,
       goal,
       status,
@@ -134,6 +135,7 @@ export function createSeedState(now: () => Date): StudioState {
       diagnosis: "",
       plan: "",
       integration: false,
+      dependsOn: [],
       originTaskId: null,
       docsSynced: false,
       createdAt: at,

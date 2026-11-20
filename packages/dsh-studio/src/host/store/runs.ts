@@ -13,6 +13,21 @@ import type {
 import { StudioStoreError, newId, type StoreContext } from "./core.js";
 import { findTask } from "./lookups.js";
 
+function assertTaskDependencies(state: StudioState, task: Task): void {
+  const blockers = task.dependsOn
+    .map((id) => state.tasks.find((item) => item.id === id))
+    .filter((item): item is Task => item !== undefined && item.status !== "done");
+  if (blockers.length > 0) {
+    throw new StudioStoreError(
+      "dependency_not_done",
+      `前置任务未完成：${blockers
+        .map((item) => `${item.number} ${item.title}`)
+        .join("；")}`,
+      409,
+    );
+  }
+}
+
 export async function beginRun(
   ctx: StoreContext,
     taskId: string,
@@ -35,6 +50,7 @@ export async function beginRun(
           409,
         );
       }
+      assertTaskDependencies(state, task);
       if (task.ownerRoleId === null) {
         throw new StudioStoreError(
           "owner_required",
@@ -690,6 +706,7 @@ export function escalateRepeatedFailure(
         const resplit: Task = {
           id: newId("task"),
           projectId: task.projectId,
+          number: "T-resplit",
           title: `重拆：${task.title}`.slice(0, 160),
           goal: `原任务连续失败 ${String(failures)} 次。先诊断根因，重拆任务/契约，产出可执行的新 ticket 与验收标准；不要直接写业务代码。最后一次失败：${reason}`,
           status: "backlog",
@@ -720,6 +737,7 @@ export function escalateRepeatedFailure(
           diagnosis: `连续失败 ${String(failures)} 次；先诊断根因，再重拆任务与验收标准。最后一次失败：${reason}`,
           plan: "读取失败 Run 与验证输出；确认根因；重写验收标准；拆出可执行的新 ticket。",
           integration: false,
+          dependsOn: [task.id],
           originTaskId: task.id,
           docsSynced: false,
           createdAt: at,
@@ -840,6 +858,7 @@ export async function getDispatchContext(
     return ctx.runExclusive(async () => {
       const state = ctx.requireState();
       const task = findTask(state, taskId);
+      assertTaskDependencies(state, task);
       if (
         task.kind === "fix" &&
         !task.integration &&
