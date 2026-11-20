@@ -6,7 +6,7 @@ import { compatibilityOf } from "../lib/compat.js";
 test("marks the tested DSH baseline as supported", () => {
   const result = compatibilityOf("0.2.1-rc.2");
   assert.equal(result.status, "supported");
-  assert.equal(result.testedWith, "0.2.1-rc.2");
+  assert.equal(result.testedWith, "0.2.2-rc.5");
 });
 
 test("accepts future DSH 0.x minor versions", () => {

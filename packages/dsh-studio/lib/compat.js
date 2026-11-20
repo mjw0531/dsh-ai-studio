@@ -1,7 +1,7 @@
 // src/host/compat.ts
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-var TESTED_DSH_VERSION = "0.2.1-rc.2";
+var TESTED_DSH_VERSION = "0.2.2-rc.5";
 var SUPPORTED_DSH_RANGE = ">=0.2.1-rc.2";
 function normalizeVersion(value) {
   if (typeof value !== "string") return null;

@@ -3,7 +3,7 @@ import path from "node:path";
 
 import type { CompatibilityInfo } from "../shared/types.js";
 
-export const TESTED_DSH_VERSION = "0.2.1-rc.2";
+export const TESTED_DSH_VERSION = "0.2.2-rc.5";
 export const SUPPORTED_DSH_RANGE = ">=0.2.1-rc.2";
 
 export interface RuntimeInfo {

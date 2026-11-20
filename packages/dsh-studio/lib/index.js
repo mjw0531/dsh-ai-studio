@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 41;
-var STUDIO_PLUGIN_VERSION = "3.19.0";
+var STUDIO_PLUGIN_VERSION = "3.19.1";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -52,7 +52,7 @@ function isTaskPriority(value) {
 // src/host/compat.ts
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-var TESTED_DSH_VERSION = "0.2.1-rc.2";
+var TESTED_DSH_VERSION = "0.2.2-rc.5";
 var SUPPORTED_DSH_RANGE = ">=0.2.1-rc.2";
 function normalizeVersion(value) {
   if (typeof value !== "string") return null;
@@ -6452,7 +6452,7 @@ var StudioStore = class {
           dshVersion: "unknown",
           compatibility: {
             status: "unknown",
-            testedWith: "0.2.1-rc.2",
+            testedWith: "0.2.2-rc.5",
             message: ""
           },
           dataDir: this.dataDir,

@@ -16,7 +16,7 @@ import path4 from "node:path";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 41;
-var STUDIO_PLUGIN_VERSION = "3.19.0";
+var STUDIO_PLUGIN_VERSION = "3.19.1";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -6341,7 +6341,7 @@ var StudioStore = class {
           dshVersion: "unknown",
           compatibility: {
             status: "unknown",
-            testedWith: "0.2.1-rc.2",
+            testedWith: "0.2.2-rc.5",
             message: ""
           },
           dataDir: this.dataDir,

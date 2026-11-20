@@ -603,7 +603,7 @@ export class StudioStore {
           dshVersion: "unknown",
           compatibility: {
             status: "unknown",
-            testedWith: "0.2.1-rc.2",
+            testedWith: "0.2.2-rc.5",
             message: "",
           },
           dataDir: this.dataDir,
