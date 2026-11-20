@@ -2271,6 +2271,7 @@ function lines(value) {
   return value.split("\n").map((line) => line.trim()).filter(Boolean);
 }
 function MeetingComposer({
+  project,
   roles,
   freezes,
   busy,
@@ -2287,6 +2288,10 @@ function MeetingComposer({
   );
   const [freezeId, setFreezeId] = (0, import_react2.useState)(freezes[0]?.id ?? "");
   const [perspectives, setPerspectives] = (0, import_react2.useState)({});
+  const materialOptions = [project.prdPath, project.invariantsPath, project.modulesPath].filter(
+    (item) => item !== null && item.trim() !== ""
+  );
+  const [materialPaths, setMaterialPaths] = (0, import_react2.useState)(materialOptions);
   const perspectiveOrder = [
     "experience",
     "competitor",
@@ -2322,6 +2327,7 @@ function MeetingComposer({
       participantRoleIds: participants,
       agenda: agendaFrom(agendaText),
       freezeId: freezeId || null,
+      materialPaths,
       perspectives: participants.map((roleId, index) => ({
         roleId,
         perspective: perspectives[roleId] ?? perspectiveOrder[index % 4] ?? "experience"
@@ -2395,6 +2401,23 @@ function MeetingComposer({
             ]
           }
         )
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-field", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("label", { children: "\u4F1A\u8BAE\u6750\u6599\uFF08\u53EA\u8BFB\u6CE8\u5165\uFF09" }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "studio-check-grid", children: materialOptions.map((path) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("label", { className: "studio-check", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+            "input",
+            {
+              type: "checkbox",
+              checked: materialPaths.includes(path),
+              onChange: (event) => setMaterialPaths(
+                (current) => event.target.checked ? [...current, path] : current.filter((item) => item !== path)
+              )
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: path })
+        ] }, path)) }),
+        materialOptions.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "studio-hint", children: "\u5148\u7ED1\u5B9A PRD / INVARIANTS / MODULES \u8DEF\u5F84\u3002" }) : null
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-field", children: [
         /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("label", { children: "\u53C2\u4F1A\u89D2\u8272" }),
@@ -2688,6 +2711,7 @@ function MeetingView({
     showComposer ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
       MeetingComposer,
       {
+        project,
         roles,
         freezes,
         busy,

@@ -1,3 +1,6 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+
 import { isProjectStage } from "../../shared/types.js";
 import { StudioStoreError, newId, type StoreContext } from "./core.js";
 import type {
@@ -226,6 +229,41 @@ export async function createWorkshop(
           perspectiveOrder[index % perspectiveOrder.length] ??
           "experience",
       }));
+      const materials: Workshop["materials"] = [];
+      const seenMaterials = new Set<string>();
+      for (const rawPath of input.materialPaths ?? []) {
+        const relative = rawPath.trim().replaceAll("\\", "/").replace(/^\/+/, "");
+        if (
+          relative === "" ||
+          relative.includes("..") ||
+          path.isAbsolute(relative) ||
+          seenMaterials.has(relative)
+        ) {
+          continue;
+        }
+        if (project.repoPath === null) {
+          throw new StudioStoreError(
+            "repo_required",
+            "项目绑定仓库后才能注入会议材料",
+            409,
+          );
+        }
+        const root = path.resolve(project.repoPath);
+        const absolute = path.resolve(root, relative);
+        if (!absolute.startsWith(`${root}${path.sep}`)) {
+          throw new StudioStoreError("invalid_material", "会议材料路径越出仓库", 400);
+        }
+        const content = await readFile(absolute, "utf8").catch(() => null);
+        if (content === null) {
+          throw new StudioStoreError(
+            "material_not_found",
+            `会议材料不存在：${relative}`,
+            404,
+          );
+        }
+        seenMaterials.add(relative);
+        materials.push({ path: relative, content: content.slice(0, 20_000) });
+      }
       const at = ctx.now();
       const workshop: Workshop = {
         id: newId("workshop"),
@@ -236,6 +274,7 @@ export async function createWorkshop(
         status: "collecting",
         participantRoleIds: participants,
         participantPerspectives,
+        materials,
         freezeId,
         linkedTaskId: null,
         linkedChangeRequestId: null,

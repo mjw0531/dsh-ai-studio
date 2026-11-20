@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 37;
-export const STUDIO_PLUGIN_VERSION = "3.16.1";
+export const STUDIO_SCHEMA_VERSION = 38;
+export const STUDIO_PLUGIN_VERSION = "3.16.2";
 
 export type TaskStatus =
   | "backlog"
@@ -240,6 +240,11 @@ export type WorkshopMeetingType =
 
 export type WorkshopAgendaStatus = "open" | "closed" | "deferred";
 
+export interface WorkshopMaterial {
+  path: string;
+  content: string;
+}
+
 export interface WorkshopAgendaItem {
   id: string;
   text: string;
@@ -320,6 +325,7 @@ export interface Workshop {
   linkedTaskId: string | null;
   linkedChangeRequestId: string | null;
   meetingType: WorkshopMeetingType;
+  materials: WorkshopMaterial[];
   agenda: WorkshopAgendaItem[];
   messages: WorkshopMessage[];
   sideChats: WorkshopSideChat[];
@@ -343,6 +349,7 @@ export interface CreateWorkshopInput {
   participantRoleIds?: string[];
   meetingType?: WorkshopMeetingType;
   agenda?: string[];
+  materialPaths?: string[];
   freezeId?: string | null;
   perspectives?: Array<{ roleId: string; perspective: WorkshopPerspective }>;
 }

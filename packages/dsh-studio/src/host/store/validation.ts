@@ -635,6 +635,13 @@ function isWorkshop(value: unknown): value is Workshop {
       value.meetingType === "architecture" ||
       value.meetingType === "balance" ||
       value.meetingType === "custom") &&
+    Array.isArray(value.materials) &&
+    value.materials.every(
+      (item) =>
+        isRecord(item) &&
+        typeof item.path === "string" &&
+        typeof item.content === "string",
+    ) &&
     Array.isArray(value.agenda) &&
     value.agenda.every(isWorkshopAgendaItem) &&
     Array.isArray(value.messages) &&

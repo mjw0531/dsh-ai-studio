@@ -2,7 +2,7 @@
 import { timingSafeEqual as timingSafeEqual3 } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_PLUGIN_VERSION = "3.16.1";
+var STUDIO_PLUGIN_VERSION = "3.16.2";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -581,6 +581,7 @@ function asCreateWorkshop(body) {
     ),
     meetingType: body.meetingType === "prd" || body.meetingType === "architecture" || body.meetingType === "balance" || body.meetingType === "custom" ? body.meetingType : void 0,
     agenda: asStringArray(body.agenda, "agenda"),
+    materialPaths: asStringArray(body.materialPaths, "materialPaths") ?? [],
     freezeId: body.freezeId === null || body.freezeId === void 0 ? null : asOptionalString(body.freezeId, "freezeId") ?? null,
     perspectives: body.perspectives === void 0 ? void 0 : Array.isArray(body.perspectives) ? body.perspectives.flatMap((item) => {
       if (typeof item !== "object" || item === null || typeof item.roleId !== "string" || item.perspective !== "experience" && item.perspective !== "competitor" && item.perspective !== "feasibility" && item.perspective !== "contrarian") {

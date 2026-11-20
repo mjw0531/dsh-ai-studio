@@ -463,7 +463,7 @@ export function migrateState(value: unknown): StudioState {
     const counters = new Map<string, number>();
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 37,
       tasks: [...state.tasks]
         .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
         .map((task) => {
@@ -475,6 +475,16 @@ export function migrateState(value: unknown): StudioState {
             dependsOn: [],
           };
         }),
+    };
+  }
+  if (state.schemaVersion === 37) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      workshops: state.workshops.map((workshop) => ({
+        ...workshop,
+        materials: [],
+      })),
     };
   }
   return state;

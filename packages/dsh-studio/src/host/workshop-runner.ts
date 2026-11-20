@@ -79,13 +79,41 @@ function perspectiveOf(workshop: Workshop, roleId: string): string {
   return PERSPECTIVE_LABELS[perspective ?? "experience"] ?? "玩家体验";
 }
 
+function roleCard(role: Role): string[] {
+  return [
+    role.mission.trim() !== "" ? `你的使命：${role.mission}` : "",
+    role.responsibilities.length > 0
+      ? `你的职责：${role.responsibilities.join("；")}`
+      : "",
+    role.nonGoals.length > 0 ? `你不负责：${role.nonGoals.join("；")}` : "",
+    role.decisionRights.length > 0
+      ? `你的决策权：${role.decisionRights.join("；")}`
+      : "",
+  ].filter((line) => line !== "");
+}
+
+function materialContext(workshop: Workshop): string[] {
+  if (workshop.materials.length === 0) return [];
+  return [
+    "",
+    "会议材料（只读）：",
+    ...workshop.materials.flatMap((material) => [
+      `--- ${material.path} ---`,
+      material.content.slice(0, 8000),
+      "",
+    ]),
+  ];
+}
+
 function buildPrompt(workshop: Workshop, role: Role): string {
   return [
     `你是「${role.name}」（${role.title || "参与角色"}）。`,
+    ...roleCard(role),
     `你的会议视角：${perspectiveOf(workshop, role.id)}`,
     `研讨会主题：${workshop.title}`,
     workshop.topic ? `议题：${workshop.topic}` : "",
     `项目阶段：${workshop.stage}`,
+    ...materialContext(workshop),
     "",
     "这是一次独立评审。你看不到其他参与者的意见；不要假设他们同意你。",
     "不要修改文件，不要执行 merge，不要替 Owner 做最终决策。",
@@ -183,6 +211,7 @@ export class WorkshopRunner {
       "你是研讨会主持人。请汇总以下独立意见，不要替 Owner 做最终决策。",
       `主题：${context.workshop.title}`,
       context.workshop.topic ? `议题：${context.workshop.topic}` : "",
+      ...materialContext(context.workshop),
       "",
       noteText,
       "",
@@ -244,7 +273,9 @@ export class WorkshopRunner {
       ) ?? null;
     const prompt = [
       `你是「${role.name}」（${role.title || "参会角色"}）。`,
+      ...roleCard(role),
       `你的会议视角：${perspectiveOf(context.workshop, role.id)}`,
+      ...materialContext(context.workshop),
       `会议：${context.workshop.title}`,
       context.workshop.topic ? `议题：${context.workshop.topic}` : "",
       "你正在参加一场由 Owner 主持的会议。以下是公开会议记录。",
@@ -290,7 +321,9 @@ export class WorkshopRunner {
         .join("\n") ?? "";
     const prompt = [
       `你是「${role.name}」（${role.title || "参会角色"}）。`,
+      ...roleCard(role),
       `你的会议视角：${perspectiveOf(context.workshop, role.id)}`,
+      ...materialContext(context.workshop),
       `会议：${context.workshop.title}`,
       context.workshop.topic ? `议题：${context.workshop.topic}` : "",
       "这是 Owner 与你的单独沟通，不会自动进入公开会议记录。",
@@ -325,6 +358,7 @@ export class WorkshopRunner {
       "你是会议记录员。请汇总公开会议记录，不要替 Owner 做最终决策。",
       `会议：${context.workshop.title}`,
       context.workshop.topic ? `议题：${context.workshop.topic}` : "",
+      ...materialContext(context.workshop),
       "议程：",
       context.workshop.agenda
         .map((item) => `- [${item.status}] ${item.text}`)

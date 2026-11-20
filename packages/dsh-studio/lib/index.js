@@ -2,8 +2,8 @@
 import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 37;
-var STUDIO_PLUGIN_VERSION = "3.16.1";
+var STUDIO_SCHEMA_VERSION = 38;
+var STUDIO_PLUGIN_VERSION = "3.16.2";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -155,7 +155,7 @@ function safeOrigin(ctx) {
 
 // src/host/adr.ts
 import { mkdir as mkdir2, readdir as readdir2, writeFile as writeFile2 } from "node:fs/promises";
-import path5 from "node:path";
+import path6 from "node:path";
 
 // src/host/store.ts
 import { randomUUID as randomUUID5 } from "node:crypto";
@@ -163,7 +163,7 @@ import { existsSync as existsSync2 } from "node:fs";
 import {
   copyFile,
   mkdir,
-  readFile as readFile3,
+  readFile as readFile4,
   readdir,
   rename,
   stat as stat2,
@@ -171,7 +171,7 @@ import {
   writeFile
 } from "node:fs/promises";
 import os from "node:os";
-import path4 from "node:path";
+import path5 from "node:path";
 
 // src/host/store/migration.ts
 function isRecord(value) {
@@ -611,7 +611,7 @@ function migrateState(value) {
     const counters = /* @__PURE__ */ new Map();
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 37,
       tasks: [...state.tasks].sort((left, right) => left.createdAt.localeCompare(right.createdAt)).map((task) => {
         const next = (counters.get(task.projectId) ?? 0) + 1;
         counters.set(task.projectId, next);
@@ -621,6 +621,16 @@ function migrateState(value) {
           dependsOn: []
         };
       })
+    };
+  }
+  if (state.schemaVersion === 37) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      workshops: state.workshops.map((workshop) => ({
+        ...workshop,
+        materials: []
+      }))
     };
   }
   return state;
@@ -726,7 +736,9 @@ function isWorkshopMinutes(value) {
 function isWorkshop(value) {
   return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.topic === "string" && isProjectStage(value.stage) && isWorkshopStatus(value.status) && Array.isArray(value.participantRoleIds) && value.participantRoleIds.every((item) => typeof item === "string") && Array.isArray(value.participantPerspectives) && value.participantPerspectives.every(
     (item) => isRecord2(item) && typeof item.roleId === "string" && (item.perspective === "experience" || item.perspective === "competitor" || item.perspective === "feasibility" || item.perspective === "contrarian")
-  ) && (value.freezeId === null || typeof value.freezeId === "string") && (value.linkedTaskId === null || typeof value.linkedTaskId === "string") && (value.linkedChangeRequestId === null || typeof value.linkedChangeRequestId === "string") && (value.meetingType === "prd" || value.meetingType === "architecture" || value.meetingType === "balance" || value.meetingType === "custom") && Array.isArray(value.agenda) && value.agenda.every(isWorkshopAgendaItem) && Array.isArray(value.messages) && value.messages.every(isWorkshopMessage) && Array.isArray(value.sideChats) && value.sideChats.every(
+  ) && (value.freezeId === null || typeof value.freezeId === "string") && (value.linkedTaskId === null || typeof value.linkedTaskId === "string") && (value.linkedChangeRequestId === null || typeof value.linkedChangeRequestId === "string") && (value.meetingType === "prd" || value.meetingType === "architecture" || value.meetingType === "balance" || value.meetingType === "custom") && Array.isArray(value.materials) && value.materials.every(
+    (item) => isRecord2(item) && typeof item.path === "string" && typeof item.content === "string"
+  ) && Array.isArray(value.agenda) && value.agenda.every(isWorkshopAgendaItem) && Array.isArray(value.messages) && value.messages.every(isWorkshopMessage) && Array.isArray(value.sideChats) && value.sideChats.every(
     (chat) => isRecord2(chat) && typeof chat.roleId === "string" && Array.isArray(chat.messages) && chat.messages.every(isWorkshopMessage) && typeof chat.updatedAt === "string"
   ) && (value.minutes === null || isWorkshopMinutes(value.minutes)) && (value.decisionId === null || typeof value.decisionId === "string") && (value.settledAt === null || typeof value.settledAt === "string") && Array.isArray(value.notes) && value.notes.every(isWorkshopNote) && (value.aiSummary === null || isWorkshopAiSummary(value.aiSummary)) && typeof value.synthesis === "string" && typeof value.decision === "string" && typeof value.decidedBy === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
 }
@@ -3802,12 +3814,12 @@ async function enforceContractScope(ctx, taskId, runId, changedFiles) {
       if (file === "") return false;
       if (contract !== "" && file === contract) return true;
       if (forbidden.some(
-        (path11) => file === path11 || file.startsWith(`${path11}/`)
+        (path12) => file === path12 || file.startsWith(`${path12}/`)
       )) {
         return true;
       }
       if (allowed.length > 0 && (file.startsWith("src/") || file.startsWith("test/")) && !allowed.some(
-        (path11) => file === path11 || file.startsWith(`${path11}/`)
+        (path12) => file === path12 || file.startsWith(`${path12}/`)
       )) {
         return true;
       }
@@ -4077,6 +4089,8 @@ async function recordRunRuntime(ctx, runId, runtime) {
 }
 
 // src/host/store/workshops.ts
+import { readFile as readFile2 } from "node:fs/promises";
+import path2 from "node:path";
 async function getWorkshopContext(ctx, workshopId) {
   return ctx.runExclusive(async () => {
     const state = ctx.requireState();
@@ -4230,6 +4244,36 @@ async function createWorkshop(ctx, input) {
       roleId,
       perspective: input.perspectives?.find((item) => item.roleId === roleId)?.perspective ?? perspectiveOrder[index % perspectiveOrder.length] ?? "experience"
     }));
+    const materials = [];
+    const seenMaterials = /* @__PURE__ */ new Set();
+    for (const rawPath of input.materialPaths ?? []) {
+      const relative = rawPath.trim().replaceAll("\\", "/").replace(/^\/+/, "");
+      if (relative === "" || relative.includes("..") || path2.isAbsolute(relative) || seenMaterials.has(relative)) {
+        continue;
+      }
+      if (project.repoPath === null) {
+        throw new StudioStoreError(
+          "repo_required",
+          "\u9879\u76EE\u7ED1\u5B9A\u4ED3\u5E93\u540E\u624D\u80FD\u6CE8\u5165\u4F1A\u8BAE\u6750\u6599",
+          409
+        );
+      }
+      const root = path2.resolve(project.repoPath);
+      const absolute = path2.resolve(root, relative);
+      if (!absolute.startsWith(`${root}${path2.sep}`)) {
+        throw new StudioStoreError("invalid_material", "\u4F1A\u8BAE\u6750\u6599\u8DEF\u5F84\u8D8A\u51FA\u4ED3\u5E93", 400);
+      }
+      const content = await readFile2(absolute, "utf8").catch(() => null);
+      if (content === null) {
+        throw new StudioStoreError(
+          "material_not_found",
+          `\u4F1A\u8BAE\u6750\u6599\u4E0D\u5B58\u5728\uFF1A${relative}`,
+          404
+        );
+      }
+      seenMaterials.add(relative);
+      materials.push({ path: relative, content: content.slice(0, 2e4) });
+    }
     const at = ctx.now();
     const workshop = {
       id: newId("workshop"),
@@ -4240,6 +4284,7 @@ async function createWorkshop(ctx, input) {
       status: "collecting",
       participantRoleIds: participants,
       participantPerspectives,
+      materials,
       freezeId,
       linkedTaskId: null,
       linkedChangeRequestId: null,
@@ -4978,12 +5023,12 @@ async function decideDecision(ctx, decisionId, input) {
 
 // src/host/store/projects.ts
 import { existsSync } from "node:fs";
-import path3 from "node:path";
+import path4 from "node:path";
 
 // src/host/store/freezes.ts
 import { createHash } from "node:crypto";
-import { readFile as readFile2, stat } from "node:fs/promises";
-import path2 from "node:path";
+import { readFile as readFile3, stat } from "node:fs/promises";
+import path3 from "node:path";
 var PRD_CHECKS = [
   "\u6838\u5FC3\u5FAA\u73AF/\u72B6\u6001\u8F6C\u6362\u5DF2\u5B9A\u4E49",
   "\u9996\u5207\u7247\u8303\u56F4\u4E0E\u975E\u76EE\u6807\u5DF2\u5199",
@@ -5007,9 +5052,9 @@ function defaultChecklist(kind) {
   }));
 }
 function resolveInside(repoPath, relative) {
-  const root = path2.resolve(repoPath);
-  const target = path2.resolve(root, relative);
-  if (target !== root && !target.startsWith(`${root}${path2.sep}`)) {
+  const root = path3.resolve(repoPath);
+  const target = path3.resolve(root, relative);
+  if (target !== root && !target.startsWith(`${root}${path3.sep}`)) {
     throw new StudioStoreError(
       "freeze_path_outside_repo",
       "\u51BB\u7ED3\u6587\u6863\u5FC5\u987B\u4F4D\u4E8E\u9879\u76EE\u4ED3\u5E93\u5185",
@@ -5027,7 +5072,7 @@ async function hashFile(file) {
       404
     );
   }
-  return createHash("sha256").update(await readFile2(file)).digest("hex");
+  return createHash("sha256").update(await readFile3(file)).digest("hex");
 }
 function latestFreeze(state, projectId, kind) {
   return [...state.freezes].filter(
@@ -5335,7 +5380,7 @@ async function createProjectFromTemplate(ctx, input) {
 function normalizeDocPath(value, root, previousRoot, allowDrop) {
   if (value.trim() === "") return null;
   if (root === null) {
-    if (path3.isAbsolute(value)) {
+    if (path4.isAbsolute(value)) {
       throw new StudioStoreError(
         "repo_required",
         "\u7ED1\u5B9A\u4ED3\u5E93\u524D\u53EA\u80FD\u4FDD\u5B58\u76F8\u5BF9\u6587\u6863\u8DEF\u5F84",
@@ -5344,9 +5389,9 @@ function normalizeDocPath(value, root, previousRoot, allowDrop) {
     }
     return value.replaceAll("\\", "/");
   }
-  if (!path3.isAbsolute(value)) {
-    const target = path3.resolve(root, value);
-    if (target !== root && !target.startsWith(`${root}${path3.sep}`)) {
+  if (!path4.isAbsolute(value)) {
+    const target = path4.resolve(root, value);
+    if (target !== root && !target.startsWith(`${root}${path4.sep}`)) {
       throw new StudioStoreError(
         "doc_path_outside_repo",
         "\u6587\u6863\u8DEF\u5F84\u5FC5\u987B\u4F4D\u4E8E\u4ED3\u5E93\u5185",
@@ -5357,10 +5402,10 @@ function normalizeDocPath(value, root, previousRoot, allowDrop) {
   }
   for (const candidate of [root, previousRoot]) {
     if (candidate === null) continue;
-    const base = path3.resolve(candidate);
-    const target = path3.resolve(value);
-    if (target === base || target.startsWith(`${base}${path3.sep}`)) {
-      return path3.relative(base, target).replaceAll("\\", "/");
+    const base = path4.resolve(candidate);
+    const target = path4.resolve(value);
+    if (target === base || target.startsWith(`${base}${path4.sep}`)) {
+      return path4.relative(base, target).replaceAll("\\", "/");
     }
   }
   if (allowDrop) return null;
@@ -5986,11 +6031,11 @@ function localStamp(date) {
 function defaultStudioDataDir() {
   const override = process.env.DSH_STUDIO_DATA_DIR?.trim();
   if (override !== void 0 && override !== "") {
-    return path4.resolve(override);
+    return path5.resolve(override);
   }
   const home = process.env.DSH_HOME?.trim();
-  return path4.join(
-    home !== void 0 && home !== "" ? home : path4.join(os.homedir(), ".dsh"),
+  return path5.join(
+    home !== void 0 && home !== "" ? home : path5.join(os.homedir(), ".dsh"),
     "studio"
   );
 }
@@ -6010,7 +6055,7 @@ var StudioStore = class {
   context;
   constructor(options = {}) {
     this.dataDir = options.dataDir ?? defaultStudioDataDir();
-    this.file = path4.join(this.dataDir, "studio.json");
+    this.file = path5.join(this.dataDir, "studio.json");
     this.now = options.now ?? (() => /* @__PURE__ */ new Date());
     this.context = {
       runExclusive: (work) => this.runExclusive(work),
@@ -6058,11 +6103,11 @@ var StudioStore = class {
     return this.warning;
   }
   async listBackups() {
-    const dir = path4.join(this.dataDir, "backups");
+    const dir = path5.join(this.dataDir, "backups");
     const names = (await readdir(dir).catch(() => [])).filter((name2) => backupName.test(name2)).sort().reverse();
     const result = [];
     for (const name2 of names) {
-      const info = await stat2(path4.join(dir, name2)).catch(() => null);
+      const info = await stat2(path5.join(dir, name2)).catch(() => null);
       if (info === null) continue;
       result.push({
         name: name2,
@@ -6077,7 +6122,7 @@ var StudioStore = class {
       if (!backupName.test(name2)) {
         throw new StudioStoreError("invalid_backup", "\u5907\u4EFD\u6587\u4EF6\u540D\u65E0\u6548", 400);
       }
-      const raw = await readFile3(path4.join(this.dataDir, "backups", name2), "utf8");
+      const raw = await readFile4(path5.join(this.dataDir, "backups", name2), "utf8");
       const parsed = JSON.parse(raw);
       const restored = migrateState(parsed);
       assertState(restored);
@@ -6447,9 +6492,9 @@ var StudioStore = class {
   }
   async externalizeRunOutput(runId, output) {
     try {
-      const dir = path4.join(this.dataDir, "runs");
+      const dir = path5.join(this.dataDir, "runs");
       await mkdir(dir, { recursive: true });
-      const file = path4.join(dir, `${runId}.txt`);
+      const file = path5.join(dir, `${runId}.txt`);
       await writeFile(file, output, "utf8");
       await this.runExclusive(async () => {
         const run3 = this.requireState().runs.find(
@@ -6563,7 +6608,7 @@ var StudioStore = class {
       await this.save();
       return;
     }
-    const raw = await readFile3(this.file, "utf8");
+    const raw = await readFile4(this.file, "utf8");
     let parsed;
     try {
       parsed = JSON.parse(raw);
@@ -6594,19 +6639,19 @@ var StudioStore = class {
   async backupCurrentFile() {
     if (!existsSync2(this.file)) return;
     const now = /* @__PURE__ */ new Date();
-    const dir = path4.join(this.dataDir, "backups");
+    const dir = path5.join(this.dataDir, "backups");
     await mkdir(dir, { recursive: true });
     const base = `studio-${localStamp(now)}`;
-    let target = path4.join(dir, `${base}.json`);
+    let target = path5.join(dir, `${base}.json`);
     let suffix = 1;
     while (existsSync2(target)) {
-      target = path4.join(dir, `${base}-${String(suffix)}.json`);
+      target = path5.join(dir, `${base}-${String(suffix)}.json`);
       suffix += 1;
     }
     await copyFile(this.file, target).catch(() => void 0);
     const files = (await readdir(dir).catch(() => [])).filter((name2) => backupName.test(name2)).sort().reverse();
     for (const stale of files.slice(10)) {
-      await unlink(path4.join(dir, stale)).catch(() => void 0);
+      await unlink(path5.join(dir, stale)).catch(() => void 0);
     }
   }
   historyArchived = false;
@@ -6616,10 +6661,10 @@ var StudioStore = class {
     if (state.runs.length + state.reviews.length + state.verifications.length <= 1500) {
       return;
     }
-    const dir = path4.join(this.dataDir, "history");
+    const dir = path5.join(this.dataDir, "history");
     await mkdir(dir, { recursive: true });
     const stamp = (/* @__PURE__ */ new Date()).toISOString().replaceAll(":", "-");
-    await copyFile(this.file, path4.join(dir, `studio-${stamp}.json`));
+    await copyFile(this.file, path5.join(dir, `studio-${stamp}.json`));
     this.historyArchived = true;
   }
   async save() {
@@ -6720,7 +6765,7 @@ var AdrService = class {
         409
       );
     }
-    const dir = path5.join(project.repoPath, "docs", "adr");
+    const dir = path6.join(project.repoPath, "docs", "adr");
     await mkdir2(dir, { recursive: true });
     const files = await readdir2(dir);
     let next = 1;
@@ -6732,7 +6777,7 @@ var AdrService = class {
     }
     const name2 = `${String(next).padStart(4, "0")}-${decision.id}.md`;
     const relative = `docs/adr/${name2}`;
-    await writeFile2(path5.join(dir, name2), decision.adrDraft, "utf8");
+    await writeFile2(path6.join(dir, name2), decision.adrDraft, "utf8");
     return this.store.setDecisionAdrPath(decision.id, relative);
   }
 };
@@ -6742,14 +6787,14 @@ import { execFile } from "node:child_process";
 import { createHash as createHash2 } from "node:crypto";
 import {
   mkdtemp,
-  readFile as readFile4,
+  readFile as readFile5,
   readdir as readdir3,
   rm as rm2,
   stat as stat3,
   writeFile as writeFile3
 } from "node:fs/promises";
 import os2 from "node:os";
-import path6 from "node:path";
+import path7 from "node:path";
 import { promisify } from "node:util";
 var run = promisify(execFile);
 function assertSafeTarEntries(entries) {
@@ -6816,20 +6861,20 @@ var ProjectBundleService = class {
       );
     }
     const slice = sliceForProject(state, projectId);
-    const temp = await mkdtemp(path6.join(os2.tmpdir(), "studio-bundle-"));
-    const archive = path6.join(
+    const temp = await mkdtemp(path7.join(os2.tmpdir(), "studio-bundle-"));
+    const archive = path7.join(
       os2.tmpdir(),
       `studio-bundle-${String(Date.now())}-${Math.random().toString(36).slice(2)}.tar.gz`
     );
     try {
-      const bundlePath = path6.join(temp, "project.bundle");
+      const bundlePath = path7.join(temp, "project.bundle");
       await run(
         "git",
         ["bundle", "create", bundlePath, "--all"],
         { cwd: project.repoPath, windowsHide: true }
       );
       await writeFile3(
-        path6.join(temp, "project.json"),
+        path7.join(temp, "project.json"),
         `${JSON.stringify(slice, null, 2)}
 `,
         "utf8"
@@ -6851,19 +6896,19 @@ var ProjectBundleService = class {
         files: ["project.json", "project.bundle", "manifest.json", "README.txt"],
         checksums: {
           "project.json": checksum(
-            await readFile4(path6.join(temp, "project.json"))
+            await readFile5(path7.join(temp, "project.json"))
           ),
-          "project.bundle": checksum(await readFile4(bundlePath))
+          "project.bundle": checksum(await readFile5(bundlePath))
         }
       };
       await writeFile3(
-        path6.join(temp, "manifest.json"),
+        path7.join(temp, "manifest.json"),
         `${JSON.stringify(manifest, null, 2)}
 `,
         "utf8"
       );
       await writeFile3(
-        path6.join(temp, "README.txt"),
+        path7.join(temp, "README.txt"),
         [
           "dsh-ai-studio project bundle",
           "",
@@ -6883,7 +6928,7 @@ var ProjectBundleService = class {
         ["-czf", archive, "-C", temp, "."],
         { windowsHide: true }
       );
-      const bytes = await readFile4(archive);
+      const bytes = await readFile5(archive);
       const safeName = project.name.replace(/[^\w.-]+/g, "-").slice(0, 40);
       return {
         filename: `${safeName || "project"}-bundle.tar.gz`,
@@ -6902,7 +6947,7 @@ var ProjectBundleService = class {
     }
   }
   async importProject(archivePath, targetPath) {
-    if (!path6.isAbsolute(archivePath) || !path6.isAbsolute(targetPath)) {
+    if (!path7.isAbsolute(archivePath) || !path7.isAbsolute(targetPath)) {
       throw new StudioStoreError(
         "invalid_path",
         "\u9879\u76EE\u5305\u8DEF\u5F84\u548C\u76EE\u6807\u4ED3\u5E93\u8DEF\u5F84\u90FD\u5FC5\u987B\u662F\u7EDD\u5BF9\u8DEF\u5F84",
@@ -6935,7 +6980,7 @@ var ProjectBundleService = class {
         );
       }
     }
-    const temp = await mkdtemp(path6.join(os2.tmpdir(), "studio-import-"));
+    const temp = await mkdtemp(path7.join(os2.tmpdir(), "studio-import-"));
     try {
       const entries = await run(
         "tar",
@@ -6949,7 +6994,7 @@ var ProjectBundleService = class {
         { windowsHide: true }
       );
       const manifest = JSON.parse(
-        await readFile4(path6.join(temp, "manifest.json"), "utf8")
+        await readFile5(path7.join(temp, "manifest.json"), "utf8")
       );
       if (manifest.kind !== "dsh-ai-studio-project-bundle" || manifest.formatVersion !== 2) {
         throw new StudioStoreError(
@@ -6969,7 +7014,7 @@ var ProjectBundleService = class {
       for (const [name2, expected] of Object.entries(
         manifest.checksums ?? {}
       )) {
-        const file = await readFile4(path6.join(temp, name2)).catch(() => null);
+        const file = await readFile5(path7.join(temp, name2)).catch(() => null);
         if (file === null) {
           throw new StudioStoreError(
             "bundle_invalid",
@@ -6987,7 +7032,7 @@ var ProjectBundleService = class {
         }
       }
       const slice = JSON.parse(
-        await readFile4(path6.join(temp, "project.json"), "utf8")
+        await readFile5(path7.join(temp, "project.json"), "utf8")
       );
       if (slice.project.id !== projectId) {
         throw new StudioStoreError(
@@ -6998,7 +7043,7 @@ var ProjectBundleService = class {
       }
       await run(
         "git",
-        ["clone", path6.join(temp, "project.bundle"), targetPath],
+        ["clone", path7.join(temp, "project.bundle"), targetPath],
         { windowsHide: true }
       );
       await this.store.importProjectSlice(slice, targetPath);
@@ -7021,16 +7066,16 @@ var ProjectBundleService = class {
 // src/host/dispatcher.ts
 import { randomUUID as randomUUID6 } from "node:crypto";
 import { spawn } from "node:child_process";
-import { mkdtemp as mkdtemp2, readFile as readFile6, rm as rm3 } from "node:fs/promises";
+import { mkdtemp as mkdtemp2, readFile as readFile7, rm as rm3 } from "node:fs/promises";
 import os3 from "node:os";
-import path8 from "node:path";
+import path9 from "node:path";
 
 // src/host/workspace.ts
 import { execFileSync } from "node:child_process";
 import { existsSync as existsSync3 } from "node:fs";
-import { mkdir as mkdir3, readFile as readFile5, writeFile as writeFile4 } from "node:fs/promises";
+import { mkdir as mkdir3, readFile as readFile6, writeFile as writeFile4 } from "node:fs/promises";
 import { createHash as createHash3 } from "node:crypto";
-import path7 from "node:path";
+import path8 from "node:path";
 var WorkspaceError = class extends Error {
   code;
   constructor(code, message) {
@@ -7054,7 +7099,7 @@ function git(cwd, args) {
   }
 }
 function repoKey(repoPath) {
-  return createHash3("sha1").update(path7.resolve(repoPath).toLowerCase()).digest("hex").slice(0, 12);
+  return createHash3("sha1").update(path8.resolve(repoPath).toLowerCase()).digest("hex").slice(0, 12);
 }
 function sanitize(taskId) {
   if (taskId.trim() === "" || taskId === "." || taskId === ".." || !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$/.test(taskId)) {
@@ -7068,10 +7113,10 @@ function sanitize(taskId) {
 var WorkspaceManager = class {
   rootOverride;
   constructor(rootOverride = process.env.DSH_STUDIO_WORKTREE_ROOT?.trim() ?? "") {
-    this.rootOverride = rootOverride === "" ? null : path7.resolve(rootOverride);
+    this.rootOverride = rootOverride === "" ? null : path8.resolve(rootOverride);
   }
   async prepare(repoPath, taskId) {
-    const resolved = path7.resolve(repoPath);
+    const resolved = path8.resolve(repoPath);
     if (!existsSync3(resolved)) {
       throw new WorkspaceError(
         "repo_missing",
@@ -7082,9 +7127,9 @@ var WorkspaceManager = class {
     const baseSha = git(root, ["rev-parse", "HEAD"]);
     await this.ensureLocalExclude(root);
     const key = sanitize(taskId);
-    const worktreeRoot = this.rootOverride === null ? path7.join(root, ".worktrees") : path7.join(this.rootOverride, repoKey(root));
-    const worktreePath = path7.resolve(worktreeRoot, key);
-    if (!worktreePath.startsWith(`${path7.resolve(worktreeRoot)}${path7.sep}`)) {
+    const worktreeRoot = this.rootOverride === null ? path8.join(root, ".worktrees") : path8.join(this.rootOverride, repoKey(root));
+    const worktreePath = path8.resolve(worktreeRoot, key);
+    if (!worktreePath.startsWith(`${path8.resolve(worktreeRoot)}${path8.sep}`)) {
       throw new WorkspaceError(
         "invalid_worktree_path",
         "worktree \u8DEF\u5F84\u8D8A\u51FA .worktrees \u76EE\u5F55"
@@ -7125,11 +7170,11 @@ var WorkspaceManager = class {
   }
   async ensureLocalExclude(repoPath) {
     if (this.rootOverride !== null) return;
-    const info = path7.join(repoPath, ".git", "info");
-    const exclude = path7.join(info, "exclude");
+    const info = path8.join(repoPath, ".git", "info");
+    const exclude = path8.join(info, "exclude");
     try {
       await mkdir3(info, { recursive: true });
-      const current = await readFile5(exclude, "utf8").catch(() => "");
+      const current = await readFile6(exclude, "utf8").catch(() => "");
       if (current.split(/\r?\n/u).some((line) => line.trim() === ".worktrees/")) {
         return;
       }
@@ -7445,8 +7490,8 @@ async function executeExternalCli(executor, prompt, workspace) {
     }
     return { output, code: result.code, stderr: result.stderr };
   }
-  const temp = await mkdtemp2(path8.join(os3.tmpdir(), "studio-codex-"));
-  const messageFile = path8.join(temp, "last-message.txt");
+  const temp = await mkdtemp2(path9.join(os3.tmpdir(), "studio-codex-"));
+  const messageFile = path9.join(temp, "last-message.txt");
   try {
     const result = await runCli(
       `codex exec --json -s workspace-write --output-last-message "${messageFile}" -`,
@@ -7455,7 +7500,7 @@ async function executeExternalCli(executor, prompt, workspace) {
     );
     let output = result.stdout;
     try {
-      output = (await readFile6(messageFile, "utf8")).trim() || output;
+      output = (await readFile7(messageFile, "utf8")).trim() || output;
     } catch {
     }
     return { output, code: result.code, stderr: result.stderr };
@@ -7894,8 +7939,8 @@ ${receipt.summary}`)) {
 };
 
 // src/host/docs.ts
-import { readFile as readFile7 } from "node:fs/promises";
-import path9 from "node:path";
+import { readFile as readFile8 } from "node:fs/promises";
+import path10 from "node:path";
 var MAX_BYTES = 2e5;
 var DocsService = class {
   store;
@@ -7911,16 +7956,16 @@ var DocsService = class {
         409
       );
     }
-    if (path9.isAbsolute(relativePath)) {
+    if (path10.isAbsolute(relativePath)) {
       throw new StudioStoreError(
         "doc_path_absolute",
         "\u6587\u6863\u8DEF\u5F84\u5FC5\u987B\u662F\u76F8\u5BF9\u4ED3\u5E93\u6839\u76EE\u5F55\u7684\u8DEF\u5F84\uFF0C\u4F8B\u5982 docs/PRD.md",
         400
       );
     }
-    const root = path9.resolve(data.project.repoPath);
-    const resolved = path9.resolve(root, relativePath);
-    if (resolved !== root && !resolved.startsWith(`${root}${path9.sep}`)) {
+    const root = path10.resolve(data.project.repoPath);
+    const resolved = path10.resolve(root, relativePath);
+    if (resolved !== root && !resolved.startsWith(`${root}${path10.sep}`)) {
       throw new StudioStoreError(
         "path_outside_repo",
         "\u6587\u6863\u8DEF\u5F84\u5FC5\u987B\u4F4D\u4E8E\u9879\u76EE\u4ED3\u5E93\u5185",
@@ -7928,7 +7973,7 @@ var DocsService = class {
       );
     }
     try {
-      const buffer = await readFile7(resolved);
+      const buffer = await readFile8(resolved);
       const truncated = buffer.byteLength > MAX_BYTES;
       return {
         kind: "custom",
@@ -7951,8 +7996,8 @@ var DocsService = class {
 
 // src/host/docs-publish.ts
 import { execFileSync as execFileSync2 } from "node:child_process";
-import { mkdir as mkdir4, readFile as readFile8, writeFile as writeFile5 } from "node:fs/promises";
-import path10 from "node:path";
+import { mkdir as mkdir4, readFile as readFile9, writeFile as writeFile5 } from "node:fs/promises";
+import path11 from "node:path";
 var SKELETON = [
   {
     path: "docs/PRD.md",
@@ -8008,7 +8053,7 @@ var DocsPublisherService = class {
       );
     }
     return {
-      root: path10.resolve(data.project.repoPath),
+      root: path11.resolve(data.project.repoPath),
       prdPath: data.project.prdPath ?? "docs/PRD.md"
     };
   }
@@ -8016,8 +8061,8 @@ var DocsPublisherService = class {
     const { root } = await this.repo();
     const files = [];
     for (const item of SKELETON) {
-      const absolute = path10.resolve(root, item.path);
-      await mkdir4(path10.dirname(absolute), { recursive: true });
+      const absolute = path11.resolve(root, item.path);
+      await mkdir4(path11.dirname(absolute), { recursive: true });
       try {
         await writeFile5(absolute, item.content, { encoding: "utf8", flag: "wx" });
         files.push({ path: item.path, written: true });
@@ -8057,8 +8102,8 @@ var DocsPublisherService = class {
     }
     const written = [];
     for (const file of normalized) {
-      const absolute = path10.resolve(root, file.path);
-      await mkdir4(path10.dirname(absolute), { recursive: true });
+      const absolute = path11.resolve(root, file.path);
+      await mkdir4(path11.dirname(absolute), { recursive: true });
       await writeFile5(absolute, file.content, "utf8");
       written.push(file.path);
     }
@@ -8071,7 +8116,7 @@ var DocsPublisherService = class {
   async requirements() {
     const { root, prdPath } = await this.repo();
     const relative = prdPath.replaceAll("\\", "/").replace(/^\/+/u, "");
-    const content = await readFile8(path10.resolve(root, relative), "utf8").catch(
+    const content = await readFile9(path11.resolve(root, relative), "utf8").catch(
       () => ""
     );
     const items = [];
@@ -8975,6 +9020,7 @@ function asCreateWorkshop(body) {
     ),
     meetingType: body.meetingType === "prd" || body.meetingType === "architecture" || body.meetingType === "balance" || body.meetingType === "custom" ? body.meetingType : void 0,
     agenda: asStringArray(body.agenda, "agenda"),
+    materialPaths: asStringArray(body.materialPaths, "materialPaths") ?? [],
     freezeId: body.freezeId === null || body.freezeId === void 0 ? null : asOptionalString(body.freezeId, "freezeId") ?? null,
     perspectives: body.perspectives === void 0 ? void 0 : Array.isArray(body.perspectives) ? body.perspectives.flatMap((item) => {
       if (typeof item !== "object" || item === null || typeof item.roleId !== "string" || item.perspective !== "experience" && item.perspective !== "competitor" && item.perspective !== "feasibility" && item.perspective !== "contrarian") {
@@ -10103,13 +10149,35 @@ function perspectiveOf(workshop, roleId) {
   )?.perspective;
   return PERSPECTIVE_LABELS[perspective ?? "experience"] ?? "\u73A9\u5BB6\u4F53\u9A8C";
 }
+function roleCard(role) {
+  return [
+    role.mission.trim() !== "" ? `\u4F60\u7684\u4F7F\u547D\uFF1A${role.mission}` : "",
+    role.responsibilities.length > 0 ? `\u4F60\u7684\u804C\u8D23\uFF1A${role.responsibilities.join("\uFF1B")}` : "",
+    role.nonGoals.length > 0 ? `\u4F60\u4E0D\u8D1F\u8D23\uFF1A${role.nonGoals.join("\uFF1B")}` : "",
+    role.decisionRights.length > 0 ? `\u4F60\u7684\u51B3\u7B56\u6743\uFF1A${role.decisionRights.join("\uFF1B")}` : ""
+  ].filter((line) => line !== "");
+}
+function materialContext(workshop) {
+  if (workshop.materials.length === 0) return [];
+  return [
+    "",
+    "\u4F1A\u8BAE\u6750\u6599\uFF08\u53EA\u8BFB\uFF09\uFF1A",
+    ...workshop.materials.flatMap((material) => [
+      `--- ${material.path} ---`,
+      material.content.slice(0, 8e3),
+      ""
+    ])
+  ];
+}
 function buildPrompt2(workshop, role) {
   return [
     `\u4F60\u662F\u300C${role.name}\u300D\uFF08${role.title || "\u53C2\u4E0E\u89D2\u8272"}\uFF09\u3002`,
+    ...roleCard(role),
     `\u4F60\u7684\u4F1A\u8BAE\u89C6\u89D2\uFF1A${perspectiveOf(workshop, role.id)}`,
     `\u7814\u8BA8\u4F1A\u4E3B\u9898\uFF1A${workshop.title}`,
     workshop.topic ? `\u8BAE\u9898\uFF1A${workshop.topic}` : "",
     `\u9879\u76EE\u9636\u6BB5\uFF1A${workshop.stage}`,
+    ...materialContext(workshop),
     "",
     "\u8FD9\u662F\u4E00\u6B21\u72EC\u7ACB\u8BC4\u5BA1\u3002\u4F60\u770B\u4E0D\u5230\u5176\u4ED6\u53C2\u4E0E\u8005\u7684\u610F\u89C1\uFF1B\u4E0D\u8981\u5047\u8BBE\u4ED6\u4EEC\u540C\u610F\u4F60\u3002",
     "\u4E0D\u8981\u4FEE\u6539\u6587\u4EF6\uFF0C\u4E0D\u8981\u6267\u884C merge\uFF0C\u4E0D\u8981\u66FF Owner \u505A\u6700\u7EC8\u51B3\u7B56\u3002",
@@ -10189,6 +10257,7 @@ ${note.summary}
       "\u4F60\u662F\u7814\u8BA8\u4F1A\u4E3B\u6301\u4EBA\u3002\u8BF7\u6C47\u603B\u4EE5\u4E0B\u72EC\u7ACB\u610F\u89C1\uFF0C\u4E0D\u8981\u66FF Owner \u505A\u6700\u7EC8\u51B3\u7B56\u3002",
       `\u4E3B\u9898\uFF1A${context.workshop.title}`,
       context.workshop.topic ? `\u8BAE\u9898\uFF1A${context.workshop.topic}` : "",
+      ...materialContext(context.workshop),
       "",
       noteText,
       "",
@@ -10241,7 +10310,9 @@ ${note.summary}
     ) ?? null;
     const prompt = [
       `\u4F60\u662F\u300C${role.name}\u300D\uFF08${role.title || "\u53C2\u4F1A\u89D2\u8272"}\uFF09\u3002`,
+      ...roleCard(role),
       `\u4F60\u7684\u4F1A\u8BAE\u89C6\u89D2\uFF1A${perspectiveOf(context.workshop, role.id)}`,
+      ...materialContext(context.workshop),
       `\u4F1A\u8BAE\uFF1A${context.workshop.title}`,
       context.workshop.topic ? `\u8BAE\u9898\uFF1A${context.workshop.topic}` : "",
       "\u4F60\u6B63\u5728\u53C2\u52A0\u4E00\u573A\u7531 Owner \u4E3B\u6301\u7684\u4F1A\u8BAE\u3002\u4EE5\u4E0B\u662F\u516C\u5F00\u4F1A\u8BAE\u8BB0\u5F55\u3002",
@@ -10276,7 +10347,9 @@ ${note.summary}
     const sideText = chat?.messages.map((message) => `${message.roleName}\uFF1A${message.content}`).join("\n") ?? "";
     const prompt = [
       `\u4F60\u662F\u300C${role.name}\u300D\uFF08${role.title || "\u53C2\u4F1A\u89D2\u8272"}\uFF09\u3002`,
+      ...roleCard(role),
       `\u4F60\u7684\u4F1A\u8BAE\u89C6\u89D2\uFF1A${perspectiveOf(context.workshop, role.id)}`,
+      ...materialContext(context.workshop),
       `\u4F1A\u8BAE\uFF1A${context.workshop.title}`,
       context.workshop.topic ? `\u8BAE\u9898\uFF1A${context.workshop.topic}` : "",
       "\u8FD9\u662F Owner \u4E0E\u4F60\u7684\u5355\u72EC\u6C9F\u901A\uFF0C\u4E0D\u4F1A\u81EA\u52A8\u8FDB\u5165\u516C\u5F00\u4F1A\u8BAE\u8BB0\u5F55\u3002",
@@ -10309,6 +10382,7 @@ ${ownerMessage}`,
       "\u4F60\u662F\u4F1A\u8BAE\u8BB0\u5F55\u5458\u3002\u8BF7\u6C47\u603B\u516C\u5F00\u4F1A\u8BAE\u8BB0\u5F55\uFF0C\u4E0D\u8981\u66FF Owner \u505A\u6700\u7EC8\u51B3\u7B56\u3002",
       `\u4F1A\u8BAE\uFF1A${context.workshop.title}`,
       context.workshop.topic ? `\u8BAE\u9898\uFF1A${context.workshop.topic}` : "",
+      ...materialContext(context.workshop),
       "\u8BAE\u7A0B\uFF1A",
       context.workshop.agenda.map((item) => `- [${item.status}] ${item.text}`).join("\n") || "\uFF08\u65E0\uFF09",
       "",
@@ -10624,7 +10698,7 @@ async function apply(ctx) {
     writeAdr: (decisionId) => adr.write(decisionId),
     exportProjectBundle: (projectId) => bundles.exportProject(projectId, runtime.version),
     importProjectBundle: (archivePath, targetPath) => bundles.importProject(archivePath, targetPath),
-    readProjectDoc: (path11) => docs.read(path11),
+    readProjectDoc: (path12) => docs.read(path12),
     initializeProjectDocs: () => docsPublisher.initializeSkeleton(),
     publishProjectDocs: (files) => docsPublisher.publish(files),
     indexProjectRequirements: () => docsPublisher.requirements(),

@@ -664,6 +664,7 @@ export function asCreateWorkshop(
         ? body.meetingType
         : undefined,
     agenda: asStringArray(body.agenda, "agenda"),
+    materialPaths: asStringArray(body.materialPaths, "materialPaths") ?? [],
     freezeId:
       body.freezeId === null || body.freezeId === undefined
         ? null

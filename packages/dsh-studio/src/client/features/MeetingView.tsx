@@ -60,11 +60,13 @@ function lines(value: string): string[] {
 }
 
 function MeetingComposer({
+  project,
   roles,
   freezes,
   busy,
   onCreate,
 }: {
+  project: Project;
   roles: Role[];
   freezes: ProjectFreeze[];
   busy: boolean;
@@ -81,6 +83,10 @@ function MeetingComposer({
   );
   const [freezeId, setFreezeId] = useState(freezes[0]?.id ?? "");
   const [perspectives, setPerspectives] = useState<Record<string, WorkshopPerspective>>({});
+  const materialOptions = [project.prdPath, project.invariantsPath, project.modulesPath].filter(
+    (item): item is string => item !== null && item.trim() !== "",
+  );
+  const [materialPaths, setMaterialPaths] = useState<string[]>(materialOptions);
   const perspectiveOrder: WorkshopPerspective[] = [
     "experience",
     "competitor",
@@ -118,6 +124,7 @@ function MeetingComposer({
       participantRoleIds: participants,
       agenda: agendaFrom(agendaText),
       freezeId: freezeId || null,
+      materialPaths,
       perspectives: participants.map((roleId, index) => ({
         roleId,
         perspective:
@@ -191,6 +198,31 @@ function MeetingComposer({
             ))}
           </select>
         </div>
+        <div className="studio-field">
+          <label>会议材料（只读注入）</label>
+          <div className="studio-check-grid">
+            {materialOptions.map((path) => (
+              <label className="studio-check" key={path}>
+                <input
+                  type="checkbox"
+                  checked={materialPaths.includes(path)}
+                  onChange={(event) =>
+                    setMaterialPaths((current) =>
+                      event.target.checked
+                        ? [...current, path]
+                        : current.filter((item) => item !== path),
+                    )
+                  }
+                />
+                <span>{path}</span>
+              </label>
+            ))}
+          </div>
+          {materialOptions.length === 0 ? (
+            <div className="studio-hint">先绑定 PRD / INVARIANTS / MODULES 路径。</div>
+          ) : null}
+        </div>
+
         <div className="studio-field">
           <label>参会角色</label>
           <div className="studio-check-grid">
@@ -587,6 +619,7 @@ export function MeetingView({
 
       {showComposer ? (
         <MeetingComposer
+        project={project}
         roles={roles}
         freezes={freezes}
         busy={busy}

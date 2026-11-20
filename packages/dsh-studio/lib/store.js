@@ -4,7 +4,7 @@ import { existsSync as existsSync2 } from "node:fs";
 import {
   copyFile,
   mkdir,
-  readFile as readFile2,
+  readFile as readFile3,
   readdir,
   rename,
   stat as stat2,
@@ -12,11 +12,11 @@ import {
   writeFile
 } from "node:fs/promises";
 import os from "node:os";
-import path3 from "node:path";
+import path4 from "node:path";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 37;
-var STUDIO_PLUGIN_VERSION = "3.16.1";
+var STUDIO_SCHEMA_VERSION = 38;
+var STUDIO_PLUGIN_VERSION = "3.16.2";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -500,7 +500,7 @@ function migrateState(value) {
     const counters = /* @__PURE__ */ new Map();
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 37,
       tasks: [...state.tasks].sort((left, right) => left.createdAt.localeCompare(right.createdAt)).map((task) => {
         const next = (counters.get(task.projectId) ?? 0) + 1;
         counters.set(task.projectId, next);
@@ -510,6 +510,16 @@ function migrateState(value) {
           dependsOn: []
         };
       })
+    };
+  }
+  if (state.schemaVersion === 37) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      workshops: state.workshops.map((workshop) => ({
+        ...workshop,
+        materials: []
+      }))
     };
   }
   return state;
@@ -615,7 +625,9 @@ function isWorkshopMinutes(value) {
 function isWorkshop(value) {
   return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.topic === "string" && isProjectStage(value.stage) && isWorkshopStatus(value.status) && Array.isArray(value.participantRoleIds) && value.participantRoleIds.every((item) => typeof item === "string") && Array.isArray(value.participantPerspectives) && value.participantPerspectives.every(
     (item) => isRecord2(item) && typeof item.roleId === "string" && (item.perspective === "experience" || item.perspective === "competitor" || item.perspective === "feasibility" || item.perspective === "contrarian")
-  ) && (value.freezeId === null || typeof value.freezeId === "string") && (value.linkedTaskId === null || typeof value.linkedTaskId === "string") && (value.linkedChangeRequestId === null || typeof value.linkedChangeRequestId === "string") && (value.meetingType === "prd" || value.meetingType === "architecture" || value.meetingType === "balance" || value.meetingType === "custom") && Array.isArray(value.agenda) && value.agenda.every(isWorkshopAgendaItem) && Array.isArray(value.messages) && value.messages.every(isWorkshopMessage) && Array.isArray(value.sideChats) && value.sideChats.every(
+  ) && (value.freezeId === null || typeof value.freezeId === "string") && (value.linkedTaskId === null || typeof value.linkedTaskId === "string") && (value.linkedChangeRequestId === null || typeof value.linkedChangeRequestId === "string") && (value.meetingType === "prd" || value.meetingType === "architecture" || value.meetingType === "balance" || value.meetingType === "custom") && Array.isArray(value.materials) && value.materials.every(
+    (item) => isRecord2(item) && typeof item.path === "string" && typeof item.content === "string"
+  ) && Array.isArray(value.agenda) && value.agenda.every(isWorkshopAgendaItem) && Array.isArray(value.messages) && value.messages.every(isWorkshopMessage) && Array.isArray(value.sideChats) && value.sideChats.every(
     (chat) => isRecord2(chat) && typeof chat.roleId === "string" && Array.isArray(chat.messages) && chat.messages.every(isWorkshopMessage) && typeof chat.updatedAt === "string"
   ) && (value.minutes === null || isWorkshopMinutes(value.minutes)) && (value.decisionId === null || typeof value.decisionId === "string") && (value.settledAt === null || typeof value.settledAt === "string") && Array.isArray(value.notes) && value.notes.every(isWorkshopNote) && (value.aiSummary === null || isWorkshopAiSummary(value.aiSummary)) && typeof value.synthesis === "string" && typeof value.decision === "string" && typeof value.decidedBy === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
 }
@@ -3691,12 +3703,12 @@ async function enforceContractScope(ctx, taskId, runId, changedFiles) {
       if (file === "") return false;
       if (contract !== "" && file === contract) return true;
       if (forbidden.some(
-        (path4) => file === path4 || file.startsWith(`${path4}/`)
+        (path5) => file === path5 || file.startsWith(`${path5}/`)
       )) {
         return true;
       }
       if (allowed.length > 0 && (file.startsWith("src/") || file.startsWith("test/")) && !allowed.some(
-        (path4) => file === path4 || file.startsWith(`${path4}/`)
+        (path5) => file === path5 || file.startsWith(`${path5}/`)
       )) {
         return true;
       }
@@ -3966,6 +3978,8 @@ async function recordRunRuntime(ctx, runId, runtime) {
 }
 
 // src/host/store/workshops.ts
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 async function getWorkshopContext(ctx, workshopId) {
   return ctx.runExclusive(async () => {
     const state = ctx.requireState();
@@ -4119,6 +4133,36 @@ async function createWorkshop(ctx, input) {
       roleId,
       perspective: input.perspectives?.find((item) => item.roleId === roleId)?.perspective ?? perspectiveOrder[index % perspectiveOrder.length] ?? "experience"
     }));
+    const materials = [];
+    const seenMaterials = /* @__PURE__ */ new Set();
+    for (const rawPath of input.materialPaths ?? []) {
+      const relative = rawPath.trim().replaceAll("\\", "/").replace(/^\/+/, "");
+      if (relative === "" || relative.includes("..") || path.isAbsolute(relative) || seenMaterials.has(relative)) {
+        continue;
+      }
+      if (project.repoPath === null) {
+        throw new StudioStoreError(
+          "repo_required",
+          "\u9879\u76EE\u7ED1\u5B9A\u4ED3\u5E93\u540E\u624D\u80FD\u6CE8\u5165\u4F1A\u8BAE\u6750\u6599",
+          409
+        );
+      }
+      const root = path.resolve(project.repoPath);
+      const absolute = path.resolve(root, relative);
+      if (!absolute.startsWith(`${root}${path.sep}`)) {
+        throw new StudioStoreError("invalid_material", "\u4F1A\u8BAE\u6750\u6599\u8DEF\u5F84\u8D8A\u51FA\u4ED3\u5E93", 400);
+      }
+      const content = await readFile(absolute, "utf8").catch(() => null);
+      if (content === null) {
+        throw new StudioStoreError(
+          "material_not_found",
+          `\u4F1A\u8BAE\u6750\u6599\u4E0D\u5B58\u5728\uFF1A${relative}`,
+          404
+        );
+      }
+      seenMaterials.add(relative);
+      materials.push({ path: relative, content: content.slice(0, 2e4) });
+    }
     const at = ctx.now();
     const workshop = {
       id: newId("workshop"),
@@ -4129,6 +4173,7 @@ async function createWorkshop(ctx, input) {
       status: "collecting",
       participantRoleIds: participants,
       participantPerspectives,
+      materials,
       freezeId,
       linkedTaskId: null,
       linkedChangeRequestId: null,
@@ -4867,12 +4912,12 @@ async function decideDecision(ctx, decisionId, input) {
 
 // src/host/store/projects.ts
 import { existsSync } from "node:fs";
-import path2 from "node:path";
+import path3 from "node:path";
 
 // src/host/store/freezes.ts
 import { createHash } from "node:crypto";
-import { readFile, stat } from "node:fs/promises";
-import path from "node:path";
+import { readFile as readFile2, stat } from "node:fs/promises";
+import path2 from "node:path";
 var PRD_CHECKS = [
   "\u6838\u5FC3\u5FAA\u73AF/\u72B6\u6001\u8F6C\u6362\u5DF2\u5B9A\u4E49",
   "\u9996\u5207\u7247\u8303\u56F4\u4E0E\u975E\u76EE\u6807\u5DF2\u5199",
@@ -4896,9 +4941,9 @@ function defaultChecklist(kind) {
   }));
 }
 function resolveInside(repoPath, relative) {
-  const root = path.resolve(repoPath);
-  const target = path.resolve(root, relative);
-  if (target !== root && !target.startsWith(`${root}${path.sep}`)) {
+  const root = path2.resolve(repoPath);
+  const target = path2.resolve(root, relative);
+  if (target !== root && !target.startsWith(`${root}${path2.sep}`)) {
     throw new StudioStoreError(
       "freeze_path_outside_repo",
       "\u51BB\u7ED3\u6587\u6863\u5FC5\u987B\u4F4D\u4E8E\u9879\u76EE\u4ED3\u5E93\u5185",
@@ -4916,7 +4961,7 @@ async function hashFile(file) {
       404
     );
   }
-  return createHash("sha256").update(await readFile(file)).digest("hex");
+  return createHash("sha256").update(await readFile2(file)).digest("hex");
 }
 function latestFreeze(state, projectId, kind) {
   return [...state.freezes].filter(
@@ -5224,7 +5269,7 @@ async function createProjectFromTemplate(ctx, input) {
 function normalizeDocPath(value, root, previousRoot, allowDrop) {
   if (value.trim() === "") return null;
   if (root === null) {
-    if (path2.isAbsolute(value)) {
+    if (path3.isAbsolute(value)) {
       throw new StudioStoreError(
         "repo_required",
         "\u7ED1\u5B9A\u4ED3\u5E93\u524D\u53EA\u80FD\u4FDD\u5B58\u76F8\u5BF9\u6587\u6863\u8DEF\u5F84",
@@ -5233,9 +5278,9 @@ function normalizeDocPath(value, root, previousRoot, allowDrop) {
     }
     return value.replaceAll("\\", "/");
   }
-  if (!path2.isAbsolute(value)) {
-    const target = path2.resolve(root, value);
-    if (target !== root && !target.startsWith(`${root}${path2.sep}`)) {
+  if (!path3.isAbsolute(value)) {
+    const target = path3.resolve(root, value);
+    if (target !== root && !target.startsWith(`${root}${path3.sep}`)) {
       throw new StudioStoreError(
         "doc_path_outside_repo",
         "\u6587\u6863\u8DEF\u5F84\u5FC5\u987B\u4F4D\u4E8E\u4ED3\u5E93\u5185",
@@ -5246,10 +5291,10 @@ function normalizeDocPath(value, root, previousRoot, allowDrop) {
   }
   for (const candidate of [root, previousRoot]) {
     if (candidate === null) continue;
-    const base = path2.resolve(candidate);
-    const target = path2.resolve(value);
-    if (target === base || target.startsWith(`${base}${path2.sep}`)) {
-      return path2.relative(base, target).replaceAll("\\", "/");
+    const base = path3.resolve(candidate);
+    const target = path3.resolve(value);
+    if (target === base || target.startsWith(`${base}${path3.sep}`)) {
+      return path3.relative(base, target).replaceAll("\\", "/");
     }
   }
   if (allowDrop) return null;
@@ -5875,11 +5920,11 @@ function localStamp(date) {
 function defaultStudioDataDir() {
   const override = process.env.DSH_STUDIO_DATA_DIR?.trim();
   if (override !== void 0 && override !== "") {
-    return path3.resolve(override);
+    return path4.resolve(override);
   }
   const home = process.env.DSH_HOME?.trim();
-  return path3.join(
-    home !== void 0 && home !== "" ? home : path3.join(os.homedir(), ".dsh"),
+  return path4.join(
+    home !== void 0 && home !== "" ? home : path4.join(os.homedir(), ".dsh"),
     "studio"
   );
 }
@@ -5899,7 +5944,7 @@ var StudioStore = class {
   context;
   constructor(options = {}) {
     this.dataDir = options.dataDir ?? defaultStudioDataDir();
-    this.file = path3.join(this.dataDir, "studio.json");
+    this.file = path4.join(this.dataDir, "studio.json");
     this.now = options.now ?? (() => /* @__PURE__ */ new Date());
     this.context = {
       runExclusive: (work) => this.runExclusive(work),
@@ -5947,11 +5992,11 @@ var StudioStore = class {
     return this.warning;
   }
   async listBackups() {
-    const dir = path3.join(this.dataDir, "backups");
+    const dir = path4.join(this.dataDir, "backups");
     const names = (await readdir(dir).catch(() => [])).filter((name) => backupName.test(name)).sort().reverse();
     const result = [];
     for (const name of names) {
-      const info = await stat2(path3.join(dir, name)).catch(() => null);
+      const info = await stat2(path4.join(dir, name)).catch(() => null);
       if (info === null) continue;
       result.push({
         name,
@@ -5966,7 +6011,7 @@ var StudioStore = class {
       if (!backupName.test(name)) {
         throw new StudioStoreError("invalid_backup", "\u5907\u4EFD\u6587\u4EF6\u540D\u65E0\u6548", 400);
       }
-      const raw = await readFile2(path3.join(this.dataDir, "backups", name), "utf8");
+      const raw = await readFile3(path4.join(this.dataDir, "backups", name), "utf8");
       const parsed = JSON.parse(raw);
       const restored = migrateState(parsed);
       assertState(restored);
@@ -6336,9 +6381,9 @@ var StudioStore = class {
   }
   async externalizeRunOutput(runId, output) {
     try {
-      const dir = path3.join(this.dataDir, "runs");
+      const dir = path4.join(this.dataDir, "runs");
       await mkdir(dir, { recursive: true });
-      const file = path3.join(dir, `${runId}.txt`);
+      const file = path4.join(dir, `${runId}.txt`);
       await writeFile(file, output, "utf8");
       await this.runExclusive(async () => {
         const run = this.requireState().runs.find(
@@ -6452,7 +6497,7 @@ var StudioStore = class {
       await this.save();
       return;
     }
-    const raw = await readFile2(this.file, "utf8");
+    const raw = await readFile3(this.file, "utf8");
     let parsed;
     try {
       parsed = JSON.parse(raw);
@@ -6483,19 +6528,19 @@ var StudioStore = class {
   async backupCurrentFile() {
     if (!existsSync2(this.file)) return;
     const now = /* @__PURE__ */ new Date();
-    const dir = path3.join(this.dataDir, "backups");
+    const dir = path4.join(this.dataDir, "backups");
     await mkdir(dir, { recursive: true });
     const base = `studio-${localStamp(now)}`;
-    let target = path3.join(dir, `${base}.json`);
+    let target = path4.join(dir, `${base}.json`);
     let suffix = 1;
     while (existsSync2(target)) {
-      target = path3.join(dir, `${base}-${String(suffix)}.json`);
+      target = path4.join(dir, `${base}-${String(suffix)}.json`);
       suffix += 1;
     }
     await copyFile(this.file, target).catch(() => void 0);
     const files = (await readdir(dir).catch(() => [])).filter((name) => backupName.test(name)).sort().reverse();
     for (const stale of files.slice(10)) {
-      await unlink(path3.join(dir, stale)).catch(() => void 0);
+      await unlink(path4.join(dir, stale)).catch(() => void 0);
     }
   }
   historyArchived = false;
@@ -6505,10 +6550,10 @@ var StudioStore = class {
     if (state.runs.length + state.reviews.length + state.verifications.length <= 1500) {
       return;
     }
-    const dir = path3.join(this.dataDir, "history");
+    const dir = path4.join(this.dataDir, "history");
     await mkdir(dir, { recursive: true });
     const stamp = (/* @__PURE__ */ new Date()).toISOString().replaceAll(":", "-");
-    await copyFile(this.file, path3.join(dir, `studio-${stamp}.json`));
+    await copyFile(this.file, path4.join(dir, `studio-${stamp}.json`));
     this.historyArchived = true;
   }
   async save() {
