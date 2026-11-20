@@ -4101,6 +4101,9 @@ function KnowledgeView({
   const [requirements, setRequirements] = (0, import_react5.useState)(null);
   const [editing, setEditing] = (0, import_react5.useState)(false);
   const [draft, setDraft] = (0, import_react5.useState)("");
+  const [showNewDoc, setShowNewDoc] = (0, import_react5.useState)(false);
+  const [newDocPath, setNewDocPath] = (0, import_react5.useState)("docs/");
+  const [newDocContent, setNewDocContent] = (0, import_react5.useState)("");
   (0, import_react5.useEffect)(() => {
     setPrdPath(project?.prdPath ?? "");
     setInvariantsPath(project?.invariantsPath ?? "");
@@ -4181,8 +4184,64 @@ function KnowledgeView({
           onClick: () => void onSyncModules(),
           children: "\u53D1\u5E03\u6A21\u5757\u5361"
         }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+        "button",
+        {
+          type: "button",
+          className: "studio-btn",
+          disabled: busy || project?.repoPath == null,
+          onClick: () => setShowNewDoc((value) => !value),
+          children: "\u65B0\u5EFA\u6587\u6863"
+        }
       )
     ] }),
+    showNewDoc ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("section", { className: "studio-panel", style: { marginBottom: 12 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-section-label", children: "\u65B0\u5EFA\u6587\u6863" }),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-field", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("label", { htmlFor: "new-doc-path", children: "\u8DEF\u5F84" }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+          "input",
+          {
+            id: "new-doc-path",
+            value: newDocPath,
+            onChange: (event) => setNewDocPath(event.target.value),
+            placeholder: "docs/DOMAIN_MODEL.md"
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-hint", children: "\u53EA\u5141\u8BB8 docs/ \u4E0B\u7684\u76F8\u5BF9\u8DEF\u5F84\u3002" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-field", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("label", { htmlFor: "new-doc-content", children: "\u5185\u5BB9" }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+          "textarea",
+          {
+            id: "new-doc-content",
+            value: newDocContent,
+            onChange: (event) => setNewDocContent(event.target.value),
+            rows: 8
+          }
+        )
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+        "button",
+        {
+          type: "button",
+          className: "studio-btn",
+          "data-variant": "primary",
+          disabled: busy || newDocPath.trim() === "" || !newDocPath.trim().startsWith("docs/"),
+          onClick: () => void onPublishDoc(newDocPath.trim(), newDocContent).then(
+            (ok) => {
+              if (!ok) return;
+              setShowNewDoc(false);
+              setNewDocContent("");
+              void read(newDocPath.trim());
+            }
+          ),
+          children: "\u521B\u5EFA\u5E76\u63D0\u4EA4"
+        }
+      )
+    ] }) : null,
     /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-knowledge-grid", children: [
       /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("section", { className: "studio-panel", children: [
         /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-section-label", children: "\u9879\u76EE\u6587\u6863" }),

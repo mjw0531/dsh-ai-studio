@@ -76,6 +76,9 @@ export function KnowledgeView({
   const [requirements, setRequirements] = useState<RequirementsIndex | null>(null);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
+  const [showNewDoc, setShowNewDoc] = useState(false);
+  const [newDocPath, setNewDocPath] = useState("docs/");
+  const [newDocContent, setNewDocContent] = useState("");
   useEffect(() => {
     setPrdPath(project?.prdPath ?? "");
     setInvariantsPath(project?.invariantsPath ?? "");
@@ -158,7 +161,62 @@ export function KnowledgeView({
         >
           发布模块卡
         </button>
+        <button
+          type="button"
+          className="studio-btn"
+          disabled={busy || project?.repoPath == null}
+          onClick={() => setShowNewDoc((value) => !value)}
+        >
+          新建文档
+        </button>
       </div>
+
+      {showNewDoc ? (
+        <section className="studio-panel" style={{ marginBottom: 12 }}>
+          <div className="studio-section-label">新建文档</div>
+          <div className="studio-field">
+            <label htmlFor="new-doc-path">路径</label>
+            <input
+              id="new-doc-path"
+              value={newDocPath}
+              onChange={(event) => setNewDocPath(event.target.value)}
+              placeholder="docs/DOMAIN_MODEL.md"
+            />
+            <div className="studio-hint">只允许 docs/ 下的相对路径。</div>
+          </div>
+          <div className="studio-field">
+            <label htmlFor="new-doc-content">内容</label>
+            <textarea
+              id="new-doc-content"
+              value={newDocContent}
+              onChange={(event) => setNewDocContent(event.target.value)}
+              rows={8}
+            />
+          </div>
+          <button
+            type="button"
+            className="studio-btn"
+            data-variant="primary"
+            disabled={
+              busy ||
+              newDocPath.trim() === "" ||
+              !newDocPath.trim().startsWith("docs/")
+            }
+            onClick={() =>
+              void onPublishDoc(newDocPath.trim(), newDocContent).then(
+                (ok) => {
+                  if (!ok) return;
+                  setShowNewDoc(false);
+                  setNewDocContent("");
+                  void read(newDocPath.trim());
+                },
+              )
+            }
+          >
+            创建并提交
+          </button>
+        </section>
+      ) : null}
 
       <div className="studio-knowledge-grid">
         <section className="studio-panel">

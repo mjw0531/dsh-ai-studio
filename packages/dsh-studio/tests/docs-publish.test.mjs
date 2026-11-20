@@ -87,6 +87,14 @@ test("initializes the docs skeleton and indexes numbered requirements", async ()
     ]);
     assert.ok(published.commit);
     assert.equal((await service.requirements()).items[0]?.id, "R-002");
+    const created = await service.publish([
+      { path: "docs/DOMAIN_MODEL.md", content: "# Domain\n" },
+    ]);
+    assert.ok(created.commit);
+    assert.match(
+      await readFile(path.join(dir, "docs/DOMAIN_MODEL.md"), "utf8"),
+      /# Domain/u,
+    );
     assert.equal(git(dir, "status", "--porcelain"), "");
   } finally {
     await rm(dir, { recursive: true, force: true });
