@@ -931,6 +931,19 @@ export async function updateWorkshopActionItem(
       }
       item.ownerRoleId = input.ownerRoleId;
     }
+    if (input.taskId !== undefined) {
+      if (
+        input.taskId !== null &&
+        !state.tasks.some(
+          (task) =>
+            task.id === input.taskId &&
+            task.projectId === workshop.projectId,
+        )
+      ) {
+        throw new StudioStoreError("task_not_found", "关联任务不存在", 404);
+      }
+      item.taskId = input.taskId;
+    }
     if (input.status !== undefined) {
       if (input.status !== "open" && input.status !== "done") {
         throw new StudioStoreError("invalid_status", "行动项状态无效", 400);

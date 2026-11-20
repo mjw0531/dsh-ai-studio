@@ -2,7 +2,7 @@
 import { timingSafeEqual as timingSafeEqual3 } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_PLUGIN_VERSION = "3.17.2";
+var STUDIO_PLUGIN_VERSION = "3.17.3";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -669,6 +669,9 @@ function asUpdateWorkshopAction(body) {
       throw new HttpError(400, "invalid_input", "status \u65E0\u6548");
     }
     result.status = body.status;
+  }
+  if (body.taskId !== void 0) {
+    result.taskId = body.taskId === null ? null : asString(body.taskId, "taskId");
   }
   return result;
 }

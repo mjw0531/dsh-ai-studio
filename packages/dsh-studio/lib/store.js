@@ -16,7 +16,7 @@ import path4 from "node:path";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 41;
-var STUDIO_PLUGIN_VERSION = "3.17.2";
+var STUDIO_PLUGIN_VERSION = "3.17.3";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -4775,6 +4775,14 @@ async function updateWorkshopActionItem(ctx, workshopId, actionId, input) {
         throw new StudioStoreError("role_not_found", "\u884C\u52A8\u9879\u8D1F\u8D23\u4EBA\u89D2\u8272\u4E0D\u5B58\u5728", 404);
       }
       item.ownerRoleId = input.ownerRoleId;
+    }
+    if (input.taskId !== void 0) {
+      if (input.taskId !== null && !state.tasks.some(
+        (task) => task.id === input.taskId && task.projectId === workshop.projectId
+      )) {
+        throw new StudioStoreError("task_not_found", "\u5173\u8054\u4EFB\u52A1\u4E0D\u5B58\u5728", 404);
+      }
+      item.taskId = input.taskId;
     }
     if (input.status !== void 0) {
       if (input.status !== "open" && input.status !== "done") {

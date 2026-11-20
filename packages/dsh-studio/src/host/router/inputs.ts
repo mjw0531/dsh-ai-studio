@@ -799,5 +799,11 @@ export function asUpdateWorkshopAction(
     }
     result.status = body.status;
   }
+  if (body.taskId !== undefined) {
+    result.taskId =
+      body.taskId === null
+        ? null
+        : asString(body.taskId, "taskId");
+  }
   return result;
 }

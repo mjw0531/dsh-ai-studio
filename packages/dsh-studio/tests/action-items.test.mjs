@@ -24,6 +24,18 @@ test("adds and completes meeting action items", async () => {
     const item = withAction.actionItems[0];
     assert.equal(item.text, "补一版登录流程");
     assert.equal(item.status, "open");
+    const task = await store.createTask({
+      title: "补登录流程",
+      acceptance: ["完成"],
+      ownerRoleId: data.roles[0].id,
+      reviewerRoleId: data.roles[1].id,
+    });
+    const linked = await store.updateWorkshopActionItem(
+      workshop.id,
+      item.id,
+      { taskId: task.id },
+    );
+    assert.equal(linked.actionItems[0].taskId, task.id);
     const completed = await store.updateWorkshopActionItem(
       workshop.id,
       item.id,

@@ -11,6 +11,7 @@ import type {
   Task,
   UpdateWorkshopActionInput,
   Workshop,
+  WorkshopActionItem,
   WorkshopAgendaItem,
   WorkshopDownstreamInput,
   WorkshopPerspective,
@@ -514,6 +515,7 @@ export function MeetingView({
   changeRequests,
   onLinkDownstream,
   onCreateTask,
+  onCreateTaskFromAction,
   onAddAction,
   onUpdateAction,
   onOpenBoardroom,
@@ -557,6 +559,10 @@ export function MeetingView({
     input: WorkshopDownstreamInput,
   ) => Promise<boolean>;
   onCreateTask: (workshop: Workshop) => Promise<boolean>;
+  onCreateTaskFromAction: (
+    workshop: Workshop,
+    action: WorkshopActionItem,
+  ) => Promise<boolean>;
   onAddAction: (
     workshopId: string,
     input: CreateWorkshopActionInput,
@@ -781,7 +787,7 @@ export function MeetingView({
                       <div className="studio-faint">还没有行动项。</div>
                     ) : (
                       active.actionItems.map((item) => (
-                        <label className="studio-check" key={item.id}>
+                        <div className="studio-check" key={item.id}>
                           <input
                             type="checkbox"
                             checked={item.status === "done"}
@@ -801,7 +807,22 @@ export function MeetingView({
                                 )?.name ?? item.ownerRoleId)
                               : ""}
                           </span>
-                        </label>
+                          {item.taskId === null ? (
+                            <button
+                              className="studio-btn"
+                              data-size="sm"
+                              type="button"
+                              disabled={busy}
+                              onClick={() =>
+                                void onCreateTaskFromAction(active, item)
+                              }
+                            >
+                              转任务
+                            </button>
+                          ) : (
+                            <span className="studio-faint">已转任务</span>
+                          )}
+                        </div>
                       ))
                     )}
                     <div className="studio-actions">

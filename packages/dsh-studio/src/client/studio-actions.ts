@@ -46,6 +46,7 @@ import type {
   UpdateTriggerRulesInput,
   Workshop,
   WorkshopDownstreamInput,
+  WorkshopActionItem,
   WorkshopMinutesInput,
 } from "../shared/types.js";
 import { TASK_STATUS_LABELS } from "../shared/types.js";
@@ -210,6 +211,30 @@ export function createStudioActions({
         await client.updateWorkshopAction(workshopId, actionId, input);
       },
       "行动项已更新",
+    );
+  };
+
+  const createTaskFromAction = async (
+    workshop: Workshop,
+    action: WorkshopActionItem,
+  ): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null) return;
+        const task = await client.createTask({
+          title: action.text.slice(0, 160),
+          goal: `会议「${workshop.title}」行动项：${action.text}`,
+          priority: "P1",
+          acceptance: ["行动项完成且有可复现证据"],
+          ownerRoleId: action.ownerRoleId,
+          reviewerRoleId: workshop.participantRoleIds[1] ?? null,
+          kind: "new",
+        });
+        await client.updateWorkshopAction(workshop.id, action.id, {
+          taskId: task.id,
+        });
+      },
+      "行动项已转成任务",
     );
   };
 
@@ -1078,6 +1103,7 @@ export function createStudioActions({
     createRequirementDecision,
     createTask,
     createTaskFromMeeting,
+    createTaskFromAction,
     addWorkshopAction,
     updateWorkshopAction,
     createRole,

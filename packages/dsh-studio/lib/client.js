@@ -912,6 +912,26 @@ function createStudioActions({
       "\u884C\u52A8\u9879\u5DF2\u66F4\u65B0"
     );
   };
+  const createTaskFromAction = async (workshop, action) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        const task = await client.createTask({
+          title: action.text.slice(0, 160),
+          goal: `\u4F1A\u8BAE\u300C${workshop.title}\u300D\u884C\u52A8\u9879\uFF1A${action.text}`,
+          priority: "P1",
+          acceptance: ["\u884C\u52A8\u9879\u5B8C\u6210\u4E14\u6709\u53EF\u590D\u73B0\u8BC1\u636E"],
+          ownerRoleId: action.ownerRoleId,
+          reviewerRoleId: workshop.participantRoleIds[1] ?? null,
+          kind: "new"
+        });
+        await client.updateWorkshopAction(workshop.id, action.id, {
+          taskId: task.id
+        });
+      },
+      "\u884C\u52A8\u9879\u5DF2\u8F6C\u6210\u4EFB\u52A1"
+    );
+  };
   const createTaskFromMeeting = async (workshop) => {
     return run(
       async () => {
@@ -1585,6 +1605,7 @@ function createStudioActions({
     createRequirementDecision,
     createTask,
     createTaskFromMeeting,
+    createTaskFromAction,
     addWorkshopAction,
     updateWorkshopAction,
     createRole,
@@ -2813,6 +2834,7 @@ function MeetingView({
   changeRequests,
   onLinkDownstream,
   onCreateTask,
+  onCreateTaskFromAction,
   onAddAction,
   onUpdateAction,
   onOpenBoardroom
@@ -2999,7 +3021,7 @@ function MeetingView({
             ] }) : null,
             /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "studio-section-label", children: "\u884C\u52A8\u9879" }),
             /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-meeting-actions", children: [
-              active.actionItems.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "studio-faint", children: "\u8FD8\u6CA1\u6709\u884C\u52A8\u9879\u3002" }) : active.actionItems.map((item) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("label", { className: "studio-check", children: [
+              active.actionItems.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "studio-faint", children: "\u8FD8\u6CA1\u6709\u884C\u52A8\u9879\u3002" }) : active.actionItems.map((item) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-check", children: [
                 /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
                   "input",
                   {
@@ -3016,7 +3038,18 @@ function MeetingView({
                   item.ownerRoleId !== null ? " \xB7 " + (roles.find(
                     (role) => role.id === item.ownerRoleId
                   )?.name ?? item.ownerRoleId) : ""
-                ] })
+                ] }),
+                item.taskId === null ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+                  "button",
+                  {
+                    className: "studio-btn",
+                    "data-size": "sm",
+                    type: "button",
+                    disabled: busy,
+                    onClick: () => void onCreateTaskFromAction(active, item),
+                    children: "\u8F6C\u4EFB\u52A1"
+                  }
+                ) : /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "studio-faint", children: "\u5DF2\u8F6C\u4EFB\u52A1" })
               ] }, item.id)),
               /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-actions", children: [
                 /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
@@ -8819,6 +8852,7 @@ function StudioPage() {
     createRequirementDecision,
     createTask,
     createTaskFromMeeting,
+    createTaskFromAction,
     addWorkshopAction,
     updateWorkshopAction,
     createRole,
@@ -9042,6 +9076,7 @@ function StudioPage() {
             changeRequests: data.freezeChangeRequests,
             onLinkDownstream: linkWorkshopDownstream,
             onCreateTask: createTaskFromMeeting,
+            onCreateTaskFromAction: createTaskFromAction,
             onAddAction: addWorkshopAction,
             onUpdateAction: updateWorkshopAction,
             onOpenBoardroom: () => setTab("boardroom")
