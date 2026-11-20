@@ -2027,7 +2027,10 @@ var import_jsx_runtime3 = require("react/jsx-runtime");
 function OnboardingPanel({
   data,
   onNewProject,
-  onOpenProject
+  onOpenProject,
+  onOpenKnowledge,
+  onNewTask,
+  onOpenMeeting
 }) {
   const [dismissed, setDismissed] = (0, import_react.useState)(
     () => window.localStorage.getItem("studio.onboarding.dismissed") === "1"
@@ -2049,6 +2052,14 @@ function OnboardingPanel({
     {
       label: "\u7ED1\u5B9A\u4EE3\u7801\u4ED3\u5E93",
       done: project !== null && project.repoPath !== null
+    },
+    {
+      label: "\u521D\u59CB\u5316\u89C4\u5212\u6587\u6863",
+      done: project !== null && project.prdPath !== null
+    },
+    {
+      label: "\u5F00\u7B2C\u4E00\u6B21\u4F1A\u8BAE",
+      done: data.workshops.length > 0
     }
   ];
   if (dismissed || steps.every((step) => step.done)) return null;
@@ -2092,16 +2103,21 @@ function OnboardingPanel({
           onClick: onNewProject,
           children: "\u65B0\u5EFA\u9879\u76EE"
         }
-      ) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-        "button",
-        {
-          className: "studio-btn",
-          "data-variant": "primary",
-          type: "button",
-          onClick: () => onOpenProject(project.id),
-          children: "\u6253\u5F00\u5F53\u524D\u9879\u76EE"
-        }
-      ) })
+      ) : /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+          "button",
+          {
+            className: "studio-btn",
+            "data-variant": "primary",
+            type: "button",
+            onClick: () => onOpenProject(project.id),
+            children: "\u6253\u5F00\u5F53\u524D\u9879\u76EE"
+          }
+        ),
+        project.prdPath === null ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { className: "studio-btn", type: "button", onClick: onOpenKnowledge, children: "\u53BB\u77E5\u8BC6\u5E93" }) : null,
+        data.tasks.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { className: "studio-btn", type: "button", onClick: onNewTask, children: "\u65B0\u5EFA\u4EFB\u52A1" }) : null,
+        data.workshops.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { className: "studio-btn", type: "button", onClick: onOpenMeeting, children: "\u53BB\u4F1A\u8BAE\u5BA4" }) : null
+      ] }) })
     ] })
   ] });
 }
@@ -2110,7 +2126,10 @@ function CompanyView({
   busy,
   onOpenProject,
   onOpenNeed,
-  onNewProject
+  onNewProject,
+  onOpenKnowledge,
+  onNewTask,
+  onOpenMeeting
 }) {
   const company = data.company;
   const acceptanceRate = company.totals.acceptanceTotal === 0 ? 0 : Math.round(
@@ -2169,7 +2188,10 @@ function CompanyView({
       {
         data,
         onNewProject,
-        onOpenProject
+        onOpenProject,
+        onOpenKnowledge,
+        onNewTask,
+        onOpenMeeting
       }
     ),
     /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "studio-grid-stats", children: [
@@ -9453,7 +9475,10 @@ function StudioPage() {
             busy,
             onOpenProject: (projectId) => void openCompanyProject(projectId),
             onOpenNeed: (need) => void openCompanyNeed(need),
-            onNewProject: () => setModal({ kind: "project" })
+            onNewProject: () => setModal({ kind: "project" }),
+            onOpenKnowledge: () => setTab("knowledge"),
+            onNewTask: () => setModal({ kind: "task" }),
+            onOpenMeeting: () => setTab("meeting")
           }
         ) : null,
         tab === "meeting" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(

@@ -28,10 +28,16 @@ function OnboardingPanel({
   data,
   onNewProject,
   onOpenProject,
+  onOpenKnowledge,
+  onNewTask,
+  onOpenMeeting,
 }: {
   data: BootstrapResponse;
   onNewProject: () => void;
   onOpenProject: (projectId: string) => void;
+  onOpenKnowledge: () => void;
+  onNewTask: () => void;
+  onOpenMeeting: () => void;
 }) {
   const [dismissed, setDismissed] = useState(
     () => window.localStorage.getItem("studio.onboarding.dismissed") === "1",
@@ -53,6 +59,14 @@ function OnboardingPanel({
     {
       label: "绑定代码仓库",
       done: project !== null && project.repoPath !== null,
+    },
+    {
+      label: "初始化规划文档",
+      done: project !== null && project.prdPath !== null,
+    },
+    {
+      label: "开第一次会议",
+      done: data.workshops.length > 0,
     },
   ];
   if (dismissed || steps.every((step) => step.done)) return null;
@@ -98,6 +112,7 @@ function OnboardingPanel({
               新建项目
             </button>
           ) : (
+            <>
             <button
               className="studio-btn"
               data-variant="primary"
@@ -106,6 +121,22 @@ function OnboardingPanel({
             >
               打开当前项目
             </button>
+            {project.prdPath === null ? (
+              <button className="studio-btn" type="button" onClick={onOpenKnowledge}>
+                去知识库
+              </button>
+            ) : null}
+            {data.tasks.length === 0 ? (
+              <button className="studio-btn" type="button" onClick={onNewTask}>
+                新建任务
+              </button>
+            ) : null}
+            {data.workshops.length === 0 ? (
+              <button className="studio-btn" type="button" onClick={onOpenMeeting}>
+                去会议室
+              </button>
+            ) : null}
+            </>
           )}
         </div>
       </div>
@@ -119,12 +150,18 @@ export function CompanyView({
   onOpenProject,
   onOpenNeed,
   onNewProject,
+  onOpenKnowledge,
+  onNewTask,
+  onOpenMeeting,
 }: {
   data: BootstrapResponse;
   busy: boolean;
   onOpenProject: (projectId: string) => void;
   onOpenNeed: (need: OwnerNeed) => void;
   onNewProject: () => void;
+  onOpenKnowledge: () => void;
+  onNewTask: () => void;
+  onOpenMeeting: () => void;
 }) {
   const company = data.company;
   const acceptanceRate =
@@ -193,6 +230,9 @@ export function CompanyView({
         data={data}
         onNewProject={onNewProject}
         onOpenProject={onOpenProject}
+        onOpenKnowledge={onOpenKnowledge}
+        onNewTask={onNewTask}
+        onOpenMeeting={onOpenMeeting}
       />
 
       <div className="studio-grid-stats">

@@ -714,6 +714,9 @@ export function StudioPage() {
                 onOpenProject={(projectId) => void openCompanyProject(projectId)}
                 onOpenNeed={(need) => void openCompanyNeed(need)}
                 onNewProject={() => setModal({ kind: "project" })}
+                onOpenKnowledge={() => setTab("knowledge")}
+                onNewTask={() => setModal({ kind: "task" })}
+                onOpenMeeting={() => setTab("meeting")}
               />
             ) : null}
 
