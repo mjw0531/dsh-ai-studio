@@ -119,6 +119,19 @@ await build({
 
 await build({
   absWorkingDir: root,
+  entryPoints: [path.join(root, "src/shared/task-filter.ts")],
+  outfile: path.join(libDir, "task-filter.js"),
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "node22",
+  sourcemap: false,
+  legalComments: "none",
+  logLevel: "info",
+});
+
+await build({
+  absWorkingDir: root,
   entryPoints: [path.join(root, "src/shared/dispatch-readiness.ts")],
   outfile: path.join(libDir, "dispatch-readiness.js"),
   bundle: true,

@@ -13,6 +13,7 @@ import type {
 } from "../../shared/types.js";
 import { StatusPill } from "../components/ui.js";
 import { TaskBoard } from "../components/TaskBoard.js";
+import { filterTasks } from "../../shared/task-filter.js";
 import { IconKanban, IconPlus } from "../icons.js";
 
 export function TasksView({
@@ -31,12 +32,12 @@ export function TasksView({
   const [filter, setFilter] = useState<TaskStatus | "all">("all");
   const [milestoneFilter, setMilestoneFilter] = useState<string>("all");
   const [milestoneTitle, setMilestoneTitle] = useState("");
-  const tasks = data.tasks
-    .filter((task) => filter === "all" || task.status === filter)
-    .filter(
-      (task) =>
-        milestoneFilter === "all" || task.milestoneId === milestoneFilter,
-    );
+  const [query, setQuery] = useState("");
+  const tasks = filterTasks(data.tasks, {
+    query,
+    status: filter,
+    milestoneId: milestoneFilter,
+  });
 
   return (
     <>
@@ -83,6 +84,12 @@ export function TasksView({
           ))}
         </div>
         <span className="studio-toolbar-spacer" />
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="搜索编号、标题、目标"
+          aria-label="搜索任务"
+        />
         <span className="studio-muted">
           验收项 {data.stats.acceptanceDone}/{data.stats.acceptanceTotal}
         </span>

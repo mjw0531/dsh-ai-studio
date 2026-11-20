@@ -6349,6 +6349,21 @@ function MissionView({
 
 // src/client/views/TasksView.tsx
 var import_react11 = require("react");
+
+// src/shared/task-filter.ts
+function filterTasks(tasks, input) {
+  const query = (input.query ?? "").trim().toLowerCase();
+  const status = input.status ?? "all";
+  const milestoneId = input.milestoneId ?? "all";
+  return tasks.filter((task) => {
+    if (status !== "all" && task.status !== status) return false;
+    if (milestoneId !== "all" && task.milestoneId !== milestoneId) return false;
+    if (query === "") return true;
+    return task.number.toLowerCase().includes(query) || task.title.toLowerCase().includes(query) || task.goal.toLowerCase().includes(query);
+  });
+}
+
+// src/client/views/TasksView.tsx
 var import_jsx_runtime15 = require("react/jsx-runtime");
 function TasksView({
   data,
@@ -6360,9 +6375,12 @@ function TasksView({
   const [filter, setFilter] = (0, import_react11.useState)("all");
   const [milestoneFilter, setMilestoneFilter] = (0, import_react11.useState)("all");
   const [milestoneTitle, setMilestoneTitle] = (0, import_react11.useState)("");
-  const tasks = data.tasks.filter((task) => filter === "all" || task.status === filter).filter(
-    (task) => milestoneFilter === "all" || task.milestoneId === milestoneFilter
-  );
+  const [query, setQuery] = (0, import_react11.useState)("");
+  const tasks = filterTasks(data.tasks, {
+    query,
+    status: filter,
+    milestoneId: milestoneFilter
+  });
   return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(import_jsx_runtime15.Fragment, { children: [
     /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "studio-page-head", children: [
       /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { children: [
@@ -6417,6 +6435,15 @@ function TasksView({
         ))
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { className: "studio-toolbar-spacer" }),
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+        "input",
+        {
+          value: query,
+          onChange: (event) => setQuery(event.target.value),
+          placeholder: "\u641C\u7D22\u7F16\u53F7\u3001\u6807\u9898\u3001\u76EE\u6807",
+          "aria-label": "\u641C\u7D22\u4EFB\u52A1"
+        }
+      ),
       /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("span", { className: "studio-muted", children: [
         "\u9A8C\u6536\u9879 ",
         data.stats.acceptanceDone,
