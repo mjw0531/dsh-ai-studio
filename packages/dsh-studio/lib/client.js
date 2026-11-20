@@ -1426,6 +1426,18 @@ function createStudioActions({
     if (ok) setModal(null);
     return ok;
   };
+  const batchReadyTasks = async (tasks) => {
+    const backlog = tasks.filter((task) => task.status === "backlog");
+    if (backlog.length === 0 || client === null) return false;
+    return run(
+      async () => {
+        for (const task of backlog) {
+          await client.transitionTask(task.id, "ready");
+        }
+      },
+      `\u5DF2\u6807\u8BB0 ${String(backlog.length)} \u4E2A\u4EFB\u52A1\u53EF\u5F00\u59CB`
+    );
+  };
   const transitionTask = async (task, status) => {
     await run(
       async () => {
@@ -1817,6 +1829,7 @@ function createStudioActions({
     createModule,
     createMilestone,
     transitionTask,
+    batchReadyTasks,
     acceptAllTrivial,
     toggleAcceptance,
     toggleDocsSynced,
@@ -5005,7 +5018,9 @@ function TaskBoard({
   tasks,
   roles,
   mergeProposals,
-  onOpenTask
+  selected,
+  onOpenTask,
+  onToggleSelect
 }) {
   return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: "studio-board-wrap", children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: "studio-board", children: TASK_STATUS_ORDER.map((status) => {
     const list = tasks.filter((task) => task.status === status);
@@ -5030,6 +5045,8 @@ function TaskBoard({
             mergeProposals,
             task.id
           ),
+          selected: selected?.has(task.id) ?? false,
+          onToggleSelect,
           onOpen: onOpenTask
         },
         task.id
@@ -5041,39 +5058,53 @@ function TaskCard({
   task,
   roles,
   mergeProposal,
+  selected,
+  onToggleSelect,
   onOpen
 }) {
   const done = acceptanceDone(task);
   const total = task.acceptance.length;
   const pct = total === 0 ? 0 : Math.round(done / total * 100);
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
-    "button",
-    {
-      type: "button",
-      className: "studio-task-card",
-      onClick: () => onOpen(task.id),
-      children: [
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "studio-task-top", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(PriorityPill, { priority: task.priority }),
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(StatusPill, { status: task.status }),
-          task.integration ? /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { className: "studio-pill", "data-tone": "p1", children: "\u96C6\u6210" }) : null,
-          mergeProposal !== null && mergeProposal.status !== "rejected" ? /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(MergePill, { proposal: mergeProposal }) : null
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: "studio-task-title", children: task.title }),
-        task.goal ? /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: "studio-task-goal", children: task.goal }) : null,
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: "studio-progress", children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { style: { width: `${String(pct)}%` } }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "studio-task-foot", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { className: "studio-task-owner", children: roleName(roles, task.ownerRoleId) }),
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("span", { className: "studio-task-progress", children: [
-            "\u9A8C\u6536 ",
-            done,
-            "/",
-            total
+  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "studio-task-card-wrap", "data-selected": selected, children: [
+    onToggleSelect !== void 0 ? /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+      "input",
+      {
+        type: "checkbox",
+        className: "studio-task-select",
+        checked: selected ?? false,
+        onChange: () => onToggleSelect(task.id),
+        "aria-label": `\u9009\u62E9\u4EFB\u52A1 ${task.title}`
+      }
+    ) : null,
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
+      "button",
+      {
+        type: "button",
+        className: "studio-task-card",
+        onClick: () => onOpen(task.id),
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "studio-task-top", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(PriorityPill, { priority: task.priority }),
+            /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(StatusPill, { status: task.status }),
+            task.integration ? /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { className: "studio-pill", "data-tone": "p1", children: "\u96C6\u6210" }) : null,
+            mergeProposal !== null && mergeProposal.status !== "rejected" ? /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(MergePill, { proposal: mergeProposal }) : null
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: "studio-task-title", children: task.title }),
+          task.goal ? /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: "studio-task-goal", children: task.goal }) : null,
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className: "studio-progress", children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { style: { width: `${String(pct)}%` } }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className: "studio-task-foot", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { className: "studio-task-owner", children: roleName(roles, task.ownerRoleId) }),
+            /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("span", { className: "studio-task-progress", children: [
+              "\u9A8C\u6536 ",
+              done,
+              "/",
+              total
+            ] })
           ] })
-        ] })
-      ]
-    }
-  );
+        ]
+      }
+    )
+  ] });
 }
 
 // src/client/components/ModalShell.tsx
@@ -6370,12 +6401,14 @@ function TasksView({
   onOpenTask,
   onNewTask,
   onCreateMilestone,
-  onPublishMilestones
+  onPublishMilestones,
+  onBatchReady
 }) {
   const [filter, setFilter] = (0, import_react11.useState)("all");
   const [milestoneFilter, setMilestoneFilter] = (0, import_react11.useState)("all");
   const [milestoneTitle, setMilestoneTitle] = (0, import_react11.useState)("");
   const [query, setQuery] = (0, import_react11.useState)("");
+  const [selected, setSelected] = (0, import_react11.useState)(/* @__PURE__ */ new Set());
   const tasks = filterTasks(data.tasks, {
     query,
     status: filter,
@@ -6498,13 +6531,54 @@ function TasksView({
         }
       )
     ] }),
+    selected.size > 0 ? /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "studio-toolbar", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("span", { className: "studio-muted", children: [
+        "\u5DF2\u9009 ",
+        selected.size,
+        " \u4E2A\u4EFB\u52A1"
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+        "button",
+        {
+          type: "button",
+          className: "studio-btn",
+          "data-size": "sm",
+          disabled: !data.tasks.some(
+            (task) => selected.has(task.id) && task.status === "backlog"
+          ),
+          onClick: () => void onBatchReady(
+            data.tasks.filter((task) => selected.has(task.id))
+          ).then((ok) => {
+            if (ok) setSelected(/* @__PURE__ */ new Set());
+          }),
+          children: "\u6279\u91CF\u6807\u8BB0\u53EF\u5F00\u59CB"
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+        "button",
+        {
+          type: "button",
+          className: "studio-btn",
+          "data-size": "sm",
+          onClick: () => setSelected(/* @__PURE__ */ new Set()),
+          children: "\u6E05\u7A7A\u9009\u62E9"
+        }
+      )
+    ] }) : null,
     /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
       TaskBoard,
       {
         tasks,
         roles: data.roles,
         mergeProposals: data.mergeProposals,
-        onOpenTask
+        selected,
+        onOpenTask,
+        onToggleSelect: (id) => setSelected((current) => {
+          const next = new Set(current);
+          if (next.has(id)) next.delete(id);
+          else next.add(id);
+          return next;
+        })
       }
     )
   ] });
@@ -9468,6 +9542,7 @@ function StudioPage() {
     createMilestone,
     syncMilestoneDocs,
     transitionTask,
+    batchReadyTasks,
     acceptAllTrivial,
     toggleAcceptance,
     toggleDocsSynced,
@@ -9735,7 +9810,8 @@ function StudioPage() {
             onOpenTask: setSelectedTaskId,
             onNewTask: () => setModal({ kind: "task" }),
             onCreateMilestone: (title) => createMilestone({ title }),
-            onPublishMilestones: syncMilestoneDocs
+            onPublishMilestones: syncMilestoneDocs,
+            onBatchReady: batchReadyTasks
           }
         ) : null,
         tab === "merges" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
@@ -11567,6 +11643,10 @@ var views = `
 .studio-dispatch-check[data-ok="true"] { color: var(--st-ok); }
 .studio-dispatch-check[data-ok="false"] { color: var(--st-warn); }
 .studio-dispatch-check .studio-faint { margin-left: auto; text-align: right; }
+
+.studio-task-card-wrap { position: relative; }
+.studio-task-select { position: absolute; top: 8px; right: 8px; z-index: 2; accent-color: var(--st-accent); }
+.studio-task-card-wrap[data-selected="true"] .studio-task-card { border-color: var(--st-accent); }
 
 .studio-wizard-steps { display: flex; gap: 6px; margin-bottom: 12px; }
 .studio-wizard-step { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid var(--st-border); border-radius: 8px; color: var(--st-faint); font-size: 10px; }

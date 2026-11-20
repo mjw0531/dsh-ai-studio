@@ -760,6 +760,19 @@ export function createStudioActions({
     return ok;
   };
 
+  const batchReadyTasks = async (tasks: Task[]): Promise<boolean> => {
+    const backlog = tasks.filter((task) => task.status === "backlog");
+    if (backlog.length === 0 || client === null) return false;
+    return run(
+      async () => {
+        for (const task of backlog) {
+          await client.transitionTask(task.id, "ready");
+        }
+      },
+      `已标记 ${String(backlog.length)} 个任务可开始`,
+    );
+  };
+
   const transitionTask = async (
     task: Task,
     status: TaskStatus,
@@ -1231,6 +1244,7 @@ export function createStudioActions({
     createModule,
     createMilestone,
     transitionTask,
+    batchReadyTasks,
     acceptAllTrivial,
     toggleAcceptance,
     toggleDocsSynced,

@@ -15,12 +15,16 @@ export function TaskBoard({
   tasks,
   roles,
   mergeProposals,
+  selected,
   onOpenTask,
+  onToggleSelect,
 }: {
   tasks: Task[];
   roles: Role[];
   mergeProposals: MergeProposal[];
+  selected?: Set<string>;
   onOpenTask: (id: string) => void;
+  onToggleSelect?: (id: string) => void;
 }) {
   return (
     <div className="studio-board-wrap">
@@ -51,6 +55,8 @@ export function TaskBoard({
                         mergeProposals,
                         task.id,
                       )}
+                      selected={selected?.has(task.id) ?? false}
+                      onToggleSelect={onToggleSelect}
                       onOpen={onOpenTask}
                     />
                   ))
@@ -68,22 +74,36 @@ export function TaskCard({
   task,
   roles,
   mergeProposal,
+  selected,
+  onToggleSelect,
   onOpen,
 }: {
   task: Task;
   roles: Role[];
   mergeProposal: MergeProposal | null;
+  selected?: boolean;
+  onToggleSelect?: (id: string) => void;
   onOpen: (id: string) => void;
 }) {
   const done = acceptanceDone(task);
   const total = task.acceptance.length;
   const pct = total === 0 ? 0 : Math.round((done / total) * 100);
   return (
-    <button
-      type="button"
-      className="studio-task-card"
-      onClick={() => onOpen(task.id)}
-    >
+    <div className="studio-task-card-wrap" data-selected={selected}>
+      {onToggleSelect !== undefined ? (
+        <input
+          type="checkbox"
+          className="studio-task-select"
+          checked={selected ?? false}
+          onChange={() => onToggleSelect(task.id)}
+          aria-label={`选择任务 ${task.title}`}
+        />
+      ) : null}
+      <button
+        type="button"
+        className="studio-task-card"
+        onClick={() => onOpen(task.id)}
+      >
       <div className="studio-task-top">
         <PriorityPill priority={task.priority} />
         <StatusPill status={task.status} />
@@ -109,7 +129,8 @@ export function TaskCard({
           验收 {done}/{total}
         </span>
       </div>
-    </button>
+      </button>
+    </div>
   );
 }
 

@@ -842,6 +842,10 @@ export const views = `
 .studio-dispatch-check[data-ok="false"] { color: var(--st-warn); }
 .studio-dispatch-check .studio-faint { margin-left: auto; text-align: right; }
 
+.studio-task-card-wrap { position: relative; }
+.studio-task-select { position: absolute; top: 8px; right: 8px; z-index: 2; accent-color: var(--st-accent); }
+.studio-task-card-wrap[data-selected="true"] .studio-task-card { border-color: var(--st-accent); }
+
 .studio-wizard-steps { display: flex; gap: 6px; margin-bottom: 12px; }
 .studio-wizard-step { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid var(--st-border); border-radius: 8px; color: var(--st-faint); font-size: 10px; }
 .studio-wizard-step[data-active="true"] { border-color: var(--st-accent); color: var(--st-text); background: var(--st-accent-soft); }

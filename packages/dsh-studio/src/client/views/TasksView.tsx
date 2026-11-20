@@ -22,17 +22,20 @@ export function TasksView({
   onNewTask,
   onCreateMilestone,
   onPublishMilestones,
+  onBatchReady,
 }: {
   data: BootstrapResponse;
   onOpenTask: (id: string) => void;
   onNewTask: () => void;
   onCreateMilestone: (title: string) => Promise<boolean>;
   onPublishMilestones: () => Promise<boolean>;
+  onBatchReady: (tasks: Task[]) => Promise<boolean>;
 }) {
   const [filter, setFilter] = useState<TaskStatus | "all">("all");
   const [milestoneFilter, setMilestoneFilter] = useState<string>("all");
   const [milestoneTitle, setMilestoneTitle] = useState("");
   const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const tasks = filterTasks(data.tasks, {
     query,
     status: filter,
@@ -138,11 +141,53 @@ export function TasksView({
         </button>
       </div>
 
+      {selected.size > 0 ? (
+        <div className="studio-toolbar">
+          <span className="studio-muted">已选 {selected.size} 个任务</span>
+          <button
+            type="button"
+            className="studio-btn"
+            data-size="sm"
+            disabled={
+              !data.tasks.some(
+                (task) => selected.has(task.id) && task.status === "backlog",
+              )
+            }
+            onClick={() =>
+              void onBatchReady(
+                data.tasks.filter((task) => selected.has(task.id)),
+              ).then((ok) => {
+                if (ok) setSelected(new Set());
+              })
+            }
+          >
+            批量标记可开始
+          </button>
+          <button
+            type="button"
+            className="studio-btn"
+            data-size="sm"
+            onClick={() => setSelected(new Set())}
+          >
+            清空选择
+          </button>
+        </div>
+      ) : null}
+
       <TaskBoard
         tasks={tasks}
         roles={data.roles}
         mergeProposals={data.mergeProposals}
+        selected={selected}
         onOpenTask={onOpenTask}
+        onToggleSelect={(id) =>
+          setSelected((current) => {
+            const next = new Set(current);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+          })
+        }
       />
     </>
   );

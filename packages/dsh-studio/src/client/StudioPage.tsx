@@ -517,6 +517,7 @@ export function StudioPage() {
     createMilestone,
     syncMilestoneDocs,
     transitionTask,
+    batchReadyTasks,
     acceptAllTrivial,
     toggleAcceptance,
     toggleDocsSynced,
@@ -822,6 +823,7 @@ export function StudioPage() {
                 onNewTask={() => setModal({ kind: "task" })}
                 onCreateMilestone={(title) => createMilestone({ title })}
                 onPublishMilestones={syncMilestoneDocs}
+                onBatchReady={batchReadyTasks}
               />
             ) : null}
 
