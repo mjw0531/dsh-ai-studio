@@ -95,6 +95,14 @@ test("initializes the docs skeleton and indexes numbered requirements", async ()
       await readFile(path.join(dir, "docs/DOMAIN_MODEL.md"), "utf8"),
       /# Domain/u,
     );
+    const history = await service.history("docs/PRD.md");
+    assert.ok(history.length >= 2);
+    const compared = await service.compare(
+      "docs/PRD.md",
+      history[1].sha,
+      history[0].sha,
+    );
+    assert.match(compared.diff, /R-002|PRD/u);
     await writeFile(path.join(dir, "docs/PRD.md"), "# dirty\n", "utf8");
     const diff = await service.diff("docs/PRD.md");
     assert.equal(diff.dirty, true);

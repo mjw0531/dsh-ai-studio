@@ -227,6 +227,40 @@ ${module.contractPath ?? "\uFF08\u672A\u7ED1\u5B9A\uFF09"}`
       diff: (diff || status).slice(0, 12e3)
     };
   }
+  async history(relativePath, limit = 10) {
+    const { root } = await this.repo();
+    const relative = this.docPath(relativePath);
+    const output = this.git(root, [
+      "log",
+      `--max-count=${String(Math.max(1, Math.min(limit, 20)))}`,
+      "--format=%H%x09%h%x09%cI%x09%s",
+      "--",
+      relative
+    ]);
+    if (output === "") return [];
+    return output.split(/\r?\n/u).map((line) => {
+      const [sha = "", shortSha = "", date = "", ...subject] = line.split("	");
+      return { sha, shortSha, date, subject: subject.join("	") };
+    });
+  }
+  async compare(relativePath, from, to) {
+    const { root } = await this.repo();
+    const relative = this.docPath(relativePath);
+    for (const ref of [from, to]) {
+      if (!/^[a-f0-9]{7,40}$/u.test(ref)) {
+        throw new StudioStoreError("invalid_commit", "commit \u5FC5\u987B\u662F sha", 400);
+      }
+    }
+    const diff = this.git(root, ["diff", from, to, "--", relative]);
+    return { path: relative, from, to, diff: diff.slice(0, 12e3) };
+  }
+  docPath(relativePath) {
+    const relative = relativePath.replaceAll("\\", "/").replace(/^\/+/, "");
+    if (!relative.startsWith("docs/") || relative.includes("..")) {
+      throw new StudioStoreError("invalid_doc_path", "\u53EA\u5141\u8BB8\u67E5\u770B docs/ \u4E0B\u7684\u6587\u6863", 400);
+    }
+    return relative;
+  }
   async requirements() {
     const { root, prdPath } = await this.repo();
     const relative = prdPath.replaceAll("\\", "/").replace(/^\/+/u, "");

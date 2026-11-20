@@ -285,6 +285,16 @@ var StudioClient = class {
       body: {}
     });
   }
+  async projectDocHistory(path) {
+    const data = await this.request(`/project-docs/history?path=${encodeURIComponent(path)}`);
+    return data.history;
+  }
+  async compareProjectDocs(path, from, to) {
+    const data = await this.request(
+      `/project-docs/compare?path=${encodeURIComponent(path)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+    );
+    return data.compare;
+  }
   async projectDocDiff(path) {
     const data = await this.request(`/project-docs/diff?path=${encodeURIComponent(path)}`);
     return data.diff;
@@ -1582,6 +1592,24 @@ function createStudioActions({
       "\u5DF2\u56DE\u6EDA\u5408\u5E76\u5E76\u8BB0\u5F55 revert commit"
     );
   };
+  const readProjectDocHistory = async (path) => {
+    if (client === null) return null;
+    try {
+      return await client.projectDocHistory(path);
+    } catch (cause) {
+      setToast({ kind: "error", text: errorToastText(cause) });
+      return null;
+    }
+  };
+  const compareProjectDocs = async (path, from, to) => {
+    if (client === null) return null;
+    try {
+      return await client.compareProjectDocs(path, from, to);
+    } catch (cause) {
+      setToast({ kind: "error", text: errorToastText(cause) });
+      return null;
+    }
+  };
   const readProjectDocDiff = async (path) => {
     if (client === null) return null;
     try {
@@ -1807,6 +1835,8 @@ function createStudioActions({
     initializeProjectDocs,
     publishProjectDoc,
     readProjectDocDiff,
+    readProjectDocHistory,
+    compareProjectDocs,
     readRequirements,
     syncMilestoneDocs,
     syncModules,
@@ -4102,7 +4132,9 @@ function KnowledgeView({
   onReadRequirements,
   onSyncModules,
   onPublishDoc,
-  onReadDocDiff
+  onReadDocDiff,
+  onReadDocHistory,
+  onCompareDocs
 }) {
   const [prdPath, setPrdPath] = (0, import_react5.useState)(project?.prdPath ?? "");
   const [invariantsPath, setInvariantsPath] = (0, import_react5.useState)(
@@ -4117,6 +4149,10 @@ function KnowledgeView({
   const [editing, setEditing] = (0, import_react5.useState)(false);
   const [draft, setDraft] = (0, import_react5.useState)("");
   const [conflict, setConflict] = (0, import_react5.useState)(null);
+  const [history, setHistory] = (0, import_react5.useState)(null);
+  const [historyFrom, setHistoryFrom] = (0, import_react5.useState)("");
+  const [historyTo, setHistoryTo] = (0, import_react5.useState)("");
+  const [compareDiff, setCompareDiff] = (0, import_react5.useState)(null);
   const [showNewDoc, setShowNewDoc] = (0, import_react5.useState)(false);
   const [newDocPath, setNewDocPath] = (0, import_react5.useState)("docs/");
   const [newDocContent, setNewDocContent] = (0, import_react5.useState)("");
@@ -4373,6 +4409,81 @@ function KnowledgeView({
                 children: "\u68C0\u67E5\u51B2\u7A81"
               }
             ),
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "studio-btn",
+                "data-size": "sm",
+                disabled: busy,
+                onClick: () => void onReadDocHistory(doc.path).then((items) => {
+                  setHistory(items);
+                  setHistoryFrom(items?.[1]?.sha ?? "");
+                  setHistoryTo(items?.[0]?.sha ?? "");
+                  setCompareDiff(null);
+                }),
+                children: "\u5386\u53F2"
+              }
+            ),
+            history !== null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-field", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-faint", children: [
+                "\u5171 ",
+                history.length,
+                " \u4E2A\u63D0\u4EA4"
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-actions", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
+                  "select",
+                  {
+                    value: historyFrom,
+                    onChange: (event) => setHistoryFrom(event.target.value),
+                    children: [
+                      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("option", { value: "", children: "\u65E7\u7248\u672C" }),
+                      history.map((item) => /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("option", { value: item.sha, children: [
+                        item.shortSha,
+                        " ",
+                        item.subject
+                      ] }, item.sha))
+                    ]
+                  }
+                ),
+                /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
+                  "select",
+                  {
+                    value: historyTo,
+                    onChange: (event) => setHistoryTo(event.target.value),
+                    children: [
+                      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("option", { value: "", children: "\u65B0\u7248\u672C" }),
+                      history.map((item) => /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("option", { value: item.sha, children: [
+                        item.shortSha,
+                        " ",
+                        item.subject
+                      ] }, item.sha))
+                    ]
+                  }
+                ),
+                /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+                  "button",
+                  {
+                    type: "button",
+                    className: "studio-btn",
+                    "data-size": "sm",
+                    disabled: busy || historyFrom === "" || historyTo === "",
+                    onClick: () => void onCompareDocs(
+                      doc.path,
+                      historyFrom,
+                      historyTo
+                    ).then(
+                      (result) => setCompareDiff(
+                        result === null ? null : result.diff || "\u4E24\u4E2A\u7248\u672C\u6CA1\u6709\u5DEE\u5F02\u3002"
+                      )
+                    ),
+                    children: "\u5BF9\u6BD4"
+                  }
+                )
+              ] }),
+              compareDiff !== null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("pre", { className: "studio-doc-diff", children: compareDiff }) : null
+            ] }) : null,
             conflict !== null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("pre", { className: "studio-doc-diff", children: conflict.dirty ? conflict.diff : "\u76EE\u6807\u6587\u4EF6\u6CA1\u6709\u672A\u63D0\u4EA4\u6539\u52A8\u3002" }) : null
           ] }) : /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("pre", { children: doc.content || "\uFF08\u7A7A\u6587\u4EF6\uFF09" })
         ] }) : null
@@ -9201,6 +9312,8 @@ function StudioPage() {
     initializeProjectDocs,
     publishProjectDoc,
     readProjectDocDiff,
+    readProjectDocHistory,
+    compareProjectDocs,
     readRequirements,
     syncModules,
     listBackups,
@@ -9403,7 +9516,9 @@ function StudioPage() {
             onReadRequirements: readRequirements,
             onSyncModules: syncModules,
             onPublishDoc: publishProjectDoc,
-            onReadDocDiff: readProjectDocDiff
+            onReadDocDiff: readProjectDocDiff,
+            onReadDocHistory: readProjectDocHistory,
+            onCompareDocs: compareProjectDocs
           }
         ) : null,
         tab === "mission" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(

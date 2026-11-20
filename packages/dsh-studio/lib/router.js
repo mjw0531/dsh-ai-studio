@@ -2,7 +2,7 @@
 import { timingSafeEqual as timingSafeEqual3 } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_PLUGIN_VERSION = "3.18.2";
+var STUDIO_PLUGIN_VERSION = "3.18.3";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -754,6 +754,8 @@ var StudioRouter = class {
   syncProjectModules;
   syncProjectMilestones;
   diffProjectDoc;
+  historyProjectDoc;
+  compareProjectDocs;
   indexProjectRequirements;
   runWorkshop;
   summarizeWorkshop;
@@ -783,6 +785,8 @@ var StudioRouter = class {
     this.syncProjectModules = options.syncProjectModules;
     this.syncProjectMilestones = options.syncProjectMilestones;
     this.diffProjectDoc = options.diffProjectDoc;
+    this.historyProjectDoc = options.historyProjectDoc;
+    this.compareProjectDocs = options.compareProjectDocs;
     this.indexProjectRequirements = options.indexProjectRequirements;
     this.runWorkshop = options.runWorkshop;
     this.summarizeWorkshop = options.summarizeWorkshop;
@@ -1609,6 +1613,33 @@ var StudioRouter = class {
         throw new HttpError(400, "invalid_input", "path \u4E0D\u80FD\u4E3A\u7A7A");
       }
       sendJson(res, 200, { ok: true, diff: await this.diffProjectDoc(docPath) });
+      return;
+    }
+    if (parsed.pathname === `${API_PREFIX}/project-docs/history`) {
+      requireMethod(parsed, ["GET"]);
+      const docPath = parsed.url.searchParams.get("path");
+      if (docPath === null || docPath.trim() === "") {
+        throw new HttpError(400, "invalid_input", "path \u4E0D\u80FD\u4E3A\u7A7A");
+      }
+      const limit = Number(parsed.url.searchParams.get("limit") ?? "10");
+      sendJson(res, 200, {
+        ok: true,
+        history: await this.historyProjectDoc(docPath, Number.isFinite(limit) ? limit : 10)
+      });
+      return;
+    }
+    if (parsed.pathname === `${API_PREFIX}/project-docs/compare`) {
+      requireMethod(parsed, ["GET"]);
+      const docPath = parsed.url.searchParams.get("path");
+      const from = parsed.url.searchParams.get("from");
+      const to = parsed.url.searchParams.get("to");
+      if (docPath === null || from === null || to === null) {
+        throw new HttpError(400, "invalid_input", "path/from/to \u4E0D\u80FD\u4E3A\u7A7A");
+      }
+      sendJson(res, 200, {
+        ok: true,
+        compare: await this.compareProjectDocs(docPath, from, to)
+      });
       return;
     }
     if (parsed.pathname === `${API_PREFIX}/project-docs/requirements`) {

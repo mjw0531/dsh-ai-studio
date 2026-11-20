@@ -120,6 +120,15 @@ export class StudioRouter {
   private readonly syncProjectModules: () => Promise<{ files: unknown[]; commit: string | null }>;
   private readonly syncProjectMilestones: () => Promise<{ files: unknown[]; commit: string | null }>;
   private readonly diffProjectDoc: (path: string) => Promise<{ path: string; dirty: boolean; diff: string }>;
+  private readonly historyProjectDoc: (
+    path: string,
+    limit?: number,
+  ) => Promise<Array<{ sha: string; shortSha: string; date: string; subject: string }>>;
+  private readonly compareProjectDocs: (
+    path: string,
+    from: string,
+    to: string,
+  ) => Promise<{ path: string; from: string; to: string; diff: string }>;
   private readonly indexProjectRequirements: () => Promise<unknown>;
   private readonly runWorkshop: (workshopId: string) => Promise<Workshop>;
   private readonly summarizeWorkshop: (
@@ -164,6 +173,8 @@ export class StudioRouter {
     this.syncProjectModules = options.syncProjectModules;
     this.syncProjectMilestones = options.syncProjectMilestones;
     this.diffProjectDoc = options.diffProjectDoc;
+    this.historyProjectDoc = options.historyProjectDoc;
+    this.compareProjectDocs = options.compareProjectDocs;
     this.indexProjectRequirements = options.indexProjectRequirements;
     this.runWorkshop = options.runWorkshop;
     this.summarizeWorkshop = options.summarizeWorkshop;
@@ -1125,6 +1136,35 @@ export class StudioRouter {
         throw new HttpError(400, "invalid_input", "path 不能为空");
       }
       sendJson(res, 200, { ok: true, diff: await this.diffProjectDoc(docPath) });
+      return;
+    }
+
+    if (parsed.pathname === `${API_PREFIX}/project-docs/history`) {
+      requireMethod(parsed, ["GET"]);
+      const docPath = parsed.url.searchParams.get("path");
+      if (docPath === null || docPath.trim() === "") {
+        throw new HttpError(400, "invalid_input", "path 不能为空");
+      }
+      const limit = Number(parsed.url.searchParams.get("limit") ?? "10");
+      sendJson(res, 200, {
+        ok: true,
+        history: await this.historyProjectDoc(docPath, Number.isFinite(limit) ? limit : 10),
+      });
+      return;
+    }
+
+    if (parsed.pathname === `${API_PREFIX}/project-docs/compare`) {
+      requireMethod(parsed, ["GET"]);
+      const docPath = parsed.url.searchParams.get("path");
+      const from = parsed.url.searchParams.get("from");
+      const to = parsed.url.searchParams.get("to");
+      if (docPath === null || from === null || to === null) {
+        throw new HttpError(400, "invalid_input", "path/from/to 不能为空");
+      }
+      sendJson(res, 200, {
+        ok: true,
+        compare: await this.compareProjectDocs(docPath, from, to),
+      });
       return;
     }
 

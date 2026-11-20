@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 41;
-var STUDIO_PLUGIN_VERSION = "3.18.2";
+var STUDIO_PLUGIN_VERSION = "3.18.3";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -8421,6 +8421,40 @@ ${module.contractPath ?? "\uFF08\u672A\u7ED1\u5B9A\uFF09"}`
       diff: (diff || status).slice(0, 12e3)
     };
   }
+  async history(relativePath, limit = 10) {
+    const { root } = await this.repo();
+    const relative = this.docPath(relativePath);
+    const output = this.git(root, [
+      "log",
+      `--max-count=${String(Math.max(1, Math.min(limit, 20)))}`,
+      "--format=%H%x09%h%x09%cI%x09%s",
+      "--",
+      relative
+    ]);
+    if (output === "") return [];
+    return output.split(/\r?\n/u).map((line) => {
+      const [sha = "", shortSha = "", date = "", ...subject] = line.split("	");
+      return { sha, shortSha, date, subject: subject.join("	") };
+    });
+  }
+  async compare(relativePath, from, to) {
+    const { root } = await this.repo();
+    const relative = this.docPath(relativePath);
+    for (const ref of [from, to]) {
+      if (!/^[a-f0-9]{7,40}$/u.test(ref)) {
+        throw new StudioStoreError("invalid_commit", "commit \u5FC5\u987B\u662F sha", 400);
+      }
+    }
+    const diff = this.git(root, ["diff", from, to, "--", relative]);
+    return { path: relative, from, to, diff: diff.slice(0, 12e3) };
+  }
+  docPath(relativePath) {
+    const relative = relativePath.replaceAll("\\", "/").replace(/^\/+/, "");
+    if (!relative.startsWith("docs/") || relative.includes("..")) {
+      throw new StudioStoreError("invalid_doc_path", "\u53EA\u5141\u8BB8\u67E5\u770B docs/ \u4E0B\u7684\u6587\u6863", 400);
+    }
+    return relative;
+  }
   async requirements() {
     const { root, prdPath } = await this.repo();
     const relative = prdPath.replaceAll("\\", "/").replace(/^\/+/u, "");
@@ -9501,6 +9535,8 @@ var StudioRouter = class {
   syncProjectModules;
   syncProjectMilestones;
   diffProjectDoc;
+  historyProjectDoc;
+  compareProjectDocs;
   indexProjectRequirements;
   runWorkshop;
   summarizeWorkshop;
@@ -9530,6 +9566,8 @@ var StudioRouter = class {
     this.syncProjectModules = options.syncProjectModules;
     this.syncProjectMilestones = options.syncProjectMilestones;
     this.diffProjectDoc = options.diffProjectDoc;
+    this.historyProjectDoc = options.historyProjectDoc;
+    this.compareProjectDocs = options.compareProjectDocs;
     this.indexProjectRequirements = options.indexProjectRequirements;
     this.runWorkshop = options.runWorkshop;
     this.summarizeWorkshop = options.summarizeWorkshop;
@@ -10358,6 +10396,33 @@ var StudioRouter = class {
       sendJson(res, 200, { ok: true, diff: await this.diffProjectDoc(docPath) });
       return;
     }
+    if (parsed.pathname === `${API_PREFIX}/project-docs/history`) {
+      requireMethod(parsed, ["GET"]);
+      const docPath = parsed.url.searchParams.get("path");
+      if (docPath === null || docPath.trim() === "") {
+        throw new HttpError(400, "invalid_input", "path \u4E0D\u80FD\u4E3A\u7A7A");
+      }
+      const limit = Number(parsed.url.searchParams.get("limit") ?? "10");
+      sendJson(res, 200, {
+        ok: true,
+        history: await this.historyProjectDoc(docPath, Number.isFinite(limit) ? limit : 10)
+      });
+      return;
+    }
+    if (parsed.pathname === `${API_PREFIX}/project-docs/compare`) {
+      requireMethod(parsed, ["GET"]);
+      const docPath = parsed.url.searchParams.get("path");
+      const from = parsed.url.searchParams.get("from");
+      const to = parsed.url.searchParams.get("to");
+      if (docPath === null || from === null || to === null) {
+        throw new HttpError(400, "invalid_input", "path/from/to \u4E0D\u80FD\u4E3A\u7A7A");
+      }
+      sendJson(res, 200, {
+        ok: true,
+        compare: await this.compareProjectDocs(docPath, from, to)
+      });
+      return;
+    }
     if (parsed.pathname === `${API_PREFIX}/project-docs/requirements`) {
       requireMethod(parsed, ["GET"]);
       sendJson(res, 200, { ok: true, requirements: await this.indexProjectRequirements() });
@@ -11128,6 +11193,8 @@ async function apply(ctx) {
     syncProjectModules: () => docsPublisher.syncModules(),
     syncProjectMilestones: () => docsPublisher.syncMilestones(),
     diffProjectDoc: (docPath) => docsPublisher.diff(docPath),
+    historyProjectDoc: (docPath, limit) => docsPublisher.history(docPath, limit),
+    compareProjectDocs: (docPath, from, to) => docsPublisher.compare(docPath, from, to),
     indexProjectRequirements: () => docsPublisher.requirements(),
     runWorkshop: (workshopId) => workshopRunner.run(workshopId),
     summarizeWorkshop: (workshopId) => workshopRunner.summarize(workshopId),

@@ -251,6 +251,54 @@ ${module.contractPath ?? "（未绑定）"}`,
     };
   }
 
+  async history(
+    relativePath: string,
+    limit = 10,
+  ): Promise<
+    Array<{ sha: string; shortSha: string; date: string; subject: string }>
+  > {
+    const { root } = await this.repo();
+    const relative = this.docPath(relativePath);
+    const output = this.git(root, [
+      "log",
+      `--max-count=${String(Math.max(1, Math.min(limit, 20)))}`,
+      "--format=%H%x09%h%x09%cI%x09%s",
+      "--",
+      relative,
+    ]);
+    if (output === "") return [];
+    return output.split(/\r?\n/u).map((line) => {
+      const [sha = "", shortSha = "", date = "", ...subject] = line.split("\t");
+      return { sha, shortSha, date, subject: subject.join("\t") };
+    });
+  }
+
+  async compare(
+    relativePath: string,
+    from: string,
+    to: string,
+  ): Promise<{ path: string; from: string; to: string; diff: string }> {
+    const { root } = await this.repo();
+    const relative = this.docPath(relativePath);
+    for (const ref of [from, to]) {
+      if (!/^[a-f0-9]{7,40}$/u.test(ref)) {
+        throw new StudioStoreError("invalid_commit", "commit 必须是 sha", 400);
+      }
+    }
+    const diff = this.git(root, ["diff", from, to, "--", relative]);
+    return { path: relative, from, to, diff: diff.slice(0, 12_000) };
+  }
+
+  private docPath(relativePath: string): string {
+    const relative = relativePath
+      .replaceAll("\\", "/")
+      .replace(/^\/+/, "");
+    if (!relative.startsWith("docs/") || relative.includes("..")) {
+      throw new StudioStoreError("invalid_doc_path", "只允许查看 docs/ 下的文档", 400);
+    }
+    return relative;
+  }
+
   async requirements(): Promise<RequirementsIndex> {
     const { root, prdPath } = await this.repo();
     const relative = prdPath.replaceAll("\\", "/").replace(/^\/+/u, "");

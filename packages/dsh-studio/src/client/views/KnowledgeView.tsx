@@ -35,6 +35,8 @@ export function KnowledgeView({
   onSyncModules,
   onPublishDoc,
   onReadDocDiff,
+  onReadDocHistory,
+  onCompareDocs,
 }: {
   project: Project | null;
   modules: Module[];
@@ -60,6 +62,14 @@ export function KnowledgeView({
   onReadDocDiff: (
     path: string,
   ) => Promise<{ path: string; dirty: boolean; diff: string } | null>;
+  onReadDocHistory: (
+    path: string,
+  ) => Promise<Array<{ sha: string; shortSha: string; date: string; subject: string }> | null>;
+  onCompareDocs: (
+    path: string,
+    from: string,
+    to: string,
+  ) => Promise<{ path: string; from: string; to: string; diff: string } | null>;
   onSaveDocs: (docs: {
     prdPath: string | null;
     invariantsPath: string | null;
@@ -85,6 +95,12 @@ export function KnowledgeView({
     dirty: boolean;
     diff: string;
   } | null>(null);
+  const [history, setHistory] = useState<
+    Array<{ sha: string; shortSha: string; date: string; subject: string }> | null
+  >(null);
+  const [historyFrom, setHistoryFrom] = useState("");
+  const [historyTo, setHistoryTo] = useState("");
+  const [compareDiff, setCompareDiff] = useState<string | null>(null);
   const [showNewDoc, setShowNewDoc] = useState(false);
   const [newDocPath, setNewDocPath] = useState("docs/");
   const [newDocContent, setNewDocContent] = useState("");
@@ -332,6 +348,83 @@ export function KnowledgeView({
                   >
                     检查冲突
                   </button>
+                  <button
+                    type="button"
+                    className="studio-btn"
+                    data-size="sm"
+                    disabled={busy}
+                    onClick={() =>
+                      void onReadDocHistory(doc.path).then((items) => {
+                        setHistory(items);
+                        setHistoryFrom(items?.[1]?.sha ?? "");
+                        setHistoryTo(items?.[0]?.sha ?? "");
+                        setCompareDiff(null);
+                      })
+                    }
+                  >
+                    历史
+                  </button>
+                  {history !== null ? (
+                    <div className="studio-field">
+                      <div className="studio-faint">
+                        共 {history.length} 个提交
+                      </div>
+                      <div className="studio-actions">
+                        <select
+                          value={historyFrom}
+                          onChange={(event) =>
+                            setHistoryFrom(event.target.value)
+                          }
+                        >
+                          <option value="">旧版本</option>
+                          {history.map((item) => (
+                            <option key={item.sha} value={item.sha}>
+                              {item.shortSha} {item.subject}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          value={historyTo}
+                          onChange={(event) =>
+                            setHistoryTo(event.target.value)
+                          }
+                        >
+                          <option value="">新版本</option>
+                          {history.map((item) => (
+                            <option key={item.sha} value={item.sha}>
+                              {item.shortSha} {item.subject}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          className="studio-btn"
+                          data-size="sm"
+                          disabled={
+                            busy || historyFrom === "" || historyTo === ""
+                          }
+                          onClick={() =>
+                            void onCompareDocs(
+                              doc.path,
+                              historyFrom,
+                              historyTo,
+                            ).then((result) =>
+                              setCompareDiff(
+                                result === null
+                                  ? null
+                                  : result.diff || "两个版本没有差异。",
+                              ),
+                            )
+                          }
+                        >
+                          对比
+                        </button>
+                      </div>
+                      {compareDiff !== null ? (
+                        <pre className="studio-doc-diff">{compareDiff}</pre>
+                      ) : null}
+                    </div>
+                  ) : null}
                   {conflict !== null ? (
                     <pre className="studio-doc-diff">
                       {conflict.dirty ? conflict.diff : "目标文件没有未提交改动。"}

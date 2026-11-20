@@ -972,6 +972,32 @@ export function createStudioActions({
     );
   };
 
+  const readProjectDocHistory = async (
+    path: string,
+  ): Promise<Array<{ sha: string; shortSha: string; date: string; subject: string }> | null> => {
+    if (client === null) return null;
+    try {
+      return await client.projectDocHistory(path);
+    } catch (cause) {
+      setToast({ kind: "error", text: errorToastText(cause) });
+      return null;
+    }
+  };
+
+  const compareProjectDocs = async (
+    path: string,
+    from: string,
+    to: string,
+  ): Promise<{ path: string; from: string; to: string; diff: string } | null> => {
+    if (client === null) return null;
+    try {
+      return await client.compareProjectDocs(path, from, to);
+    } catch (cause) {
+      setToast({ kind: "error", text: errorToastText(cause) });
+      return null;
+    }
+  };
+
   const readProjectDocDiff = async (
     path: string,
   ): Promise<{ path: string; dirty: boolean; diff: string } | null> => {
@@ -1223,6 +1249,8 @@ export function createStudioActions({
     initializeProjectDocs,
     publishProjectDoc,
     readProjectDocDiff,
+    readProjectDocHistory,
+    compareProjectDocs,
     readRequirements,
     syncMilestoneDocs,
     syncModules,

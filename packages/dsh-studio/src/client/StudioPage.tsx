@@ -535,6 +535,8 @@ export function StudioPage() {
     initializeProjectDocs,
     publishProjectDoc,
     readProjectDocDiff,
+    readProjectDocHistory,
+    compareProjectDocs,
     readRequirements,
     syncModules,
     listBackups,
@@ -775,6 +777,8 @@ export function StudioPage() {
                 onSyncModules={syncModules}
                 onPublishDoc={publishProjectDoc}
                 onReadDocDiff={readProjectDocDiff}
+                onReadDocHistory={readProjectDocHistory}
+                onCompareDocs={compareProjectDocs}
               />
             ) : null}
 

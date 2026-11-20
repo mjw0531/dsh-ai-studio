@@ -274,6 +274,28 @@ export class StudioClient {
     });
   }
 
+  async projectDocHistory(
+    path: string,
+  ): Promise<Array<{ sha: string; shortSha: string; date: string; subject: string }>> {
+    const data = await this.request<{
+      history: Array<{ sha: string; shortSha: string; date: string; subject: string }>;
+    }>(`/project-docs/history?path=${encodeURIComponent(path)}`);
+    return data.history;
+  }
+
+  async compareProjectDocs(
+    path: string,
+    from: string,
+    to: string,
+  ): Promise<{ path: string; from: string; to: string; diff: string }> {
+    const data = await this.request<{
+      compare: { path: string; from: string; to: string; diff: string };
+    }>(
+      `/project-docs/compare?path=${encodeURIComponent(path)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+    );
+    return data.compare;
+  }
+
   async projectDocDiff(
     path: string,
   ): Promise<{ path: string; dirty: boolean; diff: string }> {
