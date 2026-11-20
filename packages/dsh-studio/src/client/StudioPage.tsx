@@ -533,6 +533,7 @@ export function StudioPage() {
     executeMerge,
     rollbackMerge,
     initializeProjectDocs,
+    publishProjectDoc,
     readRequirements,
     syncModules,
     listBackups,
@@ -771,6 +772,7 @@ export function StudioPage() {
                 onInitializeDocs={initializeProjectDocs}
                 onReadRequirements={readRequirements}
                 onSyncModules={syncModules}
+                onPublishDoc={publishProjectDoc}
               />
             ) : null}
 

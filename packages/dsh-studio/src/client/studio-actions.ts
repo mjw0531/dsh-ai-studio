@@ -971,6 +971,19 @@ export function createStudioActions({
     );
   };
 
+  const publishProjectDoc = async (
+    path: string,
+    content: string,
+  ): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.publishProjectDocs([{ path, content }]);
+      },
+      "文档已发布",
+    );
+  };
+
   const initializeProjectDocs = async (): Promise<boolean> => {
     return run(
       async () => {
@@ -1195,6 +1208,7 @@ export function createStudioActions({
     executeMerge,
     rollbackMerge,
     initializeProjectDocs,
+    publishProjectDoc,
     readRequirements,
     syncMilestoneDocs,
     syncModules,

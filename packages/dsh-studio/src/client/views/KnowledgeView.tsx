@@ -33,6 +33,7 @@ export function KnowledgeView({
   onInitializeDocs,
   onReadRequirements,
   onSyncModules,
+  onPublishDoc,
 }: {
   project: Project | null;
   modules: Module[];
@@ -54,6 +55,7 @@ export function KnowledgeView({
   onInitializeDocs: () => Promise<boolean>;
   onReadRequirements: () => Promise<RequirementsIndex | null>;
   onSyncModules: () => Promise<boolean>;
+  onPublishDoc: (path: string, content: string) => Promise<boolean>;
   onSaveDocs: (docs: {
     prdPath: string | null;
     invariantsPath: string | null;
@@ -72,6 +74,8 @@ export function KnowledgeView({
   const [doc, setDoc] = useState<ProjectDoc | null>(null);
   const [reading, setReading] = useState(false);
   const [requirements, setRequirements] = useState<RequirementsIndex | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
   useEffect(() => {
     setPrdPath(project?.prdPath ?? "");
     setInvariantsPath(project?.invariantsPath ?? "");
@@ -82,7 +86,11 @@ export function KnowledgeView({
     setReading(true);
     const result = await onReadDoc(path.trim());
     setReading(false);
-    if (result !== null) setDoc(result);
+    if (result !== null) {
+      setDoc(result);
+      setDraft(result.content);
+      setEditing(false);
+    }
   };
   const save = (event: FormEvent): void => {
     event.preventDefault();
@@ -217,8 +225,39 @@ export function KnowledgeView({
                 <span className="studio-pill" data-tone={doc.exists ? "ok" : "p0"}>
                   {doc.exists ? "已读取" : "文件不存在"}
                 </span>
+                <button
+                  type="button"
+                  className="studio-btn"
+                  data-size="sm"
+                  onClick={() => setEditing((value) => !value)}
+                >
+                  {editing ? "取消编辑" : "编辑"}
+                </button>
               </div>
-              <pre>{doc.content || "（空文件）"}</pre>
+              {editing ? (
+                <div className="studio-field">
+                  <textarea
+                    value={draft}
+                    onChange={(event) => setDraft(event.target.value)}
+                    rows={12}
+                  />
+                  <button
+                    type="button"
+                    className="studio-btn"
+                    data-variant="primary"
+                    disabled={busy}
+                    onClick={() =>
+                      void onPublishDoc(doc.path, draft).then((ok) => {
+                        if (ok) setEditing(false);
+                      })
+                    }
+                  >
+                    保存并提交
+                  </button>
+                </div>
+              ) : (
+                <pre>{doc.content || "（空文件）"}</pre>
+              )}
             </div>
           ) : null}
         </section>

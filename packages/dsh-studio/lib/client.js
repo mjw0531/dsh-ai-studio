@@ -285,6 +285,12 @@ var StudioClient = class {
       body: {}
     });
   }
+  async publishProjectDocs(files) {
+    return this.request("/project-docs/publish", {
+      method: "POST",
+      body: { files }
+    });
+  }
   async initializeProjectDocs() {
     return this.request("/project-docs/skeleton", { method: "POST", body: {} });
   }
@@ -1488,6 +1494,15 @@ function createStudioActions({
       "\u5DF2\u56DE\u6EDA\u5408\u5E76\u5E76\u8BB0\u5F55 revert commit"
     );
   };
+  const publishProjectDoc = async (path, content) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.publishProjectDocs([{ path, content }]);
+      },
+      "\u6587\u6863\u5DF2\u53D1\u5E03"
+    );
+  };
   const initializeProjectDocs = async () => {
     return run(
       async () => {
@@ -1693,6 +1708,7 @@ function createStudioActions({
     executeMerge,
     rollbackMerge,
     initializeProjectDocs,
+    publishProjectDoc,
     readRequirements,
     syncMilestoneDocs,
     syncModules,
@@ -4070,7 +4086,8 @@ function KnowledgeView({
   onCreateRequirementDecision,
   onInitializeDocs,
   onReadRequirements,
-  onSyncModules
+  onSyncModules,
+  onPublishDoc
 }) {
   const [prdPath, setPrdPath] = (0, import_react5.useState)(project?.prdPath ?? "");
   const [invariantsPath, setInvariantsPath] = (0, import_react5.useState)(
@@ -4082,6 +4099,8 @@ function KnowledgeView({
   const [doc, setDoc] = (0, import_react5.useState)(null);
   const [reading, setReading] = (0, import_react5.useState)(false);
   const [requirements, setRequirements] = (0, import_react5.useState)(null);
+  const [editing, setEditing] = (0, import_react5.useState)(false);
+  const [draft, setDraft] = (0, import_react5.useState)("");
   (0, import_react5.useEffect)(() => {
     setPrdPath(project?.prdPath ?? "");
     setInvariantsPath(project?.invariantsPath ?? "");
@@ -4092,7 +4111,11 @@ function KnowledgeView({
     setReading(true);
     const result = await onReadDoc(path.trim());
     setReading(false);
-    if (result !== null) setDoc(result);
+    if (result !== null) {
+      setDoc(result);
+      setDraft(result.content);
+      setEditing(false);
+    }
   };
   const save = (event) => {
     event.preventDefault();
@@ -4230,9 +4253,41 @@ function KnowledgeView({
         doc !== null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-doc-view", children: [
           /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-doc-head", children: [
             /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "studio-mono", children: doc.path }),
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "studio-pill", "data-tone": doc.exists ? "ok" : "p0", children: doc.exists ? "\u5DF2\u8BFB\u53D6" : "\u6587\u4EF6\u4E0D\u5B58\u5728" })
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "studio-pill", "data-tone": doc.exists ? "ok" : "p0", children: doc.exists ? "\u5DF2\u8BFB\u53D6" : "\u6587\u4EF6\u4E0D\u5B58\u5728" }),
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "studio-btn",
+                "data-size": "sm",
+                onClick: () => setEditing((value) => !value),
+                children: editing ? "\u53D6\u6D88\u7F16\u8F91" : "\u7F16\u8F91"
+              }
+            )
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("pre", { children: doc.content || "\uFF08\u7A7A\u6587\u4EF6\uFF09" })
+          editing ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+              "textarea",
+              {
+                value: draft,
+                onChange: (event) => setDraft(event.target.value),
+                rows: 12
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "studio-btn",
+                "data-variant": "primary",
+                disabled: busy,
+                onClick: () => void onPublishDoc(doc.path, draft).then((ok) => {
+                  if (ok) setEditing(false);
+                }),
+                children: "\u4FDD\u5B58\u5E76\u63D0\u4EA4"
+              }
+            )
+          ] }) : /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("pre", { children: doc.content || "\uFF08\u7A7A\u6587\u4EF6\uFF09" })
         ] }) : null
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("section", { className: "studio-panel", children: [
@@ -9057,6 +9112,7 @@ function StudioPage() {
     executeMerge,
     rollbackMerge,
     initializeProjectDocs,
+    publishProjectDoc,
     readRequirements,
     syncModules,
     listBackups,
@@ -9257,7 +9313,8 @@ function StudioPage() {
             onCreateRequirementDecision: createRequirementDecision,
             onInitializeDocs: initializeProjectDocs,
             onReadRequirements: readRequirements,
-            onSyncModules: syncModules
+            onSyncModules: syncModules,
+            onPublishDoc: publishProjectDoc
           }
         ) : null,
         tab === "mission" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(

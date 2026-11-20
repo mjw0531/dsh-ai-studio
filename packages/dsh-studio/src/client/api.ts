@@ -274,6 +274,15 @@ export class StudioClient {
     });
   }
 
+  async publishProjectDocs(
+    files: Array<{ path: string; content: string }>,
+  ): Promise<{ commit: string | null }> {
+    return this.request("/project-docs/publish", {
+      method: "POST",
+      body: { files },
+    });
+  }
+
   async initializeProjectDocs(): Promise<{ commit: string | null }> {
     return this.request("/project-docs/skeleton", { method: "POST", body: {} });
   }
