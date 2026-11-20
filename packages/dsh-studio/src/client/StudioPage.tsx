@@ -5,6 +5,7 @@ import {
   useState,
 } from "react";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
+import type { SearchHit } from "../shared/search.js";
 
 import {
   AGENT_EXECUTOR_LABELS,
@@ -120,6 +121,7 @@ import {
   LoadingState,
   MissingHost,
 } from "./components/States.js";
+import { GlobalSearch } from "./components/GlobalSearch.js";
 import { ProjectJourney } from "./components/ProjectJourney.js";
 import { TaskDrawer } from "./components/TaskDrawer.js";
 import { ModalShell } from "./components/ModalShell.js";
@@ -207,6 +209,7 @@ export function StudioPage() {
   );
   const [modal, setModal] = useState<ModalState>(null);
   const [toast, setToast] = useState<ToastState>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [singlePlayer, setSinglePlayer] = useState(() => {
     try {
       return localStorage.getItem("studio.ui.singlePlayer") === "1";
@@ -587,6 +590,14 @@ export function StudioPage() {
             className="studio-btn"
             data-size="sm"
             type="button"
+            onClick={() => setSearchOpen(true)}
+          >
+            搜索
+          </button>
+          <button
+            className="studio-btn"
+            data-size="sm"
+            type="button"
             onClick={() => void exportData()}
             title="导出 studio.json 备份"
           >
@@ -876,6 +887,22 @@ export function StudioPage() {
           </div>
         </main>
       </div>
+
+      {searchOpen ? (
+        <GlobalSearch
+          data={data}
+          onClose={() => setSearchOpen(false)}
+          onPick={(hit: SearchHit) => {
+            setSearchOpen(false);
+            if (hit.kind === "task") {
+              setTab("tasks");
+              setSelectedTaskId(hit.id);
+            } else {
+              setTab(hit.tab);
+            }
+          }}
+        />
+      ) : null}
 
       {selectedTask !== null ? (
         <TaskDrawer

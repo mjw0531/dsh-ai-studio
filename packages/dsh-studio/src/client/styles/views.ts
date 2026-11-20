@@ -842,6 +842,11 @@ export const views = `
 .studio-dispatch-check[data-ok="false"] { color: var(--st-warn); }
 .studio-dispatch-check .studio-faint { margin-left: auto; text-align: right; }
 
+.studio-search-results { display: grid; gap: 4px; max-height: 420px; overflow: auto; }
+.studio-search-hit { display: flex; align-items: flex-start; gap: 8px; width: 100%; text-align: left; padding: 7px 8px; border: 1px solid var(--st-border); border-radius: 8px; background: var(--st-panel); color: var(--st-text); cursor: pointer; }
+.studio-search-hit:hover { border-color: var(--st-accent); }
+.studio-search-title { display: block; font-size: 11px; font-weight: 600; }
+
 .studio-task-card-wrap { position: relative; }
 .studio-task-select { position: absolute; top: 8px; right: 8px; z-index: 2; accent-color: var(--st-accent); }
 .studio-task-card-wrap[data-selected="true"] .studio-task-card { border-color: var(--st-accent); }
