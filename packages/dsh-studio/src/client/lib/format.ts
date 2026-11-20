@@ -1,9 +1,23 @@
 import type { MergeProposal, Role, Task } from "../../shared/types.js";
 import { StudioClientError } from "../api.js";
+import { fallbackGuide, guideError } from "../../shared/error-guide.js";
+import type { ErrorGuide } from "../../shared/error-guide.js";
 
 export function errorText(error: unknown): string {
   if (error instanceof StudioClientError) return error.message;
   return error instanceof Error ? error.message : String(error);
+}
+
+export function errorGuide(error: unknown): ErrorGuide {
+  if (error instanceof StudioClientError) {
+    return guideError(error.code, error.message);
+  }
+  return fallbackGuide(errorText(error));
+}
+
+export function errorToastText(error: unknown): string {
+  const guide = errorGuide(error);
+  return `${guide.message} · ${guide.action}`;
 }
 
 export function formatDate(value: string): string {

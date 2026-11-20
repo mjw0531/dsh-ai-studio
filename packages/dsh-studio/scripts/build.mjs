@@ -119,6 +119,19 @@ await build({
 
 await build({
   absWorkingDir: root,
+  entryPoints: [path.join(root, "src/shared/error-guide.ts")],
+  outfile: path.join(libDir, "error-guide.js"),
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "node22",
+  sourcemap: false,
+  legalComments: "none",
+  logLevel: "info",
+});
+
+await build({
+  absWorkingDir: root,
   entryPoints: [path.join(root, "src/host/docs-publish.ts")],
   outfile: path.join(libDir, "docs-publish.js"),
   bundle: true,

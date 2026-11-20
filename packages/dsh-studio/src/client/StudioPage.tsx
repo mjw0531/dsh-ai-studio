@@ -90,7 +90,8 @@ import type { ModalState, ToastState } from "./studio-actions.js";
 import {
   acceptanceDone,
   allAccepted,
-  errorText,
+  errorGuide,
+  errorToastText,
   formatDate,
   initials,
   latestMergeForTask,
@@ -199,6 +200,7 @@ export function StudioPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorHint, setErrorHint] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>(readStoredTab);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(
     readStoredTaskId,
@@ -303,8 +305,11 @@ export function StudioPage() {
         }
         setData(next);
         setError(null);
+        setErrorHint(null);
       } catch (cause) {
-        setError(errorText(cause));
+        const guide = errorGuide(cause);
+        setError(guide.message);
+        setErrorHint(guide.action);
       } finally {
         if (!silent) setLoading(false);
       }
@@ -349,7 +354,7 @@ export function StudioPage() {
         setToast({ kind: "ok", text: successMessage });
         return true;
       } catch (cause) {
-        setToast({ kind: "error", text: errorText(cause) });
+        setToast({ kind: "error", text: errorToastText(cause) });
         return false;
       } finally {
         setBusy(false);
@@ -367,7 +372,7 @@ export function StudioPage() {
         await load(projectId, true);
         return true;
       } catch (cause) {
-        setToast({ kind: "error", text: errorText(cause) });
+        setToast({ kind: "error", text: errorToastText(cause) });
         return false;
       } finally {
         setBusy(false);
@@ -435,6 +440,7 @@ export function StudioPage() {
     return (
       <ErrorState
         message={error}
+        hint={errorHint}
         onRetry={() => void load()}
       />
     );

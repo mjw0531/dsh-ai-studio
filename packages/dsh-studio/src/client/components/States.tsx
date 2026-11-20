@@ -11,9 +11,11 @@ export function LoadingState() {
 
 export function ErrorState({
   message,
+  hint,
   onRetry,
 }: {
   message: string;
+  hint?: string | null;
   onRetry: () => void;
 }) {
   return (
@@ -21,6 +23,11 @@ export function ErrorState({
       <div className="studio-loading" style={{ flexDirection: "column", padding: 30 }}>
         <div className="studio-alert" style={{ maxWidth: 560 }}>
           {message}
+          {hint !== null && hint !== undefined && hint !== "" ? (
+            <div className="studio-hint" style={{ marginTop: 8 }}>
+              {hint}
+            </div>
+          ) : null}
         </div>
         <button
           className="studio-btn"
