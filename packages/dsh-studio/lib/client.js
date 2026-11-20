@@ -6316,12 +6316,63 @@ function MissingHost({
   ) });
 }
 
+// src/client/components/ProjectJourney.tsx
+var import_jsx_runtime19 = require("react/jsx-runtime");
+function ProjectJourney({
+  project,
+  freezes,
+  stageGates,
+  demos,
+  tasks
+}) {
+  if (project === null) return null;
+  const hasPrd = freezes.some((freeze) => freeze.kind === "prd");
+  const hasArchitecture = freezes.some((freeze) => freeze.kind === "architecture");
+  const hasDemo = demos.some((demo) => demo.result === "passed") || stageGates.some(
+    (gate) => gate.artifacts.some((artifact) => artifact.kind === "demo")
+  );
+  const development = project.stage === "development";
+  const doneTasks = tasks.filter((task) => task.status === "done").length;
+  const steps = [
+    { id: "setup", label: "\u7ACB\u9879", state: "done" },
+    {
+      id: "prd",
+      label: "PRD \u51BB\u7ED3",
+      state: hasPrd ? "done" : project.stage === "discovery" ? "active" : "todo"
+    },
+    {
+      id: "architecture",
+      label: "\u67B6\u6784\u51BB\u7ED3",
+      state: hasArchitecture ? "done" : hasPrd && project.stage !== "development" ? "active" : "todo"
+    },
+    {
+      id: "demo",
+      label: "\u539F\u578B / Demo",
+      state: hasDemo ? "done" : project.stage === "prototype" ? "active" : "todo"
+    },
+    {
+      id: "development",
+      label: "\u5F00\u53D1",
+      state: development ? "done" : hasDemo ? "active" : "todo"
+    },
+    {
+      id: "tasks",
+      label: tasks.length === 0 ? "\u4EFB\u52A1" : `\u4EFB\u52A1 ${doneTasks}/${tasks.length}`,
+      state: development ? doneTasks === tasks.length && tasks.length > 0 ? "done" : "active" : "todo"
+    }
+  ];
+  return /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "studio-journey", "aria-label": "\u9879\u76EE\u65C5\u7A0B", children: steps.map((step, index) => /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-journey-step", "data-state": step.state, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { className: "studio-journey-index", children: index + 1 }),
+    /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { children: step.label })
+  ] }, step.id)) });
+}
+
 // src/client/components/TaskDrawer.tsx
 var import_react16 = require("react");
 
 // src/client/components/TaskMergePanel.tsx
 var import_react14 = require("react");
-var import_jsx_runtime19 = require("react/jsx-runtime");
+var import_jsx_runtime20 = require("react/jsx-runtime");
 function TaskMergePanel({
   task,
   proposal,
@@ -6371,20 +6422,20 @@ function TaskMergePanel({
       setRollback("");
     }
   };
-  return /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("section", { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "studio-section-label", children: "\u5408\u5E76\u6CBB\u7406" }),
-    activeProposal === null ? /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(import_jsx_runtime19.Fragment, { children: [
-      proposal !== null && proposal.status === "rejected" ? /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-alert", "data-tone": "warn", style: { marginBottom: 10 }, children: [
+  return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("section", { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-section-label", children: "\u5408\u5E76\u6CBB\u7406" }),
+    activeProposal === null ? /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(import_jsx_runtime20.Fragment, { children: [
+      proposal !== null && proposal.status === "rejected" ? /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-alert", "data-tone": "warn", style: { marginBottom: 10 }, children: [
         "\u4E0A\u6B21\u5408\u5E76\u63D0\u6848\u88AB\u6253\u56DE\uFF1A",
         proposal.reviewNote || "\u672A\u586B\u5199\u539F\u56E0"
       ] }) : null,
-      !reviewable ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "studio-faint", style: { fontSize: 11 }, children: "\u4EFB\u52A1\u9A8C\u6536\u901A\u8FC7\u540E\uFF0C\u624D\u80FD\u63D0\u4EA4\u5408\u5E76\u63D0\u6848\u3002" }) : !complete || !hasEvidence ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "studio-faint", style: { fontSize: 11 }, children: "\u5148\u5B8C\u6210\u5168\u90E8\u9A8C\u6536\u9879\u5E76\u8BB0\u5F55\u81F3\u5C11\u4E00\u6761\u8BC1\u636E\uFF0C\u624D\u80FD\u63D0\u4EA4\u5408\u5E76\u63D0\u6848\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("form", { onSubmit: (event) => void submit(event), className: "studio-merge-form", children: [
-        codeMode && verification === null ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "studio-alert", "data-tone": "warn", children: "\u4EE3\u7801\u9879\u76EE\u9700\u8981\u5148\u8DD1\u4E00\u6B21\u901A\u8FC7\u7684\u300C\u72EC\u7ACB\u9A8C\u8BC1\u300D\uFF0C\u624D\u80FD\u63D0\u4EA4\u5408\u5E76\u63D0\u6848\u3002" }) : null,
-        localError !== null ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "studio-alert", children: localError }) : null,
-        /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-field-row", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("label", { htmlFor: "merge-branch", children: "\u5206\u652F" }),
-            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+      !reviewable ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-faint", style: { fontSize: 11 }, children: "\u4EFB\u52A1\u9A8C\u6536\u901A\u8FC7\u540E\uFF0C\u624D\u80FD\u63D0\u4EA4\u5408\u5E76\u63D0\u6848\u3002" }) : !complete || !hasEvidence ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-faint", style: { fontSize: 11 }, children: "\u5148\u5B8C\u6210\u5168\u90E8\u9A8C\u6536\u9879\u5E76\u8BB0\u5F55\u81F3\u5C11\u4E00\u6761\u8BC1\u636E\uFF0C\u624D\u80FD\u63D0\u4EA4\u5408\u5E76\u63D0\u6848\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("form", { onSubmit: (event) => void submit(event), className: "studio-merge-form", children: [
+        codeMode && verification === null ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-alert", "data-tone": "warn", children: "\u4EE3\u7801\u9879\u76EE\u9700\u8981\u5148\u8DD1\u4E00\u6B21\u901A\u8FC7\u7684\u300C\u72EC\u7ACB\u9A8C\u8BC1\u300D\uFF0C\u624D\u80FD\u63D0\u4EA4\u5408\u5E76\u63D0\u6848\u3002" }) : null,
+        localError !== null ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-alert", children: localError }) : null,
+        /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-field-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("label", { htmlFor: "merge-branch", children: "\u5206\u652F" }),
+            /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
               "input",
               {
                 id: "merge-branch",
@@ -6394,9 +6445,9 @@ function TaskMergePanel({
               }
             )
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("label", { htmlFor: "merge-base", children: "\u76EE\u6807\u5206\u652F" }),
-            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("label", { htmlFor: "merge-base", children: "\u76EE\u6807\u5206\u652F" }),
+            /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
               "input",
               {
                 id: "merge-base",
@@ -6407,25 +6458,25 @@ function TaskMergePanel({
             )
           ] })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("label", { htmlFor: "merge-risk", children: "\u98CE\u9669" }),
-          /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("label", { htmlFor: "merge-risk", children: "\u98CE\u9669" }),
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
             "select",
             {
               id: "merge-risk",
               value: risk,
               onChange: (event) => setRisk(event.target.value),
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("option", { value: "low", children: MERGE_RISK_LABELS.low }),
-                /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("option", { value: "medium", children: MERGE_RISK_LABELS.medium }),
-                /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("option", { value: "high", children: MERGE_RISK_LABELS.high })
+                /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("option", { value: "low", children: MERGE_RISK_LABELS.low }),
+                /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("option", { value: "medium", children: MERGE_RISK_LABELS.medium }),
+                /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("option", { value: "high", children: MERGE_RISK_LABELS.high })
               ]
             }
           )
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("label", { htmlFor: "merge-summary", children: "\u53D8\u66F4\u6458\u8981" }),
-          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("label", { htmlFor: "merge-summary", children: "\u53D8\u66F4\u6458\u8981" }),
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
             "textarea",
             {
               id: "merge-summary",
@@ -6435,9 +6486,9 @@ function TaskMergePanel({
             }
           )
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("label", { htmlFor: "merge-rollback", children: "\u56DE\u6EDA\u65B9\u6848" }),
-          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("label", { htmlFor: "merge-rollback", children: "\u56DE\u6EDA\u65B9\u6848" }),
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
             "textarea",
             {
               id: "merge-rollback",
@@ -6447,7 +6498,7 @@ function TaskMergePanel({
             }
           )
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "studio-actions", style: { marginTop: 10 }, children: /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-actions", style: { marginTop: 10 }, children: /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
           "button",
           {
             type: "submit",
@@ -6456,41 +6507,41 @@ function TaskMergePanel({
             "data-size": "sm",
             disabled: busy || !canSubmit,
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(IconGitMerge, { width: 13, height: 13 }),
+              /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(IconGitMerge, { width: 13, height: 13 }),
               "\u63D0\u4EA4\u5408\u5E76\u63D0\u6848"
             ]
           }
         ) }),
-        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "studio-action-note", children: "Studio \u53EA\u8BB0\u5F55\u6CBB\u7406\u72B6\u6001\uFF0C\u4E0D\u6267\u884C Git\u3002\u5408\u5E76\u547D\u4EE4\u7531\u4EBA\u6216 Integrator \u6267\u884C\u3002" })
+        /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-action-note", children: "Studio \u53EA\u8BB0\u5F55\u6CBB\u7406\u72B6\u6001\uFF0C\u4E0D\u6267\u884C Git\u3002\u5408\u5E76\u547D\u4EE4\u7531\u4EBA\u6216 Integrator \u6267\u884C\u3002" })
       ] })
-    ] }) : /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(import_jsx_runtime19.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-merge-card", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-merge-top", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(MergePill, { proposal: activeProposal }),
-          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { className: "studio-pill", "data-tone": "p2", children: MERGE_RISK_LABELS[activeProposal.risk] }),
-          /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("span", { className: "studio-muted", style: { marginLeft: "auto" }, children: [
+    ] }) : /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(import_jsx_runtime20.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-merge-card", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-merge-top", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(MergePill, { proposal: activeProposal }),
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { className: "studio-pill", "data-tone": "p2", children: MERGE_RISK_LABELS[activeProposal.risk] }),
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("span", { className: "studio-muted", style: { marginLeft: "auto" }, children: [
             activeProposal.branch,
             " \u2192 ",
             activeProposal.base
           ] })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("dl", { className: "studio-kv", style: { marginTop: 10 }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dt", { children: "\u53D8\u66F4\u6458\u8981" }),
-          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dd", { children: activeProposal.summary }),
-          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dt", { children: "\u56DE\u6EDA\u65B9\u6848" }),
-          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dd", { children: activeProposal.rollback }),
-          activeProposal.changedFiles.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(import_jsx_runtime19.Fragment, { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dt", { children: "\u53D8\u66F4\u6587\u4EF6" }),
-            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dd", { className: "studio-mono", children: activeProposal.changedFiles.join("\u3001") })
+        /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("dl", { className: "studio-kv", style: { marginTop: 10 }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("dt", { children: "\u53D8\u66F4\u6458\u8981" }),
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("dd", { children: activeProposal.summary }),
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("dt", { children: "\u56DE\u6EDA\u65B9\u6848" }),
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("dd", { children: activeProposal.rollback }),
+          activeProposal.changedFiles.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(import_jsx_runtime20.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("dt", { children: "\u53D8\u66F4\u6587\u4EF6" }),
+            /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("dd", { className: "studio-mono", children: activeProposal.changedFiles.join("\u3001") })
           ] }) : null,
-          activeProposal.diffStat !== null ? /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(import_jsx_runtime19.Fragment, { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dt", { children: "Diff" }),
-            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dd", { children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("pre", { className: "studio-diff", children: activeProposal.diffStat }) })
+          activeProposal.diffStat !== null ? /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(import_jsx_runtime20.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("dt", { children: "Diff" }),
+            /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("dd", { children: /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("pre", { className: "studio-diff", children: activeProposal.diffStat }) })
           ] }) : null,
-          verification !== null ? /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(import_jsx_runtime19.Fragment, { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dt", { children: "\u72EC\u7ACB\u9A8C\u8BC1" }),
-            /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("dd", { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+          verification !== null ? /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(import_jsx_runtime20.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("dt", { children: "\u72EC\u7ACB\u9A8C\u8BC1" }),
+            /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("dd", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
                 "span",
                 {
                   className: "studio-pill",
@@ -6499,25 +6550,25 @@ function TaskMergePanel({
                 }
               ),
               " ",
-              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("code", { children: verification.command })
+              /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("code", { children: verification.command })
             ] })
           ] }) : null,
-          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dt", { children: "\u8BC4\u5BA1\u5907\u6CE8" }),
-          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dd", { children: activeProposal.reviewNote || "\u65E0" }),
-          activeProposal.mergeCommit !== null ? /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(import_jsx_runtime19.Fragment, { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dt", { children: "\u5408\u5E76\u63D0\u4EA4" }),
-            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dd", { className: "studio-mono", children: activeProposal.mergeCommit })
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("dt", { children: "\u8BC4\u5BA1\u5907\u6CE8" }),
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("dd", { children: activeProposal.reviewNote || "\u65E0" }),
+          activeProposal.mergeCommit !== null ? /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(import_jsx_runtime20.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("dt", { children: "\u5408\u5E76\u63D0\u4EA4" }),
+            /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("dd", { className: "studio-mono", children: activeProposal.mergeCommit })
           ] }) : null,
-          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dt", { children: "\u521B\u5EFA" }),
-          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dd", { children: formatDate(activeProposal.createdAt) }),
-          activeProposal.mergedAt !== null ? /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(import_jsx_runtime19.Fragment, { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dt", { children: "\u5408\u5E76\u65F6\u95F4" }),
-            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("dd", { children: formatDate(activeProposal.mergedAt) })
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("dt", { children: "\u521B\u5EFA" }),
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("dd", { children: formatDate(activeProposal.createdAt) }),
+          activeProposal.mergedAt !== null ? /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(import_jsx_runtime20.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("dt", { children: "\u5408\u5E76\u65F6\u95F4" }),
+            /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("dd", { children: formatDate(activeProposal.mergedAt) })
           ] }) : null
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-merge-command", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { className: "studio-faint", children: "\u4EBA\u5DE5\u6267\u884C\uFF1A" }),
-          /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("code", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-merge-command", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { className: "studio-faint", children: "\u4EBA\u5DE5\u6267\u884C\uFF1A" }),
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("code", { children: [
             "git switch ",
             activeProposal.base,
             " && git merge --no-ff",
@@ -6526,8 +6577,8 @@ function TaskMergePanel({
           ] })
         ] })
       ] }),
-      activeProposal.status === "review" ? /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-merge-actions", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+      activeProposal.status === "review" ? /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-merge-actions", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
           "input",
           {
             value: reviewNote,
@@ -6536,8 +6587,8 @@ function TaskMergePanel({
             disabled: busy
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-actions", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-actions", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
             "button",
             {
               type: "button",
@@ -6547,12 +6598,12 @@ function TaskMergePanel({
               disabled: busy,
               onClick: () => onApprove(reviewNote.trim() || void 0),
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(IconCheck, { width: 13, height: 13 }),
+                /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(IconCheck, { width: 13, height: 13 }),
                 "\u6279\u51C6"
               ]
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
             "button",
             {
               type: "button",
@@ -6566,8 +6617,8 @@ function TaskMergePanel({
             }
           )
         ] })
-      ] }) : activeProposal.status === "approved" ? /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-merge-actions", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+      ] }) : activeProposal.status === "approved" ? /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-merge-actions", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
           "input",
           {
             value: mergeCommit,
@@ -6576,7 +6627,7 @@ function TaskMergePanel({
             disabled: busy
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
           "button",
           {
             type: "button",
@@ -6594,7 +6645,7 @@ function TaskMergePanel({
             children: "\u6267\u884C Git \u5408\u5E76"
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
           "button",
           {
             type: "button",
@@ -6603,22 +6654,22 @@ function TaskMergePanel({
             disabled: busy,
             onClick: () => onComplete(mergeCommit.trim() || void 0),
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(IconCheck, { width: 13, height: 13 }),
+              /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(IconCheck, { width: 13, height: 13 }),
               "\u4EC5\u8BB0\u5F55\u5408\u5E76"
             ]
           }
         )
-      ] }) : /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(import_jsx_runtime19.Fragment, { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { className: "studio-action-note", children: "\u5408\u5E76\u5DF2\u5B8C\u6210\uFF1B\u5982\u9700\u7EE7\u7EED\u53D8\u66F4\uFF0C\u8BF7\u521B\u5EFA\u540E\u7EED\u4EFB\u52A1\u3002" }),
-        postVerification !== null ? /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(
+      ] }) : /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(import_jsx_runtime20.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-action-note", children: "\u5408\u5E76\u5DF2\u5B8C\u6210\uFF1B\u5982\u9700\u7EE7\u7EED\u53D8\u66F4\uFF0C\u8BF7\u521B\u5EFA\u540E\u7EED\u4EFB\u52A1\u3002" }),
+        postVerification !== null ? /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
           "div",
           {
             className: "studio-verification",
             "data-passed": postVerification.passed,
             style: { marginTop: 8 },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-verification-head", children: [
-                /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(
+              /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-verification-head", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
                   "span",
                   {
                     className: "studio-pill",
@@ -6629,17 +6680,17 @@ function TaskMergePanel({
                     ]
                   }
                 ),
-                /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("code", { children: postVerification.command }),
-                /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("span", { className: "studio-faint", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("code", { children: postVerification.command }),
+                /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("span", { className: "studio-faint", children: [
                   "exit ",
                   postVerification.exitCode
                 ] })
               ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("pre", { children: postVerification.output.slice(0, 2e3) || "\uFF08\u65E0\u8F93\u51FA\uFF09" })
+              /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("pre", { children: postVerification.output.slice(0, 2e3) || "\uFF08\u65E0\u8F93\u51FA\uFF09" })
             ]
           }
         ) : null,
-        postVerification !== null && !postVerification.passed && activeProposal.rollbackCommit === null ? /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+        postVerification !== null && !postVerification.passed && activeProposal.rollbackCommit === null ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
           "button",
           {
             type: "button",
@@ -6658,7 +6709,7 @@ function TaskMergePanel({
             children: "\u56DE\u6EDA\u8FD9\u6B21\u5408\u5E76"
           }
         ) : null,
-        activeProposal.rollbackCommit !== null ? /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { className: "studio-faint", style: { fontSize: 10, marginTop: 6 }, children: [
+        activeProposal.rollbackCommit !== null ? /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-faint", style: { fontSize: 10, marginTop: 6 }, children: [
           "\u5DF2\u56DE\u6EDA\uFF1A",
           activeProposal.rollbackCommit
         ] }) : null
@@ -6669,7 +6720,7 @@ function TaskMergePanel({
 
 // src/client/components/TaskRunPanels.tsx
 var import_react15 = require("react");
-var import_jsx_runtime20 = require("react/jsx-runtime");
+var import_jsx_runtime21 = require("react/jsx-runtime");
 function TaskReviewPanel({
   task,
   runs,
@@ -6680,11 +6731,11 @@ function TaskReviewPanel({
 }) {
   const latest = reviews[0] ?? null;
   const hasWorkspace = runs.some((run) => run.workspacePath !== null);
-  return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("section", { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-section-label", children: "\u72EC\u7ACB\u8BC4\u5BA1" }),
-    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-action-note", style: { marginTop: 0 }, children: "\u7531\u9A8C\u6536\u4EBA\u89D2\u8272\u53E6\u5F00 Agent \u4F1A\u8BDD\uFF0C\u53EA\u770B diff \u548C Host \u9A8C\u8BC1\u7ED3\u679C\uFF0C\u4E0D\u6539\u4EE3\u7801\u3002 \u4EE3\u7801\u4EFB\u52A1\u5B8C\u6210\u524D\u5FC5\u987B\u6709\u4E00\u6B21\u901A\u8FC7\u7684\u72EC\u7ACB\u8BC4\u5BA1\u3002" }),
-    !hasWorkspace ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-faint", style: { fontSize: 11, marginTop: 9 }, children: "\u8FD8\u6CA1\u6709\u5E26 worktree \u7684 Run\uFF1B\u5148\u6D3E\u5355\u6267\u884C\u4E00\u6B21\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(import_jsx_runtime20.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("section", { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-section-label", children: "\u72EC\u7ACB\u8BC4\u5BA1" }),
+    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-action-note", style: { marginTop: 0 }, children: "\u7531\u9A8C\u6536\u4EBA\u89D2\u8272\u53E6\u5F00 Agent \u4F1A\u8BDD\uFF0C\u53EA\u770B diff \u548C Host \u9A8C\u8BC1\u7ED3\u679C\uFF0C\u4E0D\u6539\u4EE3\u7801\u3002 \u4EE3\u7801\u4EFB\u52A1\u5B8C\u6210\u524D\u5FC5\u987B\u6709\u4E00\u6B21\u901A\u8FC7\u7684\u72EC\u7ACB\u8BC4\u5BA1\u3002" }),
+    !hasWorkspace ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-faint", style: { fontSize: 11, marginTop: 9 }, children: "\u8FD8\u6CA1\u6709\u5E26 worktree \u7684 Run\uFF1B\u5148\u6D3E\u5355\u6267\u884C\u4E00\u6B21\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(import_jsx_runtime21.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
         "button",
         {
           type: "button",
@@ -6694,19 +6745,19 @@ function TaskReviewPanel({
           disabled: busy,
           onClick: () => void onReview(),
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(IconSpark, { width: 13, height: 13 }),
+            /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(IconSpark, { width: 13, height: 13 }),
             "\u8FD0\u884C\u72EC\u7ACB\u8BC4\u5BA1"
           ]
         }
       ),
-      latest !== null ? /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
+      latest !== null ? /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
         "div",
         {
           className: "studio-review",
           "data-verdict": latest.verdict,
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-review-head", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
+            /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "studio-review-head", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
                 "span",
                 {
                   className: "studio-pill",
@@ -6714,23 +6765,23 @@ function TaskReviewPanel({
                   children: latest.verdict === "pass" ? "\u901A\u8FC7" : "\u4E0D\u901A\u8FC7"
                 }
               ),
-              /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("span", { className: "studio-faint", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("span", { className: "studio-faint", children: [
                 latest.model ?? "\u672A\u77E5\u6A21\u578B",
                 " \xB7",
                 " ",
                 latest.tokens === null ? "\u672A\u8BA1\u91CF" : `${String(latest.tokens)} tokens`
               ] })
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("p", { children: latest.summary }),
-            ownerModel !== null && latest.model !== null && ownerModel === latest.model ? /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-alert", "data-tone": "warn", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("p", { children: latest.summary }),
+            ownerModel !== null && latest.model !== null && ownerModel === latest.model ? /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "studio-alert", "data-tone": "warn", children: [
               "\u8BC4\u5BA1\u4E0E\u5B9E\u73B0\u4F7F\u7528\u540C\u4E00\u6A21\u578B\uFF08",
               latest.model,
               "\uFF09\uFF0C\u53EF\u80FD\u5B58\u5728\u5171\u4EAB\u76F2\u70B9\u3002"
             ] }) : null,
-            latest.findings.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("ul", { children: latest.findings.slice(0, 8).map((finding, index) => /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("li", { children: finding }, `${String(index)}-${finding}`)) }) : null
+            latest.findings.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("ul", { children: latest.findings.slice(0, 8).map((finding, index) => /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("li", { children: finding }, `${String(index)}-${finding}`)) }) : null
           ]
         }
-      ) : /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-faint", style: { fontSize: 11, marginTop: 8 }, children: "\u8FD8\u6CA1\u6709\u72EC\u7ACB\u8BC4\u5BA1\u8BB0\u5F55\u3002" })
+      ) : /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-faint", style: { fontSize: 11, marginTop: 8 }, children: "\u8FD8\u6CA1\u6709\u72EC\u7ACB\u8BC4\u5BA1\u8BB0\u5F55\u3002" })
     ] })
   ] });
 }
@@ -6746,12 +6797,12 @@ function TaskVerificationPanel({
   );
   const latest = verifications[0] ?? null;
   const workspaceRun = runs.find((run) => run.workspacePath !== null);
-  return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("section", { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-section-label", children: "\u72EC\u7ACB\u9A8C\u8BC1" }),
-    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-action-note", style: { marginTop: 0 }, children: "\u7531 Studio Host \u5728\u4EFB\u52A1 worktree \u5185\u76F4\u63A5\u6267\u884C\uFF0C\u4E0D\u7ECF\u8FC7 Agent \u4F1A\u8BDD\u3002 \u9A8C\u8BC1\u901A\u8FC7\u4F1A\u5199\u5165 evidence\uFF0C\u4F46\u4E0D\u4F1A\u81EA\u52A8\u901A\u8FC7\u9A8C\u6536\u3002" }),
-    workspaceRun === void 0 ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-faint", style: { fontSize: 11, marginTop: 9 }, children: "\u8FD8\u6CA1\u6709\u5E26 worktree \u7684 Run\uFF1B\u5148\u6D3E\u5355\u6267\u884C\u4E00\u6B21\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(import_jsx_runtime20.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-verify-form", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("section", { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-section-label", children: "\u72EC\u7ACB\u9A8C\u8BC1" }),
+    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-action-note", style: { marginTop: 0 }, children: "\u7531 Studio Host \u5728\u4EFB\u52A1 worktree \u5185\u76F4\u63A5\u6267\u884C\uFF0C\u4E0D\u7ECF\u8FC7 Agent \u4F1A\u8BDD\u3002 \u9A8C\u8BC1\u901A\u8FC7\u4F1A\u5199\u5165 evidence\uFF0C\u4F46\u4E0D\u4F1A\u81EA\u52A8\u901A\u8FC7\u9A8C\u6536\u3002" }),
+    workspaceRun === void 0 ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-faint", style: { fontSize: 11, marginTop: 9 }, children: "\u8FD8\u6CA1\u6709\u5E26 worktree \u7684 Run\uFF1B\u5148\u6D3E\u5355\u6267\u884C\u4E00\u6B21\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(import_jsx_runtime21.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "studio-verify-form", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
           "textarea",
           {
             value: command,
@@ -6761,7 +6812,7 @@ function TaskVerificationPanel({
             rows: 3
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
           "button",
           {
             type: "button",
@@ -6770,27 +6821,27 @@ function TaskVerificationPanel({
             disabled: busy || command.trim() === "",
             onClick: () => void onVerify(command.trim()),
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(IconCheck, { width: 13, height: 13 }),
+              /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(IconCheck, { width: 13, height: 13 }),
               "\u8FD0\u884C\u9A8C\u8BC1"
             ]
           }
         )
       ] }),
-      latest === null ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-faint", style: { fontSize: 11, marginTop: 8 }, children: "\u8FD8\u6CA1\u6709\u9A8C\u8BC1\u8BB0\u5F55\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
+      latest === null ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-faint", style: { fontSize: 11, marginTop: 8 }, children: "\u8FD8\u6CA1\u6709\u9A8C\u8BC1\u8BB0\u5F55\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
         "div",
         {
           className: "studio-verification",
           "data-passed": latest.passed,
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-verification-head", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { className: "studio-pill", "data-tone": latest.passed ? "ok" : "p0", children: latest.passed ? "\u901A\u8FC7" : "\u5931\u8D25" }),
-              /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("code", { children: latest.command }),
-              /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("span", { className: "studio-faint", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "studio-verification-head", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("span", { className: "studio-pill", "data-tone": latest.passed ? "ok" : "p0", children: latest.passed ? "\u901A\u8FC7" : "\u5931\u8D25" }),
+              /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("code", { children: latest.command }),
+              /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("span", { className: "studio-faint", children: [
                 "exit ",
                 latest.exitCode
               ] })
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("pre", { children: latest.output.slice(0, 4e3) || "\uFF08\u65E0\u8F93\u51FA\uFF09" })
+            /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("pre", { children: latest.output.slice(0, 4e3) || "\uFF08\u65E0\u8F93\u51FA\uFF09" })
           ]
         }
       )
@@ -6806,11 +6857,11 @@ function TaskAgentPanel({
 }) {
   const latest = runs[0] ?? null;
   const canDispatch = task.ownerRoleId !== null && (task.status === "backlog" || task.status === "ready");
-  return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("section", { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-section-label", children: "Agent \u6D3E\u5355" }),
-    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-action-note", style: { marginTop: 0 }, children: codeMode ? "\u4EE3\u7801\u6A21\u5F0F\uFF1AAgent \u5728\u72EC\u7ACB worktree \u5185\u5B9E\u73B0\u4EFB\u52A1\u3001\u8FD0\u884C\u6D4B\u8BD5\u5E76\u628A diff \u5199\u5165 Run\uFF1B\u4E0D\u4F1A\u5408\u5E76\u6216\u63A8\u9001\u3002" : "\u5206\u6790\u6A21\u5F0F\uFF1A\u8FD8\u6CA1\u6709\u7ED1\u5B9A\u4EE3\u7801\u4ED3\u5E93\u3002Agent \u53EA\u8BFB\u4EFB\u52A1\u4E0E\u5951\u7EA6\uFF0C\u8FD4\u56DE\u7ED3\u6784\u5316\u56DE\u6267\uFF1B\u5728\u8BBE\u7F6E\u91CC\u7ED1\u5B9A\u4ED3\u5E93\u5373\u53EF\u8FDB\u5165\u4EE3\u7801\u6A21\u5F0F\u3002" }),
-    /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-actions", style: { marginTop: 9 }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("section", { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-section-label", children: "Agent \u6D3E\u5355" }),
+    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-action-note", style: { marginTop: 0 }, children: codeMode ? "\u4EE3\u7801\u6A21\u5F0F\uFF1AAgent \u5728\u72EC\u7ACB worktree \u5185\u5B9E\u73B0\u4EFB\u52A1\u3001\u8FD0\u884C\u6D4B\u8BD5\u5E76\u628A diff \u5199\u5165 Run\uFF1B\u4E0D\u4F1A\u5408\u5E76\u6216\u63A8\u9001\u3002" : "\u5206\u6790\u6A21\u5F0F\uFF1A\u8FD8\u6CA1\u6709\u7ED1\u5B9A\u4EE3\u7801\u4ED3\u5E93\u3002Agent \u53EA\u8BFB\u4EFB\u52A1\u4E0E\u5951\u7EA6\uFF0C\u8FD4\u56DE\u7ED3\u6784\u5316\u56DE\u6267\uFF1B\u5728\u8BBE\u7F6E\u91CC\u7ED1\u5B9A\u4ED3\u5E93\u5373\u53EF\u8FDB\u5165\u4EE3\u7801\u6A21\u5F0F\u3002" }),
+    /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "studio-actions", style: { marginTop: 9 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
         "button",
         {
           type: "button",
@@ -6821,14 +6872,14 @@ function TaskAgentPanel({
           title: task.ownerRoleId === null ? "\u8BF7\u5148\u7ED9\u4EFB\u52A1\u6307\u5B9A\u8D1F\u8D23\u4EBA\u89D2\u8272" : canDispatch ? "\u6D3E\u5355\u7ED9\u8D1F\u8D23\u4EBA\u89D2\u8272\u505A\u5206\u6790" : "\u4EFB\u52A1\u5DF2\u5728\u6267\u884C\u6216\u9A8C\u6536\uFF0C\u4E0D\u80FD\u91CD\u590D\u6D3E\u5355",
           onClick: () => void onDispatch(),
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(IconSpark, { width: 13, height: 13 }),
+            /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(IconSpark, { width: 13, height: 13 }),
             latest?.status === "running" || latest?.status === "queued" ? "Agent \u6267\u884C\u4E2D\u2026" : codeMode ? "\u6D3E\u5355\u6267\u884C" : "\u6D3E\u5355\u5206\u6790"
           ]
         }
       ),
-      latest !== null ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { className: "studio-pill", "data-tone": runTone(latest.status), children: AGENT_RUN_STATUS_LABELS[latest.status] }) : null
+      latest !== null ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("span", { className: "studio-pill", "data-tone": runTone(latest.status), children: AGENT_RUN_STATUS_LABELS[latest.status] }) : null
     ] }),
-    runs.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-faint", style: { fontSize: 11, marginTop: 9 }, children: "\u8FD8\u6CA1\u6709 Agent \u8FD0\u884C\u8BB0\u5F55\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-run-list", children: runs.map((run) => /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(RunCard, { run }, run.id)) })
+    runs.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-faint", style: { fontSize: 11, marginTop: 9 }, children: "\u8FD8\u6CA1\u6709 Agent \u8FD0\u884C\u8BB0\u5F55\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-run-list", children: runs.map((run) => /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(RunCard, { run }, run.id)) })
   ] });
 }
 function runTone(status) {
@@ -6839,15 +6890,15 @@ function runTone(status) {
 }
 function RunCard({ run }) {
   const receipt = run.receipt;
-  return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("details", { className: "studio-run-card", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("summary", { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { className: "studio-pill", "data-tone": runTone(run.status), children: AGENT_RUN_STATUS_LABELS[run.status] }),
-      /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { className: "studio-mono", children: run.model ?? "\u9ED8\u8BA4\u6A21\u578B" }),
-      /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { className: "studio-faint", children: run.tokens === null ? "token \u5F85\u8BA1\u91CF" : `${String(run.tokens)} tokens` }),
-      /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { className: "studio-faint", style: { marginLeft: "auto" }, children: formatDate(run.startedAt) })
+  return /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("details", { className: "studio-run-card", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("summary", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("span", { className: "studio-pill", "data-tone": runTone(run.status), children: AGENT_RUN_STATUS_LABELS[run.status] }),
+      /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("span", { className: "studio-mono", children: run.model ?? "\u9ED8\u8BA4\u6A21\u578B" }),
+      /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("span", { className: "studio-faint", children: run.tokens === null ? "token \u5F85\u8BA1\u91CF" : `${String(run.tokens)} tokens` }),
+      /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("span", { className: "studio-faint", style: { marginLeft: "auto" }, children: formatDate(run.startedAt) })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-run-body", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-faint", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "studio-run-body", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "studio-faint", children: [
         "\u9884\u8BBE ",
         run.agentPreset ?? "\u672A\u8BB0\u5F55",
         " \xB7 \u6C99\u7BB1",
@@ -6858,30 +6909,30 @@ function RunCard({ run }) {
         run.approvalPolicy ?? "\u672A\u8BB0\u5F55",
         (run.restrictedTools?.length ?? 0) > 0 ? ` \xB7 \u9650\u5236 ${String(run.restrictedTools.length)} \u4E2A\u5DE5\u5177` : ""
       ] }),
-      run.error !== null ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-alert", children: run.error }) : null,
-      run.budgetWarning !== null ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-alert", "data-tone": "warn", children: run.budgetWarning }) : null,
-      run.status === "running" || run.status === "queued" ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-faint", style: { fontSize: 11 }, children: "Agent \u6B63\u5728\u5DE5\u4F5C\uFF1B\u9875\u9762\u6BCF 4 \u79D2\u5237\u65B0\u4E00\u6B21\u3002" }) : null,
-      run.branchName !== null || run.workspacePath !== null ? /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-run-workspace", children: [
-        run.branchName !== null ? /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { children: "\u5206\u652F" }),
-          /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("code", { children: run.branchName })
+      run.error !== null ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-alert", children: run.error }) : null,
+      run.budgetWarning !== null ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-alert", "data-tone": "warn", children: run.budgetWarning }) : null,
+      run.status === "running" || run.status === "queued" ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-faint", style: { fontSize: 11 }, children: "Agent \u6B63\u5728\u5DE5\u4F5C\uFF1B\u9875\u9762\u6BCF 4 \u79D2\u5237\u65B0\u4E00\u6B21\u3002" }) : null,
+      run.branchName !== null || run.workspacePath !== null ? /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "studio-run-workspace", children: [
+        run.branchName !== null ? /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("span", { children: "\u5206\u652F" }),
+          /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("code", { children: run.branchName })
         ] }) : null,
-        run.workspacePath !== null ? /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { children: "\u5DE5\u4F5C\u533A" }),
-          /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("code", { children: run.workspacePath })
+        run.workspacePath !== null ? /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("span", { children: "\u5DE5\u4F5C\u533A" }),
+          /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("code", { children: run.workspacePath })
         ] }) : null,
-        run.diffStat !== null && run.diffStat !== "" ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("pre", { children: run.diffStat }) : null
+        run.diffStat !== null && run.diffStat !== "" ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("pre", { children: run.diffStat }) : null
       ] }) : null,
-      receipt !== null ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(ReceiptView, { receipt }) : run.output !== "" ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("pre", { className: "studio-run-output", children: run.output }) : null
+      receipt !== null ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(ReceiptView, { receipt }) : run.output !== "" ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("pre", { className: "studio-run-output", children: run.output }) : null
     ] })
   ] });
 }
 function ReceiptView({ receipt }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-receipt", children: [
-    receipt.summary.trim() === "" || receipt.evidence.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-alert", "data-tone": "warn", children: "\u56DE\u6267\u4E0D\u5B8C\u6574\uFF1AAgent \u5FC5\u987B\u7ED9\u51FA\u975E\u7A7A summary \u548C\u81F3\u5C11\u4E00\u6761 evidence\uFF0C\u4EFB\u52A1\u4E0D\u80FD\u8FDB\u5165\u9A8C\u6536\u3002" }) : null,
-    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { className: "studio-section-text", children: receipt.summary || "\uFF08\u6CA1\u6709 summary\uFF09" }),
-    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(ReceiptList, { label: "\u8BC1\u636E", items: receipt.evidence }),
-    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "studio-receipt", children: [
+    receipt.summary.trim() === "" || receipt.evidence.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-alert", "data-tone": "warn", children: "\u56DE\u6267\u4E0D\u5B8C\u6574\uFF1AAgent \u5FC5\u987B\u7ED9\u51FA\u975E\u7A7A summary \u548C\u81F3\u5C11\u4E00\u6761 evidence\uFF0C\u4EFB\u52A1\u4E0D\u80FD\u8FDB\u5165\u9A8C\u6536\u3002" }) : null,
+    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-section-text", children: receipt.summary || "\uFF08\u6CA1\u6709 summary\uFF09" }),
+    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(ReceiptList, { label: "\u8BC1\u636E", items: receipt.evidence }),
+    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
       ReceiptList,
       {
         label: "\u4EA7\u7269",
@@ -6890,7 +6941,7 @@ function ReceiptView({ receipt }) {
         )
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
       ReceiptList,
       {
         label: "\u51B3\u7B56",
@@ -6899,7 +6950,7 @@ function ReceiptView({ receipt }) {
         )
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
       ReceiptList,
       {
         label: "\u5951\u7EA6\u53D8\u66F4",
@@ -6908,7 +6959,7 @@ function ReceiptView({ receipt }) {
         )
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
       ReceiptList,
       {
         label: "\u88AB\u5426\u51B3\u65B9\u6848",
@@ -6917,19 +6968,19 @@ function ReceiptView({ receipt }) {
         )
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(ReceiptList, { label: "\u963B\u585E", items: receipt.blockers })
+    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(ReceiptList, { label: "\u963B\u585E", items: receipt.blockers })
   ] });
 }
 function ReceiptList({ label, items }) {
   if (items.length === 0) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className: "studio-receipt-list", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { children: label }),
-    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("ul", { children: items.map((item, index) => /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("li", { children: item }, `${label}-${String(index)}`)) })
+  return /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "studio-receipt-list", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("span", { children: label }),
+    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("ul", { children: items.map((item, index) => /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("li", { children: item }, `${label}-${String(index)}`)) })
   ] });
 }
 
 // src/client/components/TaskDrawer.tsx
-var import_jsx_runtime21 = require("react/jsx-runtime");
+var import_jsx_runtime22 = require("react/jsx-runtime");
 function TaskDrawer({
   task,
   roles,
@@ -6970,7 +7021,7 @@ function TaskDrawer({
     const ok = await onAddEvidence(text);
     if (ok) setEvidenceText("");
   };
-  return /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
     "div",
     {
       className: "studio-drawer-overlay",
@@ -6978,7 +7029,7 @@ function TaskDrawer({
         if (event.target === event.currentTarget) onClose();
       },
       role: "presentation",
-      children: /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
+      children: /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
         "aside",
         {
           className: "studio-drawer",
@@ -6986,16 +7037,16 @@ function TaskDrawer({
           "aria-modal": "true",
           "aria-label": `\u4EFB\u52A1\uFF1A${task.title}`,
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "studio-drawer-head", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { children: [
-                /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "studio-actions", style: { marginBottom: 8 }, children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(StatusPill, { status: task.status }),
-                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(PriorityPill, { priority: task.priority }),
-                  mergeProposal !== null ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(MergePill, { proposal: mergeProposal }) : null
+            /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-drawer-head", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-actions", style: { marginBottom: 8 }, children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(StatusPill, { status: task.status }),
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(PriorityPill, { priority: task.priority }),
+                  mergeProposal !== null ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(MergePill, { proposal: mergeProposal }) : null
                 ] }),
-                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("h2", { children: task.title }),
-                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-mono", children: task.number }),
-                /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "studio-muted", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("h2", { children: task.title }),
+                /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "studio-mono", children: task.number }),
+                /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-muted", children: [
                   roleName(roles, task.ownerRoleId),
                   " \u8D1F\u8D23 \xB7",
                   " ",
@@ -7003,7 +7054,7 @@ function TaskDrawer({
                   " \u9A8C\u6536"
                 ] })
               ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
                 "button",
                 {
                   type: "button",
@@ -7011,22 +7062,22 @@ function TaskDrawer({
                   "data-size": "icon",
                   onClick: onClose,
                   "aria-label": "\u5173\u95ED",
-                  children: /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(IconX, { width: 15, height: 15 })
+                  children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(IconX, { width: 15, height: 15 })
                 }
               )
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "studio-drawer-body", children: [
-              /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("section", { children: [
-                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-section-label", children: "\u76EE\u6807" }),
-                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-section-text", children: task.goal || "\u8FD8\u6CA1\u6709\u5199\u76EE\u6807\u3002" })
+            /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-drawer-body", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("section", { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "studio-section-label", children: "\u76EE\u6807" }),
+                /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "studio-section-text", children: task.goal || "\u8FD8\u6CA1\u6709\u5199\u76EE\u6807\u3002" })
               ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("section", { children: [
-                /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "studio-section-label", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("section", { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-section-label", children: [
                   "\u9A8C\u6536\u6807\u51C6 \xB7 ",
                   done,
                   "/",
                   total,
-                  task.riskTier === "trivial" && done < total && hasEvidence ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+                  task.riskTier === "trivial" && done < total && hasEvidence ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
                     "button",
                     {
                       type: "button",
@@ -7038,13 +7089,13 @@ function TaskDrawer({
                     }
                   ) : null
                 ] }),
-                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-acceptance", children: task.acceptance.map((item) => /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
+                /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "studio-acceptance", children: task.acceptance.map((item) => /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
                   "label",
                   {
                     className: "studio-check",
                     "data-done": item.done,
                     children: [
-                      /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+                      /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
                         "input",
                         {
                           type: "checkbox",
@@ -7053,31 +7104,31 @@ function TaskDrawer({
                           onChange: () => onToggleAcceptance(item.id)
                         }
                       ),
-                      /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("span", { children: item.text })
+                      /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { children: item.text })
                     ]
                   },
                   item.id
                 )) }),
-                !complete && task.status === "review" ? /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "studio-action-note", children: [
+                !complete && task.status === "review" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-action-note", children: [
                   "\u8FD8\u6709 ",
                   total - done,
                   " \u6761\u9A8C\u6536\u6807\u51C6\u672A\u5B8C\u6210\uFF0C\u4E0D\u80FD\u9A8C\u6536\u901A\u8FC7\u3002"
                 ] }) : null,
-                complete && !hasEvidence && task.status === "review" ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-action-note", children: "\u9A8C\u6536\u6807\u51C6\u5DF2\u5168\u90E8\u52FE\u9009\uFF0C\u4F46\u8FD8\u9700\u8981\u81F3\u5C11\u4E00\u6761\u53EF\u590D\u73B0\u7684\u8BC1\u636E\u3002" }) : null
+                complete && !hasEvidence && task.status === "review" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "studio-action-note", children: "\u9A8C\u6536\u6807\u51C6\u5DF2\u5168\u90E8\u52FE\u9009\uFF0C\u4F46\u8FD8\u9700\u8981\u81F3\u5C11\u4E00\u6761\u53EF\u590D\u73B0\u7684\u8BC1\u636E\u3002" }) : null
               ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("section", { children: [
-                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-section-label", children: "\u8BC1\u636E" }),
-                task.evidence.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-faint", style: { fontSize: 11 }, children: "\u8FD8\u6CA1\u6709\u8BB0\u5F55\u8BC1\u636E\u3002\u9A8C\u6536\u524D\u81F3\u5C11\u7559\u4E00\u6761\u53EF\u590D\u73B0\u7684\u547D\u4EE4\u3001\u6D4B\u8BD5\u6216 replay\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-evidence", children: task.evidence.map((item) => /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "studio-evidence-item", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("section", { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "studio-section-label", children: "\u8BC1\u636E" }),
+                task.evidence.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "studio-faint", style: { fontSize: 11 }, children: "\u8FD8\u6CA1\u6709\u8BB0\u5F55\u8BC1\u636E\u3002\u9A8C\u6536\u524D\u81F3\u5C11\u7559\u4E00\u6761\u53EF\u590D\u73B0\u7684\u547D\u4EE4\u3001\u6D4B\u8BD5\u6216 replay\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "studio-evidence", children: task.evidence.map((item) => /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-evidence-item", children: [
                   item.text,
-                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-faint", children: formatDate(item.createdAt) })
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "studio-faint", children: formatDate(item.createdAt) })
                 ] }, item.id)) }),
-                task.status !== "done" ? /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
+                task.status !== "done" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
                   "form",
                   {
                     onSubmit: (event) => void submitEvidence(event),
                     style: { display: "flex", gap: 6, marginTop: 8 },
                     children: [
-                      /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+                      /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
                         "input",
                         {
                           className: "studio-input",
@@ -7096,7 +7147,7 @@ function TaskDrawer({
                           disabled: busy
                         }
                       ),
-                      /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+                      /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
                         "button",
                         {
                           className: "studio-btn",
@@ -7110,58 +7161,58 @@ function TaskDrawer({
                   }
                 ) : null
               ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("section", { children: [
-                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-section-label", children: "\u4E0A\u4E0B\u6587" }),
-                /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("dl", { className: "studio-kv", children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dt", { children: "\u7968\u7C7B\u578B" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("dd", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("section", { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "studio-section-label", children: "\u4E0A\u4E0B\u6587" }),
+                /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("dl", { className: "studio-kv", children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("dt", { children: "\u7968\u7C7B\u578B" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("dd", { children: [
                     TASK_KIND_LABELS[task.kind],
                     task.integration ? " \xB7 \u96C6\u6210/playtest" : ""
                   ] }),
-                  task.diagnosis !== "" ? /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(import_jsx_runtime21.Fragment, { children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dt", { children: "\u8BCA\u65AD" }),
-                    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dd", { className: "studio-pre", children: task.diagnosis })
+                  task.diagnosis !== "" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(import_jsx_runtime22.Fragment, { children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("dt", { children: "\u8BCA\u65AD" }),
+                    /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("dd", { className: "studio-pre", children: task.diagnosis })
                   ] }) : null,
-                  task.plan !== "" ? /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(import_jsx_runtime21.Fragment, { children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dt", { children: "\u4FEE\u6539\u8BA1\u5212" }),
-                    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dd", { className: "studio-pre", children: task.plan })
+                  task.plan !== "" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(import_jsx_runtime22.Fragment, { children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("dt", { children: "\u4FEE\u6539\u8BA1\u5212" }),
+                    /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("dd", { className: "studio-pre", children: task.plan })
                   ] }) : null,
-                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dt", { children: "\u6A21\u5757" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dd", { className: "studio-mono", children: task.module ?? "\u672A\u6307\u5B9A" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dt", { children: "\u5951\u7EA6" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dd", { className: "studio-mono", children: task.contractRef ?? "\u672A\u6307\u5B9A" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dt", { children: "\u9700\u6C42" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dd", { className: "studio-mono", children: task.requirementRefs.length === 0 ? "\u672A\u6307\u5B9A" : task.requirementRefs.join(", ") }),
-                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dt", { children: "\u5931\u8D25\u6B21\u6570" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("dd", { children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("dt", { children: "\u6A21\u5757" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("dd", { className: "studio-mono", children: task.module ?? "\u672A\u6307\u5B9A" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("dt", { children: "\u5951\u7EA6" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("dd", { className: "studio-mono", children: task.contractRef ?? "\u672A\u6307\u5B9A" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("dt", { children: "\u9700\u6C42" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("dd", { className: "studio-mono", children: task.requirementRefs.length === 0 ? "\u672A\u6307\u5B9A" : task.requirementRefs.join(", ") }),
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("dt", { children: "\u5931\u8D25\u6B21\u6570" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("dd", { children: [
                     runs.filter((run) => run.status === "failed").length,
                     " / 2"
                   ] }),
-                  task.originTaskId !== null ? /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(import_jsx_runtime21.Fragment, { children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dt", { children: "\u91CD\u62C6\u6765\u6E90" }),
-                    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dd", { className: "studio-mono", children: task.originTaskId })
+                  task.originTaskId !== null ? /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(import_jsx_runtime22.Fragment, { children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("dt", { children: "\u91CD\u62C6\u6765\u6E90" }),
+                    /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("dd", { className: "studio-mono", children: task.originTaskId })
                   ] }) : null,
-                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dt", { children: "\u5206\u652F" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dd", { className: "studio-mono", children: task.branch ?? "\u672A\u521B\u5EFA" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dt", { children: "\u8D1F\u8D23\u4EBA" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("dd", { children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("dt", { children: "\u5206\u652F" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("dd", { className: "studio-mono", children: task.branch ?? "\u672A\u521B\u5EFA" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("dt", { children: "\u8D1F\u8D23\u4EBA" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("dd", { children: [
                     roleName(roles, task.ownerRoleId),
                     roleTitle(roles, task.ownerRoleId) ? ` \xB7 ${roleTitle(roles, task.ownerRoleId)}` : ""
                   ] }),
-                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dt", { children: "\u9A8C\u6536\u4EBA" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("dd", { children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("dt", { children: "\u9A8C\u6536\u4EBA" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("dd", { children: [
                     roleName(roles, task.reviewerRoleId),
                     roleTitle(roles, task.reviewerRoleId) ? ` \xB7 ${roleTitle(roles, task.reviewerRoleId)}` : ""
                   ] }),
-                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dt", { children: "\u521B\u5EFA" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dd", { children: formatDate(task.createdAt) }),
-                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dt", { children: "\u66F4\u65B0" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dd", { children: formatDate(task.updatedAt) }),
-                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dt", { children: "\u4EFB\u52A1 ID" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("dd", { className: "studio-mono", children: task.id })
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("dt", { children: "\u521B\u5EFA" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("dd", { children: formatDate(task.createdAt) }),
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("dt", { children: "\u66F4\u65B0" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("dd", { children: formatDate(task.updatedAt) }),
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("dt", { children: "\u4EFB\u52A1 ID" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("dd", { className: "studio-mono", children: task.id })
                 ] }),
-                /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("label", { className: "studio-check", style: { marginTop: 10 }, children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+                /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("label", { className: "studio-check", style: { marginTop: 10 }, children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
                     "input",
                     {
                       type: "checkbox",
@@ -7171,9 +7222,9 @@ function TaskDrawer({
                   ),
                   "\u6587\u6863\u5DF2\u540C\u6B65\uFF08PRD / ADR / CONTEXT\uFF09"
                 ] }),
-                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-hint", children: "\u9879\u76EE\u7ED1\u5B9A\u4E86\u77E5\u8BC6\u6587\u6863\u65F6\uFF0C\u5B8C\u6210\u524D\u5FC5\u987B\u786E\u8BA4\u6587\u6863\u5DF2\u540C\u6B65\u3002" })
+                /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "studio-hint", children: "\u9879\u76EE\u7ED1\u5B9A\u4E86\u77E5\u8BC6\u6587\u6863\u65F6\uFF0C\u5B8C\u6210\u524D\u5FC5\u987B\u786E\u8BA4\u6587\u6863\u5DF2\u540C\u6B65\u3002" })
               ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
                 TaskAgentPanel,
                 {
                   task,
@@ -7183,7 +7234,7 @@ function TaskDrawer({
                   onDispatch
                 }
               ),
-              /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
                 TaskVerificationPanel,
                 {
                   task,
@@ -7193,7 +7244,7 @@ function TaskDrawer({
                   onVerify
                 }
               ),
-              /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
                 TaskReviewPanel,
                 {
                   task,
@@ -7204,7 +7255,7 @@ function TaskDrawer({
                   onReview
                 }
               ),
-              /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
                 TaskMergePanel,
                 {
                   task,
@@ -7223,11 +7274,11 @@ function TaskDrawer({
                   onRollback: onRollbackMerge
                 }
               ),
-              /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("section", { children: [
-                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-section-label", children: "\u63A8\u8FDB\u4EFB\u52A1" }),
-                transitions.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-faint", style: { fontSize: 11 }, children: "\u4EFB\u52A1\u5DF2\u5B8C\u6210\uFF0C\u4E0D\u80FD\u7EE7\u7EED\u63A8\u8FDB\u3002\u9700\u8981\u65B0\u5DE5\u4F5C\u8BF7\u521B\u5EFA\u540E\u7EED\u4EFB\u52A1\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-actions", children: transitions.map((status) => {
+              /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("section", { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "studio-section-label", children: "\u63A8\u8FDB\u4EFB\u52A1" }),
+                transitions.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "studio-faint", style: { fontSize: 11 }, children: "\u4EFB\u52A1\u5DF2\u5B8C\u6210\uFF0C\u4E0D\u80FD\u7EE7\u7EED\u63A8\u8FDB\u3002\u9700\u8981\u65B0\u5DE5\u4F5C\u8BF7\u521B\u5EFA\u540E\u7EED\u4EFB\u52A1\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "studio-actions", children: transitions.map((status) => {
                   const blockedByAcceptance = status === "done" && !readyToAccept;
-                  return /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
+                  return /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
                     "button",
                     {
                       type: "button",
@@ -7238,14 +7289,14 @@ function TaskDrawer({
                       title: blockedByAcceptance ? complete ? "\u81F3\u5C11\u8BB0\u5F55\u4E00\u6761\u8BC1\u636E\u540E\u624D\u80FD\u9A8C\u6536\u901A\u8FC7" : "\u6240\u6709\u9A8C\u6536\u6807\u51C6\u5B8C\u6210\u540E\u624D\u80FD\u9A8C\u6536\u901A\u8FC7" : TRANSITION_LABELS[status],
                       onClick: () => onTransition(status),
                       children: [
-                        status === "done" ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(IconCheck, { width: 13, height: 13 }) : null,
+                        status === "done" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(IconCheck, { width: 13, height: 13 }) : null,
                         TRANSITION_LABELS[status]
                       ]
                     },
                     status
                   );
                 }) }),
-                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-action-note", children: "v0.9 \u5DF2\u63A5\u5165 worktree \u4EE3\u7801\u6267\u884C\u3001Host \u72EC\u7ACB\u9A8C\u8BC1\u3001\u6A21\u5757\u5951\u7EA6\u4E0E\u5951\u7EA6\u62A4\u680F\u3001\u5931\u8D25/\u9A8C\u8BC1\u95E8\u7981\u3001token \u8BA1\u91CF\u4E0E\u51B3\u7B56\u51B3\u7B56\u53F0\uFF1B\u5408\u5E76\u4E0E Git \u547D\u4EE4\u4ECD\u7531\u4EBA\u6267\u884C\u3002" })
+                /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "studio-action-note", children: "v0.9 \u5DF2\u63A5\u5165 worktree \u4EE3\u7801\u6267\u884C\u3001Host \u72EC\u7ACB\u9A8C\u8BC1\u3001\u6A21\u5757\u5951\u7EA6\u4E0E\u5951\u7EA6\u62A4\u680F\u3001\u5931\u8D25/\u9A8C\u8BC1\u95E8\u7981\u3001token \u8BA1\u91CF\u4E0E\u51B3\u7B56\u51B3\u7B56\u53F0\uFF1B\u5408\u5E76\u4E0E Git \u547D\u4EE4\u4ECD\u7531\u4EBA\u6267\u884C\u3002" })
               ] })
             ] })
           ]
@@ -7257,7 +7308,7 @@ function TaskDrawer({
 
 // src/client/forms/DecisionForm.tsx
 var import_react17 = require("react");
-var import_jsx_runtime22 = require("react/jsx-runtime");
+var import_jsx_runtime23 = require("react/jsx-runtime");
 function DecisionForm({
   tasks,
   busy,
@@ -7285,14 +7336,14 @@ function DecisionForm({
       reversible
     });
   };
-  return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
     ModalShell,
     {
       title: "\u63D0\u51FA\u51B3\u7B56",
       subtitle: "\u628A\u9700\u8981 Owner \u62CD\u677F\u7684\u4E8B\u9879\u653E\u8FDB\u51B3\u7B56\u53F0\uFF1BAgent \u7684\u9879\u76EE\u7EA7\u5EFA\u8BAE\u4E5F\u4F1A\u81EA\u52A8\u51FA\u73B0\u5728\u8FD9\u91CC\u3002",
       onClose: onCancel,
-      footer: /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-modal-foot", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+      footer: /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "studio-modal-foot", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
           "button",
           {
             className: "studio-btn",
@@ -7302,7 +7353,7 @@ function DecisionForm({
             children: "\u53D6\u6D88"
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
           "button",
           {
             className: "studio-btn",
@@ -7314,11 +7365,11 @@ function DecisionForm({
           }
         )
       ] }),
-      children: /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("form", { id: "studio-decision-form", className: "studio-modal-body", onSubmit: submit, children: [
-        localError !== null ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "studio-alert", children: localError }) : null,
-        /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("label", { htmlFor: "decision-title", children: "\u51B3\u7B56\u6807\u9898" }),
-          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+      children: /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("form", { id: "studio-decision-form", className: "studio-modal-body", onSubmit: submit, children: [
+        localError !== null ? /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { className: "studio-alert", children: localError }) : null,
+        /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("label", { htmlFor: "decision-title", children: "\u51B3\u7B56\u6807\u9898" }),
+          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
             "input",
             {
               id: "decision-title",
@@ -7329,9 +7380,9 @@ function DecisionForm({
             }
           )
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("label", { htmlFor: "decision-context", children: "\u80CC\u666F\u4E0E\u51B2\u7A81" }),
-          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("label", { htmlFor: "decision-context", children: "\u80CC\u666F\u4E0E\u51B2\u7A81" }),
+          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
             "textarea",
             {
               id: "decision-context",
@@ -7341,9 +7392,9 @@ function DecisionForm({
             }
           )
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("label", { htmlFor: "decision-recommendation", children: "\u5EFA\u8BAE\uFF08\u53EF\u9009\uFF09" }),
-          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("label", { htmlFor: "decision-recommendation", children: "\u5EFA\u8BAE\uFF08\u53EF\u9009\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
             "textarea",
             {
               id: "decision-recommendation",
@@ -7353,23 +7404,23 @@ function DecisionForm({
             }
           )
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("label", { htmlFor: "decision-task", children: "\u5173\u8054\u4EFB\u52A1\uFF08\u53EF\u9009\uFF09" }),
-          /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("label", { htmlFor: "decision-task", children: "\u5173\u8054\u4EFB\u52A1\uFF08\u53EF\u9009\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)(
             "select",
             {
               id: "decision-task",
               value: taskId,
               onChange: (event) => setTaskId(event.target.value),
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("option", { value: "", children: "\u9879\u76EE\u7EA7\uFF0C\u4E0D\u7ED1\u5B9A\u4EFB\u52A1" }),
-                tasks.map((task) => /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("option", { value: task.id, children: task.title }, task.id))
+                /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("option", { value: "", children: "\u9879\u76EE\u7EA7\uFF0C\u4E0D\u7ED1\u5B9A\u4EFB\u52A1" }),
+                tasks.map((task) => /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("option", { value: task.id, children: task.title }, task.id))
               ]
             }
           )
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("label", { className: "studio-check", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("label", { className: "studio-check", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
             "input",
             {
               type: "checkbox",
@@ -7386,7 +7437,7 @@ function DecisionForm({
 
 // src/client/forms/ProjectForms.tsx
 var import_react18 = require("react");
-var import_jsx_runtime23 = require("react/jsx-runtime");
+var import_jsx_runtime24 = require("react/jsx-runtime");
 function ProjectForm({
   busy,
   onCancel,
@@ -7433,15 +7484,15 @@ function ProjectForm({
       repoPath: repoPath.trim() || void 0
     });
   };
-  return /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
     ModalShell,
     {
       title: "\u65B0\u5EFA\u9879\u76EE",
       subtitle: "\u9879\u76EE\u662F\u4EFB\u52A1\u3001\u89D2\u8272\u548C\u4E8B\u5B9E\u7684\u8FB9\u754C\u3002",
       onClose: onCancel,
-      footer: /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "studio-modal-foot", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("button", { className: "studio-btn", type: "button", onClick: onCancel, disabled: busy, children: "\u53D6\u6D88" }),
-        /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
+      footer: /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-modal-foot", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("button", { className: "studio-btn", type: "button", onClick: onCancel, disabled: busy, children: "\u53D6\u6D88" }),
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
           "button",
           {
             className: "studio-btn",
@@ -7453,11 +7504,11 @@ function ProjectForm({
           }
         )
       ] }),
-      children: /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("form", { id: "studio-project-form", className: "studio-modal-body", onSubmit: submit, children: [
-        localError !== null ? /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { className: "studio-alert", children: localError }) : null,
-        /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("label", { htmlFor: "project-template", children: "\u6A21\u677F" }),
-          /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)(
+      children: /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("form", { id: "studio-project-form", className: "studio-modal-body", onSubmit: submit, children: [
+        localError !== null ? /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "studio-alert", children: localError }) : null,
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "project-template", children: "\u6A21\u677F" }),
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(
             "select",
             {
               id: "project-template",
@@ -7467,18 +7518,18 @@ function ProjectForm({
                 event.target.value
               ),
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("option", { value: "blank", children: "\u7A7A\u767D\u9879\u76EE" }),
-                /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("option", { value: "web", children: "Web \u5E94\u7528\uFF08\u542B Lead/Builder/Verifier\uFF09" }),
-                /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("option", { value: "game", children: "\u6E38\u620F\u539F\u578B\uFF08\u542B Lead/Architect/Builder/Verifier\uFF09" }),
-                /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("option", { value: "tool", children: "CLI \u5DE5\u5177\uFF08\u542B Lead/Builder/Verifier\uFF09" })
+                /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("option", { value: "blank", children: "\u7A7A\u767D\u9879\u76EE" }),
+                /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("option", { value: "web", children: "Web \u5E94\u7528\uFF08\u542B Lead/Builder/Verifier\uFF09" }),
+                /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("option", { value: "game", children: "\u6E38\u620F\u539F\u578B\uFF08\u542B Lead/Architect/Builder/Verifier\uFF09" }),
+                /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("option", { value: "tool", children: "CLI \u5DE5\u5177\uFF08\u542B Lead/Builder/Verifier\uFF09" })
               ]
             }
           ),
-          template !== "blank" ? /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { className: "studio-hint", children: "\u4F1A\u81EA\u52A8\u521B\u5EFA\u89D2\u8272\u548C\u9996\u6279\u4EFB\u52A1\uFF1BrepoPath \u53EF\u4EE5\u7A0D\u540E\u7ED1\u5B9A\u3002" }) : null
+          template !== "blank" ? /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "studio-hint", children: "\u4F1A\u81EA\u52A8\u521B\u5EFA\u89D2\u8272\u548C\u9996\u6279\u4EFB\u52A1\uFF1BrepoPath \u53EF\u4EE5\u7A0D\u540E\u7ED1\u5B9A\u3002" }) : null
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("label", { htmlFor: "project-name", children: "\u9879\u76EE\u540D" }),
-          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "project-name", children: "\u9879\u76EE\u540D" }),
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
             "input",
             {
               id: "project-name",
@@ -7489,9 +7540,9 @@ function ProjectForm({
             }
           )
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("label", { htmlFor: "project-description", children: "\u4E00\u53E5\u8BDD\u63CF\u8FF0" }),
-          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "project-description", children: "\u4E00\u53E5\u8BDD\u63CF\u8FF0" }),
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
             "textarea",
             {
               id: "project-description",
@@ -7501,9 +7552,9 @@ function ProjectForm({
             }
           )
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("label", { htmlFor: "project-budget", children: "\u9879\u76EE token \u9884\u7B97\uFF08\u53EF\u9009\uFF09" }),
-          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "project-budget", children: "\u9879\u76EE token \u9884\u7B97\uFF08\u53EF\u9009\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
             "input",
             {
               id: "project-budget",
@@ -7513,11 +7564,11 @@ function ProjectForm({
               placeholder: "\u7559\u7A7A = \u4E0D\u9650\u5236\uFF1B\u4F8B\u5982 200000"
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { className: "studio-hint", children: "\u8FD9\u662F\u516C\u53F8\u7ED9\u8BE5\u9879\u76EE\u7684 token \u4E0A\u9650\uFF1B\u5B9E\u9645\u6D88\u8017\u6765\u81EA DSH token meter\u3002" })
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "studio-hint", children: "\u8FD9\u662F\u516C\u53F8\u7ED9\u8BE5\u9879\u76EE\u7684 token \u4E0A\u9650\uFF1B\u5B9E\u9645\u6D88\u8017\u6765\u81EA DSH token meter\u3002" })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("label", { htmlFor: "project-repo", children: "\u4EE3\u7801\u4ED3\u5E93\uFF08\u53EF\u9009\uFF09" }),
-          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "project-repo", children: "\u4EE3\u7801\u4ED3\u5E93\uFF08\u53EF\u9009\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
             "input",
             {
               id: "project-repo",
@@ -7526,7 +7577,7 @@ function ProjectForm({
               placeholder: "\u4F8B\u5982 D:\\projects\\my-app"
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { className: "studio-hint", children: "\u7ED1\u5B9A git \u4ED3\u5E93\u540E\uFF0C\u6D3E\u5355\u4F1A\u4E3A\u6BCF\u4E2A\u4EFB\u52A1\u521B\u5EFA\u72EC\u7ACB worktree \u548C\u5206\u652F\uFF1B\u4E0D\u7ED1\u5B9A\u5219\u53EA\u505A\u5206\u6790\u3002" })
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "studio-hint", children: "\u7ED1\u5B9A git \u4ED3\u5E93\u540E\uFF0C\u6D3E\u5355\u4F1A\u4E3A\u6BCF\u4E2A\u4EFB\u52A1\u521B\u5EFA\u72EC\u7ACB worktree \u548C\u5206\u652F\uFF1B\u4E0D\u7ED1\u5B9A\u5219\u53EA\u505A\u5206\u6790\u3002" })
         ] })
       ] })
     }
@@ -7539,15 +7590,15 @@ function RepoForm({
   onSubmit
 }) {
   const [repoPath, setRepoPath] = (0, import_react18.useState)(initial);
-  return /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
     ModalShell,
     {
       title: "\u7ED1\u5B9A\u4EE3\u7801\u4ED3\u5E93",
       subtitle: "\u5FC5\u987B\u662F\u672C\u673A git \u4ED3\u5E93\u6839\u76EE\u5F55\u3002\u7ED1\u5B9A\u540E\u6D3E\u5355\u4F1A\u5728 .worktrees/<taskId> \u521B\u5EFA\u72EC\u7ACB\u5DE5\u4F5C\u533A\u3002",
       onClose: onCancel,
-      footer: /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "studio-modal-foot", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("button", { className: "studio-btn", type: "button", onClick: onCancel, disabled: busy, children: "\u53D6\u6D88" }),
-        /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
+      footer: /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-modal-foot", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("button", { className: "studio-btn", type: "button", onClick: onCancel, disabled: busy, children: "\u53D6\u6D88" }),
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
           "button",
           {
             className: "studio-btn",
@@ -7559,7 +7610,7 @@ function RepoForm({
           }
         )
       ] }),
-      children: /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
+      children: /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
         "form",
         {
           id: "studio-repo-form",
@@ -7568,9 +7619,9 @@ function RepoForm({
             event.preventDefault();
             onSubmit(repoPath);
           },
-          children: /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("label", { htmlFor: "repo-path", children: "\u4ED3\u5E93\u6839\u76EE\u5F55" }),
-            /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
+          children: /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "repo-path", children: "\u4ED3\u5E93\u6839\u76EE\u5F55" }),
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
               "input",
               {
                 id: "repo-path",
@@ -7580,7 +7631,7 @@ function RepoForm({
                 autoFocus: true
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { className: "studio-hint", children: "\u7559\u7A7A = \u89E3\u7ED1\uFF0C\u6D3E\u5355\u56DE\u5230\u53EA\u8BFB\u5206\u6790\u6A21\u5F0F\u3002Studio \u4E0D\u4F1A\u81EA\u52A8 push \u6216\u5408\u5E76\u3002" })
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "studio-hint", children: "\u7559\u7A7A = \u89E3\u7ED1\uFF0C\u6D3E\u5355\u56DE\u5230\u53EA\u8BFB\u5206\u6790\u6A21\u5F0F\u3002Studio \u4E0D\u4F1A\u81EA\u52A8 push \u6216\u5408\u5E76\u3002" })
           ] })
         }
       )
@@ -7590,7 +7641,7 @@ function RepoForm({
 
 // src/client/forms/RoleForm.tsx
 var import_react19 = require("react");
-var import_jsx_runtime24 = require("react/jsx-runtime");
+var import_jsx_runtime25 = require("react/jsx-runtime");
 function RoleForm({
   busy,
   profiles,
@@ -7644,15 +7695,15 @@ function RoleForm({
       dailyTokenBudget: budgets.dailyTokenBudget
     });
   };
-  return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
     ModalShell,
     {
       title: "\u65B0\u589E\u89D2\u8272",
       subtitle: "\u89D2\u8272\u662F\u804C\u8D23\u5951\u7EA6\uFF0C\u4E0D\u662F\u4EBA\u8BBE\u3002\u5148\u5199\u6E05\u695A\u4F7F\u547D\u3001\u804C\u8D23\u548C\u8FB9\u754C\u3002",
       onClose: onCancel,
-      footer: /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-modal-foot", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("button", { className: "studio-btn", type: "button", onClick: onCancel, disabled: busy, children: "\u53D6\u6D88" }),
-        /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+      footer: /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-modal-foot", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("button", { className: "studio-btn", type: "button", onClick: onCancel, disabled: busy, children: "\u53D6\u6D88" }),
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
           "button",
           {
             className: "studio-btn",
@@ -7664,12 +7715,12 @@ function RoleForm({
           }
         )
       ] }),
-      children: /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("form", { id: "studio-role-form", className: "studio-modal-body", onSubmit: submit, children: [
-        localError !== null ? /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "studio-alert", children: localError }) : null,
-        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field-row", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "role-name", children: "\u89D2\u8272\u540D" }),
-            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+      children: /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("form", { id: "studio-role-form", className: "studio-modal-body", onSubmit: submit, children: [
+        localError !== null ? /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "studio-alert", children: localError }) : null,
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "role-name", children: "\u89D2\u8272\u540D" }),
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
               "input",
               {
                 id: "role-name",
@@ -7680,9 +7731,9 @@ function RoleForm({
               }
             )
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "role-title", children: "\u804C\u4F4D" }),
-            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "role-title", children: "\u804C\u4F4D" }),
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
               "input",
               {
                 id: "role-title",
@@ -7693,9 +7744,9 @@ function RoleForm({
             )
           ] })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "role-mission", children: "\u4F7F\u547D" }),
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "role-mission", children: "\u4F7F\u547D" }),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
             "textarea",
             {
               id: "role-mission",
@@ -7705,9 +7756,9 @@ function RoleForm({
             }
           )
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "role-responsibilities", children: "\u804C\u8D23\uFF08\u6BCF\u884C\u4E00\u6761\uFF09" }),
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "role-responsibilities", children: "\u804C\u8D23\uFF08\u6BCF\u884C\u4E00\u6761\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
             "textarea",
             {
               id: "role-responsibilities",
@@ -7717,41 +7768,41 @@ function RoleForm({
             }
           )
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "role-provider", children: "Provider Profile" }),
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "role-provider", children: "Provider Profile" }),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)(
             "select",
             {
               id: "role-provider",
               value: providerProfileId,
               onChange: (event) => setProviderProfileId(event.target.value),
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("option", { value: "", children: "\u81EA\u5B9A\u4E49 / \u90E8\u7F72\u9ED8\u8BA4" }),
-                profiles.map((profile) => /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("option", { value: profile.id, children: profile.name }, profile.id))
+                /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("option", { value: "", children: "\u81EA\u5B9A\u4E49 / \u90E8\u7F72\u9ED8\u8BA4" }),
+                profiles.map((profile) => /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("option", { value: profile.id, children: profile.name }, profile.id))
               ]
             }
           )
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "role-executor", children: "\u6267\u884C\u5668" }),
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "role-executor", children: "\u6267\u884C\u5668" }),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)(
             "select",
             {
               id: "role-executor",
               value: executor,
               onChange: (event) => setExecutor(event.target.value),
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("option", { value: "dsh", children: AGENT_EXECUTOR_LABELS.dsh }),
-                /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("option", { value: "claude-code", children: AGENT_EXECUTOR_LABELS["claude-code"] }),
-                /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("option", { value: "codex", children: AGENT_EXECUTOR_LABELS.codex })
+                /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("option", { value: "dsh", children: AGENT_EXECUTOR_LABELS.dsh }),
+                /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("option", { value: "claude-code", children: AGENT_EXECUTOR_LABELS["claude-code"] }),
+                /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("option", { value: "codex", children: AGENT_EXECUTOR_LABELS.codex })
               ]
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "studio-hint", children: "DSH \u8D70\u5185\u7F6E\u6A21\u578B\u8DEF\u7531\uFF1BClaude Code / Codex \u8D70\u672C\u673A headless CLI\uFF0C\u9700\u8981\u5148\u767B\u5F55\u5BF9\u5E94\u5DE5\u5177\u3002" })
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "studio-hint", children: "DSH \u8D70\u5185\u7F6E\u6A21\u578B\u8DEF\u7531\uFF1BClaude Code / Codex \u8D70\u672C\u673A headless CLI\uFF0C\u9700\u8981\u5148\u767B\u5F55\u5BF9\u5E94\u5DE5\u5177\u3002" })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "role-model", children: "\u6A21\u578B\uFF08\u53EF\u9009\uFF09" }),
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "role-model", children: "\u6A21\u578B\uFF08\u53EF\u9009\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
             "input",
             {
               id: "role-model",
@@ -7760,12 +7811,12 @@ function RoleForm({
               placeholder: "\u7559\u7A7A\u7EE7\u627F\u9ED8\u8BA4\u6A21\u578B\uFF0C\u4F8B\u5982 deepseek-flash"
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "studio-hint", children: "\u201C\u85AA\u8D44\u201D\u914D\u7F6E\uFF1A\u67B6\u6784\u5E08\u53EF\u4EE5\u7528\u66F4\u5F3A/\u66F4\u8D35\u7684\u6A21\u578B\uFF0C\u5B9E\u73B0\u8005\u7528\u66F4\u4FBF\u5B9C\u7684\u6A21\u578B\u3002" })
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "studio-hint", children: "\u201C\u85AA\u8D44\u201D\u914D\u7F6E\uFF1A\u67B6\u6784\u5E08\u53EF\u4EE5\u7528\u66F4\u5F3A/\u66F4\u8D35\u7684\u6A21\u578B\uFF0C\u5B9E\u73B0\u8005\u7528\u66F4\u4FBF\u5B9C\u7684\u6A21\u578B\u3002" })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field-row", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "role-budget", children: "\u5355\u6B21\u4EFB\u52A1 token \u9884\u7B97" }),
-            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "role-budget", children: "\u5355\u6B21\u4EFB\u52A1 token \u9884\u7B97" }),
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
               "input",
               {
                 id: "role-budget",
@@ -7776,9 +7827,9 @@ function RoleForm({
               }
             )
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "role-daily-budget", children: "\u6BCF\u65E5 token \u9884\u7B97" }),
-            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "role-daily-budget", children: "\u6BCF\u65E5 token \u9884\u7B97" }),
+            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
               "input",
               {
                 id: "role-daily-budget",
@@ -7797,7 +7848,7 @@ function RoleForm({
 
 // src/client/forms/TaskForm.tsx
 var import_react20 = require("react");
-var import_jsx_runtime25 = require("react/jsx-runtime");
+var import_jsx_runtime26 = require("react/jsx-runtime");
 function TaskForm({
   roles,
   tasks,
@@ -7869,15 +7920,15 @@ function TaskForm({
       dependsOn
     });
   };
-  return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
     ModalShell,
     {
       title: "\u65B0\u5EFA\u4EFB\u52A1",
       subtitle: "\u4EFB\u52A1\u4E00\u5F00\u59CB\u5C31\u8981\u6709\u9A8C\u6536\u6807\u51C6\uFF1B\u5B8C\u6210\u7531\u8BC1\u636E\u548C\u72EC\u7ACB\u9A8C\u6536\u51B3\u5B9A\u3002",
       onClose: onCancel,
-      footer: /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-modal-foot", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("button", { className: "studio-btn", type: "button", onClick: onCancel, disabled: busy, children: "\u53D6\u6D88" }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+      footer: /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-modal-foot", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("button", { className: "studio-btn", type: "button", onClick: onCancel, disabled: busy, children: "\u53D6\u6D88" }),
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
           "button",
           {
             className: "studio-btn",
@@ -7889,11 +7940,11 @@ function TaskForm({
           }
         )
       ] }),
-      children: /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("form", { id: "studio-task-form", className: "studio-modal-body", onSubmit: submit, children: [
-        localError !== null ? /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "studio-alert", children: localError }) : null,
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-title", children: "\u6807\u9898" }),
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+      children: /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("form", { id: "studio-task-form", className: "studio-modal-body", onSubmit: submit, children: [
+        localError !== null ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "studio-alert", children: localError }) : null,
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("label", { htmlFor: "task-title", children: "\u6807\u9898" }),
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
             "input",
             {
               id: "task-title",
@@ -7904,9 +7955,9 @@ function TaskForm({
             }
           )
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-goal", children: "\u76EE\u6807" }),
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("label", { htmlFor: "task-goal", children: "\u76EE\u6807" }),
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
             "textarea",
             {
               id: "task-goal",
@@ -7916,26 +7967,26 @@ function TaskForm({
             }
           )
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field-row", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-priority", children: "\u4F18\u5148\u7EA7" }),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-field-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("label", { htmlFor: "task-priority", children: "\u4F18\u5148\u7EA7" }),
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)(
               "select",
               {
                 id: "task-priority",
                 value: priority,
                 onChange: (event) => setPriority(event.target.value),
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("option", { value: "P0", children: PRIORITY_LABELS.P0 }),
-                  /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("option", { value: "P1", children: PRIORITY_LABELS.P1 }),
-                  /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("option", { value: "P2", children: PRIORITY_LABELS.P2 })
+                  /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("option", { value: "P0", children: PRIORITY_LABELS.P0 }),
+                  /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("option", { value: "P1", children: PRIORITY_LABELS.P1 }),
+                  /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("option", { value: "P2", children: PRIORITY_LABELS.P2 })
                 ]
               }
             )
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-branch", children: "\u5206\u652F\uFF08\u53EF\u9009\uFF09" }),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("label", { htmlFor: "task-branch", children: "\u5206\u652F\uFF08\u53EF\u9009\uFF09" }),
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
               "input",
               {
                 id: "task-branch",
@@ -7946,9 +7997,9 @@ function TaskForm({
             )
           ] })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-verify", children: "\u9A8C\u8BC1\u547D\u4EE4\uFF08\u53EF\u9009\uFF0C\u53EF\u591A\u884C\uFF09" }),
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("label", { htmlFor: "task-verify", children: "\u9A8C\u8BC1\u547D\u4EE4\uFF08\u53EF\u9009\uFF0C\u53EF\u591A\u884C\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
             "textarea",
             {
               id: "task-verify",
@@ -7957,12 +8008,12 @@ function TaskForm({
               placeholder: "npm run build\nnpm test"
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "studio-hint", children: "\u6BCF\u884C\u4E00\u6761\uFF0CStudio Host \u5728 worktree \u5185\u6309\u987A\u5E8F\u6267\u884C\uFF1B\u4EFB\u4E00\u6B65\u5931\u8D25\u5373\u505C\u6B62\u3002\u901A\u8FC7\u4F1A\u5199 evidence\uFF0C\u4F46\u4E0D\u81EA\u52A8\u901A\u8FC7\u9A8C\u6536\u3002" })
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "studio-hint", children: "\u6BCF\u884C\u4E00\u6761\uFF0CStudio Host \u5728 worktree \u5185\u6309\u987A\u5E8F\u6267\u884C\uFF1B\u4EFB\u4E00\u6B65\u5931\u8D25\u5373\u505C\u6B62\u3002\u901A\u8FC7\u4F1A\u5199 evidence\uFF0C\u4F46\u4E0D\u81EA\u52A8\u901A\u8FC7\u9A8C\u6536\u3002" })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { children: "\u524D\u7F6E\u4EFB\u52A1\uFF08\u53EF\u9009\uFF09" }),
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "studio-check-list", children: tasks.filter((task) => task.status !== "done").map((task) => /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("label", { className: "studio-check", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("label", { children: "\u524D\u7F6E\u4EFB\u52A1\uFF08\u53EF\u9009\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "studio-check-list", children: tasks.filter((task) => task.status !== "done").map((task) => /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("label", { className: "studio-check", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
               "input",
               {
                 type: "checkbox",
@@ -7972,17 +8023,17 @@ function TaskForm({
                 )
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("span", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("span", { children: [
               task.number,
               " ",
               task.title
             ] })
           ] }, task.id)) })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field-row", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-timeout", children: "\u8D85\u65F6\u79D2\u6570\uFF08\u53EF\u9009\uFF09" }),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-field-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("label", { htmlFor: "task-timeout", children: "\u8D85\u65F6\u79D2\u6570\uFF08\u53EF\u9009\uFF09" }),
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
               "input",
               {
                 id: "task-timeout",
@@ -7994,9 +8045,9 @@ function TaskForm({
               }
             )
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-risk", children: "\u98CE\u9669\u7EA7\u522B" }),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)(
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("label", { htmlFor: "task-risk", children: "\u98CE\u9669\u7EA7\u522B" }),
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)(
               "select",
               {
                 id: "task-risk",
@@ -8005,33 +8056,33 @@ function TaskForm({
                   event.target.value
                 ),
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("option", { value: "trivial", children: "trivial" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("option", { value: "normal", children: "normal" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("option", { value: "critical", children: "critical" })
+                  /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("option", { value: "trivial", children: "trivial" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("option", { value: "normal", children: "normal" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("option", { value: "critical", children: "critical" })
                 ]
               }
             )
           ] })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field-row", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-kind", children: "\u7968\u7C7B\u578B" }),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-field-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("label", { htmlFor: "task-kind", children: "\u7968\u7C7B\u578B" }),
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)(
               "select",
               {
                 id: "task-kind",
                 value: kind,
                 onChange: (event) => setKind(event.target.value),
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("option", { value: "new", children: TASK_KIND_LABELS.new }),
-                  /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("option", { value: "fix", children: TASK_KIND_LABELS.fix })
+                  /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("option", { value: "new", children: TASK_KIND_LABELS.new }),
+                  /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("option", { value: "fix", children: TASK_KIND_LABELS.fix })
                 ]
               }
             )
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-module", children: "\u6A21\u5757" }),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("label", { htmlFor: "task-module", children: "\u6A21\u5757" }),
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
               "input",
               {
                 id: "task-module",
@@ -8042,10 +8093,10 @@ function TaskForm({
             )
           ] })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field-row", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-diagnosis", children: "\u8BCA\u65AD\uFF08\u6539\u4FEE\u7968\u5FC5\u586B\uFF09" }),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-field-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("label", { htmlFor: "task-diagnosis", children: "\u8BCA\u65AD\uFF08\u6539\u4FEE\u7968\u5FC5\u586B\uFF09" }),
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
               "textarea",
               {
                 id: "task-diagnosis",
@@ -8056,9 +8107,9 @@ function TaskForm({
               }
             )
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-plan", children: "\u4FEE\u6539\u8BA1\u5212\uFF08\u6539\u4FEE\u7968\u5FC5\u586B\uFF09" }),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("label", { htmlFor: "task-plan", children: "\u4FEE\u6539\u8BA1\u5212\uFF08\u6539\u4FEE\u7968\u5FC5\u586B\uFF09" }),
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
               "textarea",
               {
                 id: "task-plan",
@@ -8070,9 +8121,9 @@ function TaskForm({
             )
           ] })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-contract", children: "\u5951\u7EA6\u5F15\u7528" }),
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("label", { htmlFor: "task-contract", children: "\u5951\u7EA6\u5F15\u7528" }),
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
             "input",
             {
               id: "task-contract",
@@ -8081,11 +8132,11 @@ function TaskForm({
               placeholder: "docs/contracts/replay-v1.md"
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "studio-hint", children: "\u5B9E\u73B0\u8005\u53EA\u5E94\u4FEE\u6539\u8FD9\u4E2A\u5951\u7EA6\u5141\u8BB8\u7684\u8303\u56F4\uFF1B\u6539\u5951\u7EA6\u672C\u8EAB\u8981\u8D70\u67B6\u6784\u5E08/Owner\u3002" })
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "studio-hint", children: "\u5B9E\u73B0\u8005\u53EA\u5E94\u4FEE\u6539\u8FD9\u4E2A\u5951\u7EA6\u5141\u8BB8\u7684\u8303\u56F4\uFF1B\u6539\u5951\u7EA6\u672C\u8EAB\u8981\u8D70\u67B6\u6784\u5E08/Owner\u3002" })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-requirements", children: "\u9700\u6C42\u5F15\u7528\uFF08\u53EF\u9009\uFF09" }),
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("label", { htmlFor: "task-requirements", children: "\u9700\u6C42\u5F15\u7528\uFF08\u53EF\u9009\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
             "input",
             {
               id: "task-requirements",
@@ -8094,10 +8145,10 @@ function TaskForm({
               placeholder: "PRD-3.2, REQ-AUTH-01"
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "studio-hint", children: "\u6307\u5411 PRD \u6761\u76EE\u6216\u9700\u6C42 ID\uFF0C\u65B9\u4FBF\u4ECE\u4EFB\u52A1\u8FFD\u6EAF\u56DE\u9700\u6C42\u3002" })
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "studio-hint", children: "\u6307\u5411 PRD \u6761\u76EE\u6216\u9700\u6C42 ID\uFF0C\u65B9\u4FBF\u4ECE\u4EFB\u52A1\u8FFD\u6EAF\u56DE\u9700\u6C42\u3002" })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("label", { className: "studio-check", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("label", { className: "studio-check", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
             "input",
             {
               type: "checkbox",
@@ -8107,31 +8158,31 @@ function TaskForm({
           ),
           "\u96C6\u6210 / playtest ticket\uFF08\u6253\u5305\u53EF\u73A9 + \u4EBA\u73A9 10 \u5206\u949F\uFF09"
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field-row", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-owner", children: "\u8D1F\u8D23\u4EBA" }),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-field-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("label", { htmlFor: "task-owner", children: "\u8D1F\u8D23\u4EBA" }),
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
               "select",
               {
                 id: "task-owner",
                 value: ownerRoleId,
                 onChange: (event) => setOwnerRoleId(event.target.value),
-                children: roles.map((role) => /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("option", { value: role.id, children: [
+                children: roles.map((role) => /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("option", { value: role.id, children: [
                   role.name,
                   role.title ? ` \xB7 ${role.title}` : ""
                 ] }, role.id))
               }
             )
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-reviewer", children: "\u9A8C\u6536\u4EBA" }),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("label", { htmlFor: "task-reviewer", children: "\u9A8C\u6536\u4EBA" }),
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
               "select",
               {
                 id: "task-reviewer",
                 value: reviewerRoleId,
                 onChange: (event) => setReviewerRoleId(event.target.value),
-                children: roles.map((role) => /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("option", { value: role.id, children: [
+                children: roles.map((role) => /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("option", { value: role.id, children: [
                   role.name,
                   role.title ? ` \xB7 ${role.title}` : ""
                 ] }, role.id))
@@ -8139,9 +8190,9 @@ function TaskForm({
             )
           ] })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("label", { htmlFor: "task-acceptance", children: "\u9A8C\u6536\u6807\u51C6\uFF08\u6BCF\u884C\u4E00\u6761\uFF09" }),
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("label", { htmlFor: "task-acceptance", children: "\u9A8C\u6536\u6807\u51C6\uFF08\u6BCF\u884C\u4E00\u6761\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
             "textarea",
             {
               id: "task-acceptance",
@@ -8151,7 +8202,7 @@ function TaskForm({
               style: { minHeight: 96 }
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { className: "studio-hint", children: "Agent \u4E0D\u80FD\u81EA\u5DF1\u628A\u4EFB\u52A1\u63A8\u5230\u201C\u5DF2\u5B8C\u6210\u201D\uFF1B\u5FC5\u987B\u7531\u9A8C\u6536\u4EBA\u52FE\u5B8C\u6240\u6709\u6807\u51C6\u3002" })
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "studio-hint", children: "Agent \u4E0D\u80FD\u81EA\u5DF1\u628A\u4EFB\u52A1\u63A8\u5230\u201C\u5DF2\u5B8C\u6210\u201D\uFF1B\u5FC5\u987B\u7531\u9A8C\u6536\u4EBA\u52FE\u5B8C\u6240\u6709\u6807\u51C6\u3002" })
         ] })
       ] })
     }
@@ -8159,7 +8210,7 @@ function TaskForm({
 }
 
 // src/client/StudioPage.tsx
-var import_jsx_runtime26 = require("react/jsx-runtime");
+var import_jsx_runtime27 = require("react/jsx-runtime");
 var NAV_ITEMS = [
   { id: "company", label: "\u5DE5\u4F5C\u5BA4", caption: "Studio Dashboard" },
   { id: "knowledge", label: "\u77E5\u8BC6\u5E93", caption: "PRD / Modules" },
@@ -8372,9 +8423,9 @@ function StudioPage() {
     return () => window.clearInterval(timer);
   }, [data?.runs, load]);
   const selectedTask = data?.tasks.find((task) => task.id === selectedTaskId) ?? null;
-  if (!bootChecked) return /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(LoadingState, {});
+  if (!bootChecked) return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(LoadingState, {});
   if (boot === null) {
-    return /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
       MissingHost,
       {
         error: bootError,
@@ -8383,8 +8434,8 @@ function StudioPage() {
     );
   }
   if (data === null) {
-    if (error === null || loading) return /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(LoadingState, {});
-    return /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+    if (error === null || loading) return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(LoadingState, {});
+    return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
       ErrorState,
       {
         message: error,
@@ -8478,13 +8529,13 @@ function StudioPage() {
     saveCompany,
     writeAdr
   } = actions;
-  return /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-root", "data-theme": theme, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("header", { className: "studio-header", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-brand", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "studio-mark", children: "S" }),
-        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "studio-brand-name", children: "AI Studio" })
+  return /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { className: "studio-root", "data-theme": theme, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("header", { className: "studio-header", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { className: "studio-brand", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { className: "studio-mark", children: "S" }),
+        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { className: "studio-brand-name", children: "AI Studio" })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "studio-project-picker", children: data.projects.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("span", { className: "studio-muted", children: "\u8FD8\u6CA1\u6709\u9879\u76EE" }) : /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+      /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { className: "studio-project-picker", children: data.projects.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("span", { className: "studio-muted", children: "\u8FD8\u6CA1\u6709\u9879\u76EE" }) : /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
         "select",
         {
           className: "studio-select",
@@ -8492,16 +8543,16 @@ function StudioPage() {
           onChange: (event) => void selectProject(event.target.value),
           disabled: busy,
           "aria-label": "\u5207\u6362\u9879\u76EE",
-          children: data.projects.map((item) => /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("option", { value: item.id, children: item.name }, item.id))
+          children: data.projects.map((item) => /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("option", { value: item.id, children: item.name }, item.id))
         }
       ) }),
-      /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-header-actions", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("span", { className: "studio-status", title: "Host \u4E0E\u9875\u9762\u5DF2\u8FDE\u63A5", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("span", { className: "studio-status-dot" }),
+      /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { className: "studio-header-actions", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("span", { className: "studio-status", title: "Host \u4E0E\u9875\u9762\u5DF2\u8FDE\u63A5", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("span", { className: "studio-status-dot" }),
           "\u672C\u5730 \xB7 v",
           boot.pluginVersion
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
           "button",
           {
             className: "studio-btn",
@@ -8512,7 +8563,7 @@ function StudioPage() {
             children: "\u5BFC\u51FA"
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
           "input",
           {
             id: "studio-import-file",
@@ -8522,7 +8573,7 @@ function StudioPage() {
             onChange: (event) => void importData(event)
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
           "button",
           {
             className: "studio-btn",
@@ -8533,7 +8584,7 @@ function StudioPage() {
             children: "\u5BFC\u5165"
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
           "button",
           {
             className: "studio-btn",
@@ -8542,14 +8593,14 @@ function StudioPage() {
             onClick: () => setTheme((current) => current === "dark" ? "light" : "dark"),
             title: theme === "dark" ? "\u5207\u6362\u5230\u6D45\u8272" : "\u5207\u6362\u5230\u6DF1\u8272",
             "aria-label": "\u5207\u6362\u4E3B\u9898",
-            children: theme === "dark" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(IconSun, { width: 15, height: 15 }) : /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(IconMoon, { width: 15, height: 15 })
+            children: theme === "dark" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(IconSun, { width: 15, height: 15 }) : /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(IconMoon, { width: 15, height: 15 })
           }
         )
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-body", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("nav", { className: "studio-nav", "aria-label": "Studio \u5BFC\u822A", children: [
-        NAV_ITEMS.map((item) => /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)(
+    /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { className: "studio-body", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("nav", { className: "studio-nav", "aria-label": "Studio \u5BFC\u822A", children: [
+        NAV_ITEMS.map((item) => /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(
           "button",
           {
             type: "button",
@@ -8557,15 +8608,15 @@ function StudioPage() {
             "data-active": tab === item.id,
             onClick: () => setTab(item.id),
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(NavIcon, { tab: item.id }),
-              /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("span", { children: item.label }),
-              item.id === "company" && data.company.needs.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("span", { className: "studio-nav-count", children: data.company.needs.length }) : item.id === "boardroom" && data.company.totals.pendingDecisions > 0 ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("span", { className: "studio-nav-count", children: data.company.totals.pendingDecisions }) : item.id === "mission" && reviewCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("span", { className: "studio-nav-count", children: reviewCount }) : item.id === "tasks" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("span", { className: "studio-nav-count", children: data.stats.total }) : item.id === "merges" && mergeCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("span", { className: "studio-nav-count", children: mergeCount }) : item.id === "team" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("span", { className: "studio-nav-count", children: data.roles.length }) : null
+              /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(NavIcon, { tab: item.id }),
+              /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("span", { children: item.label }),
+              item.id === "company" && data.company.needs.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("span", { className: "studio-nav-count", children: data.company.needs.length }) : item.id === "boardroom" && data.company.totals.pendingDecisions > 0 ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("span", { className: "studio-nav-count", children: data.company.totals.pendingDecisions }) : item.id === "mission" && reviewCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("span", { className: "studio-nav-count", children: reviewCount }) : item.id === "tasks" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("span", { className: "studio-nav-count", children: data.stats.total }) : item.id === "merges" && mergeCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("span", { className: "studio-nav-count", children: mergeCount }) : item.id === "team" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("span", { className: "studio-nav-count", children: data.roles.length }) : null
             ]
           },
           item.id
         )),
-        /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-nav-footer", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("strong", { children: tab === "company" ? data.company.name : project?.name ?? "\u672A\u9009\u62E9\u9879\u76EE" }),
+        /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { className: "studio-nav-footer", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("strong", { children: tab === "company" ? data.company.name : project?.name ?? "\u672A\u9009\u62E9\u9879\u76EE" }),
           tab === "company" ? `${String(data.company.totals.projects)} \u4E2A\u9879\u76EE \xB7 ${String(
             data.company.totals.openTasks
           )} \u4E2A\u672A\u5B8C\u6210` : `${String(data.stats.total)} \u4E2A\u4EFB\u52A1 \xB7 ${String(
@@ -8573,10 +8624,10 @@ function StudioPage() {
           )} \u4E2A\u89D2\u8272`
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("main", { className: "studio-main", children: /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-main-inner", children: [
-        error !== null ? /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-alert", "data-tone": "warn", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("main", { className: "studio-main", children: /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { className: "studio-main-inner", children: [
+        error !== null ? /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { className: "studio-alert", "data-tone": "warn", children: [
           error,
-          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
             "button",
             {
               type: "button",
@@ -8588,8 +8639,18 @@ function StudioPage() {
             }
           )
         ] }) : null,
-        data.app.warning !== null && data.app.warning !== void 0 ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "studio-alert", "data-tone": "warn", children: data.app.warning }) : null,
-        tab === "company" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+        data.app.warning !== null && data.app.warning !== void 0 ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { className: "studio-alert", "data-tone": "warn", children: data.app.warning }) : null,
+        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+          ProjectJourney,
+          {
+            project: data.project,
+            freezes: data.freezes,
+            stageGates: data.stageGates,
+            demos: data.prototypeDemos,
+            tasks: data.tasks
+          }
+        ),
+        tab === "company" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
           CompanyView,
           {
             data,
@@ -8599,7 +8660,7 @@ function StudioPage() {
             onNewProject: () => setModal({ kind: "project" })
           }
         ) : null,
-        tab === "meeting" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+        tab === "meeting" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
           MeetingView,
           {
             project: data.project,
@@ -8622,7 +8683,7 @@ function StudioPage() {
             onOpenBoardroom: () => setTab("boardroom")
           }
         ) : null,
-        tab === "boardroom" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+        tab === "boardroom" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
           BoardroomView,
           {
             decisions: data.decisions,
@@ -8634,7 +8695,7 @@ function StudioPage() {
             onWriteAdr: writeAdr
           }
         ) : null,
-        tab === "knowledge" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+        tab === "knowledge" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
           KnowledgeView,
           {
             project: data.project,
@@ -8655,7 +8716,7 @@ function StudioPage() {
             onSyncModules: syncModules
           }
         ) : null,
-        tab === "mission" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+        tab === "mission" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
           MissionView,
           {
             data,
@@ -8685,7 +8746,7 @@ function StudioPage() {
             onSummarizeWorkshop: summarizeWorkshopAi
           }
         ) : null,
-        tab === "tasks" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+        tab === "tasks" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
           TasksView,
           {
             data,
@@ -8693,7 +8754,7 @@ function StudioPage() {
             onNewTask: () => setModal({ kind: "task" })
           }
         ) : null,
-        tab === "merges" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+        tab === "merges" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
           MergeView,
           {
             data,
@@ -8704,7 +8765,7 @@ function StudioPage() {
             onComplete: (proposal, commit) => void completeMerge(proposal, commit)
           }
         ) : null,
-        tab === "team" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+        tab === "team" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
           TeamView,
           {
             data,
@@ -8719,7 +8780,7 @@ function StudioPage() {
             onProbeProvider: probeProviderProfile
           }
         ) : null,
-        tab === "settings" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+        tab === "settings" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
           SettingsView,
           {
             boot,
@@ -8738,7 +8799,7 @@ function StudioPage() {
         ) : null
       ] }) })
     ] }),
-    selectedTask !== null ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+    selectedTask !== null ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
       TaskDrawer,
       {
         task: selectedTask,
@@ -8788,7 +8849,7 @@ function StudioPage() {
       },
       selectedTask.id
     ) : null,
-    modal?.kind === "task" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+    modal?.kind === "task" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
       TaskForm,
       {
         roles: data.roles,
@@ -8798,7 +8859,7 @@ function StudioPage() {
         onSubmit: (input) => void createTask(input)
       }
     ) : null,
-    modal?.kind === "role" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+    modal?.kind === "role" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
       RoleForm,
       {
         busy,
@@ -8807,7 +8868,7 @@ function StudioPage() {
         onSubmit: (input) => void createRole(input)
       }
     ) : null,
-    modal?.kind === "project" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+    modal?.kind === "project" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
       ProjectForm,
       {
         busy,
@@ -8816,7 +8877,7 @@ function StudioPage() {
         onSubmitTemplate: (input) => void createProjectFromTemplate(input)
       }
     ) : null,
-    modal?.kind === "repo" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+    modal?.kind === "repo" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
       RepoForm,
       {
         initial: data.project?.repoPath ?? "",
@@ -8825,7 +8886,7 @@ function StudioPage() {
         onSubmit: (repoPath) => void updateProjectRepo(repoPath)
       }
     ) : null,
-    modal?.kind === "module" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+    modal?.kind === "module" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
       ModuleForm,
       {
         busy,
@@ -8833,7 +8894,7 @@ function StudioPage() {
         onSubmit: (input) => void createModule(input)
       }
     ) : null,
-    modal?.kind === "decision" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+    modal?.kind === "decision" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
       DecisionForm,
       {
         tasks: data.tasks,
@@ -8842,8 +8903,8 @@ function StudioPage() {
         onSubmit: (input) => void createDecision(input)
       }
     ) : null,
-    toast !== null ? /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-toast", "data-kind": toast.kind, role: "status", children: [
-      toast.kind === "ok" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(IconCheck, { width: 14, height: 14 }) : /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(IconAlert, { width: 14, height: 14 }),
+    toast !== null ? /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { className: "studio-toast", "data-kind": toast.kind, role: "status", children: [
+      toast.kind === "ok" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(IconCheck, { width: 14, height: 14 }) : /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(IconAlert, { width: 14, height: 14 }),
       toast.text
     ] }) : null
   ] });
@@ -10512,6 +10573,12 @@ var views = `
 .studio-toast[data-kind="error"] svg { color: var(--st-danger); }
 @keyframes studio-toast-in { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
 
+.studio-journey { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 14px; padding: 8px; border: 1px solid var(--st-border); border-radius: 10px; background: var(--st-panel); }
+.studio-journey-step { display: flex; align-items: center; gap: 5px; padding: 5px 8px; border-radius: 7px; color: var(--st-faint); font-size: 10px; }
+.studio-journey-step[data-state="active"] { color: var(--st-text); background: var(--st-accent-soft); }
+.studio-journey-step[data-state="done"] { color: var(--st-ok); }
+.studio-journey-index { display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: var(--st-panel-2); font-size: 9px; }
+
 .studio-settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
 .studio-settings-card { padding: 16px; border: 1px solid var(--st-border); border-radius: var(--st-radius); background: var(--st-panel); }
 .studio-settings-card h3 { margin: 0 0 10px; font-size: 13px; }
@@ -10830,11 +10897,11 @@ var meeting = `
 var studioCss = [base, layout, views, meeting].join("\n");
 
 // src/client/index.tsx
-var import_jsx_runtime27 = require("react/jsx-runtime");
+var import_jsx_runtime28 = require("react/jsx-runtime");
 var name = "dsh-studio-client";
 var inject = ["slots", "layout"];
 function StudioIcon() {
-  return /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)(
     "svg",
     {
       width: "16",
@@ -10847,8 +10914,8 @@ function StudioIcon() {
       strokeLinejoin: "round",
       "aria-hidden": "true",
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("path", { d: "M4 7.5 12 3l8 4.5v9L12 21l-8-4.5Z" }),
-        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("path", { d: "M8 10.5v4M12 8.5v7M16 10.5v4" })
+        /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("path", { d: "M4 7.5 12 3l8 4.5v9L12 21l-8-4.5Z" }),
+        /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("path", { d: "M8 10.5v4M12 8.5v7M16 10.5v4" })
       ]
     }
   );

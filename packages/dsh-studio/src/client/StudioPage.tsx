@@ -119,6 +119,7 @@ import {
   LoadingState,
   MissingHost,
 } from "./components/States.js";
+import { ProjectJourney } from "./components/ProjectJourney.js";
 import { TaskDrawer } from "./components/TaskDrawer.js";
 import { ModalShell } from "./components/ModalShell.js";
 import { DecisionForm } from "./forms/DecisionForm.js";
@@ -656,6 +657,14 @@ export function StudioPage() {
                 {data.app.warning}
               </div>
             ) : null}
+
+            <ProjectJourney
+              project={data.project}
+              freezes={data.freezes}
+              stageGates={data.stageGates}
+              demos={data.prototypeDemos}
+              tasks={data.tasks}
+            />
 
             {tab === "company" ? (
               <CompanyView
