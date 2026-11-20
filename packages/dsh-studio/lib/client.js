@@ -6394,6 +6394,28 @@ function filterTasks(tasks, input) {
   });
 }
 
+// src/shared/task-views.ts
+var MAX_VIEWS = 20;
+function parseSavedTaskViews(raw) {
+  if (raw === null || raw.trim() === "") return [];
+  let value;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (item) => typeof item === "object" && item !== null && typeof item.id === "string" && typeof item.name === "string" && typeof item.query === "string" && typeof item.status === "string" && typeof item.milestoneId === "string"
+  ).slice(0, MAX_VIEWS);
+}
+function addSavedTaskView(views2, view) {
+  const clean = views2.filter(
+    (item) => item.id !== view.id && item.name !== view.name
+  );
+  return [view, ...clean].slice(0, MAX_VIEWS);
+}
+
 // src/client/views/TasksView.tsx
 var import_jsx_runtime15 = require("react/jsx-runtime");
 function TasksView({
@@ -6409,6 +6431,40 @@ function TasksView({
   const [milestoneTitle, setMilestoneTitle] = (0, import_react11.useState)("");
   const [query, setQuery] = (0, import_react11.useState)("");
   const [selected, setSelected] = (0, import_react11.useState)(/* @__PURE__ */ new Set());
+  const [views2, setViews] = (0, import_react11.useState)([]);
+  const [viewName, setViewName] = (0, import_react11.useState)("");
+  (0, import_react11.useEffect)(() => {
+    try {
+      setViews(parseSavedTaskViews(localStorage.getItem("studio.task.views")));
+    } catch {
+      setViews([]);
+    }
+  }, []);
+  const saveView = () => {
+    const name2 = viewName.trim();
+    if (name2 === "") return;
+    const view = {
+      id: `view-${String(Date.now())}`,
+      name: name2,
+      query,
+      status: filter,
+      milestoneId: milestoneFilter
+    };
+    const next = addSavedTaskView(views2, view);
+    setViews(next);
+    setViewName("");
+    try {
+      localStorage.setItem("studio.task.views", JSON.stringify(next));
+    } catch {
+    }
+  };
+  const applyView = (id) => {
+    const view = views2.find((item) => item.id === id);
+    if (view === void 0) return;
+    setQuery(view.query);
+    setFilter(view.status);
+    setMilestoneFilter(view.milestoneId);
+  };
   const tasks = filterTasks(data.tasks, {
     query,
     status: filter,
@@ -6528,6 +6584,40 @@ function TasksView({
             if (ok) setMilestoneTitle("");
           }),
           children: "\u65B0\u5EFA\u91CC\u7A0B\u7891"
+        }
+      )
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "studio-toolbar", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
+        "select",
+        {
+          value: "",
+          onChange: (event) => applyView(event.target.value),
+          "aria-label": "\u5E94\u7528\u4FDD\u5B58\u7684\u7B5B\u9009",
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("option", { value: "", children: "\u4FDD\u5B58\u7684\u7B5B\u9009" }),
+            views2.map((view) => /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("option", { value: view.id, children: view.name }, view.id))
+          ]
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+        "input",
+        {
+          value: viewName,
+          onChange: (event) => setViewName(event.target.value),
+          placeholder: "\u7B5B\u9009\u89C6\u56FE\u540D\u79F0",
+          "aria-label": "\u7B5B\u9009\u89C6\u56FE\u540D\u79F0"
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+        "button",
+        {
+          type: "button",
+          className: "studio-btn",
+          "data-size": "sm",
+          disabled: viewName.trim() === "",
+          onClick: saveView,
+          children: "\u4FDD\u5B58\u5F53\u524D\u7B5B\u9009"
         }
       )
     ] }),

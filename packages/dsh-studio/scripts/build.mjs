@@ -119,6 +119,19 @@ await build({
 
 await build({
   absWorkingDir: root,
+  entryPoints: [path.join(root, "src/shared/task-views.ts")],
+  outfile: path.join(libDir, "task-views.js"),
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "node22",
+  sourcemap: false,
+  legalComments: "none",
+  logLevel: "info",
+});
+
+await build({
+  absWorkingDir: root,
   entryPoints: [path.join(root, "src/shared/search.ts")],
   outfile: path.join(libDir, "search.js"),
   bundle: true,

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   PRIORITY_LABELS,
@@ -14,6 +14,11 @@ import type {
 import { StatusPill } from "../components/ui.js";
 import { TaskBoard } from "../components/TaskBoard.js";
 import { filterTasks } from "../../shared/task-filter.js";
+import {
+  addSavedTaskView,
+  parseSavedTaskViews,
+} from "../../shared/task-views.js";
+import type { SavedTaskView } from "../../shared/task-views.js";
 import { IconKanban, IconPlus } from "../icons.js";
 
 export function TasksView({
@@ -36,6 +41,44 @@ export function TasksView({
   const [milestoneTitle, setMilestoneTitle] = useState("");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [views, setViews] = useState<SavedTaskView[]>([]);
+  const [viewName, setViewName] = useState("");
+  useEffect(() => {
+    try {
+      setViews(parseSavedTaskViews(localStorage.getItem("studio.task.views")));
+    } catch {
+      setViews([]);
+    }
+  }, []);
+
+  const saveView = (): void => {
+    const name = viewName.trim();
+    if (name === "") return;
+    const view: SavedTaskView = {
+      id: `view-${String(Date.now())}`,
+      name,
+      query,
+      status: filter,
+      milestoneId: milestoneFilter,
+    };
+    const next = addSavedTaskView(views, view);
+    setViews(next);
+    setViewName("");
+    try {
+      localStorage.setItem("studio.task.views", JSON.stringify(next));
+    } catch {
+      // Saved views are best-effort.
+    }
+  };
+
+  const applyView = (id: string): void => {
+    const view = views.find((item) => item.id === id);
+    if (view === undefined) return;
+    setQuery(view.query);
+    setFilter(view.status);
+    setMilestoneFilter(view.milestoneId);
+  };
+
   const tasks = filterTasks(data.tasks, {
     query,
     status: filter,
@@ -138,6 +181,36 @@ export function TasksView({
           }
         >
           新建里程碑
+        </button>
+      </div>
+
+      <div className="studio-toolbar">
+        <select
+          value=""
+          onChange={(event) => applyView(event.target.value)}
+          aria-label="应用保存的筛选"
+        >
+          <option value="">保存的筛选</option>
+          {views.map((view) => (
+            <option key={view.id} value={view.id}>
+              {view.name}
+            </option>
+          ))}
+        </select>
+        <input
+          value={viewName}
+          onChange={(event) => setViewName(event.target.value)}
+          placeholder="筛选视图名称"
+          aria-label="筛选视图名称"
+        />
+        <button
+          type="button"
+          className="studio-btn"
+          data-size="sm"
+          disabled={viewName.trim() === ""}
+          onClick={saveView}
+        >
+          保存当前筛选
         </button>
       </div>
 
