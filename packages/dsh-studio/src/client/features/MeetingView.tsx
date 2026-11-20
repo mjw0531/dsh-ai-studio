@@ -2,12 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 
 import type {
+  CreateWorkshopActionInput,
   CreateWorkshopInput,
   Project,
   FreezeChangeRequest,
   ProjectFreeze,
   Role,
   Task,
+  UpdateWorkshopActionInput,
   Workshop,
   WorkshopAgendaItem,
   WorkshopDownstreamInput,
@@ -512,6 +514,8 @@ export function MeetingView({
   changeRequests,
   onLinkDownstream,
   onCreateTask,
+  onAddAction,
+  onUpdateAction,
   onOpenBoardroom,
 }: {
   project: Project | null;
@@ -553,6 +557,15 @@ export function MeetingView({
     input: WorkshopDownstreamInput,
   ) => Promise<boolean>;
   onCreateTask: (workshop: Workshop) => Promise<boolean>;
+  onAddAction: (
+    workshopId: string,
+    input: CreateWorkshopActionInput,
+  ) => Promise<boolean>;
+  onUpdateAction: (
+    workshopId: string,
+    actionId: string,
+    input: UpdateWorkshopActionInput,
+  ) => Promise<boolean>;
   onOpenBoardroom: () => void;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -565,6 +578,8 @@ export function MeetingView({
   const [showComposer, setShowComposer] = useState(workshops.length === 0);
   const [linkedTaskId, setLinkedTaskId] = useState("");
   const [linkedChangeRequestId, setLinkedChangeRequestId] = useState("");
+  const [actionText, setActionText] = useState("");
+  const [actionOwner, setActionOwner] = useState("");
 
   const active = useMemo(
     () => workshops.find((item) => item.id === selectedId) ?? workshops[0] ?? null,
@@ -747,6 +762,75 @@ export function MeetingView({
                       </button>
                     ) : null}
                   </div>
+                  <div className="studio-section-label">行动项</div>
+                  <div className="studio-meeting-actions">
+                    {active.actionItems.length === 0 ? (
+                      <div className="studio-faint">还没有行动项。</div>
+                    ) : (
+                      active.actionItems.map((item) => (
+                        <label className="studio-check" key={item.id}>
+                          <input
+                            type="checkbox"
+                            checked={item.status === "done"}
+                            disabled={busy}
+                            onChange={(event) =>
+                              void onUpdateAction(active.id, item.id, {
+                                status: event.target.checked ? "done" : "open",
+                              })
+                            }
+                          />
+                          <span>
+                            {item.text}
+                            {item.ownerRoleId !== null
+                              ? " · " +
+                                (roles.find(
+                                  (role) => role.id === item.ownerRoleId,
+                                )?.name ?? item.ownerRoleId)
+                              : ""}
+                          </span>
+                        </label>
+                      ))
+                    )}
+                    <div className="studio-actions">
+                      <input
+                        value={actionText}
+                        onChange={(event) => setActionText(event.target.value)}
+                        placeholder="新增行动项"
+                        aria-label="新增行动项"
+                      />
+                      <select
+                        value={actionOwner}
+                        onChange={(event) => setActionOwner(event.target.value)}
+                        aria-label="行动项负责人"
+                      >
+                        <option value="">未指派</option>
+                        {roles.map((role) => (
+                          <option key={role.id} value={role.id}>
+                            {role.name}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        className="studio-btn"
+                        type="button"
+                        disabled={busy || actionText.trim() === ""}
+                        onClick={() =>
+                          void onAddAction(active.id, {
+                            text: actionText.trim(),
+                            ownerRoleId: actionOwner || null,
+                          }).then((ok) => {
+                            if (ok) {
+                              setActionText("");
+                              setActionOwner("");
+                            }
+                          })
+                        }
+                      >
+                        添加
+                      </button>
+                    </div>
+                  </div>
+
                   <div className="studio-meeting-participants">
                     {participantRoles.map((role) => (
                       <span className="studio-pill" key={role.id}>

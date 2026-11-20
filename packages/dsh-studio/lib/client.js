@@ -355,6 +355,20 @@ var StudioClient = class {
     );
     return data.workshop;
   }
+  async addWorkshopAction(workshopId, input) {
+    const data = await this.request(
+      `/workshops/${encodeURIComponent(workshopId)}/actions`,
+      { method: "POST", body: input }
+    );
+    return data.workshop;
+  }
+  async updateWorkshopAction(workshopId, actionId, input) {
+    const data = await this.request(
+      `/workshops/${encodeURIComponent(workshopId)}/actions/${encodeURIComponent(actionId)}`,
+      { method: "PATCH", body: input }
+    );
+    return data.workshop;
+  }
   async linkWorkshopDownstream(workshopId, input) {
     const data = await this.request(
       `/workshops/${encodeURIComponent(workshopId)}/downstream`,
@@ -878,6 +892,24 @@ function createStudioActions({
         await client.reassignProviderProfile(fromProfileId, toProfileId);
       },
       "\u89D2\u8272\u5DF2\u6539\u7ED1\u5230\u5907\u7528 Profile"
+    );
+  };
+  const addWorkshopAction = async (workshopId, input) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.addWorkshopAction(workshopId, input);
+      },
+      "\u5DF2\u6DFB\u52A0\u884C\u52A8\u9879"
+    );
+  };
+  const updateWorkshopAction = async (workshopId, actionId, input) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.updateWorkshopAction(workshopId, actionId, input);
+      },
+      "\u884C\u52A8\u9879\u5DF2\u66F4\u65B0"
     );
   };
   const createTaskFromMeeting = async (workshop) => {
@@ -1553,6 +1585,8 @@ function createStudioActions({
     createRequirementDecision,
     createTask,
     createTaskFromMeeting,
+    addWorkshopAction,
+    updateWorkshopAction,
     createRole,
     updateRoleExecutor,
     updateRoleProvider,
@@ -2779,6 +2813,8 @@ function MeetingView({
   changeRequests,
   onLinkDownstream,
   onCreateTask,
+  onAddAction,
+  onUpdateAction,
   onOpenBoardroom
 }) {
   const [selectedId, setSelectedId] = (0, import_react2.useState)(
@@ -2791,6 +2827,8 @@ function MeetingView({
   const [showComposer, setShowComposer] = (0, import_react2.useState)(workshops.length === 0);
   const [linkedTaskId, setLinkedTaskId] = (0, import_react2.useState)("");
   const [linkedChangeRequestId, setLinkedChangeRequestId] = (0, import_react2.useState)("");
+  const [actionText, setActionText] = (0, import_react2.useState)("");
+  const [actionOwner, setActionOwner] = (0, import_react2.useState)("");
   const active = (0, import_react2.useMemo)(
     () => workshops.find((item) => item.id === selectedId) ?? workshops[0] ?? null,
     [selectedId, workshops]
@@ -2950,6 +2988,69 @@ function MeetingView({
                   children: "\u4ECE\u4F1A\u8BAE\u521B\u5EFA\u4EFB\u52A1"
                 }
               ) : null
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "studio-section-label", children: "\u884C\u52A8\u9879" }),
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-meeting-actions", children: [
+              active.actionItems.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "studio-faint", children: "\u8FD8\u6CA1\u6709\u884C\u52A8\u9879\u3002" }) : active.actionItems.map((item) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("label", { className: "studio-check", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+                  "input",
+                  {
+                    type: "checkbox",
+                    checked: item.status === "done",
+                    disabled: busy,
+                    onChange: (event) => void onUpdateAction(active.id, item.id, {
+                      status: event.target.checked ? "done" : "open"
+                    })
+                  }
+                ),
+                /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { children: [
+                  item.text,
+                  item.ownerRoleId !== null ? " \xB7 " + (roles.find(
+                    (role) => role.id === item.ownerRoleId
+                  )?.name ?? item.ownerRoleId) : ""
+                ] })
+              ] }, item.id)),
+              /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-actions", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+                  "input",
+                  {
+                    value: actionText,
+                    onChange: (event) => setActionText(event.target.value),
+                    placeholder: "\u65B0\u589E\u884C\u52A8\u9879",
+                    "aria-label": "\u65B0\u589E\u884C\u52A8\u9879"
+                  }
+                ),
+                /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
+                  "select",
+                  {
+                    value: actionOwner,
+                    onChange: (event) => setActionOwner(event.target.value),
+                    "aria-label": "\u884C\u52A8\u9879\u8D1F\u8D23\u4EBA",
+                    children: [
+                      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("option", { value: "", children: "\u672A\u6307\u6D3E" }),
+                      roles.map((role) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("option", { value: role.id, children: role.name }, role.id))
+                    ]
+                  }
+                ),
+                /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+                  "button",
+                  {
+                    className: "studio-btn",
+                    type: "button",
+                    disabled: busy || actionText.trim() === "",
+                    onClick: () => void onAddAction(active.id, {
+                      text: actionText.trim(),
+                      ownerRoleId: actionOwner || null
+                    }).then((ok) => {
+                      if (ok) {
+                        setActionText("");
+                        setActionOwner("");
+                      }
+                    }),
+                    children: "\u6DFB\u52A0"
+                  }
+                )
+              ] })
             ] }),
             /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-meeting-participants", children: [
               participantRoles.map((role) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "studio-pill", children: role.name }, role.id)),
@@ -8710,6 +8811,8 @@ function StudioPage() {
     createRequirementDecision,
     createTask,
     createTaskFromMeeting,
+    addWorkshopAction,
+    updateWorkshopAction,
     createRole,
     updateRoleExecutor,
     updateRoleProvider,
@@ -8931,6 +9034,8 @@ function StudioPage() {
             changeRequests: data.freezeChangeRequests,
             onLinkDownstream: linkWorkshopDownstream,
             onCreateTask: createTaskFromMeeting,
+            onAddAction: addWorkshopAction,
+            onUpdateAction: updateWorkshopAction,
             onOpenBoardroom: () => setTab("boardroom")
           }
         ) : null,

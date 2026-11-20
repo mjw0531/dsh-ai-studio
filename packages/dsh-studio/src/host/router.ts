@@ -892,6 +892,35 @@ export class StudioRouter {
     }
 
 
+    const workshopAction =
+      /^\/studio-api\/workshops\/([^/]+)\/actions$/.exec(parsed.pathname);
+    if (workshopAction !== null) {
+      requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const workshop = await this.store.addWorkshopActionItem(
+        decodeSegment(workshopAction[1] ?? ""),
+        inputs.asCreateWorkshopAction(await readJson(req)),
+      );
+      sendJson(res, 201, { ok: true, workshop });
+      return;
+    }
+
+    const workshopActionUpdate =
+      /^\/studio-api\/workshops\/([^/]+)\/actions\/([^/]+)$/.exec(
+        parsed.pathname,
+      );
+    if (workshopActionUpdate !== null) {
+      requireMethod(parsed, ["PATCH"]);
+      assertJsonRequest(req);
+      const workshop = await this.store.updateWorkshopActionItem(
+        decodeSegment(workshopActionUpdate[1] ?? ""),
+        decodeSegment(workshopActionUpdate[2] ?? ""),
+        inputs.asUpdateWorkshopAction(await readJson(req)),
+      );
+      sendJson(res, 200, { ok: true, workshop });
+      return;
+    }
+
     const workshopDownstream =
       /^\/studio-api\/workshops\/([^/]+)\/downstream$/.exec(parsed.pathname);
     if (workshopDownstream !== null) {

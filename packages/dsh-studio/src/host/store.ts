@@ -122,6 +122,8 @@ import type {
   UpdateTriggerRulesInput,
   WebhookIngestResult,
   Workshop,
+  CreateWorkshopActionInput,
+  UpdateWorkshopActionInput,
   WorkshopAiSummary,
   WorkshopNote,
   WorkshopStatus,
@@ -222,6 +224,8 @@ import {
   updateWorkshopMessage as updateWorkshopMessageImpl,
   getWorkshopContext as getWorkshopContextImpl,
   linkWorkshopDownstream as linkWorkshopDownstreamImpl,
+  addWorkshopActionItem as addWorkshopActionItemImpl,
+  updateWorkshopActionItem as updateWorkshopActionItemImpl,
   setWorkshopAiSummary as setWorkshopAiSummaryImpl,
   synthesizeWorkshop as synthesizeWorkshopImpl,
   updatePrototypeDemo as updatePrototypeDemoImpl,
@@ -918,6 +922,21 @@ export class StudioStore {
 
   async createWorkshopDecision(workshopId: string): Promise<Workshop> {
     return createWorkshopDecisionImpl(this.context, workshopId);
+  }
+
+  async addWorkshopActionItem(
+    workshopId: string,
+    input: CreateWorkshopActionInput,
+  ): Promise<Workshop> {
+    return addWorkshopActionItemImpl(this.context, workshopId, input);
+  }
+
+  async updateWorkshopActionItem(
+    workshopId: string,
+    actionId: string,
+    input: UpdateWorkshopActionInput,
+  ): Promise<Workshop> {
+    return updateWorkshopActionItemImpl(this.context, workshopId, actionId, input);
   }
 
   async linkWorkshopDownstream(

@@ -2,8 +2,8 @@
 import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 39;
-var STUDIO_PLUGIN_VERSION = "3.17.0";
+var STUDIO_SCHEMA_VERSION = 40;
+var STUDIO_PLUGIN_VERSION = "3.17.1";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -636,9 +636,19 @@ function migrateState(value) {
   if (state.schemaVersion === 38) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 39,
       milestones: [],
       tasks: state.tasks.map((task) => ({ ...task, milestoneId: null }))
+    };
+  }
+  if (state.schemaVersion === 39) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      workshops: state.workshops.map((workshop) => ({
+        ...workshop,
+        actionItems: []
+      }))
     };
   }
   return state;
@@ -748,7 +758,9 @@ function isWorkshop(value) {
     (item) => isRecord2(item) && typeof item.path === "string" && typeof item.content === "string"
   ) && Array.isArray(value.agenda) && value.agenda.every(isWorkshopAgendaItem) && Array.isArray(value.messages) && value.messages.every(isWorkshopMessage) && Array.isArray(value.sideChats) && value.sideChats.every(
     (chat) => isRecord2(chat) && typeof chat.roleId === "string" && Array.isArray(chat.messages) && chat.messages.every(isWorkshopMessage) && typeof chat.updatedAt === "string"
-  ) && (value.minutes === null || isWorkshopMinutes(value.minutes)) && (value.decisionId === null || typeof value.decisionId === "string") && (value.settledAt === null || typeof value.settledAt === "string") && Array.isArray(value.notes) && value.notes.every(isWorkshopNote) && (value.aiSummary === null || isWorkshopAiSummary(value.aiSummary)) && typeof value.synthesis === "string" && typeof value.decision === "string" && typeof value.decidedBy === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
+  ) && (value.minutes === null || isWorkshopMinutes(value.minutes)) && (value.decisionId === null || typeof value.decisionId === "string") && (value.settledAt === null || typeof value.settledAt === "string") && Array.isArray(value.notes) && value.notes.every(isWorkshopNote) && Array.isArray(value.actionItems) && value.actionItems.every(
+    (item) => isRecord2(item) && typeof item.id === "string" && typeof item.text === "string" && (item.ownerRoleId === null || typeof item.ownerRoleId === "string") && (item.status === "open" || item.status === "done") && (item.taskId === null || typeof item.taskId === "string") && typeof item.createdAt === "string" && typeof item.updatedAt === "string"
+  ) && (value.aiSummary === null || isWorkshopAiSummary(value.aiSummary)) && typeof value.synthesis === "string" && typeof value.decision === "string" && typeof value.decidedBy === "string" && (value.decidedAt === null || typeof value.decidedAt === "string") && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
 }
 function isBranchStatus(value) {
   return value === "open" || value === "review" || value === "merged" || value === "abandoned";
@@ -4330,6 +4342,7 @@ async function createWorkshop(ctx, input) {
       decisionId: null,
       settledAt: null,
       notes: [],
+      actionItems: [],
       aiSummary: null,
       synthesis: "",
       decision: "",
@@ -4796,6 +4809,73 @@ async function decideWorkshop(ctx, workshopId, decision) {
       projectId: workshop.projectId,
       payload: { workshopId }
     });
+    await ctx.save();
+    return structuredClone(workshop);
+  });
+}
+async function addWorkshopActionItem(ctx, workshopId, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const workshop = findWorkshop(state, workshopId);
+    const text2 = requiredText(input.text, "text", 500);
+    const ownerRoleId = input.ownerRoleId ?? null;
+    if (ownerRoleId !== null && !state.roles.some(
+      (role) => role.id === ownerRoleId && role.projectId === workshop.projectId
+    )) {
+      throw new StudioStoreError("role_not_found", "\u884C\u52A8\u9879\u8D1F\u8D23\u4EBA\u89D2\u8272\u4E0D\u5B58\u5728", 404);
+    }
+    const at = ctx.now();
+    const item = {
+      id: newId("action"),
+      text: text2,
+      ownerRoleId,
+      status: "open",
+      taskId: null,
+      createdAt: at,
+      updatedAt: at
+    };
+    workshop.actionItems.push(item);
+    workshop.updatedAt = at;
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "workshop.action_added",
+      at,
+      projectId: workshop.projectId,
+      payload: { workshopId, actionId: item.id }
+    });
+    await ctx.save();
+    return structuredClone(workshop);
+  });
+}
+async function updateWorkshopActionItem(ctx, workshopId, actionId, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const workshop = findWorkshop(state, workshopId);
+    const item = workshop.actionItems.find((entry) => entry.id === actionId);
+    if (item === void 0) {
+      throw new StudioStoreError("action_not_found", "\u884C\u52A8\u9879\u4E0D\u5B58\u5728", 404);
+    }
+    if (input.text !== void 0) {
+      item.text = requiredText(input.text, "text", 500);
+    }
+    if (input.ownerRoleId !== void 0) {
+      if (input.ownerRoleId !== null && !state.roles.some(
+        (role) => role.id === input.ownerRoleId && role.projectId === workshop.projectId
+      )) {
+        throw new StudioStoreError("role_not_found", "\u884C\u52A8\u9879\u8D1F\u8D23\u4EBA\u89D2\u8272\u4E0D\u5B58\u5728", 404);
+      }
+      item.ownerRoleId = input.ownerRoleId;
+    }
+    if (input.status !== void 0) {
+      if (input.status !== "open" && input.status !== "done") {
+        throw new StudioStoreError("invalid_status", "\u884C\u52A8\u9879\u72B6\u6001\u65E0\u6548", 400);
+      }
+      item.status = input.status;
+    }
+    const at = ctx.now();
+    item.updatedAt = at;
+    workshop.updatedAt = at;
+    state.updatedAt = at;
     await ctx.save();
     return structuredClone(workshop);
   });
@@ -6541,6 +6621,12 @@ var StudioStore = class {
   }
   async createWorkshopDecision(workshopId) {
     return createWorkshopDecision(this.context, workshopId);
+  }
+  async addWorkshopActionItem(workshopId, input) {
+    return addWorkshopActionItem(this.context, workshopId, input);
+  }
+  async updateWorkshopActionItem(workshopId, actionId, input) {
+    return updateWorkshopActionItem(this.context, workshopId, actionId, input);
   }
   async linkWorkshopDownstream(workshopId, input) {
     return linkWorkshopDownstream(this.context, workshopId, input);
@@ -9270,6 +9356,26 @@ function asUpdateMilestone(body) {
   }
   return result;
 }
+function asCreateWorkshopAction(body) {
+  return {
+    text: asString(body.text, "text"),
+    ownerRoleId: body.ownerRoleId === null || body.ownerRoleId === void 0 ? null : asString(body.ownerRoleId, "ownerRoleId")
+  };
+}
+function asUpdateWorkshopAction(body) {
+  const result = {};
+  if (body.text !== void 0) result.text = asString(body.text, "text");
+  if (body.ownerRoleId !== void 0) {
+    result.ownerRoleId = body.ownerRoleId === null ? null : asString(body.ownerRoleId, "ownerRoleId");
+  }
+  if (body.status !== void 0) {
+    if (body.status !== "open" && body.status !== "done") {
+      throw new HttpError(400, "invalid_input", "status \u65E0\u6548");
+    }
+    result.status = body.status;
+  }
+  return result;
+}
 
 // src/host/router/auth.ts
 import { timingSafeEqual as timingSafeEqual2 } from "node:crypto";
@@ -9999,6 +10105,31 @@ var StudioRouter = class {
       const workshop = await this.store.setWorkshopAgenda(
         decodeSegment(workshopAgenda[1] ?? ""),
         items
+      );
+      sendJson(res, 200, { ok: true, workshop });
+      return;
+    }
+    const workshopAction = /^\/studio-api\/workshops\/([^/]+)\/actions$/.exec(parsed.pathname);
+    if (workshopAction !== null) {
+      requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const workshop = await this.store.addWorkshopActionItem(
+        decodeSegment(workshopAction[1] ?? ""),
+        asCreateWorkshopAction(await readJson(req))
+      );
+      sendJson(res, 201, { ok: true, workshop });
+      return;
+    }
+    const workshopActionUpdate = /^\/studio-api\/workshops\/([^/]+)\/actions\/([^/]+)$/.exec(
+      parsed.pathname
+    );
+    if (workshopActionUpdate !== null) {
+      requireMethod(parsed, ["PATCH"]);
+      assertJsonRequest(req);
+      const workshop = await this.store.updateWorkshopActionItem(
+        decodeSegment(workshopActionUpdate[1] ?? ""),
+        decodeSegment(workshopActionUpdate[2] ?? ""),
+        asUpdateWorkshopAction(await readJson(req))
       );
       sendJson(res, 200, { ok: true, workshop });
       return;

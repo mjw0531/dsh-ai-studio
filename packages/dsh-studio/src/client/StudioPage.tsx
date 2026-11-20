@@ -471,6 +471,8 @@ export function StudioPage() {
     createRequirementDecision,
     createTask,
     createTaskFromMeeting,
+    addWorkshopAction,
+    updateWorkshopAction,
     createRole,
     updateRoleExecutor,
     updateRoleProvider,
@@ -729,6 +731,8 @@ export function StudioPage() {
                 changeRequests={data.freezeChangeRequests}
                 onLinkDownstream={linkWorkshopDownstream}
                 onCreateTask={createTaskFromMeeting}
+                onAddAction={addWorkshopAction}
+                onUpdateAction={updateWorkshopAction}
                 onOpenBoardroom={() => setTab("boardroom")}
               />
             ) : null}

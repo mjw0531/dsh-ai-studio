@@ -664,6 +664,18 @@ function isWorkshop(value: unknown): value is Workshop {
     (value.settledAt === null || typeof value.settledAt === "string") &&
     Array.isArray(value.notes) &&
     value.notes.every(isWorkshopNote) &&
+    Array.isArray(value.actionItems) &&
+    value.actionItems.every(
+      (item) =>
+        isRecord(item) &&
+        typeof item.id === "string" &&
+        typeof item.text === "string" &&
+        (item.ownerRoleId === null || typeof item.ownerRoleId === "string") &&
+        (item.status === "open" || item.status === "done") &&
+        (item.taskId === null || typeof item.taskId === "string") &&
+        typeof item.createdAt === "string" &&
+        typeof item.updatedAt === "string",
+    ) &&
     (value.aiSummary === null || isWorkshopAiSummary(value.aiSummary)) &&
     typeof value.synthesis === "string" &&
     typeof value.decision === "string" &&

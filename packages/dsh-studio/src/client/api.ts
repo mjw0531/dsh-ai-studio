@@ -31,6 +31,8 @@ import type {
   AddWorkshopNoteInput,
   ApproveStageGateInput,
   CreateTriggerInput,
+  CreateWorkshopActionInput,
+  UpdateWorkshopActionInput,
   CreateWorkshopInput,
   UpdateWorkshopMessageInput,
   Workshop,
@@ -368,6 +370,29 @@ export class StudioClient {
     const data = await this.request<{ workshop: Workshop }>(
       `/workshops/${encodeURIComponent(workshopId)}/summarize-minutes`,
       { method: "POST" },
+    );
+    return data.workshop;
+  }
+
+  async addWorkshopAction(
+    workshopId: string,
+    input: CreateWorkshopActionInput,
+  ): Promise<Workshop> {
+    const data = await this.request<{ workshop: Workshop }>(
+      `/workshops/${encodeURIComponent(workshopId)}/actions`,
+      { method: "POST", body: input },
+    );
+    return data.workshop;
+  }
+
+  async updateWorkshopAction(
+    workshopId: string,
+    actionId: string,
+    input: UpdateWorkshopActionInput,
+  ): Promise<Workshop> {
+    const data = await this.request<{ workshop: Workshop }>(
+      `/workshops/${encodeURIComponent(workshopId)}/actions/${encodeURIComponent(actionId)}`,
+      { method: "PATCH", body: input },
     );
     return data.workshop;
   }

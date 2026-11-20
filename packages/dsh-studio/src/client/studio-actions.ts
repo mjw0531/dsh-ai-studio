@@ -23,6 +23,8 @@ import type {
   CreateRoleInput,
   CreateTaskInput,
   CreateTriggerInput,
+  CreateWorkshopActionInput,
+  UpdateWorkshopActionInput,
   CreateWorkshopInput,
   DecideDecisionInput,
   MergeProposal,
@@ -181,6 +183,33 @@ export function createStudioActions({
         await client.reassignProviderProfile(fromProfileId, toProfileId);
       },
       "角色已改绑到备用 Profile",
+    );
+  };
+
+  const addWorkshopAction = async (
+    workshopId: string,
+    input: CreateWorkshopActionInput,
+  ): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.addWorkshopAction(workshopId, input);
+      },
+      "已添加行动项",
+    );
+  };
+
+  const updateWorkshopAction = async (
+    workshopId: string,
+    actionId: string,
+    input: UpdateWorkshopActionInput,
+  ): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.updateWorkshopAction(workshopId, actionId, input);
+      },
+      "行动项已更新",
     );
   };
 
@@ -1049,6 +1078,8 @@ export function createStudioActions({
     createRequirementDecision,
     createTask,
     createTaskFromMeeting,
+    addWorkshopAction,
+    updateWorkshopAction,
     createRole,
     updateRoleExecutor,
     updateRoleProvider,

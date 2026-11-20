@@ -2,6 +2,8 @@ import type {
   AcceptTriggerInput,
   AddWorkshopNoteInput,
   AgentRun,
+  CreateWorkshopActionInput,
+  UpdateWorkshopActionInput,
   ApiErrorBody,
   CreateMilestoneInput,
   UpdateMilestoneInput,
@@ -761,6 +763,38 @@ export function asUpdateMilestone(body: Record<string, unknown>): UpdateMileston
   if (body.goal !== undefined) result.goal = asOptionalString(body.goal, "goal");
   if (body.status !== undefined) {
     if (body.status !== "planned" && body.status !== "active" && body.status !== "done") {
+      throw new HttpError(400, "invalid_input", "status 无效");
+    }
+    result.status = body.status;
+  }
+  return result;
+}
+
+export function asCreateWorkshopAction(
+  body: Record<string, unknown>,
+): CreateWorkshopActionInput {
+  return {
+    text: asString(body.text, "text"),
+    ownerRoleId:
+      body.ownerRoleId === null || body.ownerRoleId === undefined
+        ? null
+        : asString(body.ownerRoleId, "ownerRoleId"),
+  };
+}
+
+export function asUpdateWorkshopAction(
+  body: Record<string, unknown>,
+): UpdateWorkshopActionInput {
+  const result: UpdateWorkshopActionInput = {};
+  if (body.text !== undefined) result.text = asString(body.text, "text");
+  if (body.ownerRoleId !== undefined) {
+    result.ownerRoleId =
+      body.ownerRoleId === null
+        ? null
+        : asString(body.ownerRoleId, "ownerRoleId");
+  }
+  if (body.status !== undefined) {
+    if (body.status !== "open" && body.status !== "done") {
       throw new HttpError(400, "invalid_input", "status 无效");
     }
     result.status = body.status;

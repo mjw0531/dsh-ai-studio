@@ -2,7 +2,7 @@
 import { timingSafeEqual as timingSafeEqual3 } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_PLUGIN_VERSION = "3.17.0";
+var STUDIO_PLUGIN_VERSION = "3.17.1";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -646,6 +646,26 @@ function asUpdateMilestone(body) {
   if (body.goal !== void 0) result.goal = asOptionalString(body.goal, "goal");
   if (body.status !== void 0) {
     if (body.status !== "planned" && body.status !== "active" && body.status !== "done") {
+      throw new HttpError(400, "invalid_input", "status \u65E0\u6548");
+    }
+    result.status = body.status;
+  }
+  return result;
+}
+function asCreateWorkshopAction(body) {
+  return {
+    text: asString(body.text, "text"),
+    ownerRoleId: body.ownerRoleId === null || body.ownerRoleId === void 0 ? null : asString(body.ownerRoleId, "ownerRoleId")
+  };
+}
+function asUpdateWorkshopAction(body) {
+  const result = {};
+  if (body.text !== void 0) result.text = asString(body.text, "text");
+  if (body.ownerRoleId !== void 0) {
+    result.ownerRoleId = body.ownerRoleId === null ? null : asString(body.ownerRoleId, "ownerRoleId");
+  }
+  if (body.status !== void 0) {
+    if (body.status !== "open" && body.status !== "done") {
       throw new HttpError(400, "invalid_input", "status \u65E0\u6548");
     }
     result.status = body.status;
@@ -1381,6 +1401,31 @@ var StudioRouter = class {
       const workshop = await this.store.setWorkshopAgenda(
         decodeSegment(workshopAgenda[1] ?? ""),
         items
+      );
+      sendJson(res, 200, { ok: true, workshop });
+      return;
+    }
+    const workshopAction = /^\/studio-api\/workshops\/([^/]+)\/actions$/.exec(parsed.pathname);
+    if (workshopAction !== null) {
+      requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const workshop = await this.store.addWorkshopActionItem(
+        decodeSegment(workshopAction[1] ?? ""),
+        asCreateWorkshopAction(await readJson(req))
+      );
+      sendJson(res, 201, { ok: true, workshop });
+      return;
+    }
+    const workshopActionUpdate = /^\/studio-api\/workshops\/([^/]+)\/actions\/([^/]+)$/.exec(
+      parsed.pathname
+    );
+    if (workshopActionUpdate !== null) {
+      requireMethod(parsed, ["PATCH"]);
+      assertJsonRequest(req);
+      const workshop = await this.store.updateWorkshopActionItem(
+        decodeSegment(workshopActionUpdate[1] ?? ""),
+        decodeSegment(workshopActionUpdate[2] ?? ""),
+        asUpdateWorkshopAction(await readJson(req))
       );
       sendJson(res, 200, { ok: true, workshop });
       return;

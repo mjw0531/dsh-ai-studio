@@ -5,6 +5,8 @@ import { isProjectStage } from "../../shared/types.js";
 import { StudioStoreError, newId, type StoreContext } from "./core.js";
 import type {
   AddWorkshopNoteInput,
+  CreateWorkshopActionInput,
+  UpdateWorkshopActionInput,
   CreatePrototypeDemoInput,
   CreateWorkshopInput,
   Project,
@@ -13,6 +15,7 @@ import type {
   Role,
   UpdatePrototypeDemoInput,
   Workshop,
+  WorkshopActionItem,
   WorkshopAgendaItem,
   WorkshopDownstreamInput,
   WorkshopAiSummary,
@@ -286,6 +289,7 @@ export async function createWorkshop(
         decisionId: null,
         settledAt: null,
         notes: [],
+        actionItems: [],
         aiSummary: null,
         synthesis: "",
         decision: "",
@@ -848,3 +852,89 @@ export async function decideWorkshop(
     });
   }
 
+export async function addWorkshopActionItem(
+  ctx: StoreContext,
+  workshopId: string,
+  input: CreateWorkshopActionInput,
+): Promise<Workshop> {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const workshop = findWorkshop(state, workshopId);
+    const text = requiredText(input.text, "text", 500);
+    const ownerRoleId = input.ownerRoleId ?? null;
+    if (
+      ownerRoleId !== null &&
+      !state.roles.some(
+        (role) =>
+          role.id === ownerRoleId && role.projectId === workshop.projectId,
+      )
+    ) {
+      throw new StudioStoreError("role_not_found", "行动项负责人角色不存在", 404);
+    }
+    const at = ctx.now();
+    const item: WorkshopActionItem = {
+      id: newId("action"),
+      text,
+      ownerRoleId,
+      status: "open",
+      taskId: null,
+      createdAt: at,
+      updatedAt: at,
+    };
+    workshop.actionItems.push(item);
+    workshop.updatedAt = at;
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "workshop.action_added",
+      at,
+      projectId: workshop.projectId,
+      payload: { workshopId, actionId: item.id },
+    });
+    await ctx.save();
+    return structuredClone(workshop);
+  });
+}
+
+export async function updateWorkshopActionItem(
+  ctx: StoreContext,
+  workshopId: string,
+  actionId: string,
+  input: UpdateWorkshopActionInput,
+): Promise<Workshop> {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const workshop = findWorkshop(state, workshopId);
+    const item = workshop.actionItems.find((entry) => entry.id === actionId);
+    if (item === undefined) {
+      throw new StudioStoreError("action_not_found", "行动项不存在", 404);
+    }
+    if (input.text !== undefined) {
+      item.text = requiredText(input.text, "text", 500);
+    }
+    if (input.ownerRoleId !== undefined) {
+      if (
+        input.ownerRoleId !== null &&
+        !state.roles.some(
+          (role) =>
+            role.id === input.ownerRoleId &&
+            role.projectId === workshop.projectId,
+        )
+      ) {
+        throw new StudioStoreError("role_not_found", "行动项负责人角色不存在", 404);
+      }
+      item.ownerRoleId = input.ownerRoleId;
+    }
+    if (input.status !== undefined) {
+      if (input.status !== "open" && input.status !== "done") {
+        throw new StudioStoreError("invalid_status", "行动项状态无效", 400);
+      }
+      item.status = input.status;
+    }
+    const at = ctx.now();
+    item.updatedAt = at;
+    workshop.updatedAt = at;
+    state.updatedAt = at;
+    await ctx.save();
+    return structuredClone(workshop);
+  });
+}

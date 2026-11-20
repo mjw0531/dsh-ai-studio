@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 39;
-export const STUDIO_PLUGIN_VERSION = "3.17.0";
+export const STUDIO_SCHEMA_VERSION = 40;
+export const STUDIO_PLUGIN_VERSION = "3.17.1";
 
 export type TaskStatus =
   | "backlog"
@@ -292,6 +292,29 @@ export interface WorkshopMinutes {
   editedByOwner: boolean;
 }
 
+export type WorkshopActionStatus = "open" | "done";
+
+export interface WorkshopActionItem {
+  id: string;
+  text: string;
+  ownerRoleId: string | null;
+  status: WorkshopActionStatus;
+  taskId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateWorkshopActionInput {
+  text: string;
+  ownerRoleId?: string | null;
+}
+
+export interface UpdateWorkshopActionInput {
+  text?: string;
+  ownerRoleId?: string | null;
+  status?: WorkshopActionStatus;
+}
+
 export interface WorkshopNote {
   id: string;
   roleId: string;
@@ -333,6 +356,7 @@ export interface Workshop {
   decisionId: string | null;
   settledAt: string | null;
   notes: WorkshopNote[];
+  actionItems: WorkshopActionItem[];
   aiSummary: WorkshopAiSummary | null;
   synthesis: string;
   decision: string;

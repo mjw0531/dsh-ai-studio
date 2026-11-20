@@ -490,9 +490,19 @@ export function migrateState(value: unknown): StudioState {
   if (state.schemaVersion === 38) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 39,
       milestones: [],
       tasks: state.tasks.map((task) => ({ ...task, milestoneId: null })),
+    };
+  }
+  if (state.schemaVersion === 39) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      workshops: state.workshops.map((workshop) => ({
+        ...workshop,
+        actionItems: [],
+      })),
     };
   }
   return state;
