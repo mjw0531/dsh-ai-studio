@@ -19,6 +19,7 @@ import type {
   WorkshopMinutesInput,
 } from "../../shared/types.js";
 import { formatDate } from "../lib/format.js";
+import { buildWorkshopRetrospective } from "../../shared/retrospective.js";
 import { IconPlus, IconUsers } from "../icons.js";
 
 const MEETING_TYPE_LABELS: Record<WorkshopMeetingType, string> = {
@@ -864,6 +865,32 @@ export function MeetingView({
                       </button>
                     </div>
                   </div>
+
+                  {active !== null ? (
+                    <details className="studio-meeting-retro">
+                      <summary>会议复盘</summary>
+                      <div className="studio-section-text">
+                        决策：{active.decision || active.minutes?.decisionDraft || "未形成决策"}
+                      </div>
+                      <div className="studio-faint">
+                        行动项 {buildWorkshopRetrospective(active, tasks).actionDone}/
+                        {buildWorkshopRetrospective(active, tasks).actionTotal}
+                        {" · "}材料快照 {active.materials.length}
+                      </div>
+                      <button
+                        className="studio-btn"
+                        data-size="sm"
+                        type="button"
+                        onClick={() =>
+                          void navigator.clipboard?.writeText(
+                            buildWorkshopRetrospective(active, tasks).markdown,
+                          )
+                        }
+                      >
+                        复制复盘
+                      </button>
+                    </details>
+                  ) : null}
 
                   <div className="studio-meeting-participants">
                     {participantRoles.map((role) => (

@@ -119,6 +119,19 @@ await build({
 
 await build({
   absWorkingDir: root,
+  entryPoints: [path.join(root, "src/shared/retrospective.ts")],
+  outfile: path.join(libDir, "retrospective.js"),
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "node22",
+  sourcemap: false,
+  legalComments: "none",
+  logLevel: "info",
+});
+
+await build({
+  absWorkingDir: root,
   entryPoints: [path.join(root, "src/shared/journey.ts")],
   outfile: path.join(libDir, "journey.js"),
   bundle: true,
