@@ -511,6 +511,7 @@ export function MeetingView({
   tasks,
   changeRequests,
   onLinkDownstream,
+  onCreateTask,
   onOpenBoardroom,
 }: {
   project: Project | null;
@@ -551,6 +552,7 @@ export function MeetingView({
     workshopId: string,
     input: WorkshopDownstreamInput,
   ) => Promise<boolean>;
+  onCreateTask: (workshop: Workshop) => Promise<boolean>;
   onOpenBoardroom: () => void;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -733,6 +735,17 @@ export function MeetingView({
                     >
                       保存下游关联
                     </button>
+                    {active.linkedTaskId === null &&
+                    active.minutes !== null ? (
+                      <button
+                        className="studio-btn"
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void onCreateTask(active)}
+                      >
+                        从会议创建任务
+                      </button>
+                    ) : null}
                   </div>
                   <div className="studio-meeting-participants">
                     {participantRoles.map((role) => (

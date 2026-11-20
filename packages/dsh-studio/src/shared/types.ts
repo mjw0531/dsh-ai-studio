@@ -5,7 +5,7 @@
  */
 
 export const STUDIO_SCHEMA_VERSION = 39;
-export const STUDIO_PLUGIN_VERSION = "3.16.9";
+export const STUDIO_PLUGIN_VERSION = "3.17.0";
 
 export type TaskStatus =
   | "backlog"

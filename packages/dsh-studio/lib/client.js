@@ -880,6 +880,27 @@ function createStudioActions({
       "\u89D2\u8272\u5DF2\u6539\u7ED1\u5230\u5907\u7528 Profile"
     );
   };
+  const createTaskFromMeeting = async (workshop) => {
+    return run(
+      async () => {
+        if (client === null) return;
+        const conclusion = workshop.decision.trim() || workshop.synthesis.trim() || workshop.minutes?.decisionDraft.trim() || workshop.minutes?.consensus.join("\uFF1B") || workshop.topic;
+        const task = await client.createTask({
+          title: `\u4F1A\u8BAE\u7ED3\u8BBA\uFF1A${workshop.title}`.slice(0, 160),
+          goal: conclusion,
+          priority: "P1",
+          acceptance: ["\u4F1A\u8BAE\u7ED3\u8BBA\u5DF2\u8F6C\u6210\u53EF\u9A8C\u6536\u4EFB\u52A1", "\u6709\u660E\u786E\u8D1F\u8D23\u4EBA\u548C\u9A8C\u6536\u4EBA"],
+          ownerRoleId: workshop.participantRoleIds[0] ?? null,
+          reviewerRoleId: workshop.participantRoleIds[1] ?? null,
+          kind: "new"
+        });
+        await client.linkWorkshopDownstream(workshop.id, {
+          linkedTaskId: task.id
+        });
+      },
+      "\u5DF2\u4ECE\u4F1A\u8BAE\u521B\u5EFA\u4EFB\u52A1"
+    );
+  };
   const createFreeze = async (input) => {
     if (project === null) return false;
     return run(
@@ -1531,6 +1552,7 @@ function createStudioActions({
     decideFreezeChangeRequest,
     createRequirementDecision,
     createTask,
+    createTaskFromMeeting,
     createRole,
     updateRoleExecutor,
     updateRoleProvider,
@@ -2756,6 +2778,7 @@ function MeetingView({
   tasks,
   changeRequests,
   onLinkDownstream,
+  onCreateTask,
   onOpenBoardroom
 }) {
   const [selectedId, setSelectedId] = (0, import_react2.useState)(
@@ -2916,7 +2939,17 @@ function MeetingView({
                   }),
                   children: "\u4FDD\u5B58\u4E0B\u6E38\u5173\u8054"
                 }
-              )
+              ),
+              active.linkedTaskId === null && active.minutes !== null ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+                "button",
+                {
+                  className: "studio-btn",
+                  type: "button",
+                  disabled: busy,
+                  onClick: () => void onCreateTask(active),
+                  children: "\u4ECE\u4F1A\u8BAE\u521B\u5EFA\u4EFB\u52A1"
+                }
+              ) : null
             ] }),
             /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-meeting-participants", children: [
               participantRoles.map((role) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "studio-pill", children: role.name }, role.id)),
@@ -8676,6 +8709,7 @@ function StudioPage() {
     decideFreezeChangeRequest,
     createRequirementDecision,
     createTask,
+    createTaskFromMeeting,
     createRole,
     updateRoleExecutor,
     updateRoleProvider,
@@ -8896,6 +8930,7 @@ function StudioPage() {
             tasks: data.tasks,
             changeRequests: data.freezeChangeRequests,
             onLinkDownstream: linkWorkshopDownstream,
+            onCreateTask: createTaskFromMeeting,
             onOpenBoardroom: () => setTab("boardroom")
           }
         ) : null,

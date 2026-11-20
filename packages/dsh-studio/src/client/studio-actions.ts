@@ -184,6 +184,35 @@ export function createStudioActions({
     );
   };
 
+  const createTaskFromMeeting = async (
+    workshop: Workshop,
+  ): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null) return;
+        const conclusion =
+          workshop.decision.trim() ||
+          workshop.synthesis.trim() ||
+          workshop.minutes?.decisionDraft.trim() ||
+          workshop.minutes?.consensus.join("；") ||
+          workshop.topic;
+        const task = await client.createTask({
+          title: `会议结论：${workshop.title}`.slice(0, 160),
+          goal: conclusion,
+          priority: "P1",
+          acceptance: ["会议结论已转成可验收任务", "有明确负责人和验收人"],
+          ownerRoleId: workshop.participantRoleIds[0] ?? null,
+          reviewerRoleId: workshop.participantRoleIds[1] ?? null,
+          kind: "new",
+        });
+        await client.linkWorkshopDownstream(workshop.id, {
+          linkedTaskId: task.id,
+        });
+      },
+      "已从会议创建任务",
+    );
+  };
+
   const createFreeze = async (
     input: CreateProjectFreezeInput,
   ): Promise<boolean> => {
@@ -1019,6 +1048,7 @@ export function createStudioActions({
     decideFreezeChangeRequest,
     createRequirementDecision,
     createTask,
+    createTaskFromMeeting,
     createRole,
     updateRoleExecutor,
     updateRoleProvider,
