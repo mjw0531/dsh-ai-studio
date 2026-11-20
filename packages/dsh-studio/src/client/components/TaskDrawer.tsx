@@ -19,6 +19,7 @@ import type {
   MergeProposal,
   Milestone,
   MergeRisk,
+  Project,
   Role,
   Task,
   TaskStatus,
@@ -51,6 +52,7 @@ import {
 
 export function TaskDrawer({
   task,
+  project,
   roles,
   tasks,
   milestones,
@@ -77,6 +79,7 @@ export function TaskDrawer({
   onRollbackMerge,
 }: {
   task: Task;
+  project: Project | null;
   roles: Role[];
   tasks: Task[];
   milestones: Milestone[];
@@ -345,6 +348,9 @@ export function TaskDrawer({
 
           <TaskAgentPanel
             task={task}
+            project={project}
+            tasks={tasks}
+            roles={roles}
             runs={runs}
             busy={busy}
             codeMode={codeMode}

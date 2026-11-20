@@ -836,6 +836,12 @@ export const views = `
 .studio-toast[data-kind="error"] svg { color: var(--st-danger); }
 @keyframes studio-toast-in { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
 
+.studio-dispatch-checks { display: grid; gap: 4px; margin-top: 9px; padding: 8px 9px; border: 1px solid var(--st-border); border-radius: 8px; background: var(--st-panel); }
+.studio-dispatch-check { display: flex; gap: 7px; align-items: flex-start; font-size: 10px; color: var(--st-muted); }
+.studio-dispatch-check[data-ok="true"] { color: var(--st-ok); }
+.studio-dispatch-check[data-ok="false"] { color: var(--st-warn); }
+.studio-dispatch-check .studio-faint { margin-left: auto; text-align: right; }
+
 .studio-journey { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 14px; padding: 8px; border: 1px solid var(--st-border); border-radius: 10px; background: var(--st-panel); }
 .studio-journey-step { display: flex; align-items: center; gap: 5px; padding: 5px 8px; border-radius: 7px; color: var(--st-faint); font-size: 10px; }
 .studio-journey-step[data-state="active"] { color: var(--st-text); background: var(--st-accent-soft); }

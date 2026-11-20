@@ -119,6 +119,19 @@ await build({
 
 await build({
   absWorkingDir: root,
+  entryPoints: [path.join(root, "src/shared/dispatch-readiness.ts")],
+  outfile: path.join(libDir, "dispatch-readiness.js"),
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "node22",
+  sourcemap: false,
+  legalComments: "none",
+  logLevel: "info",
+});
+
+await build({
+  absWorkingDir: root,
   entryPoints: [path.join(root, "src/shared/meeting-split.ts")],
   outfile: path.join(libDir, "meeting-split.js"),
   bundle: true,

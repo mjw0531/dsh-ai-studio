@@ -5,10 +5,13 @@ import type {
   AgentReceipt,
   AgentRun,
   IndependentReview,
+  Project,
+  Role,
   Task,
   Verification,
 } from "../../shared/types.js";
 import { formatDate } from "../lib/format.js";
+import { diagnoseDispatch } from "../../shared/dispatch-readiness.js";
 import { IconAlert, IconCheck, IconSpark } from "../icons.js";
 
 export function TaskReviewPanel({
@@ -175,21 +178,26 @@ export function TaskVerificationPanel({
 
 export function TaskAgentPanel({
   task,
+  project,
+  tasks,
+  roles,
   runs,
   busy,
   codeMode,
   onDispatch,
 }: {
   task: Task;
+  project: Project | null;
+  tasks: Task[];
+  roles: Role[];
   runs: AgentRun[];
   busy: boolean;
   codeMode: boolean;
   onDispatch: () => Promise<boolean>;
 }) {
   const latest = runs[0] ?? null;
-  const canDispatch =
-    task.ownerRoleId !== null &&
-    (task.status === "backlog" || task.status === "ready");
+  const diagnosis = diagnoseDispatch({ task, project, roles, tasks });
+  const canDispatch = diagnosis.ready;
 
   return (
     <section>
@@ -198,6 +206,21 @@ export function TaskAgentPanel({
         {codeMode
           ? "代码模式：Agent 在独立 worktree 内实现任务、运行测试并把 diff 写入 Run；不会合并或推送。"
           : "分析模式：还没有绑定代码仓库。Agent 只读任务与契约，返回结构化回执；在设置里绑定仓库即可进入代码模式。"}
+      </div>
+      <div className="studio-dispatch-checks">
+        {diagnosis.checks.map((check) => (
+          <div
+            key={check.id}
+            className="studio-dispatch-check"
+            data-ok={check.ok}
+          >
+            <span>{check.ok ? "✓" : "!"}</span>
+            <span>{check.label}</span>
+            {!check.ok && check.hint !== "" ? (
+              <span className="studio-faint">{check.hint}</span>
+            ) : null}
+          </div>
+        ))}
       </div>
       <div className="studio-actions" style={{ marginTop: 9 }}>
         <button

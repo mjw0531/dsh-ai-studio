@@ -7480,6 +7480,50 @@ function TaskMergePanel({
 
 // src/client/components/TaskRunPanels.tsx
 var import_react15 = require("react");
+
+// src/shared/dispatch-readiness.ts
+function diagnoseDispatch(input) {
+  const { task, project, roles, tasks } = input;
+  const owner = roles.find((role) => role.id === task.ownerRoleId);
+  const blockers = task.dependsOn.map((id) => tasks.find((item) => item.id === id)).filter((item) => item !== void 0 && item.status !== "done");
+  const codeMode = project?.repoPath != null;
+  const stageOk = !codeMode || project?.stage === "prototype" || project?.stage === "development";
+  const checks2 = [
+    {
+      id: "status",
+      label: "\u4EFB\u52A1\u5904\u4E8E\u5F85\u89C4\u5212\u6216\u53EF\u5F00\u59CB",
+      ok: task.status === "backlog" || task.status === "ready",
+      hint: "\u4ECE\u4EFB\u52A1\u72B6\u6001\u680F\u628A\u4EFB\u52A1\u63A8\u8FDB\u5230\u300C\u53EF\u5F00\u59CB\u300D\u3002"
+    },
+    {
+      id: "owner",
+      label: "\u5DF2\u6307\u5B9A\u8D1F\u8D23\u4EBA\u89D2\u8272",
+      ok: task.ownerRoleId !== null && owner !== void 0,
+      hint: "\u5728\u4EFB\u52A1\u7F16\u8F91\u91CC\u9009\u62E9\u8D1F\u8D23\u4EBA\u89D2\u8272\u3002"
+    },
+    {
+      id: "dependencies",
+      label: "\u524D\u7F6E\u4EFB\u52A1\u5DF2\u5B8C\u6210",
+      ok: blockers.length === 0,
+      hint: blockers.length === 0 ? "" : `\u5148\u5B8C\u6210\uFF1A${blockers.map((item) => `${item.number} ${item.title}`).join("\uFF1B")}`
+    },
+    {
+      id: "fix-plan",
+      label: "\u6539\u4FEE\u7968\u6709\u8BCA\u65AD\u548C\u4FEE\u6539\u8BA1\u5212",
+      ok: task.kind !== "fix" || task.integration || task.diagnosis.trim() !== "" && task.plan.trim() !== "",
+      hint: "\u6539\u4FEE\u7968\u5FC5\u987B\u5199\u6E05\u6839\u56E0\u3001\u4FEE\u6539\u8BA1\u5212\u3002"
+    },
+    {
+      id: "stage",
+      label: "\u4EE3\u7801\u9879\u76EE\u9636\u6BB5\u5141\u8BB8\u6D3E\u5355",
+      ok: stageOk,
+      hint: "\u53EA\u6709\u539F\u578B\u6216\u5F00\u53D1\u9636\u6BB5\u80FD\u6D3E\u5355\uFF1B\u5148\u901A\u8FC7\u9636\u6BB5\u95E8\u7981\u3002"
+    }
+  ];
+  return { ready: checks2.every((check) => check.ok), checks: checks2 };
+}
+
+// src/client/components/TaskRunPanels.tsx
 var import_jsx_runtime21 = require("react/jsx-runtime");
 function TaskReviewPanel({
   task,
@@ -7610,16 +7654,33 @@ function TaskVerificationPanel({
 }
 function TaskAgentPanel({
   task,
+  project,
+  tasks,
+  roles,
   runs,
   busy,
   codeMode,
   onDispatch
 }) {
   const latest = runs[0] ?? null;
-  const canDispatch = task.ownerRoleId !== null && (task.status === "backlog" || task.status === "ready");
+  const diagnosis = diagnoseDispatch({ task, project, roles, tasks });
+  const canDispatch = diagnosis.ready;
   return /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("section", { children: [
     /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-section-label", children: "Agent \u6D3E\u5355" }),
     /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-action-note", style: { marginTop: 0 }, children: codeMode ? "\u4EE3\u7801\u6A21\u5F0F\uFF1AAgent \u5728\u72EC\u7ACB worktree \u5185\u5B9E\u73B0\u4EFB\u52A1\u3001\u8FD0\u884C\u6D4B\u8BD5\u5E76\u628A diff \u5199\u5165 Run\uFF1B\u4E0D\u4F1A\u5408\u5E76\u6216\u63A8\u9001\u3002" : "\u5206\u6790\u6A21\u5F0F\uFF1A\u8FD8\u6CA1\u6709\u7ED1\u5B9A\u4EE3\u7801\u4ED3\u5E93\u3002Agent \u53EA\u8BFB\u4EFB\u52A1\u4E0E\u5951\u7EA6\uFF0C\u8FD4\u56DE\u7ED3\u6784\u5316\u56DE\u6267\uFF1B\u5728\u8BBE\u7F6E\u91CC\u7ED1\u5B9A\u4ED3\u5E93\u5373\u53EF\u8FDB\u5165\u4EE3\u7801\u6A21\u5F0F\u3002" }),
+    /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className: "studio-dispatch-checks", children: diagnosis.checks.map((check) => /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
+      "div",
+      {
+        className: "studio-dispatch-check",
+        "data-ok": check.ok,
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("span", { children: check.ok ? "\u2713" : "!" }),
+          /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("span", { children: check.label }),
+          !check.ok && check.hint !== "" ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("span", { className: "studio-faint", children: check.hint }) : null
+        ]
+      },
+      check.id
+    )) }),
     /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { className: "studio-actions", style: { marginTop: 9 }, children: [
       /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
         "button",
@@ -7743,6 +7804,7 @@ function ReceiptList({ label, items }) {
 var import_jsx_runtime22 = require("react/jsx-runtime");
 function TaskDrawer({
   task,
+  project,
   roles,
   tasks,
   milestones,
@@ -7992,6 +8054,9 @@ function TaskDrawer({
                 TaskAgentPanel,
                 {
                   task,
+                  project,
+                  tasks,
+                  roles,
                   runs,
                   busy,
                   codeMode,
@@ -9637,6 +9702,7 @@ function StudioPage() {
       TaskDrawer,
       {
         task: selectedTask,
+        project: data.project,
         roles: data.roles,
         tasks: data.tasks,
         milestones: data.milestones,
@@ -11408,6 +11474,12 @@ var views = `
 .studio-toast[data-kind="error"] { border-color: rgba(255, 117, 133, 0.3); }
 .studio-toast[data-kind="error"] svg { color: var(--st-danger); }
 @keyframes studio-toast-in { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+.studio-dispatch-checks { display: grid; gap: 4px; margin-top: 9px; padding: 8px 9px; border: 1px solid var(--st-border); border-radius: 8px; background: var(--st-panel); }
+.studio-dispatch-check { display: flex; gap: 7px; align-items: flex-start; font-size: 10px; color: var(--st-muted); }
+.studio-dispatch-check[data-ok="true"] { color: var(--st-ok); }
+.studio-dispatch-check[data-ok="false"] { color: var(--st-warn); }
+.studio-dispatch-check .studio-faint { margin-left: auto; text-align: right; }
 
 .studio-journey { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 14px; padding: 8px; border: 1px solid var(--st-border); border-radius: 10px; background: var(--st-panel); }
 .studio-journey-step { display: flex; align-items: center; gap: 5px; padding: 5px 8px; border-radius: 7px; color: var(--st-faint); font-size: 10px; }

@@ -879,6 +879,7 @@ export function StudioPage() {
         <TaskDrawer
           key={selectedTask.id}
           task={selectedTask}
+          project={data.project}
           roles={data.roles}
           tasks={data.tasks}
           milestones={data.milestones}
