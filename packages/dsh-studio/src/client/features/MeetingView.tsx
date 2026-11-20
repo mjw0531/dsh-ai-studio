@@ -20,6 +20,7 @@ import type {
 } from "../../shared/types.js";
 import { formatDate } from "../lib/format.js";
 import { buildWorkshopRetrospective } from "../../shared/retrospective.js";
+import { parseMeetingTaskLines } from "../../shared/meeting-split.js";
 import { IconPlus, IconUsers } from "../icons.js";
 
 const MEETING_TYPE_LABELS: Record<WorkshopMeetingType, string> = {
@@ -517,6 +518,7 @@ export function MeetingView({
   onLinkDownstream,
   onCreateTask,
   onCreateTaskFromAction,
+  onSplitTasks,
   onAddAction,
   onUpdateAction,
   onOpenBoardroom,
@@ -564,6 +566,7 @@ export function MeetingView({
     workshop: Workshop,
     action: WorkshopActionItem,
   ) => Promise<boolean>;
+  onSplitTasks: (workshop: Workshop, lines: string[]) => Promise<boolean>;
   onAddAction: (
     workshopId: string,
     input: CreateWorkshopActionInput,
@@ -587,6 +590,7 @@ export function MeetingView({
   const [linkedChangeRequestId, setLinkedChangeRequestId] = useState("");
   const [actionText, setActionText] = useState("");
   const [actionOwner, setActionOwner] = useState("");
+  const [splitText, setSplitText] = useState("");
 
   const active = useMemo(
     () => workshops.find((item) => item.id === selectedId) ?? workshops[0] ?? null,
@@ -865,6 +869,37 @@ export function MeetingView({
                       </button>
                     </div>
                   </div>
+
+                  {active !== null ? (
+                    <details className="studio-meeting-retro">
+                      <summary>批量拆任务</summary>
+                      <div className="studio-field">
+                        <label>每行一个任务，最多 10 条</label>
+                        <textarea
+                          value={splitText}
+                          onChange={(event) => setSplitText(event.target.value)}
+                          placeholder="实现移动\n实现跳跃\n补边界测试"
+                        />
+                      </div>
+                      <button
+                        className="studio-btn"
+                        type="button"
+                        disabled={
+                          busy || parseMeetingTaskLines(splitText).length === 0
+                        }
+                        onClick={() =>
+                          void onSplitTasks(
+                            active,
+                            parseMeetingTaskLines(splitText),
+                          ).then((ok) => {
+                            if (ok) setSplitText("");
+                          })
+                        }
+                      >
+                        拆成任务
+                      </button>
+                    </details>
+                  ) : null}
 
                   {active !== null ? (
                     <details className="studio-meeting-retro">

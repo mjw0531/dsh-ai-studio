@@ -214,6 +214,37 @@ export function createStudioActions({
     );
   };
 
+  const splitMeetingTasks = async (
+    workshop: Workshop,
+    lines: string[],
+  ): Promise<boolean> => {
+    if (lines.length === 0) return false;
+    return run(
+      async () => {
+        if (client === null) return;
+        const created: Task[] = [];
+        for (const line of lines) {
+          const task = await client.createTask({
+            title: line,
+            goal: `会议「${workshop.title}」批量拆分任务`,
+            priority: "P1",
+            acceptance: ["任务完成并有可复现证据"],
+            ownerRoleId: workshop.participantRoleIds[0] ?? null,
+            reviewerRoleId: workshop.participantRoleIds[1] ?? null,
+            kind: "new",
+          });
+          created.push(task);
+        }
+        if (created[0] !== undefined) {
+          await client.linkWorkshopDownstream(workshop.id, {
+            linkedTaskId: created[0].id,
+          });
+        }
+      },
+      "会议任务已拆分",
+    );
+  };
+
   const createTaskFromAction = async (
     workshop: Workshop,
     action: WorkshopActionItem,
@@ -1104,6 +1135,7 @@ export function createStudioActions({
     createTask,
     createTaskFromMeeting,
     createTaskFromAction,
+    splitMeetingTasks,
     addWorkshopAction,
     updateWorkshopAction,
     createRole,

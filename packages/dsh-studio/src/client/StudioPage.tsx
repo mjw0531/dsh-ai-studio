@@ -472,6 +472,7 @@ export function StudioPage() {
     createTask,
     createTaskFromMeeting,
     createTaskFromAction,
+    splitMeetingTasks,
     addWorkshopAction,
     updateWorkshopAction,
     createRole,
@@ -733,6 +734,7 @@ export function StudioPage() {
                 onLinkDownstream={linkWorkshopDownstream}
                 onCreateTask={createTaskFromMeeting}
                 onCreateTaskFromAction={createTaskFromAction}
+                onSplitTasks={splitMeetingTasks}
                 onAddAction={addWorkshopAction}
                 onUpdateAction={updateWorkshopAction}
                 onOpenBoardroom={() => setTab("boardroom")}

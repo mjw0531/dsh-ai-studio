@@ -912,6 +912,33 @@ function createStudioActions({
       "\u884C\u52A8\u9879\u5DF2\u66F4\u65B0"
     );
   };
+  const splitMeetingTasks = async (workshop, lines2) => {
+    if (lines2.length === 0) return false;
+    return run(
+      async () => {
+        if (client === null) return;
+        const created = [];
+        for (const line of lines2) {
+          const task = await client.createTask({
+            title: line,
+            goal: `\u4F1A\u8BAE\u300C${workshop.title}\u300D\u6279\u91CF\u62C6\u5206\u4EFB\u52A1`,
+            priority: "P1",
+            acceptance: ["\u4EFB\u52A1\u5B8C\u6210\u5E76\u6709\u53EF\u590D\u73B0\u8BC1\u636E"],
+            ownerRoleId: workshop.participantRoleIds[0] ?? null,
+            reviewerRoleId: workshop.participantRoleIds[1] ?? null,
+            kind: "new"
+          });
+          created.push(task);
+        }
+        if (created[0] !== void 0) {
+          await client.linkWorkshopDownstream(workshop.id, {
+            linkedTaskId: created[0].id
+          });
+        }
+      },
+      "\u4F1A\u8BAE\u4EFB\u52A1\u5DF2\u62C6\u5206"
+    );
+  };
   const createTaskFromAction = async (workshop, action) => {
     return run(
       async () => {
@@ -1606,6 +1633,7 @@ function createStudioActions({
     createTask,
     createTaskFromMeeting,
     createTaskFromAction,
+    splitMeetingTasks,
     addWorkshopAction,
     updateWorkshopAction,
     createRole,
@@ -2454,6 +2482,20 @@ function buildWorkshopRetrospective(workshop, tasks) {
   };
 }
 
+// src/shared/meeting-split.ts
+function parseMeetingTaskLines(text) {
+  const seen = /* @__PURE__ */ new Set();
+  const lines2 = [];
+  for (const raw of text.split(/\r?\n/u)) {
+    const line = raw.replace(/^\s*(?:[-*]|\d+[.)])\s*/u, "").trim();
+    if (line === "" || seen.has(line)) continue;
+    seen.add(line);
+    lines2.push(line.slice(0, 160));
+    if (lines2.length >= 10) break;
+  }
+  return lines2;
+}
+
 // src/client/features/MeetingView.tsx
 var import_jsx_runtime4 = require("react/jsx-runtime");
 var MEETING_TYPE_LABELS = {
@@ -2877,6 +2919,7 @@ function MeetingView({
   onLinkDownstream,
   onCreateTask,
   onCreateTaskFromAction,
+  onSplitTasks,
   onAddAction,
   onUpdateAction,
   onOpenBoardroom
@@ -2893,6 +2936,7 @@ function MeetingView({
   const [linkedChangeRequestId, setLinkedChangeRequestId] = (0, import_react2.useState)("");
   const [actionText, setActionText] = (0, import_react2.useState)("");
   const [actionOwner, setActionOwner] = (0, import_react2.useState)("");
+  const [splitText, setSplitText] = (0, import_react2.useState)("");
   const active = (0, import_react2.useMemo)(
     () => workshops.find((item) => item.id === selectedId) ?? workshops[0] ?? null,
     [selectedId, workshops]
@@ -3135,6 +3179,35 @@ function MeetingView({
                 )
               ] })
             ] }),
+            active !== null ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("details", { className: "studio-meeting-retro", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("summary", { children: "\u6279\u91CF\u62C6\u4EFB\u52A1" }),
+              /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-field", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("label", { children: "\u6BCF\u884C\u4E00\u4E2A\u4EFB\u52A1\uFF0C\u6700\u591A 10 \u6761" }),
+                /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+                  "textarea",
+                  {
+                    value: splitText,
+                    onChange: (event) => setSplitText(event.target.value),
+                    placeholder: "\u5B9E\u73B0\u79FB\u52A8\\n\u5B9E\u73B0\u8DF3\u8DC3\\n\u8865\u8FB9\u754C\u6D4B\u8BD5"
+                  }
+                )
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+                "button",
+                {
+                  className: "studio-btn",
+                  type: "button",
+                  disabled: busy || parseMeetingTaskLines(splitText).length === 0,
+                  onClick: () => void onSplitTasks(
+                    active,
+                    parseMeetingTaskLines(splitText)
+                  ).then((ok) => {
+                    if (ok) setSplitText("");
+                  }),
+                  children: "\u62C6\u6210\u4EFB\u52A1"
+                }
+              )
+            ] }) : null,
             active !== null ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("details", { className: "studio-meeting-retro", children: [
               /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("summary", { children: "\u4F1A\u8BAE\u590D\u76D8" }),
               /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-section-text", children: [
@@ -8923,6 +8996,7 @@ function StudioPage() {
     createTask,
     createTaskFromMeeting,
     createTaskFromAction,
+    splitMeetingTasks,
     addWorkshopAction,
     updateWorkshopAction,
     createRole,
@@ -9147,6 +9221,7 @@ function StudioPage() {
             onLinkDownstream: linkWorkshopDownstream,
             onCreateTask: createTaskFromMeeting,
             onCreateTaskFromAction: createTaskFromAction,
+            onSplitTasks: splitMeetingTasks,
             onAddAction: addWorkshopAction,
             onUpdateAction: updateWorkshopAction,
             onOpenBoardroom: () => setTab("boardroom")
