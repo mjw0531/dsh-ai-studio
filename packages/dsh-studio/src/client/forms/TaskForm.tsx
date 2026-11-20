@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import { PRIORITY_LABELS, TASK_KIND_LABELS } from "../../shared/types.js";
 import type {
   CreateTaskInput,
+  Milestone,
   Role,
   Task,
   TaskKind,
@@ -13,12 +14,14 @@ import { ModalShell } from "../components/ModalShell.js";
 export function TaskForm({
   roles,
   tasks,
+  milestones,
   busy,
   onCancel,
   onSubmit,
 }: {
   roles: Role[];
   tasks: Task[];
+  milestones: Milestone[];
   busy: boolean;
   onCancel: () => void;
   onSubmit: (input: CreateTaskInput) => void;
@@ -45,6 +48,7 @@ export function TaskForm({
   const [plan, setPlan] = useState("");
   const [integration, setIntegration] = useState(false);
   const [dependsOn, setDependsOn] = useState<string[]>([]);
+  const [milestoneId, setMilestoneId] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
 
   const submit = (event: FormEvent): void => {
@@ -96,6 +100,7 @@ export function TaskForm({
       plan: plan.trim(),
       integration,
       dependsOn,
+      milestoneId: milestoneId || null,
     });
   };
 
@@ -180,6 +185,20 @@ export function TaskForm({
           <div className="studio-hint">
             每行一条，Studio Host 在 worktree 内按顺序执行；任一步失败即停止。通过会写 evidence，但不自动通过验收。
           </div>
+        </div>
+        <div className="studio-field">
+          <label>里程碑（可选）</label>
+          <select
+            value={milestoneId}
+            onChange={(event) => setMilestoneId(event.target.value)}
+          >
+            <option value="">不归入里程碑</option>
+            {milestones.map((milestone) => (
+              <option key={milestone.id} value={milestone.id}>
+                {milestone.title}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="studio-field">
           <label>前置任务（可选）</label>

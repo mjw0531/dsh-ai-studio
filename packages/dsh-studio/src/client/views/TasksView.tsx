@@ -19,16 +19,22 @@ export function TasksView({
   data,
   onOpenTask,
   onNewTask,
+  onCreateMilestone,
 }: {
   data: BootstrapResponse;
   onOpenTask: (id: string) => void;
   onNewTask: () => void;
+  onCreateMilestone: (title: string) => Promise<boolean>;
 }) {
   const [filter, setFilter] = useState<TaskStatus | "all">("all");
-  const tasks =
-    filter === "all"
-      ? data.tasks
-      : data.tasks.filter((task) => task.status === filter);
+  const [milestoneFilter, setMilestoneFilter] = useState<string>("all");
+  const [milestoneTitle, setMilestoneTitle] = useState("");
+  const tasks = data.tasks
+    .filter((task) => filter === "all" || task.status === filter)
+    .filter(
+      (task) =>
+        milestoneFilter === "all" || task.milestoneId === milestoneFilter,
+    );
 
   return (
     <>
@@ -78,6 +84,40 @@ export function TasksView({
         <span className="studio-muted">
           验收项 {data.stats.acceptanceDone}/{data.stats.acceptanceTotal}
         </span>
+      </div>
+
+      <div className="studio-toolbar">
+        <select
+          value={milestoneFilter}
+          onChange={(event) => setMilestoneFilter(event.target.value)}
+          aria-label="按里程碑筛选"
+        >
+          <option value="all">全部里程碑</option>
+          {data.milestones.map((milestone) => (
+            <option key={milestone.id} value={milestone.id}>
+              {milestone.title}
+            </option>
+          ))}
+        </select>
+        <input
+          value={milestoneTitle}
+          onChange={(event) => setMilestoneTitle(event.target.value)}
+          placeholder="新里程碑名称"
+          aria-label="新里程碑名称"
+        />
+        <button
+          type="button"
+          className="studio-btn"
+          data-size="sm"
+          disabled={milestoneTitle.trim() === ""}
+          onClick={() =>
+            void onCreateMilestone(milestoneTitle.trim()).then((ok) => {
+              if (ok) setMilestoneTitle("");
+            })
+          }
+        >
+          新建里程碑
+        </button>
       </div>
 
       <TaskBoard

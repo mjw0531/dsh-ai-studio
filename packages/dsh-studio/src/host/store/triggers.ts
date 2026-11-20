@@ -338,6 +338,7 @@ export async function acceptTrigger(
         plan: "",
         integration: false,
         dependsOn: [],
+        milestoneId: null,
         originTaskId: null,
         docsSynced: false,
         createdAt: at,

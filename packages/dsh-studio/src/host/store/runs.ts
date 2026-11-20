@@ -738,6 +738,7 @@ export function escalateRepeatedFailure(
           plan: "读取失败 Run 与验证输出；确认根因；重写验收标准；拆出可执行的新 ticket。",
           integration: false,
           dependsOn: [task.id],
+          milestoneId: null,
           originTaskId: task.id,
           docsSynced: false,
           createdAt: at,

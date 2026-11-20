@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 38;
-export const STUDIO_PLUGIN_VERSION = "3.16.4";
+export const STUDIO_SCHEMA_VERSION = 39;
+export const STUDIO_PLUGIN_VERSION = "3.16.5";
 
 export type TaskStatus =
   | "backlog"
@@ -577,6 +577,30 @@ export interface Role {
   updatedAt: string;
 }
 
+export type MilestoneStatus = "planned" | "active" | "done";
+
+export interface Milestone {
+  id: string;
+  projectId: string;
+  title: string;
+  goal: string;
+  status: MilestoneStatus;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateMilestoneInput {
+  title: string;
+  goal?: string;
+}
+
+export interface UpdateMilestoneInput {
+  title?: string;
+  goal?: string;
+  status?: MilestoneStatus;
+}
+
 export interface Module {
   id: string;
   projectId: string;
@@ -627,6 +651,7 @@ export interface Task {
   plan: string;
   integration: boolean;
   dependsOn: string[];
+  milestoneId: string | null;
   originTaskId: string | null;
   docsSynced: boolean;
   createdAt: string;
@@ -841,6 +866,7 @@ export interface StudioState {
   prototypeDemos: PrototypeDemo[];
   roles: Role[];
   modules: Module[];
+  milestones: Milestone[];
   tasks: Task[];
   mergeProposals: MergeProposal[];
   runs: AgentRun[];
@@ -1037,6 +1063,7 @@ export interface BootstrapResponse {
   prototypeDemos: PrototypeDemo[];
   roles: Role[];
   modules: Module[];
+  milestones: Milestone[];
   tasks: Task[];
   mergeProposals: MergeProposal[];
   runs: AgentRun[];
@@ -1277,6 +1304,7 @@ export interface CreateTaskInput {
   reviewerRoleId?: string | null;
   acceptance?: string[];
   dependsOn?: string[];
+  milestoneId?: string | null;
   branch?: string | null;
   verifyCommand?: string | null;
   module?: string | null;
@@ -1303,6 +1331,7 @@ export interface UpdateTaskInput {
   reviewerRoleId?: string | null;
   acceptance?: AcceptanceItem[];
   dependsOn?: string[];
+  milestoneId?: string | null;
   evidence?: EvidenceItem[];
   branch?: string | null;
   verifyCommand?: string | null;

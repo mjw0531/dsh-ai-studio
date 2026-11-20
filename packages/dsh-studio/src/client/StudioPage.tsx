@@ -479,6 +479,7 @@ export function StudioPage() {
     linkWorkshopDownstream,
     readProjectDoc,
     createModule,
+    createMilestone,
     transitionTask,
     acceptAllTrivial,
     toggleAcceptance,
@@ -767,6 +768,7 @@ export function StudioPage() {
                 data={data}
                 onOpenTask={setSelectedTaskId}
                 onNewTask={() => setModal({ kind: "task" })}
+                onCreateMilestone={(title) => createMilestone({ title })}
               />
             ) : null}
 
@@ -824,6 +826,7 @@ export function StudioPage() {
           task={selectedTask}
           roles={data.roles}
           tasks={data.tasks}
+          milestones={data.milestones}
           mergeProposal={selectedMerge}
           runs={data.runs.filter((run) => run.taskId === selectedTask.id)}
           verifications={data.verifications.filter(
@@ -874,6 +877,7 @@ export function StudioPage() {
         <TaskForm
           roles={data.roles}
           tasks={data.tasks}
+          milestones={data.milestones}
           busy={busy}
           onCancel={() => setModal(null)}
           onSubmit={(input) => void createTask(input)}

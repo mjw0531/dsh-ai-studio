@@ -17,9 +17,11 @@ import type {
   ProjectFreeze,
   RequirementDecision,
   CreateTaskInput,
+  CreateMilestoneInput,
   CreateModuleInput,
   IndependentReview,
   MergeProposal,
+  Milestone,
   Module,
   Project,
   ProjectDoc,
@@ -46,6 +48,7 @@ import type {
   TriggerRules,
   UpdateTriggerRulesInput,
   UpdateStageGateInput,
+  UpdateMilestoneInput,
   UpdateModuleInput,
   Role,
   Task,
@@ -690,6 +693,28 @@ export class StudioClient {
       { method: "POST", body: { decision } },
     );
     return data.workshop;
+  }
+
+  async createMilestone(
+    projectId: string,
+    input: CreateMilestoneInput,
+  ): Promise<Milestone> {
+    const data = await this.request<{ milestone: Milestone }>("/milestones", {
+      method: "POST",
+      body: { projectId, ...input },
+    });
+    return data.milestone;
+  }
+
+  async updateMilestone(
+    milestoneId: string,
+    input: UpdateMilestoneInput,
+  ): Promise<Milestone> {
+    const data = await this.request<{ milestone: Milestone }>(
+      `/milestones/${encodeURIComponent(milestoneId)}`,
+      { method: "PATCH", body: input },
+    );
+    return data.milestone;
   }
 
   async createModule(input: CreateModuleInput): Promise<Module> {

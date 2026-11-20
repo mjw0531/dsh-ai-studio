@@ -13,6 +13,7 @@ import type {
   IndependentReview,
   MergeProposal,
   MergeRisk,
+  Milestone,
   Module,
   Project,
   PrototypeDemo,
@@ -253,6 +254,9 @@ function isTask(value: unknown): value is Task {
       typeof value.integration === "boolean") &&
     Array.isArray(value.dependsOn) &&
     value.dependsOn.every((item) => typeof item === "string") &&
+    (value.milestoneId === null ||
+      value.milestoneId === undefined ||
+      typeof value.milestoneId === "string") &&
     (value.originTaskId === null ||
       value.originTaskId === undefined ||
       typeof value.originTaskId === "string") &&
@@ -743,6 +747,22 @@ function isReview(value: unknown): value is IndependentReview {
   );
 }
 
+function isMilestone(value: unknown): value is Milestone {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.projectId === "string" &&
+    typeof value.title === "string" &&
+    typeof value.goal === "string" &&
+    (value.status === "planned" ||
+      value.status === "active" ||
+      value.status === "done") &&
+    typeof value.order === "number" &&
+    typeof value.createdAt === "string" &&
+    typeof value.updatedAt === "string"
+  );
+}
+
 function isModule(value: unknown): value is Module {
   return (
     isRecord(value) &&
@@ -786,6 +806,7 @@ export function assertState(value: unknown): asserts value is StudioState {
     !Array.isArray(value.prototypeDemos) ||
     !Array.isArray(value.roles) ||
     !Array.isArray(value.modules) ||
+    !Array.isArray(value.milestones) ||
     !Array.isArray(value.tasks) ||
     !Array.isArray(value.mergeProposals) ||
     !Array.isArray(value.runs) ||
@@ -833,6 +854,9 @@ export function assertState(value: unknown): asserts value is StudioState {
   }
   if (!value.modules.every(isModule)) {
     throw new Error("Studio state contains an invalid module");
+  }
+  if (!value.milestones.every(isMilestone)) {
+    throw new Error("Studio state contains an invalid milestone");
   }
   if (!value.tasks.every(isTask)) {
     throw new Error("Studio state contains an invalid task");

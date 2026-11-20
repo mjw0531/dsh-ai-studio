@@ -2,7 +2,7 @@
 import { timingSafeEqual as timingSafeEqual3 } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_PLUGIN_VERSION = "3.16.4";
+var STUDIO_PLUGIN_VERSION = "3.16.5";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -633,6 +633,24 @@ function asApproveStageGateInput(body) {
     ...asStageGateInput(body),
     waiverReason: asOptionalString(body.waiverReason, "waiverReason")
   };
+}
+function asCreateMilestone(body) {
+  return {
+    title: asString(body.title, "title"),
+    goal: asOptionalString(body.goal, "goal")
+  };
+}
+function asUpdateMilestone(body) {
+  const result = {};
+  if (body.title !== void 0) result.title = asString(body.title, "title");
+  if (body.goal !== void 0) result.goal = asOptionalString(body.goal, "goal");
+  if (body.status !== void 0) {
+    if (body.status !== "planned" && body.status !== "active" && body.status !== "done") {
+      throw new HttpError(400, "invalid_input", "status \u65E0\u6548");
+    }
+    result.status = body.status;
+  }
+  return result;
 }
 
 // src/host/router/auth.ts
@@ -1565,6 +1583,31 @@ var StudioRouter = class {
         decodeSegment(taskVerify[1] ?? "")
       );
       sendJson(res, 200, { ok: true, verification });
+      return;
+    }
+    if (parsed.pathname === `${API_PREFIX}/milestones`) {
+      requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const body = await readJson(req);
+      const projectId = asString(body.projectId, "projectId");
+      const milestone = await this.store.createMilestone(
+        projectId,
+        asCreateMilestone(body)
+      );
+      sendJson(res, 201, { ok: true, milestone });
+      return;
+    }
+    const milestoneMatch = /^\/studio-api\/milestones\/([^/]+)$/.exec(
+      parsed.pathname
+    );
+    if (milestoneMatch !== null) {
+      requireMethod(parsed, ["PATCH"]);
+      assertJsonRequest(req);
+      const milestone = await this.store.updateMilestone(
+        decodeSegment(milestoneMatch[1] ?? ""),
+        asUpdateMilestone(await readJson(req))
+      );
+      sendJson(res, 200, { ok: true, milestone });
       return;
     }
     if (parsed.pathname === `${API_PREFIX}/modules`) {

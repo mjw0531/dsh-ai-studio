@@ -54,6 +54,7 @@ import type {
   CompanyTotals,
   ContractChange,
   CreateDecisionInput,
+  CreateMilestoneInput,
   CreateModuleInput,
   CreateFreezeChangeRequestInput,
   CreateProjectFreezeInput,
@@ -65,7 +66,9 @@ import type {
   RequirementDecision,
   Decision,
   IndependentReview,
+  Milestone,
   Module,
+  UpdateMilestoneInput,
   UpdateModuleInput,
   CreateMergeProposalInput,
   CreateProjectInput,
@@ -246,6 +249,10 @@ import {
   updateModule as updateModuleImpl,
   updateRole as updateRoleImpl,
 } from "./store/catalog.js";
+import {
+  createMilestone as createMilestoneImpl,
+  updateMilestone as updateMilestoneImpl,
+} from "./store/milestones.js";
 import { importProjectSlice as importProjectSliceImpl } from "./store/import.js";
 import {
   assertFreezeCurrent as assertFreezeCurrentImpl,
@@ -524,6 +531,11 @@ export class StudioStore {
       const modules = project === null
         ? []
         : state.modules.filter((module) => module.projectId === project.id);
+      const milestones = project === null
+        ? []
+        : state.milestones
+            .filter((milestone) => milestone.projectId === project.id)
+            .sort((left, right) => left.order - right.order);
       const tasks = project === null
         ? []
         : state.tasks.filter((task) => task.projectId === project.id);
@@ -609,6 +621,7 @@ export class StudioStore {
         prototypeDemos,
         roles,
         modules,
+        milestones,
         tasks,
         mergeProposals,
         runs,
@@ -1117,6 +1130,20 @@ export class StudioStore {
     input: DecideDecisionInput,
   ): Promise<Decision> {
     return decideDecisionImpl(this.context, decisionId, input);
+  }
+
+  async createMilestone(
+    projectId: string,
+    input: CreateMilestoneInput,
+  ): Promise<Milestone> {
+    return createMilestoneImpl(this.context, projectId, input);
+  }
+
+  async updateMilestone(
+    milestoneId: string,
+    input: UpdateMilestoneInput,
+  ): Promise<Milestone> {
+    return updateMilestoneImpl(this.context, milestoneId, input);
   }
 
   async createModule(input: CreateModuleInput): Promise<Module> {

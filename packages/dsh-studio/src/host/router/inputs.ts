@@ -3,6 +3,8 @@ import type {
   AddWorkshopNoteInput,
   AgentRun,
   ApiErrorBody,
+  CreateMilestoneInput,
+  UpdateMilestoneInput,
   ApproveStageGateInput,
   CreateTriggerInput,
   CreateWorkshopInput,
@@ -744,3 +746,24 @@ export function asApproveStageGateInput(
   };
 }
 
+
+
+export function asCreateMilestone(body: Record<string, unknown>): CreateMilestoneInput {
+  return {
+    title: asString(body.title, "title"),
+    goal: asOptionalString(body.goal, "goal"),
+  };
+}
+
+export function asUpdateMilestone(body: Record<string, unknown>): UpdateMilestoneInput {
+  const result: UpdateMilestoneInput = {};
+  if (body.title !== undefined) result.title = asString(body.title, "title");
+  if (body.goal !== undefined) result.goal = asOptionalString(body.goal, "goal");
+  if (body.status !== undefined) {
+    if (body.status !== "planned" && body.status !== "active" && body.status !== "done") {
+      throw new HttpError(400, "invalid_input", "status 无效");
+    }
+    result.status = body.status;
+  }
+  return result;
+}

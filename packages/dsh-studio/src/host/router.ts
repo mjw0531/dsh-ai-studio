@@ -1123,6 +1123,33 @@ export class StudioRouter {
       return;
     }
 
+    if (parsed.pathname === `${API_PREFIX}/milestones`) {
+      requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const body = await readJson(req);
+      const projectId = inputs.asString(body.projectId, "projectId");
+      const milestone = await this.store.createMilestone(
+        projectId,
+        inputs.asCreateMilestone(body),
+      );
+      sendJson(res, 201, { ok: true, milestone });
+      return;
+    }
+
+    const milestoneMatch = /^\/studio-api\/milestones\/([^/]+)$/.exec(
+      parsed.pathname,
+    );
+    if (milestoneMatch !== null) {
+      requireMethod(parsed, ["PATCH"]);
+      assertJsonRequest(req);
+      const milestone = await this.store.updateMilestone(
+        decodeSegment(milestoneMatch[1] ?? ""),
+        inputs.asUpdateMilestone(await readJson(req)),
+      );
+      sendJson(res, 200, { ok: true, milestone });
+      return;
+    }
+
     if (parsed.pathname === `${API_PREFIX}/modules`) {
       requireMethod(parsed, ["POST"]);
       assertJsonRequest(req);

@@ -11,6 +11,7 @@ import type {
   StudioBackupInfo,
   CreateDecisionInput,
   CreateMergeProposalInput,
+  CreateMilestoneInput,
   CreateModuleInput,
   CreateFreezeChangeRequestInput,
   CreateProjectFreezeInput,
@@ -618,6 +619,18 @@ export function createStudioActions({
     }
   };
 
+  const createMilestone = async (
+    input: CreateMilestoneInput,
+  ): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null || data === null || data.project === null) return;
+        await client.createMilestone(data.project.id, input);
+      },
+      "里程碑已创建",
+    );
+  };
+
   const createModule = async (
     input: CreateModuleInput,
   ): Promise<boolean> => {
@@ -1035,6 +1048,7 @@ export function createStudioActions({
     linkWorkshopDownstream,
     readProjectDoc,
     createModule,
+    createMilestone,
     transitionTask,
     acceptAllTrivial,
     toggleAcceptance,

@@ -17,6 +17,7 @@ import type {
   CreateMergeProposalInput,
   IndependentReview,
   MergeProposal,
+  Milestone,
   MergeRisk,
   Role,
   Task,
@@ -52,6 +53,7 @@ export function TaskDrawer({
   task,
   roles,
   tasks,
+  milestones,
   mergeProposal,
   runs,
   verifications,
@@ -77,6 +79,7 @@ export function TaskDrawer({
   task: Task;
   roles: Role[];
   tasks: Task[];
+  milestones: Milestone[];
   mergeProposal: MergeProposal | null;
   runs: AgentRun[];
   verifications: Verification[];
@@ -139,7 +142,12 @@ export function TaskDrawer({
               ) : null}
             </div>
             <h2>{task.title}</h2>
-            <div className="studio-mono">{task.number}</div>
+            <div className="studio-mono">
+              {task.number}
+              {task.milestoneId !== null
+                ? ` · ${milestones.find((item) => item.id === task.milestoneId)?.title ?? "未知里程碑"}`
+                : ""}
+            </div>
             <div className="studio-muted">
               {roleName(roles, task.ownerRoleId)} 负责 ·{" "}
               {roleName(roles, task.reviewerRoleId)} 验收

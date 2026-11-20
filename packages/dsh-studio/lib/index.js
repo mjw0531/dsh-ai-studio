@@ -2,8 +2,8 @@
 import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 38;
-var STUDIO_PLUGIN_VERSION = "3.16.4";
+var STUDIO_SCHEMA_VERSION = 39;
+var STUDIO_PLUGIN_VERSION = "3.16.5";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -626,11 +626,19 @@ function migrateState(value) {
   if (state.schemaVersion === 37) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 38,
       workshops: state.workshops.map((workshop) => ({
         ...workshop,
         materials: []
       }))
+    };
+  }
+  if (state.schemaVersion === 38) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      milestones: [],
+      tasks: state.tasks.map((task) => ({ ...task, milestoneId: null }))
     };
   }
   return state;
@@ -665,7 +673,7 @@ function isAgentRun(value) {
   return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.roleId === null || typeof value.roleId === "string") && (value.providerProfileId === null || typeof value.providerProfileId === "string") && (value.executor === "dsh" || value.executor === "claude-code" || value.executor === "codex") && (value.provider === null || typeof value.provider === "string") && (value.branchId === null || typeof value.branchId === "string") && (value.branchName === null || typeof value.branchName === "string") && (value.workspacePath === null || typeof value.workspacePath === "string") && (value.commitSha === null || value.commitSha === void 0 || typeof value.commitSha === "string") && (value.baseSha === null || value.baseSha === void 0 || typeof value.baseSha === "string") && (value.agentPreset === null || value.agentPreset === void 0 || typeof value.agentPreset === "string") && (value.approvalPolicy === null || value.approvalPolicy === void 0 || value.approvalPolicy === "ask" || value.approvalPolicy === "never") && (value.sandboxMode === null || value.sandboxMode === void 0 || value.sandboxMode === "read-only" || value.sandboxMode === "workspace-write" || value.sandboxMode === "danger-full-access") && (Array.isArray(value.restrictedTools) || value.restrictedTools === void 0) && (value.diffPatch === null || value.diffPatch === void 0 || typeof value.diffPatch === "string") && (value.outputPath === null || value.outputPath === void 0 || typeof value.outputPath === "string") && (value.diffStat === null || typeof value.diffStat === "string") && (value.sessionId === null || typeof value.sessionId === "string") && isAgentRunStatus(value.status) && (value.model === null || typeof value.model === "string") && typeof value.prompt === "string" && typeof value.output === "string" && (value.receipt === null || isRecord2(value.receipt)) && (value.tokens === null || typeof value.tokens === "number") && (value.budgetWarning === null || typeof value.budgetWarning === "string") && (value.error === null || typeof value.error === "string") && typeof value.startedAt === "string" && (value.endedAt === null || typeof value.endedAt === "string");
 }
 function isTask(value) {
-  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence) && (value.verifyCommand === null || value.verifyCommand === void 0 || typeof value.verifyCommand === "string") && (value.module === null || value.module === void 0 || typeof value.module === "string") && (value.contractRef === null || value.contractRef === void 0 || typeof value.contractRef === "string") && Array.isArray(value.requirementRefs) && value.requirementRefs.every((item) => typeof item === "string") && (value.timeoutSeconds === null || value.timeoutSeconds === void 0 || typeof value.timeoutSeconds === "number" && Number.isSafeInteger(value.timeoutSeconds) && value.timeoutSeconds > 0) && (value.riskTier === void 0 || value.riskTier === "trivial" || value.riskTier === "normal" || value.riskTier === "critical") && (value.kind === void 0 || value.kind === "new" || value.kind === "fix") && (value.integration === void 0 || typeof value.integration === "boolean") && Array.isArray(value.dependsOn) && value.dependsOn.every((item) => typeof item === "string") && (value.originTaskId === null || value.originTaskId === void 0 || typeof value.originTaskId === "string") && (value.docsSynced === void 0 || typeof value.docsSynced === "boolean") && (value.diagnosis === void 0 || typeof value.diagnosis === "string") && (value.plan === void 0 || typeof value.plan === "string");
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && isTaskStatus(value.status) && isTaskPriority(value.priority) && Array.isArray(value.acceptance) && Array.isArray(value.evidence) && (value.verifyCommand === null || value.verifyCommand === void 0 || typeof value.verifyCommand === "string") && (value.module === null || value.module === void 0 || typeof value.module === "string") && (value.contractRef === null || value.contractRef === void 0 || typeof value.contractRef === "string") && Array.isArray(value.requirementRefs) && value.requirementRefs.every((item) => typeof item === "string") && (value.timeoutSeconds === null || value.timeoutSeconds === void 0 || typeof value.timeoutSeconds === "number" && Number.isSafeInteger(value.timeoutSeconds) && value.timeoutSeconds > 0) && (value.riskTier === void 0 || value.riskTier === "trivial" || value.riskTier === "normal" || value.riskTier === "critical") && (value.kind === void 0 || value.kind === "new" || value.kind === "fix") && (value.integration === void 0 || typeof value.integration === "boolean") && Array.isArray(value.dependsOn) && value.dependsOn.every((item) => typeof item === "string") && (value.milestoneId === null || value.milestoneId === void 0 || typeof value.milestoneId === "string") && (value.originTaskId === null || value.originTaskId === void 0 || typeof value.originTaskId === "string") && (value.docsSynced === void 0 || typeof value.docsSynced === "boolean") && (value.diagnosis === void 0 || typeof value.diagnosis === "string") && (value.plan === void 0 || typeof value.plan === "string");
 }
 function isMergeRisk(value) {
   return value === "low" || value === "medium" || value === "high";
@@ -757,6 +765,9 @@ function isVerification(value) {
 function isReview(value) {
   return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.taskId === "string" && (value.runId === null || typeof value.runId === "string") && (value.reviewerRoleId === null || typeof value.reviewerRoleId === "string") && (value.model === null || typeof value.model === "string") && (value.verdict === "pass" || value.verdict === "fail") && typeof value.summary === "string" && Array.isArray(value.findings) && (value.tokens === null || typeof value.tokens === "number") && typeof value.createdAt === "string";
 }
+function isMilestone(value) {
+  return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.goal === "string" && (value.status === "planned" || value.status === "active" || value.status === "done") && typeof value.order === "number" && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
+}
 function isModule(value) {
   return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.name === "string" && typeof value.responsibility === "string" && (value.contractPath === null || typeof value.contractPath === "string") && typeof value.contractText === "string" && Array.isArray(value.allowedPaths) && Array.isArray(value.forbiddenPaths) && Array.isArray(value.dependsOn) && typeof value.createdAt === "string" && typeof value.updatedAt === "string";
 }
@@ -772,7 +783,7 @@ function assertState(value) {
   if (typeof value.companyName !== "string" || value.companyName.trim() === "") {
     throw new Error("Studio state must contain a companyName");
   }
-  if (!Array.isArray(value.projects) || !Array.isArray(value.stageGates) || !Array.isArray(value.freezes) || !Array.isArray(value.requirementDecisions) || !Array.isArray(value.freezeChangeRequests) || !Array.isArray(value.triggers) || !Array.isArray(value.threads) || !Array.isArray(value.workshops) || !Array.isArray(value.providerProfiles) || !Array.isArray(value.prototypeDemos) || !Array.isArray(value.roles) || !Array.isArray(value.modules) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.runs) || !Array.isArray(value.branches) || !Array.isArray(value.contractChanges) || !Array.isArray(value.decisions) || !Array.isArray(value.verifications) || !Array.isArray(value.reviews) || !Array.isArray(value.events)) {
+  if (!Array.isArray(value.projects) || !Array.isArray(value.stageGates) || !Array.isArray(value.freezes) || !Array.isArray(value.requirementDecisions) || !Array.isArray(value.freezeChangeRequests) || !Array.isArray(value.triggers) || !Array.isArray(value.threads) || !Array.isArray(value.workshops) || !Array.isArray(value.providerProfiles) || !Array.isArray(value.prototypeDemos) || !Array.isArray(value.roles) || !Array.isArray(value.modules) || !Array.isArray(value.milestones) || !Array.isArray(value.tasks) || !Array.isArray(value.mergeProposals) || !Array.isArray(value.runs) || !Array.isArray(value.branches) || !Array.isArray(value.contractChanges) || !Array.isArray(value.decisions) || !Array.isArray(value.verifications) || !Array.isArray(value.reviews) || !Array.isArray(value.events)) {
     throw new Error("Studio state collections are missing");
   }
   if (!value.projects.every(isProject)) {
@@ -810,6 +821,9 @@ function assertState(value) {
   }
   if (!value.modules.every(isModule)) {
     throw new Error("Studio state contains an invalid module");
+  }
+  if (!value.milestones.every(isMilestone)) {
+    throw new Error("Studio state contains an invalid milestone");
   }
   if (!value.tasks.every(isTask)) {
     throw new Error("Studio state contains an invalid task");
@@ -1662,6 +1676,7 @@ function createSeedState(now) {
     plan: "",
     integration: false,
     dependsOn: [],
+    milestoneId: null,
     originTaskId: null,
     docsSynced: false,
     createdAt: at,
@@ -1744,6 +1759,7 @@ function createSeedState(now) {
     providerProfiles: [],
     prototypeDemos: [],
     roles,
+    milestones: [],
     modules: [],
     tasks,
     mergeProposals: [],
@@ -2743,6 +2759,7 @@ async function acceptTrigger(ctx, triggerId, input = {}) {
       plan: "",
       integration: false,
       dependsOn: [],
+      milestoneId: null,
       originTaskId: null,
       docsSynced: false,
       createdAt: at,
@@ -2871,6 +2888,12 @@ async function createTask(ctx, input) {
       input.reviewerRoleId,
       "reviewerRoleId"
     );
+    const milestoneId = input.milestoneId ?? null;
+    if (milestoneId !== null && !state.milestones.some(
+      (milestone) => milestone.id === milestoneId && milestone.projectId === project.id
+    )) {
+      throw new StudioStoreError("milestone_not_found", "\u91CC\u7A0B\u7891\u4E0D\u5B58\u5728", 404);
+    }
     const task = {
       id: newId("task"),
       projectId: project.id,
@@ -2900,6 +2923,7 @@ async function createTask(ctx, input) {
         null,
         input.dependsOn
       ),
+      milestoneId,
       originTaskId: optionalText(input.originTaskId, "originTaskId", 120) || null,
       docsSynced: false,
       createdAt: at,
@@ -2959,6 +2983,14 @@ async function updateTask(ctx, taskId, input) {
     }
     if (input.acceptance !== void 0) {
       task.acceptance = normalizeAcceptance(input.acceptance, task.acceptance);
+    }
+    if (input.milestoneId !== void 0) {
+      if (input.milestoneId !== null && !state.milestones.some(
+        (milestone) => milestone.id === input.milestoneId && milestone.projectId === task.projectId
+      )) {
+        throw new StudioStoreError("milestone_not_found", "\u91CC\u7A0B\u7891\u4E0D\u5B58\u5728", 404);
+      }
+      task.milestoneId = input.milestoneId;
     }
     if (input.dependsOn !== void 0) {
       task.dependsOn = normalizeDependsOn(
@@ -3168,6 +3200,7 @@ function scheduleIntegrationGate(ctx, state, projectId, at) {
     plan: "",
     integration: true,
     dependsOn: [],
+    milestoneId: null,
     originTaskId: null,
     docsSynced: false,
     createdAt: at,
@@ -3926,6 +3959,7 @@ function escalateRepeatedFailure(ctx, state, task, at, reason, run3) {
         plan: "\u8BFB\u53D6\u5931\u8D25 Run \u4E0E\u9A8C\u8BC1\u8F93\u51FA\uFF1B\u786E\u8BA4\u6839\u56E0\uFF1B\u91CD\u5199\u9A8C\u6536\u6807\u51C6\uFF1B\u62C6\u51FA\u53EF\u6267\u884C\u7684\u65B0 ticket\u3002",
         integration: false,
         dependsOn: [task.id],
+        milestoneId: null,
         originTaskId: task.id,
         docsSynced: false,
         createdAt: at,
@@ -5907,6 +5941,61 @@ async function updateRole(ctx, roleId, input) {
   });
 }
 
+// src/host/store/milestones.ts
+async function createMilestone(ctx, projectId, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    findProject(state, projectId);
+    const at = ctx.now();
+    const milestone = {
+      id: newId("milestone"),
+      projectId,
+      title: requiredText(input.title, "title", 160),
+      goal: optionalText(input.goal, "goal", 2e3),
+      status: "planned",
+      order: state.milestones.filter((item) => item.projectId === projectId).length + 1,
+      createdAt: at,
+      updatedAt: at
+    };
+    state.milestones.push(milestone);
+    state.updatedAt = at;
+    ctx.recordEvent(state, {
+      type: "milestone.created",
+      at,
+      projectId,
+      payload: { milestoneId: milestone.id }
+    });
+    await ctx.save();
+    return structuredClone(milestone);
+  });
+}
+async function updateMilestone(ctx, milestoneId, input) {
+  return ctx.runExclusive(async () => {
+    const state = ctx.requireState();
+    const milestone = state.milestones.find((item) => item.id === milestoneId);
+    if (milestone === void 0) {
+      throw new StudioStoreError("milestone_not_found", "\u91CC\u7A0B\u7891\u4E0D\u5B58\u5728", 404);
+    }
+    if (input.title !== void 0) {
+      milestone.title = requiredText(input.title, "title", 160);
+    }
+    if (input.goal !== void 0) {
+      milestone.goal = optionalText(input.goal, "goal", 2e3);
+    }
+    if (input.status !== void 0) {
+      const status = input.status;
+      if (status !== "planned" && status !== "active" && status !== "done") {
+        throw new StudioStoreError("invalid_status", "\u91CC\u7A0B\u7891\u72B6\u6001\u65E0\u6548", 400);
+      }
+      milestone.status = status;
+    }
+    milestone.updatedAt = ctx.now();
+    state.updatedAt = milestone.updatedAt;
+    await ctx.save();
+    return structuredClone(milestone);
+  });
+}
+
 // src/host/store/import.ts
 function idsOf(items) {
   return items.map((item) => item.id);
@@ -6219,6 +6308,7 @@ var StudioStore = class {
       );
       const roles = project === null ? [] : state.roles.filter((role) => role.projectId === project.id);
       const modules = project === null ? [] : state.modules.filter((module) => module.projectId === project.id);
+      const milestones = project === null ? [] : state.milestones.filter((milestone) => milestone.projectId === project.id).sort((left, right) => left.order - right.order);
       const tasks = project === null ? [] : state.tasks.filter((task) => task.projectId === project.id);
       const mergeProposals = project === null ? [] : state.mergeProposals.filter(
         (proposal) => proposal.projectId === project.id
@@ -6275,6 +6365,7 @@ var StudioStore = class {
         prototypeDemos,
         roles,
         modules,
+        milestones,
         tasks,
         mergeProposals,
         runs,
@@ -6534,6 +6625,12 @@ var StudioStore = class {
   }
   async decideDecision(decisionId, input) {
     return decideDecision(this.context, decisionId, input);
+  }
+  async createMilestone(projectId, input) {
+    return createMilestone(this.context, projectId, input);
+  }
+  async updateMilestone(milestoneId, input) {
+    return updateMilestone(this.context, milestoneId, input);
   }
   async createModule(input) {
     return createModule(this.context, input);
@@ -9112,6 +9209,24 @@ function asApproveStageGateInput(body) {
     waiverReason: asOptionalString(body.waiverReason, "waiverReason")
   };
 }
+function asCreateMilestone(body) {
+  return {
+    title: asString(body.title, "title"),
+    goal: asOptionalString(body.goal, "goal")
+  };
+}
+function asUpdateMilestone(body) {
+  const result = {};
+  if (body.title !== void 0) result.title = asString(body.title, "title");
+  if (body.goal !== void 0) result.goal = asOptionalString(body.goal, "goal");
+  if (body.status !== void 0) {
+    if (body.status !== "planned" && body.status !== "active" && body.status !== "done") {
+      throw new HttpError(400, "invalid_input", "status \u65E0\u6548");
+    }
+    result.status = body.status;
+  }
+  return result;
+}
 
 // src/host/router/auth.ts
 import { timingSafeEqual as timingSafeEqual2 } from "node:crypto";
@@ -10043,6 +10158,31 @@ var StudioRouter = class {
         decodeSegment(taskVerify[1] ?? "")
       );
       sendJson(res, 200, { ok: true, verification });
+      return;
+    }
+    if (parsed.pathname === `${API_PREFIX}/milestones`) {
+      requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const body = await readJson(req);
+      const projectId = asString(body.projectId, "projectId");
+      const milestone = await this.store.createMilestone(
+        projectId,
+        asCreateMilestone(body)
+      );
+      sendJson(res, 201, { ok: true, milestone });
+      return;
+    }
+    const milestoneMatch = /^\/studio-api\/milestones\/([^/]+)$/.exec(
+      parsed.pathname
+    );
+    if (milestoneMatch !== null) {
+      requireMethod(parsed, ["PATCH"]);
+      assertJsonRequest(req);
+      const milestone = await this.store.updateMilestone(
+        decodeSegment(milestoneMatch[1] ?? ""),
+        asUpdateMilestone(await readJson(req))
+      );
+      sendJson(res, 200, { ok: true, milestone });
       return;
     }
     if (parsed.pathname === `${API_PREFIX}/modules`) {

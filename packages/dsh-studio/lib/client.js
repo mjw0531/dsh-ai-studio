@@ -576,6 +576,20 @@ var StudioClient = class {
     );
     return data.workshop;
   }
+  async createMilestone(projectId, input) {
+    const data = await this.request("/milestones", {
+      method: "POST",
+      body: { projectId, ...input }
+    });
+    return data.milestone;
+  }
+  async updateMilestone(milestoneId, input) {
+    const data = await this.request(
+      `/milestones/${encodeURIComponent(milestoneId)}`,
+      { method: "PATCH", body: input }
+    );
+    return data.milestone;
+  }
   async createModule(input) {
     const data = await this.request("/modules", {
       method: "POST",
@@ -1185,6 +1199,15 @@ function createStudioActions({
       return null;
     }
   };
+  const createMilestone = async (input) => {
+    return run(
+      async () => {
+        if (client === null || data === null || data.project === null) return;
+        await client.createMilestone(data.project.id, input);
+      },
+      "\u91CC\u7A0B\u7891\u5DF2\u521B\u5EFA"
+    );
+  };
   const createModule = async (input) => {
     const ok = await run(
       async () => {
@@ -1535,6 +1558,7 @@ function createStudioActions({
     linkWorkshopDownstream,
     readProjectDoc,
     createModule,
+    createMilestone,
     transitionTask,
     acceptAllTrivial,
     toggleAcceptance,
@@ -5676,10 +5700,15 @@ var import_jsx_runtime15 = require("react/jsx-runtime");
 function TasksView({
   data,
   onOpenTask,
-  onNewTask
+  onNewTask,
+  onCreateMilestone
 }) {
   const [filter, setFilter] = (0, import_react11.useState)("all");
-  const tasks = filter === "all" ? data.tasks : data.tasks.filter((task) => task.status === filter);
+  const [milestoneFilter, setMilestoneFilter] = (0, import_react11.useState)("all");
+  const [milestoneTitle, setMilestoneTitle] = (0, import_react11.useState)("");
+  const tasks = data.tasks.filter((task) => filter === "all" || task.status === filter).filter(
+    (task) => milestoneFilter === "all" || task.milestoneId === milestoneFilter
+  );
   return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(import_jsx_runtime15.Fragment, { children: [
     /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "studio-page-head", children: [
       /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { children: [
@@ -5740,6 +5769,42 @@ function TasksView({
         "/",
         data.stats.acceptanceTotal
       ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "studio-toolbar", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
+        "select",
+        {
+          value: milestoneFilter,
+          onChange: (event) => setMilestoneFilter(event.target.value),
+          "aria-label": "\u6309\u91CC\u7A0B\u7891\u7B5B\u9009",
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("option", { value: "all", children: "\u5168\u90E8\u91CC\u7A0B\u7891" }),
+            data.milestones.map((milestone) => /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("option", { value: milestone.id, children: milestone.title }, milestone.id))
+          ]
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+        "input",
+        {
+          value: milestoneTitle,
+          onChange: (event) => setMilestoneTitle(event.target.value),
+          placeholder: "\u65B0\u91CC\u7A0B\u7891\u540D\u79F0",
+          "aria-label": "\u65B0\u91CC\u7A0B\u7891\u540D\u79F0"
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+        "button",
+        {
+          type: "button",
+          className: "studio-btn",
+          "data-size": "sm",
+          disabled: milestoneTitle.trim() === "",
+          onClick: () => void onCreateMilestone(milestoneTitle.trim()).then((ok) => {
+            if (ok) setMilestoneTitle("");
+          }),
+          children: "\u65B0\u5EFA\u91CC\u7A0B\u7891"
+        }
+      )
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
       TaskBoard,
@@ -6985,6 +7050,7 @@ function TaskDrawer({
   task,
   roles,
   tasks,
+  milestones,
   mergeProposal,
   runs,
   verifications,
@@ -7045,7 +7111,10 @@ function TaskDrawer({
                   mergeProposal !== null ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(MergePill, { proposal: mergeProposal }) : null
                 ] }),
                 /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("h2", { children: task.title }),
-                /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className: "studio-mono", children: task.number }),
+                /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-mono", children: [
+                  task.number,
+                  task.milestoneId !== null ? ` \xB7 ${milestones.find((item) => item.id === task.milestoneId)?.title ?? "\u672A\u77E5\u91CC\u7A0B\u7891"}` : ""
+                ] }),
                 /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className: "studio-muted", children: [
                   roleName(roles, task.ownerRoleId),
                   " \u8D1F\u8D23 \xB7",
@@ -7852,6 +7921,7 @@ var import_jsx_runtime26 = require("react/jsx-runtime");
 function TaskForm({
   roles,
   tasks,
+  milestones,
   busy,
   onCancel,
   onSubmit
@@ -7878,6 +7948,7 @@ function TaskForm({
   const [plan, setPlan] = (0, import_react20.useState)("");
   const [integration, setIntegration] = (0, import_react20.useState)(false);
   const [dependsOn, setDependsOn] = (0, import_react20.useState)([]);
+  const [milestoneId, setMilestoneId] = (0, import_react20.useState)("");
   const [localError, setLocalError] = (0, import_react20.useState)(null);
   const submit = (event) => {
     event.preventDefault();
@@ -7917,7 +7988,8 @@ function TaskForm({
       diagnosis: diagnosis.trim(),
       plan: plan.trim(),
       integration,
-      dependsOn
+      dependsOn,
+      milestoneId: milestoneId || null
     });
   };
   return /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
@@ -8009,6 +8081,20 @@ function TaskForm({
             }
           ),
           /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { className: "studio-hint", children: "\u6BCF\u884C\u4E00\u6761\uFF0CStudio Host \u5728 worktree \u5185\u6309\u987A\u5E8F\u6267\u884C\uFF1B\u4EFB\u4E00\u6B65\u5931\u8D25\u5373\u505C\u6B62\u3002\u901A\u8FC7\u4F1A\u5199 evidence\uFF0C\u4F46\u4E0D\u81EA\u52A8\u901A\u8FC7\u9A8C\u6536\u3002" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-field", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("label", { children: "\u91CC\u7A0B\u7891\uFF08\u53EF\u9009\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)(
+            "select",
+            {
+              value: milestoneId,
+              onChange: (event) => setMilestoneId(event.target.value),
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("option", { value: "", children: "\u4E0D\u5F52\u5165\u91CC\u7A0B\u7891" }),
+                milestones.map((milestone) => /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("option", { value: milestone.id, children: milestone.title }, milestone.id))
+              ]
+            }
+          )
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { className: "studio-field", children: [
           /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("label", { children: "\u524D\u7F6E\u4EFB\u52A1\uFF08\u53EF\u9009\uFF09" }),
@@ -8501,6 +8587,7 @@ function StudioPage() {
     linkWorkshopDownstream,
     readProjectDoc,
     createModule,
+    createMilestone,
     transitionTask,
     acceptAllTrivial,
     toggleAcceptance,
@@ -8751,7 +8838,8 @@ function StudioPage() {
           {
             data,
             onOpenTask: setSelectedTaskId,
-            onNewTask: () => setModal({ kind: "task" })
+            onNewTask: () => setModal({ kind: "task" }),
+            onCreateMilestone: (title) => createMilestone({ title })
           }
         ) : null,
         tab === "merges" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
@@ -8805,6 +8893,7 @@ function StudioPage() {
         task: selectedTask,
         roles: data.roles,
         tasks: data.tasks,
+        milestones: data.milestones,
         mergeProposal: selectedMerge,
         runs: data.runs.filter((run2) => run2.taskId === selectedTask.id),
         verifications: data.verifications.filter(
@@ -8854,6 +8943,7 @@ function StudioPage() {
       {
         roles: data.roles,
         tasks: data.tasks,
+        milestones: data.milestones,
         busy,
         onCancel: () => setModal(null),
         onSubmit: (input) => void createTask(input)

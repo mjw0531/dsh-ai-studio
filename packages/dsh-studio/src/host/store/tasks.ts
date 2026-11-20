@@ -100,6 +100,16 @@ export async function createTask(
         input.reviewerRoleId,
         "reviewerRoleId",
       );
+      const milestoneId = input.milestoneId ?? null;
+      if (
+        milestoneId !== null &&
+        !state.milestones.some(
+          (milestone) =>
+            milestone.id === milestoneId && milestone.projectId === project.id,
+        )
+      ) {
+        throw new StudioStoreError("milestone_not_found", "里程碑不存在", 404);
+      }
       const task: Task = {
         id: newId("task"),
         projectId: project.id,
@@ -131,6 +141,7 @@ export async function createTask(
           null,
           input.dependsOn,
         ),
+        milestoneId,
         originTaskId:
           optionalText(input.originTaskId, "originTaskId", 120) || null,
         docsSynced: false,
@@ -194,7 +205,20 @@ export async function updateTask(
       if (input.acceptance !== undefined) {
         task.acceptance = normalizeAcceptance(input.acceptance, task.acceptance);
       }
-      if (input.dependsOn !== undefined) {
+      if (input.milestoneId !== undefined) {
+    if (
+      input.milestoneId !== null &&
+      !state.milestones.some(
+        (milestone) =>
+          milestone.id === input.milestoneId &&
+          milestone.projectId === task.projectId,
+      )
+    ) {
+      throw new StudioStoreError("milestone_not_found", "里程碑不存在", 404);
+    }
+    task.milestoneId = input.milestoneId;
+  }
+  if (input.dependsOn !== undefined) {
         task.dependsOn = normalizeDependsOn(
           state,
           task.projectId,
@@ -454,6 +478,7 @@ export function scheduleIntegrationGate(
       plan: "",
       integration: true,
       dependsOn: [],
+      milestoneId: null,
       originTaskId: null,
       docsSynced: false,
       createdAt: at,
