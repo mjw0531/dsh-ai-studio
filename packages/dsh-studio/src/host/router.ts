@@ -113,6 +113,11 @@ export class StudioRouter {
     targetPath: string,
   ) => Promise<{ projectId: string; repoPath: string }>;
   private readonly readProjectDoc: (path: string) => Promise<ProjectDoc>;
+  private readonly initializeProjectDocs: () => Promise<{ files: unknown[]; commit: string | null }>;
+  private readonly publishProjectDocs: (
+    files: Array<{ path: string; content: string }>,
+  ) => Promise<{ files: unknown[]; commit: string | null }>;
+  private readonly indexProjectRequirements: () => Promise<unknown>;
   private readonly runWorkshop: (workshopId: string) => Promise<Workshop>;
   private readonly summarizeWorkshop: (
     workshopId: string,
@@ -151,6 +156,9 @@ export class StudioRouter {
     this.exportProjectBundle = options.exportProjectBundle;
     this.importProjectBundle = options.importProjectBundle;
     this.readProjectDoc = options.readProjectDoc;
+    this.initializeProjectDocs = options.initializeProjectDocs;
+    this.publishProjectDocs = options.publishProjectDocs;
+    this.indexProjectRequirements = options.indexProjectRequirements;
     this.runWorkshop = options.runWorkshop;
     this.summarizeWorkshop = options.summarizeWorkshop;
     this.sayWorkshop = options.sayWorkshop;
@@ -1041,6 +1049,31 @@ export class StudioRouter {
         decodeSegment(taskDispatch[1] ?? ""),
       );
       sendJson(res, 202, { ok: true, run });
+      return;
+    }
+
+    if (parsed.pathname === `${API_PREFIX}/project-docs/skeleton`) {
+      requireMethod(parsed, ["POST"]);
+      sendJson(res, 200, { ok: true, ...(await this.initializeProjectDocs()) });
+      return;
+    }
+
+    if (parsed.pathname === `${API_PREFIX}/project-docs/publish`) {
+      requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const body = await readJson(req);
+      const files = Array.isArray(body.files) ? body.files : [];
+      const parsedFiles = files.map((item) => ({
+        path: inputs.asString((item as { path?: unknown }).path, "path"),
+        content: inputs.asString((item as { content?: unknown }).content, "content"),
+      }));
+      sendJson(res, 200, { ok: true, ...(await this.publishProjectDocs(parsedFiles)) });
+      return;
+    }
+
+    if (parsed.pathname === `${API_PREFIX}/project-docs/requirements`) {
+      requireMethod(parsed, ["GET"]);
+      sendJson(res, 200, { ok: true, requirements: await this.indexProjectRequirements() });
       return;
     }
 

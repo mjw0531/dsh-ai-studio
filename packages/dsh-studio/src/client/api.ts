@@ -23,6 +23,7 @@ import type {
   Module,
   Project,
   ProjectDoc,
+  RequirementsIndex,
   ProjectStage,
   AcceptTriggerInput,
   AddWorkshopNoteInput,
@@ -266,6 +267,17 @@ export class StudioClient {
       method: "POST",
       body: {},
     });
+  }
+
+  async initializeProjectDocs(): Promise<{ commit: string | null }> {
+    return this.request("/project-docs/skeleton", { method: "POST", body: {} });
+  }
+
+  async indexProjectRequirements(): Promise<RequirementsIndex> {
+    const data = await this.request<{ requirements: RequirementsIndex }>(
+      "/project-docs/requirements",
+    );
+    return data.requirements;
   }
 
   async importState(state: unknown): Promise<void> {

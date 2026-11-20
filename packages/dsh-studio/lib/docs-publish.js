@@ -1,0 +1,180 @@
+// src/host/docs-publish.ts
+import { execFileSync } from "node:child_process";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
+
+// src/host/store/core.ts
+var StudioStoreError = class extends Error {
+  code;
+  status;
+  constructor(code, message, status = 400) {
+    super(message);
+    this.name = "StudioStoreError";
+    this.code = code;
+    this.status = status;
+  }
+};
+
+// src/host/docs-publish.ts
+var SKELETON = [
+  {
+    path: "docs/PRD.md",
+    content: `# PRD
+
+> \u9700\u6C42\u6761\u76EE\u4EE5 \`R-\` \u7F16\u53F7\u5F00\u5934\uFF0C\u4F8B\u5982\uFF1A
+- R-001 \u73A9\u5BB6\u53EF\u4EE5\u79FB\u52A8
+
+## \u672A\u51B3\u95EE\u9898
+`
+  },
+  {
+    path: "docs/ARCHITECTURE.md",
+    content: "# \u67B6\u6784\n\n## \u6A21\u5757\u8FB9\u754C\n\n## \u6570\u636E\u6D41\n\n## \u98CE\u9669\n"
+  },
+  {
+    path: "docs/INVARIANTS.md",
+    content: "# \u4E0D\u53D8\u91CF\n\n1. \u6240\u6709\u5199\u5165\u5FC5\u987B\u53EF\u6062\u590D\u3002\n"
+  },
+  {
+    path: "docs/modules/.gitkeep",
+    content: ""
+  },
+  {
+    path: "docs/adr/.gitkeep",
+    content: ""
+  },
+  {
+    path: "docs/meetings/.gitkeep",
+    content: ""
+  },
+  {
+    path: "docs/plan/milestones/.gitkeep",
+    content: ""
+  },
+  {
+    path: "docs/plan/tasks/.gitkeep",
+    content: ""
+  }
+];
+var DocsPublisherService = class {
+  store;
+  constructor(store) {
+    this.store = store;
+  }
+  async repo() {
+    const data = await this.store.bootstrap();
+    if (data.project === null || data.project.repoPath === null) {
+      throw new StudioStoreError(
+        "repo_required",
+        "\u9879\u76EE\u8FD8\u6CA1\u6709\u7ED1\u5B9A\u4ED3\u5E93\uFF0C\u4E0D\u80FD\u53D1\u5E03\u89C4\u5212\u6587\u6863",
+        409
+      );
+    }
+    return {
+      root: path.resolve(data.project.repoPath),
+      prdPath: data.project.prdPath ?? "docs/PRD.md"
+    };
+  }
+  async initializeSkeleton() {
+    const { root } = await this.repo();
+    const files = [];
+    for (const item of SKELETON) {
+      const absolute = path.resolve(root, item.path);
+      await mkdir(path.dirname(absolute), { recursive: true });
+      try {
+        await writeFile(absolute, item.content, { encoding: "utf8", flag: "wx" });
+        files.push({ path: item.path, written: true });
+      } catch (error) {
+        if (error.code !== "EEXIST") throw error;
+        files.push({ path: item.path, written: false });
+      }
+    }
+    const written = files.filter((item) => item.written).map((item) => item.path);
+    const commit = written.length === 0 ? null : this.commit(root, written, "docs: initialize project planning skeleton");
+    return { files, commit };
+  }
+  async publish(files) {
+    const { root } = await this.repo();
+    if (files.length === 0) {
+      throw new StudioStoreError("invalid_input", "\u6CA1\u6709\u8981\u53D1\u5E03\u7684\u6587\u6863", 400);
+    }
+    const normalized = [];
+    for (const file of files) {
+      const relative = file.path.replaceAll("\\", "/").replace(/^\/+/u, "");
+      if (!relative.startsWith("docs/") || relative.includes("..")) {
+        throw new StudioStoreError(
+          "invalid_doc_path",
+          "\u53EA\u5141\u8BB8\u53D1\u5E03 docs/ \u4E0B\u7684\u6587\u6863",
+          400
+        );
+      }
+      const dirty = this.git(root, ["status", "--porcelain", "--", relative]);
+      if (dirty !== "") {
+        throw new StudioStoreError(
+          "doc_dirty",
+          `\u76EE\u6807\u6587\u6863\u6709\u672A\u63D0\u4EA4\u6539\u52A8\uFF1A${relative}\uFF1B\u8BF7\u5148\u5904\u7406\u672C\u5730\u6539\u52A8`,
+          409
+        );
+      }
+      normalized.push({ path: relative, content: file.content });
+    }
+    const written = [];
+    for (const file of normalized) {
+      const absolute = path.resolve(root, file.path);
+      await mkdir(path.dirname(absolute), { recursive: true });
+      await writeFile(absolute, file.content, "utf8");
+      written.push(file.path);
+    }
+    const commit = this.commit(root, written, "docs: publish planning documents");
+    return {
+      commit,
+      files: written.map((file) => ({ path: file, written: true }))
+    };
+  }
+  async requirements() {
+    const { root, prdPath } = await this.repo();
+    const relative = prdPath.replaceAll("\\", "/").replace(/^\/+/u, "");
+    const content = await readFile(path.resolve(root, relative), "utf8").catch(
+      () => ""
+    );
+    const items = [];
+    content.split(/\r?\n/u).forEach((line, index) => {
+      const match = /^\s*(?:[-*]\s*)?(R-\d+)\s*[:：-]?\s*(.*)$/u.exec(line);
+      if (match !== null) {
+        items.push({
+          id: match[1] ?? "",
+          title: (match[2] ?? "").trim(),
+          line: index + 1
+        });
+      }
+    });
+    return { path: relative, items };
+  }
+  commit(root, paths, message) {
+    this.git(root, ["add", "--", ...paths]);
+    const staged = this.git(root, ["diff", "--cached", "--name-only", "--", ...paths]);
+    if (staged === "") return null;
+    this.git(root, ["commit", "-m", message, "--", ...paths]);
+    return this.git(root, ["rev-parse", "HEAD"]) || null;
+  }
+  git(root, args) {
+    try {
+      return execFileSync("git", args, {
+        cwd: root,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        timeout: 2e4
+      }).trim();
+    } catch (error) {
+      const stderr = error instanceof Error && "stderr" in error ? String(error.stderr ?? "") : String(error);
+      throw new StudioStoreError(
+        "git_failed",
+        `git ${args.join(" ")} \u5931\u8D25\uFF1A${stderr.slice(0, 800)}`,
+        500
+      );
+    }
+  }
+};
+export {
+  DocsPublisherService
+};

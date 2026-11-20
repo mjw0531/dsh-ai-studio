@@ -5,7 +5,7 @@
  */
 
 export const STUDIO_SCHEMA_VERSION = 37;
-export const STUDIO_PLUGIN_VERSION = "3.16.0";
+export const STUDIO_PLUGIN_VERSION = "3.16.1";
 
 export type TaskStatus =
   | "backlog"
@@ -1233,6 +1233,11 @@ export interface UpdateModuleInput {
   allowedPaths?: string[];
   forbiddenPaths?: string[];
   dependsOn?: string[];
+}
+
+export interface RequirementsIndex {
+  path: string;
+  items: Array<{ id: string; title: string; line: number }>;
 }
 
 export interface ProjectDoc {

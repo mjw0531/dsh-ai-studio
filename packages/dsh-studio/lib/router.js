@@ -2,7 +2,7 @@
 import { timingSafeEqual as timingSafeEqual3 } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_PLUGIN_VERSION = "3.16.0";
+var STUDIO_PLUGIN_VERSION = "3.16.1";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -707,6 +707,9 @@ var StudioRouter = class {
   exportProjectBundle;
   importProjectBundle;
   readProjectDoc;
+  initializeProjectDocs;
+  publishProjectDocs;
+  indexProjectRequirements;
   runWorkshop;
   summarizeWorkshop;
   sayWorkshop;
@@ -730,6 +733,9 @@ var StudioRouter = class {
     this.exportProjectBundle = options.exportProjectBundle;
     this.importProjectBundle = options.importProjectBundle;
     this.readProjectDoc = options.readProjectDoc;
+    this.initializeProjectDocs = options.initializeProjectDocs;
+    this.publishProjectDocs = options.publishProjectDocs;
+    this.indexProjectRequirements = options.indexProjectRequirements;
     this.runWorkshop = options.runWorkshop;
     this.summarizeWorkshop = options.summarizeWorkshop;
     this.sayWorkshop = options.sayWorkshop;
@@ -1494,6 +1500,28 @@ var StudioRouter = class {
         decodeSegment(taskDispatch[1] ?? "")
       );
       sendJson(res, 202, { ok: true, run });
+      return;
+    }
+    if (parsed.pathname === `${API_PREFIX}/project-docs/skeleton`) {
+      requireMethod(parsed, ["POST"]);
+      sendJson(res, 200, { ok: true, ...await this.initializeProjectDocs() });
+      return;
+    }
+    if (parsed.pathname === `${API_PREFIX}/project-docs/publish`) {
+      requireMethod(parsed, ["POST"]);
+      assertJsonRequest(req);
+      const body = await readJson(req);
+      const files = Array.isArray(body.files) ? body.files : [];
+      const parsedFiles = files.map((item) => ({
+        path: asString(item.path, "path"),
+        content: asString(item.content, "content")
+      }));
+      sendJson(res, 200, { ok: true, ...await this.publishProjectDocs(parsedFiles) });
+      return;
+    }
+    if (parsed.pathname === `${API_PREFIX}/project-docs/requirements`) {
+      requireMethod(parsed, ["GET"]);
+      sendJson(res, 200, { ok: true, requirements: await this.indexProjectRequirements() });
       return;
     }
     if (parsed.pathname === `${API_PREFIX}/project-docs`) {

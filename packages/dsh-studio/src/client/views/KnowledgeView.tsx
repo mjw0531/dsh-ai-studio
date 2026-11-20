@@ -11,6 +11,7 @@ import type {
   ProjectDoc,
   ProjectFreeze,
   RequirementDecision,
+  RequirementsIndex,
 } from "../../shared/types.js";
 import { IconPlus } from "../icons.js";
 import { FreezePanel } from "../features/FreezePanel.js";
@@ -29,6 +30,8 @@ export function KnowledgeView({
   onCreateFreezeChangeRequest,
   onDecideFreezeChangeRequest,
   onCreateRequirementDecision,
+  onInitializeDocs,
+  onReadRequirements,
 }: {
   project: Project | null;
   modules: Module[];
@@ -47,6 +50,8 @@ export function KnowledgeView({
   onCreateRequirementDecision: (
     input: CreateRequirementDecisionInput,
   ) => Promise<boolean>;
+  onInitializeDocs: () => Promise<boolean>;
+  onReadRequirements: () => Promise<RequirementsIndex | null>;
   onSaveDocs: (docs: {
     prdPath: string | null;
     invariantsPath: string | null;
@@ -64,6 +69,7 @@ export function KnowledgeView({
   );
   const [doc, setDoc] = useState<ProjectDoc | null>(null);
   const [reading, setReading] = useState(false);
+  const [requirements, setRequirements] = useState<RequirementsIndex | null>(null);
   useEffect(() => {
     setPrdPath(project?.prdPath ?? "");
     setInvariantsPath(project?.invariantsPath ?? "");
@@ -116,6 +122,25 @@ export function KnowledgeView({
           仓库根目录：{project.repoPath}
         </div>
       )}
+
+      <div className="studio-head-actions" style={{ marginBottom: 10 }}>
+        <button
+          type="button"
+          className="studio-btn"
+          disabled={busy || project?.repoPath == null}
+          onClick={() => void onInitializeDocs()}
+        >
+          初始化规划文档
+        </button>
+        <button
+          type="button"
+          className="studio-btn"
+          disabled={busy || project?.repoPath == null}
+          onClick={() => void onReadRequirements().then(setRequirements)}
+        >
+          读取需求清单
+        </button>
+      </div>
 
       <div className="studio-knowledge-grid">
         <section className="studio-panel">
@@ -228,6 +253,22 @@ export function KnowledgeView({
                     </div>
                   ) : null}
                 </article>
+              ))}
+            </div>
+          )}
+        </section>
+        <section className="studio-panel">
+          <div className="studio-section-label">需求清单</div>
+          {requirements === null ? (
+            <div className="studio-faint">点「读取需求清单」解析 PRD 里的 R- 编号。</div>
+          ) : requirements.items.length === 0 ? (
+            <div className="studio-faint">未找到 R- 编号需求。</div>
+          ) : (
+            <div className="studio-actions" style={{ alignItems: "stretch" }}>
+              {requirements.items.map((item) => (
+                <div className="studio-pill" key={item.id}>
+                  {item.id} · {item.title || "未命名"}
+                </div>
               ))}
             </div>
           )}

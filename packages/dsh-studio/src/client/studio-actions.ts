@@ -7,6 +7,7 @@ import type {
   AgentExecutor,
   ApproveStageGateInput,
   BootstrapResponse,
+  RequirementsIndex,
   StudioBackupInfo,
   CreateDecisionInput,
   CreateMergeProposalInput,
@@ -843,6 +844,21 @@ export function createStudioActions({
     );
   };
 
+  const initializeProjectDocs = async (): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.initializeProjectDocs();
+        await load(undefined, false);
+      },
+      "规划文档骨架已初始化",
+    );
+  };
+
+  const readRequirements = async (): Promise<RequirementsIndex | null> => {
+    return client === null ? null : client.indexProjectRequirements();
+  };
+
   const listBackups = async (): Promise<StudioBackupInfo[]> => {
     return client === null ? [] : client.listBackups();
   };
@@ -1025,6 +1041,8 @@ export function createStudioActions({
     completeMerge,
     executeMerge,
     rollbackMerge,
+    initializeProjectDocs,
+    readRequirements,
     listBackups,
     restoreBackup,
     exportData,

@@ -285,6 +285,15 @@ var StudioClient = class {
       body: {}
     });
   }
+  async initializeProjectDocs() {
+    return this.request("/project-docs/skeleton", { method: "POST", body: {} });
+  }
+  async indexProjectRequirements() {
+    const data = await this.request(
+      "/project-docs/requirements"
+    );
+    return data.requirements;
+  }
   async importState(state) {
     await this.request("/import", {
       method: "POST",
@@ -1350,6 +1359,19 @@ function createStudioActions({
       "\u5DF2\u56DE\u6EDA\u5408\u5E76\u5E76\u8BB0\u5F55 revert commit"
     );
   };
+  const initializeProjectDocs = async () => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.initializeProjectDocs();
+        await load(void 0, false);
+      },
+      "\u89C4\u5212\u6587\u6863\u9AA8\u67B6\u5DF2\u521D\u59CB\u5316"
+    );
+  };
+  const readRequirements = async () => {
+    return client === null ? null : client.indexProjectRequirements();
+  };
   const listBackups = async () => {
     return client === null ? [] : client.listBackups();
   };
@@ -1517,6 +1539,8 @@ function createStudioActions({
     completeMerge,
     executeMerge,
     rollbackMerge,
+    initializeProjectDocs,
+    readRequirements,
     listBackups,
     restoreBackup,
     exportData,
@@ -3604,7 +3628,9 @@ function KnowledgeView({
   onCreateFreeze,
   onCreateFreezeChangeRequest,
   onDecideFreezeChangeRequest,
-  onCreateRequirementDecision
+  onCreateRequirementDecision,
+  onInitializeDocs,
+  onReadRequirements
 }) {
   const [prdPath, setPrdPath] = (0, import_react5.useState)(project?.prdPath ?? "");
   const [invariantsPath, setInvariantsPath] = (0, import_react5.useState)(
@@ -3615,6 +3641,7 @@ function KnowledgeView({
   );
   const [doc, setDoc] = (0, import_react5.useState)(null);
   const [reading, setReading] = (0, import_react5.useState)(false);
+  const [requirements, setRequirements] = (0, import_react5.useState)(null);
   (0, import_react5.useEffect)(() => {
     setPrdPath(project?.prdPath ?? "");
     setInvariantsPath(project?.invariantsPath ?? "");
@@ -3660,6 +3687,28 @@ function KnowledgeView({
     project?.repoPath == null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-alert", children: "\u9879\u76EE\u8FD8\u6CA1\u6709\u7ED1\u5B9A\u4EE3\u7801\u4ED3\u5E93\uFF0C\u77E5\u8BC6\u9875\u65E0\u6CD5\u8BFB\u53D6\u6587\u6863\u3002\u5148\u5230\u300C\u8BBE\u7F6E\u300D\u7ED1\u5B9A\u4ED3\u5E93\u6839\u76EE\u5F55\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-hint studio-mono", children: [
       "\u4ED3\u5E93\u6839\u76EE\u5F55\uFF1A",
       project.repoPath
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-head-actions", style: { marginBottom: 10 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+        "button",
+        {
+          type: "button",
+          className: "studio-btn",
+          disabled: busy || project?.repoPath == null,
+          onClick: () => void onInitializeDocs(),
+          children: "\u521D\u59CB\u5316\u89C4\u5212\u6587\u6863"
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+        "button",
+        {
+          type: "button",
+          className: "studio-btn",
+          disabled: busy || project?.repoPath == null,
+          onClick: () => void onReadRequirements().then(setRequirements),
+          children: "\u8BFB\u53D6\u9700\u6C42\u6E05\u5355"
+        }
+      )
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-knowledge-grid", children: [
       /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("section", { className: "studio-panel", children: [
@@ -3766,6 +3815,14 @@ function KnowledgeView({
             module2.dependsOn.join("\u3001")
           ] }) : null
         ] }, module2.id)) })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("section", { className: "studio-panel", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-section-label", children: "\u9700\u6C42\u6E05\u5355" }),
+        requirements === null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-faint", children: "\u70B9\u300C\u8BFB\u53D6\u9700\u6C42\u6E05\u5355\u300D\u89E3\u6790 PRD \u91CC\u7684 R- \u7F16\u53F7\u3002" }) : requirements.items.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-faint", children: "\u672A\u627E\u5230 R- \u7F16\u53F7\u9700\u6C42\u3002" }) : /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "studio-actions", style: { alignItems: "stretch" }, children: requirements.items.map((item) => /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "studio-pill", children: [
+          item.id,
+          " \xB7 ",
+          item.title || "\u672A\u547D\u540D"
+        ] }, item.id)) })
       ] })
     ] }),
     project !== null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
@@ -8361,6 +8418,8 @@ function StudioPage() {
     completeMerge,
     executeMerge,
     rollbackMerge,
+    initializeProjectDocs,
+    readRequirements,
     listBackups,
     restoreBackup,
     exportData,
@@ -8541,7 +8600,9 @@ function StudioPage() {
             onCreateFreeze: createFreeze,
             onCreateFreezeChangeRequest: createFreezeChangeRequest,
             onDecideFreezeChangeRequest: decideFreezeChangeRequest,
-            onCreateRequirementDecision: createRequirementDecision
+            onCreateRequirementDecision: createRequirementDecision,
+            onInitializeDocs: initializeProjectDocs,
+            onReadRequirements: readRequirements
           }
         ) : null,
         tab === "mission" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(

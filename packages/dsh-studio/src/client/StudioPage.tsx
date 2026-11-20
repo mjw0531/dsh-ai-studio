@@ -494,6 +494,8 @@ export function StudioPage() {
     completeMerge,
     executeMerge,
     rollbackMerge,
+    initializeProjectDocs,
+    readRequirements,
     listBackups,
     restoreBackup,
     exportData,
@@ -714,6 +716,8 @@ export function StudioPage() {
                 onCreateFreezeChangeRequest={createFreezeChangeRequest}
                 onDecideFreezeChangeRequest={decideFreezeChangeRequest}
                 onCreateRequirementDecision={createRequirementDecision}
+                onInitializeDocs={initializeProjectDocs}
+                onReadRequirements={readRequirements}
               />
             ) : null}
 

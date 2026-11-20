@@ -13,6 +13,7 @@ import { ProjectBundleService } from "./bundle.js";
 import { AgentDispatcher } from "./dispatcher.js";
 import type { DispatcherContext } from "./dispatcher.js";
 import { DocsService } from "./docs.js";
+import { DocsPublisherService } from "./docs-publish.js";
 import { GitMergeService } from "./merge.js";
 import { handleRouterError, StudioRouter } from "./router.js";
 import { StudioStore } from "./store.js";
@@ -124,6 +125,7 @@ export async function apply(ctx: StudioHostContext): Promise<void> {
   );
   const verifier = new VerificationService(store);
   const docs = new DocsService(store);
+  const docsPublisher = new DocsPublisherService(store);
   const merger = new GitMergeService(store);
   const adr = new AdrService(store);
   const bundles = new ProjectBundleService(store);
@@ -159,6 +161,9 @@ export async function apply(ctx: StudioHostContext): Promise<void> {
     importProjectBundle: (archivePath, targetPath) =>
       bundles.importProject(archivePath, targetPath),
     readProjectDoc: (path) => docs.read(path),
+    initializeProjectDocs: () => docsPublisher.initializeSkeleton(),
+    publishProjectDocs: (files) => docsPublisher.publish(files),
+    indexProjectRequirements: () => docsPublisher.requirements(),
     runWorkshop: (workshopId) => workshopRunner.run(workshopId),
     summarizeWorkshop: (workshopId) => workshopRunner.summarize(workshopId),
     sayWorkshop: (workshopId, roleId, content) =>
