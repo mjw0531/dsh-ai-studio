@@ -11,6 +11,8 @@ export function SettingsView({
   data,
   theme,
   onTheme,
+  singlePlayer,
+  onSinglePlayer,
   onNewProject,
   onBindRepo,
   onReload,
@@ -24,6 +26,8 @@ export function SettingsView({
   data: BootstrapResponse;
   theme: "dark" | "light";
   onTheme: (theme: "dark" | "light") => void;
+  singlePlayer: boolean;
+  onSinglePlayer: (value: boolean) => void;
   onNewProject: () => void;
   onBindRepo: () => void;
   onReload: () => void;
@@ -323,8 +327,16 @@ export function SettingsView({
               <option value="light">浅色</option>
             </select>
           </div>
+          <label className="studio-check" style={{ marginTop: 10 }}>
+            <input
+              type="checkbox"
+              checked={singlePlayer}
+              onChange={(event) => onSinglePlayer(event.target.checked)}
+            />
+            <span>单人模式：隐藏公司看板与合并队列</span>
+          </label>
           <p className="studio-hint" style={{ marginTop: 10 }}>
-            主题保存在当前浏览器；数据与主题互不影响。
+            单人模式保存在当前浏览器；不影响数据和其他页面。
           </p>
         </section>
       </div>

@@ -6041,6 +6041,8 @@ function SettingsView({
   data,
   theme,
   onTheme,
+  singlePlayer,
+  onSinglePlayer,
   onNewProject,
   onBindRepo,
   onReload,
@@ -6297,7 +6299,18 @@ function SettingsView({
             }
           )
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("p", { className: "studio-hint", style: { marginTop: 10 }, children: "\u4E3B\u9898\u4FDD\u5B58\u5728\u5F53\u524D\u6D4F\u89C8\u5668\uFF1B\u6570\u636E\u4E0E\u4E3B\u9898\u4E92\u4E0D\u5F71\u54CD\u3002" })
+        /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("label", { className: "studio-check", style: { marginTop: 10 }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
+            "input",
+            {
+              type: "checkbox",
+              checked: singlePlayer,
+              onChange: (event) => onSinglePlayer(event.target.checked)
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("span", { children: "\u5355\u4EBA\u6A21\u5F0F\uFF1A\u9690\u85CF\u516C\u53F8\u770B\u677F\u4E0E\u5408\u5E76\u961F\u5217" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("p", { className: "studio-hint", style: { marginTop: 10 }, children: "\u5355\u4EBA\u6A21\u5F0F\u4FDD\u5B58\u5728\u5F53\u524D\u6D4F\u89C8\u5668\uFF1B\u4E0D\u5F71\u54CD\u6570\u636E\u548C\u5176\u4ED6\u9875\u9762\u3002" })
       ] })
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("section", { className: "studio-panel", style: { marginTop: 14 }, children: [
@@ -8371,6 +8384,27 @@ function StudioPage() {
   );
   const [modal, setModal] = (0, import_react21.useState)(null);
   const [toast, setToast] = (0, import_react21.useState)(null);
+  const [singlePlayer, setSinglePlayer] = (0, import_react21.useState)(() => {
+    try {
+      return localStorage.getItem("studio.ui.singlePlayer") === "1";
+    } catch {
+      return false;
+    }
+  });
+  (0, import_react21.useEffect)(() => {
+    try {
+      localStorage.setItem(
+        "studio.ui.singlePlayer",
+        singlePlayer ? "1" : "0"
+      );
+    } catch {
+    }
+  }, [singlePlayer]);
+  (0, import_react21.useEffect)(() => {
+    if (singlePlayer && (tab === "company" || tab === "merges")) {
+      setTab("mission");
+    }
+  }, [singlePlayer, tab]);
   const [theme, setTheme] = (0, import_react21.useState)(() => {
     try {
       return localStorage.getItem("studio.theme") === "light" ? "light" : "dark";
@@ -8902,6 +8936,8 @@ function StudioPage() {
             data,
             theme,
             onTheme: setTheme,
+            singlePlayer,
+            onSinglePlayer: setSinglePlayer,
             onNewProject: () => setModal({ kind: "project" }),
             onBindRepo: () => setModal({ kind: "repo" }),
             onReload: () => void load(void 0, false),

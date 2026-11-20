@@ -205,6 +205,30 @@ export function StudioPage() {
   );
   const [modal, setModal] = useState<ModalState>(null);
   const [toast, setToast] = useState<ToastState>(null);
+  const [singlePlayer, setSinglePlayer] = useState(() => {
+    try {
+      return localStorage.getItem("studio.ui.singlePlayer") === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "studio.ui.singlePlayer",
+        singlePlayer ? "1" : "0",
+      );
+    } catch {
+      // Preference persistence is best-effort.
+    }
+  }, [singlePlayer]);
+
+  useEffect(() => {
+    if (singlePlayer && (tab === "company" || tab === "merges")) {
+      setTab("mission");
+    }
+  }, [singlePlayer, tab]);
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     try {
       return localStorage.getItem("studio.theme") === "light" ? "light" : "dark";
@@ -808,6 +832,8 @@ export function StudioPage() {
                 data={data}
                 theme={theme}
                 onTheme={setTheme}
+                singlePlayer={singlePlayer}
+                onSinglePlayer={setSinglePlayer}
                 onNewProject={() => setModal({ kind: "project" })}
                 onBindRepo={() => setModal({ kind: "repo" })}
                 onReload={() => void load(undefined, false)}
