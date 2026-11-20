@@ -288,6 +288,9 @@ var StudioClient = class {
   async initializeProjectDocs() {
     return this.request("/project-docs/skeleton", { method: "POST", body: {} });
   }
+  async syncProjectModules() {
+    return this.request("/project-docs/modules", { method: "POST", body: {} });
+  }
   async indexProjectRequirements() {
     const data = await this.request(
       "/project-docs/requirements"
@@ -1369,6 +1372,15 @@ function createStudioActions({
       "\u89C4\u5212\u6587\u6863\u9AA8\u67B6\u5DF2\u521D\u59CB\u5316"
     );
   };
+  const syncModules = async () => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.syncProjectModules();
+      },
+      "\u6A21\u5757\u5361\u5DF2\u53D1\u5E03\u5230\u4ED3\u5E93"
+    );
+  };
   const readRequirements = async () => {
     return client === null ? null : client.indexProjectRequirements();
   };
@@ -1541,6 +1553,7 @@ function createStudioActions({
     rollbackMerge,
     initializeProjectDocs,
     readRequirements,
+    syncModules,
     listBackups,
     restoreBackup,
     exportData,
@@ -3654,7 +3667,8 @@ function KnowledgeView({
   onDecideFreezeChangeRequest,
   onCreateRequirementDecision,
   onInitializeDocs,
-  onReadRequirements
+  onReadRequirements,
+  onSyncModules
 }) {
   const [prdPath, setPrdPath] = (0, import_react5.useState)(project?.prdPath ?? "");
   const [invariantsPath, setInvariantsPath] = (0, import_react5.useState)(
@@ -3731,6 +3745,16 @@ function KnowledgeView({
           disabled: busy || project?.repoPath == null,
           onClick: () => void onReadRequirements().then(setRequirements),
           children: "\u8BFB\u53D6\u9700\u6C42\u6E05\u5355"
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+        "button",
+        {
+          type: "button",
+          className: "studio-btn",
+          disabled: busy || project?.repoPath == null || modules.length === 0,
+          onClick: () => void onSyncModules(),
+          children: "\u53D1\u5E03\u6A21\u5757\u5361"
         }
       )
     ] }),
@@ -8444,6 +8468,7 @@ function StudioPage() {
     rollbackMerge,
     initializeProjectDocs,
     readRequirements,
+    syncModules,
     listBackups,
     restoreBackup,
     exportData,
@@ -8626,7 +8651,8 @@ function StudioPage() {
             onDecideFreezeChangeRequest: decideFreezeChangeRequest,
             onCreateRequirementDecision: createRequirementDecision,
             onInitializeDocs: initializeProjectDocs,
-            onReadRequirements: readRequirements
+            onReadRequirements: readRequirements,
+            onSyncModules: syncModules
           }
         ) : null,
         tab === "mission" ? /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(

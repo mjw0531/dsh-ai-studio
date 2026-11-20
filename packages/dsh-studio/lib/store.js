@@ -16,7 +16,7 @@ import path4 from "node:path";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 38;
-var STUDIO_PLUGIN_VERSION = "3.16.2";
+var STUDIO_PLUGIN_VERSION = "3.16.3";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -3692,7 +3692,7 @@ async function enforceContractScope(ctx, taskId, runId, changedFiles) {
     const state = ctx.requireState();
     const task = findTask(state, taskId);
     const module = task.module === null ? void 0 : state.modules.find(
-      (item) => item.projectId === task.projectId && item.name === task.module
+      (item) => item.projectId === task.projectId && item.name.toLowerCase() === (task.module ?? "").toLowerCase()
     );
     if (module === void 0) return [];
     const normalize = (value) => value.replaceAll("\\", "/").replace(/^\.\//, "").toLowerCase();
@@ -3950,7 +3950,7 @@ async function getDispatchContext(ctx, taskId) {
       );
     }
     const module = task.module === null ? void 0 : state.modules.find(
-      (item) => item.projectId === task.projectId && item.name === task.module
+      (item) => item.projectId === task.projectId && item.name.toLowerCase() === (task.module ?? "").toLowerCase()
     );
     const providerProfile = role.providerProfileId === null ? null : state.providerProfiles.find(
       (profile) => profile.id === role.providerProfileId && profile.projectId === project.id

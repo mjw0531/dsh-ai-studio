@@ -855,6 +855,16 @@ export function createStudioActions({
     );
   };
 
+  const syncModules = async (): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.syncProjectModules();
+      },
+      "模块卡已发布到仓库",
+    );
+  };
+
   const readRequirements = async (): Promise<RequirementsIndex | null> => {
     return client === null ? null : client.indexProjectRequirements();
   };
@@ -1043,6 +1053,7 @@ export function createStudioActions({
     rollbackMerge,
     initializeProjectDocs,
     readRequirements,
+    syncModules,
     listBackups,
     restoreBackup,
     exportData,

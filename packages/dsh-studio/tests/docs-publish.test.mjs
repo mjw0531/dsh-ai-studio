@@ -23,7 +23,20 @@ test("initializes the docs skeleton and indexes numbered requirements", async ()
     git(dir, "config", "user.email", "studio@test.local");
     const store = {
       async bootstrap() {
-        return { project: { repoPath: dir, prdPath: "docs/PRD.md" } };
+        return {
+          project: { repoPath: dir, prdPath: "docs/PRD.md" },
+          modules: [
+            {
+              id: "module-alpha",
+              name: "Alpha",
+              responsibility: "核心战斗",
+              dependsOn: [],
+              allowedPaths: ["src/alpha"],
+              forbiddenPaths: [],
+              contractPath: null,
+            },
+          ],
+        };
       },
     };
     const service = new DocsPublisherService(store);
@@ -31,6 +44,12 @@ test("initializes the docs skeleton and indexes numbered requirements", async ()
     assert.ok(initialized.commit);
     assert.equal(git(dir, "status", "--porcelain"), "");
     assert.match(await readFile(path.join(dir, "docs/PRD.md"), "utf8"), /R-001/);
+    const synced = await service.syncModules();
+    assert.ok(synced.commit);
+    assert.match(
+      await readFile(path.join(dir, "docs/modules/Alpha.md"), "utf8"),
+      /核心战斗/,
+    );
     const requirements = await service.requirements();
     assert.equal(requirements.items[0]?.id, "R-001");
 

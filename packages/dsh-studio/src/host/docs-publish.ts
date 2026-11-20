@@ -135,6 +135,49 @@ export class DocsPublisherService {
     };
   }
 
+  async syncModules(): Promise<{ commit: string | null; files: PublishedDoc[] }> {
+    const data = await this.store.bootstrap();
+    if (data.modules.length === 0) {
+      throw new StudioStoreError("modules_empty", "没有可同步的模块", 409);
+    }
+    const files = data.modules.map((module) => {
+      const slug = module.name
+        .trim()
+        .replace(/[^\p{L}\p{N}._-]+/gu, "-")
+        .replace(/^-+|-+$/gu, "") || module.id;
+      return {
+        path: `docs/modules/${slug}.md`,
+        content: [
+          `# 模块：${module.name}`,
+          "",
+          "> 由 Studio 从模块契约生成；修改契约请通过 Studio。",
+          "",
+          `## 职责
+
+${module.responsibility || "（未填写）"}`,
+          "",
+          `## 依赖
+
+${module.dependsOn.join("、") || "（无）"}`,
+          "",
+          `## 允许路径
+
+${module.allowedPaths.join("\n") || "（未限制）"}`,
+          "",
+          `## 禁止路径
+
+${module.forbiddenPaths.join("\n") || "（无）"}`,
+          "",
+          `## 契约文件
+
+${module.contractPath ?? "（未绑定）"}`,
+        ].join("\n"),
+      };
+    });
+    const published = await this.publish(files);
+    return { commit: published.commit, files: published.files };
+  }
+
   async requirements(): Promise<RequirementsIndex> {
     const { root, prdPath } = await this.repo();
     const relative = prdPath.replaceAll("\\", "/").replace(/^\/+/u, "");

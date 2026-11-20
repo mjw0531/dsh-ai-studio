@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 38;
-var STUDIO_PLUGIN_VERSION = "3.16.2";
+var STUDIO_PLUGIN_VERSION = "3.16.3";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -3803,7 +3803,7 @@ async function enforceContractScope(ctx, taskId, runId, changedFiles) {
     const state = ctx.requireState();
     const task = findTask(state, taskId);
     const module = task.module === null ? void 0 : state.modules.find(
-      (item) => item.projectId === task.projectId && item.name === task.module
+      (item) => item.projectId === task.projectId && item.name.toLowerCase() === (task.module ?? "").toLowerCase()
     );
     if (module === void 0) return [];
     const normalize = (value) => value.replaceAll("\\", "/").replace(/^\.\//, "").toLowerCase();
@@ -4061,7 +4061,7 @@ async function getDispatchContext(ctx, taskId) {
       );
     }
     const module = task.module === null ? void 0 : state.modules.find(
-      (item) => item.projectId === task.projectId && item.name === task.module
+      (item) => item.projectId === task.projectId && item.name.toLowerCase() === (task.module ?? "").toLowerCase()
     );
     const providerProfile = role.providerProfileId === null ? null : state.providerProfiles.find(
       (profile) => profile.id === role.providerProfileId && profile.projectId === project.id
@@ -8113,6 +8113,45 @@ var DocsPublisherService = class {
       files: written.map((file) => ({ path: file, written: true }))
     };
   }
+  async syncModules() {
+    const data = await this.store.bootstrap();
+    if (data.modules.length === 0) {
+      throw new StudioStoreError("modules_empty", "\u6CA1\u6709\u53EF\u540C\u6B65\u7684\u6A21\u5757", 409);
+    }
+    const files = data.modules.map((module) => {
+      const slug = module.name.trim().replace(/[^\p{L}\p{N}._-]+/gu, "-").replace(/^-+|-+$/gu, "") || module.id;
+      return {
+        path: `docs/modules/${slug}.md`,
+        content: [
+          `# \u6A21\u5757\uFF1A${module.name}`,
+          "",
+          "> \u7531 Studio \u4ECE\u6A21\u5757\u5951\u7EA6\u751F\u6210\uFF1B\u4FEE\u6539\u5951\u7EA6\u8BF7\u901A\u8FC7 Studio\u3002",
+          "",
+          `## \u804C\u8D23
+
+${module.responsibility || "\uFF08\u672A\u586B\u5199\uFF09"}`,
+          "",
+          `## \u4F9D\u8D56
+
+${module.dependsOn.join("\u3001") || "\uFF08\u65E0\uFF09"}`,
+          "",
+          `## \u5141\u8BB8\u8DEF\u5F84
+
+${module.allowedPaths.join("\n") || "\uFF08\u672A\u9650\u5236\uFF09"}`,
+          "",
+          `## \u7981\u6B62\u8DEF\u5F84
+
+${module.forbiddenPaths.join("\n") || "\uFF08\u65E0\uFF09"}`,
+          "",
+          `## \u5951\u7EA6\u6587\u4EF6
+
+${module.contractPath ?? "\uFF08\u672A\u7ED1\u5B9A\uFF09"}`
+        ].join("\n")
+      };
+    });
+    const published = await this.publish(files);
+    return { commit: published.commit, files: published.files };
+  }
   async requirements() {
     const { root, prdPath } = await this.repo();
     const relative = prdPath.replaceAll("\\", "/").replace(/^\/+/u, "");
@@ -9149,6 +9188,7 @@ var StudioRouter = class {
   readProjectDoc;
   initializeProjectDocs;
   publishProjectDocs;
+  syncProjectModules;
   indexProjectRequirements;
   runWorkshop;
   summarizeWorkshop;
@@ -9175,6 +9215,7 @@ var StudioRouter = class {
     this.readProjectDoc = options.readProjectDoc;
     this.initializeProjectDocs = options.initializeProjectDocs;
     this.publishProjectDocs = options.publishProjectDocs;
+    this.syncProjectModules = options.syncProjectModules;
     this.indexProjectRequirements = options.indexProjectRequirements;
     this.runWorkshop = options.runWorkshop;
     this.summarizeWorkshop = options.summarizeWorkshop;
@@ -9959,6 +10000,11 @@ var StudioRouter = class {
       sendJson(res, 200, { ok: true, ...await this.publishProjectDocs(parsedFiles) });
       return;
     }
+    if (parsed.pathname === `${API_PREFIX}/project-docs/modules`) {
+      requireMethod(parsed, ["POST"]);
+      sendJson(res, 200, { ok: true, ...await this.syncProjectModules() });
+      return;
+    }
     if (parsed.pathname === `${API_PREFIX}/project-docs/requirements`) {
       requireMethod(parsed, ["GET"]);
       sendJson(res, 200, { ok: true, requirements: await this.indexProjectRequirements() });
@@ -10701,6 +10747,7 @@ async function apply(ctx) {
     readProjectDoc: (path12) => docs.read(path12),
     initializeProjectDocs: () => docsPublisher.initializeSkeleton(),
     publishProjectDocs: (files) => docsPublisher.publish(files),
+    syncProjectModules: () => docsPublisher.syncModules(),
     indexProjectRequirements: () => docsPublisher.requirements(),
     runWorkshop: (workshopId) => workshopRunner.run(workshopId),
     summarizeWorkshop: (workshopId) => workshopRunner.summarize(workshopId),

@@ -32,6 +32,7 @@ export function KnowledgeView({
   onCreateRequirementDecision,
   onInitializeDocs,
   onReadRequirements,
+  onSyncModules,
 }: {
   project: Project | null;
   modules: Module[];
@@ -52,6 +53,7 @@ export function KnowledgeView({
   ) => Promise<boolean>;
   onInitializeDocs: () => Promise<boolean>;
   onReadRequirements: () => Promise<RequirementsIndex | null>;
+  onSyncModules: () => Promise<boolean>;
   onSaveDocs: (docs: {
     prdPath: string | null;
     invariantsPath: string | null;
@@ -139,6 +141,14 @@ export function KnowledgeView({
           onClick={() => void onReadRequirements().then(setRequirements)}
         >
           读取需求清单
+        </button>
+        <button
+          type="button"
+          className="studio-btn"
+          disabled={busy || project?.repoPath == null || modules.length === 0}
+          onClick={() => void onSyncModules()}
+        >
+          发布模块卡
         </button>
       </div>
 

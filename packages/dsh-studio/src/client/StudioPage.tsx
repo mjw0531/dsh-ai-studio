@@ -496,6 +496,7 @@ export function StudioPage() {
     rollbackMerge,
     initializeProjectDocs,
     readRequirements,
+    syncModules,
     listBackups,
     restoreBackup,
     exportData,
@@ -718,6 +719,7 @@ export function StudioPage() {
                 onCreateRequirementDecision={createRequirementDecision}
                 onInitializeDocs={initializeProjectDocs}
                 onReadRequirements={readRequirements}
+                onSyncModules={syncModules}
               />
             ) : null}
 

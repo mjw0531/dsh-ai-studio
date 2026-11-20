@@ -589,7 +589,7 @@ export async function enforceContractScope(
           : state.modules.find(
               (item) =>
                 item.projectId === task.projectId &&
-                item.name === task.module,
+                item.name.toLowerCase() === (task.module ?? "").toLowerCase(),
             );
       if (module === undefined) return [];
       const normalize = (value: string): string =>
@@ -905,7 +905,7 @@ export async function getDispatchContext(
           : state.modules.find(
               (item) =>
                 item.projectId === task.projectId &&
-                item.name === task.module,
+                item.name.toLowerCase() === (task.module ?? "").toLowerCase(),
             );
       const providerProfile =
         role.providerProfileId === null

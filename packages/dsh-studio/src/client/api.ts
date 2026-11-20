@@ -273,6 +273,10 @@ export class StudioClient {
     return this.request("/project-docs/skeleton", { method: "POST", body: {} });
   }
 
+  async syncProjectModules(): Promise<{ commit: string | null }> {
+    return this.request("/project-docs/modules", { method: "POST", body: {} });
+  }
+
   async indexProjectRequirements(): Promise<RequirementsIndex> {
     const data = await this.request<{ requirements: RequirementsIndex }>(
       "/project-docs/requirements",
