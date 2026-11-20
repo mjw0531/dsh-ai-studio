@@ -498,10 +498,24 @@ export function migrateState(value: unknown): StudioState {
   if (state.schemaVersion === 39) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 40,
       workshops: state.workshops.map((workshop) => ({
         ...workshop,
         actionItems: [],
+      })),
+    };
+  }
+  if (state.schemaVersion === 40) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      workshops: state.workshops.map((workshop) => ({
+        ...workshop,
+        materials: workshop.materials.map((material) => ({
+          ...material,
+          sha256: "",
+          capturedAt: workshop.createdAt,
+        })),
       })),
     };
   }

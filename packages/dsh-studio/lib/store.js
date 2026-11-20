@@ -15,8 +15,8 @@ import os from "node:os";
 import path4 from "node:path";
 
 // src/shared/types.ts
-var STUDIO_SCHEMA_VERSION = 40;
-var STUDIO_PLUGIN_VERSION = "3.17.1";
+var STUDIO_SCHEMA_VERSION = 41;
+var STUDIO_PLUGIN_VERSION = "3.17.2";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -533,10 +533,24 @@ function migrateState(value) {
   if (state.schemaVersion === 39) {
     state = {
       ...state,
-      schemaVersion: STUDIO_SCHEMA_VERSION,
+      schemaVersion: 40,
       workshops: state.workshops.map((workshop) => ({
         ...workshop,
         actionItems: []
+      }))
+    };
+  }
+  if (state.schemaVersion === 40) {
+    state = {
+      ...state,
+      schemaVersion: STUDIO_SCHEMA_VERSION,
+      workshops: state.workshops.map((workshop) => ({
+        ...workshop,
+        materials: workshop.materials.map((material) => ({
+          ...material,
+          sha256: "",
+          capturedAt: workshop.createdAt
+        }))
       }))
     };
   }
@@ -644,7 +658,7 @@ function isWorkshop(value) {
   return isRecord2(value) && typeof value.id === "string" && typeof value.projectId === "string" && typeof value.title === "string" && typeof value.topic === "string" && isProjectStage(value.stage) && isWorkshopStatus(value.status) && Array.isArray(value.participantRoleIds) && value.participantRoleIds.every((item) => typeof item === "string") && Array.isArray(value.participantPerspectives) && value.participantPerspectives.every(
     (item) => isRecord2(item) && typeof item.roleId === "string" && (item.perspective === "experience" || item.perspective === "competitor" || item.perspective === "feasibility" || item.perspective === "contrarian")
   ) && (value.freezeId === null || typeof value.freezeId === "string") && (value.linkedTaskId === null || typeof value.linkedTaskId === "string") && (value.linkedChangeRequestId === null || typeof value.linkedChangeRequestId === "string") && (value.meetingType === "prd" || value.meetingType === "architecture" || value.meetingType === "balance" || value.meetingType === "custom") && Array.isArray(value.materials) && value.materials.every(
-    (item) => isRecord2(item) && typeof item.path === "string" && typeof item.content === "string"
+    (item) => isRecord2(item) && typeof item.path === "string" && typeof item.content === "string" && typeof item.sha256 === "string" && typeof item.capturedAt === "string"
   ) && Array.isArray(value.agenda) && value.agenda.every(isWorkshopAgendaItem) && Array.isArray(value.messages) && value.messages.every(isWorkshopMessage) && Array.isArray(value.sideChats) && value.sideChats.every(
     (chat) => isRecord2(chat) && typeof chat.roleId === "string" && Array.isArray(chat.messages) && chat.messages.every(isWorkshopMessage) && typeof chat.updatedAt === "string"
   ) && (value.minutes === null || isWorkshopMinutes(value.minutes)) && (value.decisionId === null || typeof value.decisionId === "string") && (value.settledAt === null || typeof value.settledAt === "string") && Array.isArray(value.notes) && value.notes.every(isWorkshopNote) && Array.isArray(value.actionItems) && value.actionItems.every(
@@ -4024,6 +4038,7 @@ async function recordRunRuntime(ctx, runId, runtime) {
 }
 
 // src/host/store/workshops.ts
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 async function getWorkshopContext(ctx, workshopId) {
@@ -4179,6 +4194,7 @@ async function createWorkshop(ctx, input) {
       roleId,
       perspective: input.perspectives?.find((item) => item.roleId === roleId)?.perspective ?? perspectiveOrder[index % perspectiveOrder.length] ?? "experience"
     }));
+    const at = ctx.now();
     const materials = [];
     const seenMaterials = /* @__PURE__ */ new Set();
     for (const rawPath of input.materialPaths ?? []) {
@@ -4207,9 +4223,14 @@ async function createWorkshop(ctx, input) {
         );
       }
       seenMaterials.add(relative);
-      materials.push({ path: relative, content: content.slice(0, 2e4) });
+      const snapshot = content.slice(0, 2e4);
+      materials.push({
+        path: relative,
+        content: snapshot,
+        sha256: createHash("sha256").update(snapshot).digest("hex").slice(0, 12),
+        capturedAt: at
+      });
     }
-    const at = ctx.now();
     const workshop = {
       id: newId("workshop"),
       projectId: project.id,
@@ -5029,7 +5050,7 @@ import { existsSync } from "node:fs";
 import path3 from "node:path";
 
 // src/host/store/freezes.ts
-import { createHash } from "node:crypto";
+import { createHash as createHash2 } from "node:crypto";
 import { readFile as readFile2, stat } from "node:fs/promises";
 import path2 from "node:path";
 var PRD_CHECKS = [
@@ -5075,7 +5096,7 @@ async function hashFile(file) {
       404
     );
   }
-  return createHash("sha256").update(await readFile2(file)).digest("hex");
+  return createHash2("sha256").update(await readFile2(file)).digest("hex");
 }
 function latestFreeze(state, projectId, kind) {
   return [...state.freezes].filter(

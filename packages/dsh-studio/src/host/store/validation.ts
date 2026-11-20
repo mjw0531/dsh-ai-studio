@@ -644,7 +644,9 @@ function isWorkshop(value: unknown): value is Workshop {
       (item) =>
         isRecord(item) &&
         typeof item.path === "string" &&
-        typeof item.content === "string",
+        typeof item.content === "string" &&
+        typeof item.sha256 === "string" &&
+        typeof item.capturedAt === "string",
     ) &&
     Array.isArray(value.agenda) &&
     value.agenda.every(isWorkshopAgendaItem) &&

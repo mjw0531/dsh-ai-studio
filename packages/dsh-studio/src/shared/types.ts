@@ -4,8 +4,8 @@
  * 这个文件同时被 Host 和浏览器端引用，所以不能引入任何 Node 或浏览器专属 API。
  */
 
-export const STUDIO_SCHEMA_VERSION = 40;
-export const STUDIO_PLUGIN_VERSION = "3.17.1";
+export const STUDIO_SCHEMA_VERSION = 41;
+export const STUDIO_PLUGIN_VERSION = "3.17.2";
 
 export type TaskStatus =
   | "backlog"
@@ -243,6 +243,8 @@ export type WorkshopAgendaStatus = "open" | "closed" | "deferred";
 export interface WorkshopMaterial {
   path: string;
   content: string;
+  sha256: string;
+  capturedAt: string;
 }
 
 export interface WorkshopAgendaItem {

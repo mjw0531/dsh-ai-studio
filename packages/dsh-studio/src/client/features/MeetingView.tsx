@@ -762,6 +762,19 @@ export function MeetingView({
                       </button>
                     ) : null}
                   </div>
+                  {active.materials.length > 0 ? (
+                    <>
+                      <div className="studio-section-label">会议材料快照</div>
+                      <div className="studio-actions">
+                        {active.materials.map((material) => (
+                          <span className="studio-pill studio-mono" key={material.path}>
+                            {material.path} · {material.sha256 || "旧快照"}
+                          </span>
+                        ))}
+                      </div>
+                    </>
+                  ) : null}
+
                   <div className="studio-section-label">行动项</div>
                   <div className="studio-meeting-actions">
                     {active.actionItems.length === 0 ? (

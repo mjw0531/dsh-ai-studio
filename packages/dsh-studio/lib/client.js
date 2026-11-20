@@ -2989,6 +2989,14 @@ function MeetingView({
                 }
               ) : null
             ] }),
+            active.materials.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(import_jsx_runtime4.Fragment, { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "studio-section-label", children: "\u4F1A\u8BAE\u6750\u6599\u5FEB\u7167" }),
+              /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "studio-actions", children: active.materials.map((material) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { className: "studio-pill studio-mono", children: [
+                material.path,
+                " \xB7 ",
+                material.sha256 || "\u65E7\u5FEB\u7167"
+              ] }, material.path)) })
+            ] }) : null,
             /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "studio-section-label", children: "\u884C\u52A8\u9879" }),
             /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "studio-meeting-actions", children: [
               active.actionItems.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "studio-faint", children: "\u8FD8\u6CA1\u6709\u884C\u52A8\u9879\u3002" }) : active.actionItems.map((item) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("label", { className: "studio-check", children: [

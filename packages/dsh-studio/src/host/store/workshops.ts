@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -232,6 +233,7 @@ export async function createWorkshop(
           perspectiveOrder[index % perspectiveOrder.length] ??
           "experience",
       }));
+      const at = ctx.now();
       const materials: Workshop["materials"] = [];
       const seenMaterials = new Set<string>();
       for (const rawPath of input.materialPaths ?? []) {
@@ -265,9 +267,14 @@ export async function createWorkshop(
           );
         }
         seenMaterials.add(relative);
-        materials.push({ path: relative, content: content.slice(0, 20_000) });
+        const snapshot = content.slice(0, 20_000);
+        materials.push({
+          path: relative,
+          content: snapshot,
+          sha256: createHash("sha256").update(snapshot).digest("hex").slice(0, 12),
+          capturedAt: at,
+        });
       }
-      const at = ctx.now();
       const workshop: Workshop = {
         id: newId("workshop"),
         projectId: project.id,
