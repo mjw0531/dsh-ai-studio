@@ -213,6 +213,20 @@ ${module.contractPath ?? "\uFF08\u672A\u7ED1\u5B9A\uFF09"}`
     const published = await this.publish(files);
     return { commit: published.commit, files: published.files };
   }
+  async diff(relativePath) {
+    const { root } = await this.repo();
+    const relative = relativePath.replaceAll("\\", "/").replace(/^\/+/, "");
+    if (!relative.startsWith("docs/") || relative.includes("..")) {
+      throw new StudioStoreError("invalid_doc_path", "\u53EA\u5141\u8BB8\u67E5\u770B docs/ \u4E0B\u7684\u6587\u6863", 400);
+    }
+    const diff = this.git(root, ["diff", "--", relative]);
+    const status = this.git(root, ["status", "--porcelain", "--", relative]);
+    return {
+      path: relative,
+      dirty: diff !== "" || status !== "",
+      diff: (diff || status).slice(0, 12e3)
+    };
+  }
   async requirements() {
     const { root, prdPath } = await this.repo();
     const relative = prdPath.replaceAll("\\", "/").replace(/^\/+/u, "");

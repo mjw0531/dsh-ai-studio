@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -95,7 +95,10 @@ test("initializes the docs skeleton and indexes numbered requirements", async ()
       await readFile(path.join(dir, "docs/DOMAIN_MODEL.md"), "utf8"),
       /# Domain/u,
     );
-    assert.equal(git(dir, "status", "--porcelain"), "");
+    await writeFile(path.join(dir, "docs/PRD.md"), "# dirty\n", "utf8");
+    const diff = await service.diff("docs/PRD.md");
+    assert.equal(diff.dirty, true);
+    assert.match(diff.diff, /dirty/u);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

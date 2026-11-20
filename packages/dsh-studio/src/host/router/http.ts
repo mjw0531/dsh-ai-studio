@@ -87,6 +87,7 @@ export interface StudioRouterOptions {
   ) => Promise<{ files: unknown[]; commit: string | null }>;
   syncProjectModules: () => Promise<{ files: unknown[]; commit: string | null }>;
   syncProjectMilestones: () => Promise<{ files: unknown[]; commit: string | null }>;
+  diffProjectDoc: (path: string) => Promise<{ path: string; dirty: boolean; diff: string }>;
   indexProjectRequirements: () => Promise<unknown>;
   runWorkshop: (workshopId: string) => Promise<Workshop>;
   summarizeWorkshop: (workshopId: string) => Promise<Workshop>;

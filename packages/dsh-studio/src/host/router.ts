@@ -119,6 +119,7 @@ export class StudioRouter {
   ) => Promise<{ files: unknown[]; commit: string | null }>;
   private readonly syncProjectModules: () => Promise<{ files: unknown[]; commit: string | null }>;
   private readonly syncProjectMilestones: () => Promise<{ files: unknown[]; commit: string | null }>;
+  private readonly diffProjectDoc: (path: string) => Promise<{ path: string; dirty: boolean; diff: string }>;
   private readonly indexProjectRequirements: () => Promise<unknown>;
   private readonly runWorkshop: (workshopId: string) => Promise<Workshop>;
   private readonly summarizeWorkshop: (
@@ -162,6 +163,7 @@ export class StudioRouter {
     this.publishProjectDocs = options.publishProjectDocs;
     this.syncProjectModules = options.syncProjectModules;
     this.syncProjectMilestones = options.syncProjectMilestones;
+    this.diffProjectDoc = options.diffProjectDoc;
     this.indexProjectRequirements = options.indexProjectRequirements;
     this.runWorkshop = options.runWorkshop;
     this.summarizeWorkshop = options.summarizeWorkshop;
@@ -1113,6 +1115,16 @@ export class StudioRouter {
     if (parsed.pathname === `${API_PREFIX}/project-docs/milestones`) {
       requireMethod(parsed, ["POST"]);
       sendJson(res, 200, { ok: true, ...(await this.syncProjectMilestones()) });
+      return;
+    }
+
+    if (parsed.pathname === `${API_PREFIX}/project-docs/diff`) {
+      requireMethod(parsed, ["GET"]);
+      const docPath = parsed.url.searchParams.get("path");
+      if (docPath === null || docPath.trim() === "") {
+        throw new HttpError(400, "invalid_input", "path 不能为空");
+      }
+      sendJson(res, 200, { ok: true, diff: await this.diffProjectDoc(docPath) });
       return;
     }
 

@@ -274,6 +274,15 @@ export class StudioClient {
     });
   }
 
+  async projectDocDiff(
+    path: string,
+  ): Promise<{ path: string; dirty: boolean; diff: string }> {
+    const data = await this.request<{
+      diff: { path: string; dirty: boolean; diff: string };
+    }>(`/project-docs/diff?path=${encodeURIComponent(path)}`);
+    return data.diff;
+  }
+
   async publishProjectDocs(
     files: Array<{ path: string; content: string }>,
   ): Promise<{ commit: string | null }> {

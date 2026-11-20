@@ -230,6 +230,27 @@ ${module.contractPath ?? "（未绑定）"}`,
     return { commit: published.commit, files: published.files };
   }
 
+  async diff(relativePath: string): Promise<{
+    path: string;
+    dirty: boolean;
+    diff: string;
+  }> {
+    const { root } = await this.repo();
+    const relative = relativePath
+      .replaceAll("\\", "/")
+      .replace(/^\/+/, "");
+    if (!relative.startsWith("docs/") || relative.includes("..")) {
+      throw new StudioStoreError("invalid_doc_path", "只允许查看 docs/ 下的文档", 400);
+    }
+    const diff = this.git(root, ["diff", "--", relative]);
+    const status = this.git(root, ["status", "--porcelain", "--", relative]);
+    return {
+      path: relative,
+      dirty: diff !== "" || status !== "",
+      diff: (diff || status).slice(0, 12_000),
+    };
+  }
+
   async requirements(): Promise<RequirementsIndex> {
     const { root, prdPath } = await this.repo();
     const relative = prdPath.replaceAll("\\", "/").replace(/^\/+/u, "");

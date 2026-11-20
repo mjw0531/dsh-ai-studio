@@ -2,7 +2,7 @@
 import { timingSafeEqual as timingSafeEqual3 } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_PLUGIN_VERSION = "3.18.1";
+var STUDIO_PLUGIN_VERSION = "3.18.2";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -753,6 +753,7 @@ var StudioRouter = class {
   publishProjectDocs;
   syncProjectModules;
   syncProjectMilestones;
+  diffProjectDoc;
   indexProjectRequirements;
   runWorkshop;
   summarizeWorkshop;
@@ -781,6 +782,7 @@ var StudioRouter = class {
     this.publishProjectDocs = options.publishProjectDocs;
     this.syncProjectModules = options.syncProjectModules;
     this.syncProjectMilestones = options.syncProjectMilestones;
+    this.diffProjectDoc = options.diffProjectDoc;
     this.indexProjectRequirements = options.indexProjectRequirements;
     this.runWorkshop = options.runWorkshop;
     this.summarizeWorkshop = options.summarizeWorkshop;
@@ -1598,6 +1600,15 @@ var StudioRouter = class {
     if (parsed.pathname === `${API_PREFIX}/project-docs/milestones`) {
       requireMethod(parsed, ["POST"]);
       sendJson(res, 200, { ok: true, ...await this.syncProjectMilestones() });
+      return;
+    }
+    if (parsed.pathname === `${API_PREFIX}/project-docs/diff`) {
+      requireMethod(parsed, ["GET"]);
+      const docPath = parsed.url.searchParams.get("path");
+      if (docPath === null || docPath.trim() === "") {
+        throw new HttpError(400, "invalid_input", "path \u4E0D\u80FD\u4E3A\u7A7A");
+      }
+      sendJson(res, 200, { ok: true, diff: await this.diffProjectDoc(docPath) });
       return;
     }
     if (parsed.pathname === `${API_PREFIX}/project-docs/requirements`) {

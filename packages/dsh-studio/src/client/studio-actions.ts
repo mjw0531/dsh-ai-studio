@@ -2,6 +2,7 @@ import type { ChangeEvent } from "react";
 
 import type { StudioClient } from "./api.js";
 import { StudioClientError } from "./api.js";
+import { errorToastText } from "./lib/format.js";
 import type {
   AddWorkshopNoteInput,
   AgentExecutor,
@@ -971,6 +972,18 @@ export function createStudioActions({
     );
   };
 
+  const readProjectDocDiff = async (
+    path: string,
+  ): Promise<{ path: string; dirty: boolean; diff: string } | null> => {
+    if (client === null) return null;
+    try {
+      return await client.projectDocDiff(path);
+    } catch (cause) {
+      setToast({ kind: "error", text: errorToastText(cause) });
+      return null;
+    }
+  };
+
   const publishProjectDoc = async (
     path: string,
     content: string,
@@ -1209,6 +1222,7 @@ export function createStudioActions({
     rollbackMerge,
     initializeProjectDocs,
     publishProjectDoc,
+    readProjectDocDiff,
     readRequirements,
     syncMilestoneDocs,
     syncModules,

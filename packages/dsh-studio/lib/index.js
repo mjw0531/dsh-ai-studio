@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 41;
-var STUDIO_PLUGIN_VERSION = "3.18.1";
+var STUDIO_PLUGIN_VERSION = "3.18.2";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -8407,6 +8407,20 @@ ${module.contractPath ?? "\uFF08\u672A\u7ED1\u5B9A\uFF09"}`
     const published = await this.publish(files);
     return { commit: published.commit, files: published.files };
   }
+  async diff(relativePath) {
+    const { root } = await this.repo();
+    const relative = relativePath.replaceAll("\\", "/").replace(/^\/+/, "");
+    if (!relative.startsWith("docs/") || relative.includes("..")) {
+      throw new StudioStoreError("invalid_doc_path", "\u53EA\u5141\u8BB8\u67E5\u770B docs/ \u4E0B\u7684\u6587\u6863", 400);
+    }
+    const diff = this.git(root, ["diff", "--", relative]);
+    const status = this.git(root, ["status", "--porcelain", "--", relative]);
+    return {
+      path: relative,
+      dirty: diff !== "" || status !== "",
+      diff: (diff || status).slice(0, 12e3)
+    };
+  }
   async requirements() {
     const { root, prdPath } = await this.repo();
     const relative = prdPath.replaceAll("\\", "/").replace(/^\/+/u, "");
@@ -9486,6 +9500,7 @@ var StudioRouter = class {
   publishProjectDocs;
   syncProjectModules;
   syncProjectMilestones;
+  diffProjectDoc;
   indexProjectRequirements;
   runWorkshop;
   summarizeWorkshop;
@@ -9514,6 +9529,7 @@ var StudioRouter = class {
     this.publishProjectDocs = options.publishProjectDocs;
     this.syncProjectModules = options.syncProjectModules;
     this.syncProjectMilestones = options.syncProjectMilestones;
+    this.diffProjectDoc = options.diffProjectDoc;
     this.indexProjectRequirements = options.indexProjectRequirements;
     this.runWorkshop = options.runWorkshop;
     this.summarizeWorkshop = options.summarizeWorkshop;
@@ -10333,6 +10349,15 @@ var StudioRouter = class {
       sendJson(res, 200, { ok: true, ...await this.syncProjectMilestones() });
       return;
     }
+    if (parsed.pathname === `${API_PREFIX}/project-docs/diff`) {
+      requireMethod(parsed, ["GET"]);
+      const docPath = parsed.url.searchParams.get("path");
+      if (docPath === null || docPath.trim() === "") {
+        throw new HttpError(400, "invalid_input", "path \u4E0D\u80FD\u4E3A\u7A7A");
+      }
+      sendJson(res, 200, { ok: true, diff: await this.diffProjectDoc(docPath) });
+      return;
+    }
     if (parsed.pathname === `${API_PREFIX}/project-docs/requirements`) {
       requireMethod(parsed, ["GET"]);
       sendJson(res, 200, { ok: true, requirements: await this.indexProjectRequirements() });
@@ -11102,6 +11127,7 @@ async function apply(ctx) {
     publishProjectDocs: (files) => docsPublisher.publish(files),
     syncProjectModules: () => docsPublisher.syncModules(),
     syncProjectMilestones: () => docsPublisher.syncMilestones(),
+    diffProjectDoc: (docPath) => docsPublisher.diff(docPath),
     indexProjectRequirements: () => docsPublisher.requirements(),
     runWorkshop: (workshopId) => workshopRunner.run(workshopId),
     summarizeWorkshop: (workshopId) => workshopRunner.summarize(workshopId),

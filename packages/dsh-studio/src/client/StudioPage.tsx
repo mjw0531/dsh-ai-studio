@@ -534,6 +534,7 @@ export function StudioPage() {
     rollbackMerge,
     initializeProjectDocs,
     publishProjectDoc,
+    readProjectDocDiff,
     readRequirements,
     syncModules,
     listBackups,
@@ -773,6 +774,7 @@ export function StudioPage() {
                 onReadRequirements={readRequirements}
                 onSyncModules={syncModules}
                 onPublishDoc={publishProjectDoc}
+                onReadDocDiff={readProjectDocDiff}
               />
             ) : null}
 

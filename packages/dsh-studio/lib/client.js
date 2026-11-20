@@ -285,6 +285,10 @@ var StudioClient = class {
       body: {}
     });
   }
+  async projectDocDiff(path) {
+    const data = await this.request(`/project-docs/diff?path=${encodeURIComponent(path)}`);
+    return data.diff;
+  }
   async publishProjectDocs(files) {
     return this.request("/project-docs/publish", {
       method: "POST",
@@ -810,6 +814,90 @@ var StudioClient = class {
     return parsed;
   }
 };
+
+// src/shared/error-guide.ts
+var GUIDES = {
+  unauthorized: "\u91CD\u65B0\u52A0\u8F7D\u9875\u9762\uFF1B\u8BBF\u95EE\u4EE4\u724C\u53EF\u80FD\u5DF2\u8FC7\u671F\u3002",
+  repo_required: "\u5230\u300C\u8BBE\u7F6E \u2192 \u4EE3\u7801\u4ED3\u5E93\u300D\u7ED1\u5B9A\u4ED3\u5E93\u540E\u518D\u8BD5\u3002",
+  project_required: "\u5148\u521B\u5EFA\u6216\u9009\u62E9\u4E00\u4E2A\u9879\u76EE\u3002",
+  stage_not_dispatchable: "\u5148\u5B8C\u6210\u9636\u6BB5\u95E8\u7981\uFF0C\u518D\u6D3E\u5355\u3002",
+  owner_required: "\u7ED9\u4EFB\u52A1\u6307\u5B9A\u8D1F\u8D23\u4EBA\u89D2\u8272\u540E\u518D\u6D3E\u5355\u3002",
+  dependency_not_done: "\u5148\u5B8C\u6210\u524D\u7F6E\u4EFB\u52A1\uFF0C\u518D\u6D3E\u5355\u3002",
+  verification_required: "\u5148\u5728\u4EFB\u52A1\u91CC\u8FD0\u884C Host \u9A8C\u8BC1\uFF0C\u901A\u8FC7\u540E\u518D\u5B8C\u6210\u3002",
+  review_required: "\u5148\u8BA9\u9A8C\u6536\u89D2\u8272\u5B8C\u6210\u72EC\u7ACB\u8BC4\u5BA1\u3002",
+  acceptance_incomplete: "\u5728\u4EFB\u52A1\u62BD\u5C49\u91CC\u52FE\u5B8C\u6240\u6709\u9A8C\u6536\u9879\u3002",
+  evidence_required: "\u81F3\u5C11\u8865\u4E00\u6761\u53EF\u590D\u73B0\u7684\u9A8C\u8BC1\u8BC1\u636E\u3002",
+  docs_not_synced: "\u540C\u6B65 PRD / INVARIANTS / MODULES \u540E\u518D\u5B8C\u6210\u3002",
+  doc_dirty: "\u5148\u63D0\u4EA4\u6216\u8FD8\u539F\u76EE\u6807\u6587\u6863\uFF0C\u518D\u53D1\u5E03\u3002",
+  doc_required: "\u5148\u5728\u77E5\u8BC6\u5E93\u7ED1\u5B9A\u6587\u6863\u8DEF\u5F84\u3002",
+  dependency_cycle: "\u8C03\u6574\u524D\u7F6E\u4EFB\u52A1\uFF0C\u53BB\u6389\u5FAA\u73AF\u4F9D\u8D56\u3002",
+  milestone_not_found: "\u5237\u65B0\u9875\u9762\uFF0C\u91CD\u65B0\u9009\u62E9\u91CC\u7A0B\u7891\u3002",
+  git_auth: "\u68C0\u67E5\u4ED3\u5E93\u7684 git user.name / user.email \u914D\u7F6E\u3002",
+  git_failed: "\u68C0\u67E5\u4ED3\u5E93\u5DE5\u4F5C\u533A\u662F\u5426\u5E72\u51C0\uFF0C\u518D\u91CD\u8BD5\u3002",
+  network_failed: "\u68C0\u67E5 DSH \u662F\u5426\u4ECD\u5728\u8FD0\u884C\uFF0C\u7136\u540E\u91CD\u8BD5\u3002",
+  timeout: "\u64CD\u4F5C\u8D85\u65F6\uFF1B\u7A0D\u540E\u91CD\u8BD5\uFF0C\u6216\u7F29\u5C0F\u4EFB\u52A1\u8303\u56F4\u3002"
+};
+function guideError(code, message) {
+  return {
+    code,
+    message,
+    action: GUIDES[code] ?? "\u68C0\u67E5\u8BBE\u7F6E\u540E\u91CD\u8BD5\uFF1B\u5982\u679C\u6301\u7EED\u5931\u8D25\uFF0C\u91CD\u542F DSH\u3002"
+  };
+}
+function fallbackGuide(message) {
+  return {
+    code: "unknown",
+    message,
+    action: "\u68C0\u67E5\u7F51\u7EDC\u548C DSH \u670D\u52A1\u540E\u91CD\u8BD5\u3002"
+  };
+}
+
+// src/client/lib/format.ts
+function errorText(error) {
+  if (error instanceof StudioClientError) return error.message;
+  return error instanceof Error ? error.message : String(error);
+}
+function errorGuide(error) {
+  if (error instanceof StudioClientError) {
+    return guideError(error.code, error.message);
+  }
+  return fallbackGuide(errorText(error));
+}
+function errorToastText(error) {
+  const guide = errorGuide(error);
+  return `${guide.message} \xB7 ${guide.action}`;
+}
+function formatDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(date);
+}
+function initials(name2) {
+  return name2.trim().slice(0, 2).toUpperCase() || "??";
+}
+function acceptanceDone(task) {
+  return task.acceptance.filter((item) => item.done).length;
+}
+function allAccepted(task) {
+  return task.acceptance.length > 0 && task.acceptance.every((item) => item.done);
+}
+function roleName(roles, id) {
+  if (id === null) return "\u672A\u6307\u6D3E";
+  return roles.find((role) => role.id === id)?.name ?? "\u672A\u77E5\u89D2\u8272";
+}
+function roleTitle(roles, id) {
+  if (id === null) return "";
+  return roles.find((role) => role.id === id)?.title ?? "";
+}
+function latestMergeForTask(proposals, taskId) {
+  const matching = proposals.filter((proposal) => proposal.taskId === taskId).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  return matching.find((proposal) => proposal.status !== "rejected") ?? matching[0] ?? null;
+}
 
 // src/client/studio-actions.ts
 function createStudioActions({
@@ -1494,6 +1582,15 @@ function createStudioActions({
       "\u5DF2\u56DE\u6EDA\u5408\u5E76\u5E76\u8BB0\u5F55 revert commit"
     );
   };
+  const readProjectDocDiff = async (path) => {
+    if (client === null) return null;
+    try {
+      return await client.projectDocDiff(path);
+    } catch (cause) {
+      setToast({ kind: "error", text: errorToastText(cause) });
+      return null;
+    }
+  };
   const publishProjectDoc = async (path, content) => {
     return run(
       async () => {
@@ -1709,6 +1806,7 @@ function createStudioActions({
     rollbackMerge,
     initializeProjectDocs,
     publishProjectDoc,
+    readProjectDocDiff,
     readRequirements,
     syncMilestoneDocs,
     syncModules,
@@ -1721,90 +1819,6 @@ function createStudioActions({
     saveCompany,
     writeAdr
   };
-}
-
-// src/shared/error-guide.ts
-var GUIDES = {
-  unauthorized: "\u91CD\u65B0\u52A0\u8F7D\u9875\u9762\uFF1B\u8BBF\u95EE\u4EE4\u724C\u53EF\u80FD\u5DF2\u8FC7\u671F\u3002",
-  repo_required: "\u5230\u300C\u8BBE\u7F6E \u2192 \u4EE3\u7801\u4ED3\u5E93\u300D\u7ED1\u5B9A\u4ED3\u5E93\u540E\u518D\u8BD5\u3002",
-  project_required: "\u5148\u521B\u5EFA\u6216\u9009\u62E9\u4E00\u4E2A\u9879\u76EE\u3002",
-  stage_not_dispatchable: "\u5148\u5B8C\u6210\u9636\u6BB5\u95E8\u7981\uFF0C\u518D\u6D3E\u5355\u3002",
-  owner_required: "\u7ED9\u4EFB\u52A1\u6307\u5B9A\u8D1F\u8D23\u4EBA\u89D2\u8272\u540E\u518D\u6D3E\u5355\u3002",
-  dependency_not_done: "\u5148\u5B8C\u6210\u524D\u7F6E\u4EFB\u52A1\uFF0C\u518D\u6D3E\u5355\u3002",
-  verification_required: "\u5148\u5728\u4EFB\u52A1\u91CC\u8FD0\u884C Host \u9A8C\u8BC1\uFF0C\u901A\u8FC7\u540E\u518D\u5B8C\u6210\u3002",
-  review_required: "\u5148\u8BA9\u9A8C\u6536\u89D2\u8272\u5B8C\u6210\u72EC\u7ACB\u8BC4\u5BA1\u3002",
-  acceptance_incomplete: "\u5728\u4EFB\u52A1\u62BD\u5C49\u91CC\u52FE\u5B8C\u6240\u6709\u9A8C\u6536\u9879\u3002",
-  evidence_required: "\u81F3\u5C11\u8865\u4E00\u6761\u53EF\u590D\u73B0\u7684\u9A8C\u8BC1\u8BC1\u636E\u3002",
-  docs_not_synced: "\u540C\u6B65 PRD / INVARIANTS / MODULES \u540E\u518D\u5B8C\u6210\u3002",
-  doc_dirty: "\u5148\u63D0\u4EA4\u6216\u8FD8\u539F\u76EE\u6807\u6587\u6863\uFF0C\u518D\u53D1\u5E03\u3002",
-  doc_required: "\u5148\u5728\u77E5\u8BC6\u5E93\u7ED1\u5B9A\u6587\u6863\u8DEF\u5F84\u3002",
-  dependency_cycle: "\u8C03\u6574\u524D\u7F6E\u4EFB\u52A1\uFF0C\u53BB\u6389\u5FAA\u73AF\u4F9D\u8D56\u3002",
-  milestone_not_found: "\u5237\u65B0\u9875\u9762\uFF0C\u91CD\u65B0\u9009\u62E9\u91CC\u7A0B\u7891\u3002",
-  git_auth: "\u68C0\u67E5\u4ED3\u5E93\u7684 git user.name / user.email \u914D\u7F6E\u3002",
-  git_failed: "\u68C0\u67E5\u4ED3\u5E93\u5DE5\u4F5C\u533A\u662F\u5426\u5E72\u51C0\uFF0C\u518D\u91CD\u8BD5\u3002",
-  network_failed: "\u68C0\u67E5 DSH \u662F\u5426\u4ECD\u5728\u8FD0\u884C\uFF0C\u7136\u540E\u91CD\u8BD5\u3002",
-  timeout: "\u64CD\u4F5C\u8D85\u65F6\uFF1B\u7A0D\u540E\u91CD\u8BD5\uFF0C\u6216\u7F29\u5C0F\u4EFB\u52A1\u8303\u56F4\u3002"
-};
-function guideError(code, message) {
-  return {
-    code,
-    message,
-    action: GUIDES[code] ?? "\u68C0\u67E5\u8BBE\u7F6E\u540E\u91CD\u8BD5\uFF1B\u5982\u679C\u6301\u7EED\u5931\u8D25\uFF0C\u91CD\u542F DSH\u3002"
-  };
-}
-function fallbackGuide(message) {
-  return {
-    code: "unknown",
-    message,
-    action: "\u68C0\u67E5\u7F51\u7EDC\u548C DSH \u670D\u52A1\u540E\u91CD\u8BD5\u3002"
-  };
-}
-
-// src/client/lib/format.ts
-function errorText(error) {
-  if (error instanceof StudioClientError) return error.message;
-  return error instanceof Error ? error.message : String(error);
-}
-function errorGuide(error) {
-  if (error instanceof StudioClientError) {
-    return guideError(error.code, error.message);
-  }
-  return fallbackGuide(errorText(error));
-}
-function errorToastText(error) {
-  const guide = errorGuide(error);
-  return `${guide.message} \xB7 ${guide.action}`;
-}
-function formatDate(value) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit"
-  }).format(date);
-}
-function initials(name2) {
-  return name2.trim().slice(0, 2).toUpperCase() || "??";
-}
-function acceptanceDone(task) {
-  return task.acceptance.filter((item) => item.done).length;
-}
-function allAccepted(task) {
-  return task.acceptance.length > 0 && task.acceptance.every((item) => item.done);
-}
-function roleName(roles, id) {
-  if (id === null) return "\u672A\u6307\u6D3E";
-  return roles.find((role) => role.id === id)?.name ?? "\u672A\u77E5\u89D2\u8272";
-}
-function roleTitle(roles, id) {
-  if (id === null) return "";
-  return roles.find((role) => role.id === id)?.title ?? "";
-}
-function latestMergeForTask(proposals, taskId) {
-  const matching = proposals.filter((proposal) => proposal.taskId === taskId).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
-  return matching.find((proposal) => proposal.status !== "rejected") ?? matching[0] ?? null;
 }
 
 // src/client/icons.tsx
@@ -4087,7 +4101,8 @@ function KnowledgeView({
   onInitializeDocs,
   onReadRequirements,
   onSyncModules,
-  onPublishDoc
+  onPublishDoc,
+  onReadDocDiff
 }) {
   const [prdPath, setPrdPath] = (0, import_react5.useState)(project?.prdPath ?? "");
   const [invariantsPath, setInvariantsPath] = (0, import_react5.useState)(
@@ -4101,6 +4116,7 @@ function KnowledgeView({
   const [requirements, setRequirements] = (0, import_react5.useState)(null);
   const [editing, setEditing] = (0, import_react5.useState)(false);
   const [draft, setDraft] = (0, import_react5.useState)("");
+  const [conflict, setConflict] = (0, import_react5.useState)(null);
   const [showNewDoc, setShowNewDoc] = (0, import_react5.useState)(false);
   const [newDocPath, setNewDocPath] = (0, import_react5.useState)("docs/");
   const [newDocContent, setNewDocContent] = (0, import_react5.useState)("");
@@ -4345,7 +4361,19 @@ function KnowledgeView({
                 }),
                 children: "\u4FDD\u5B58\u5E76\u63D0\u4EA4"
               }
-            )
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+              "button",
+              {
+                type: "button",
+                className: "studio-btn",
+                "data-size": "sm",
+                disabled: busy,
+                onClick: () => void onReadDocDiff(doc.path).then(setConflict),
+                children: "\u68C0\u67E5\u51B2\u7A81"
+              }
+            ),
+            conflict !== null ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("pre", { className: "studio-doc-diff", children: conflict.dirty ? conflict.diff : "\u76EE\u6807\u6587\u4EF6\u6CA1\u6709\u672A\u63D0\u4EA4\u6539\u52A8\u3002" }) : null
           ] }) : /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("pre", { children: doc.content || "\uFF08\u7A7A\u6587\u4EF6\uFF09" })
         ] }) : null
       ] }),
@@ -9172,6 +9200,7 @@ function StudioPage() {
     rollbackMerge,
     initializeProjectDocs,
     publishProjectDoc,
+    readProjectDocDiff,
     readRequirements,
     syncModules,
     listBackups,
@@ -9373,7 +9402,8 @@ function StudioPage() {
             onInitializeDocs: initializeProjectDocs,
             onReadRequirements: readRequirements,
             onSyncModules: syncModules,
-            onPublishDoc: publishProjectDoc
+            onPublishDoc: publishProjectDoc,
+            onReadDocDiff: readProjectDocDiff
           }
         ) : null,
         tab === "mission" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(

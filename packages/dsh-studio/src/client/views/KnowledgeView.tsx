@@ -34,6 +34,7 @@ export function KnowledgeView({
   onReadRequirements,
   onSyncModules,
   onPublishDoc,
+  onReadDocDiff,
 }: {
   project: Project | null;
   modules: Module[];
@@ -56,6 +57,9 @@ export function KnowledgeView({
   onReadRequirements: () => Promise<RequirementsIndex | null>;
   onSyncModules: () => Promise<boolean>;
   onPublishDoc: (path: string, content: string) => Promise<boolean>;
+  onReadDocDiff: (
+    path: string,
+  ) => Promise<{ path: string; dirty: boolean; diff: string } | null>;
   onSaveDocs: (docs: {
     prdPath: string | null;
     invariantsPath: string | null;
@@ -76,6 +80,11 @@ export function KnowledgeView({
   const [requirements, setRequirements] = useState<RequirementsIndex | null>(null);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
+  const [conflict, setConflict] = useState<{
+    path: string;
+    dirty: boolean;
+    diff: string;
+  } | null>(null);
   const [showNewDoc, setShowNewDoc] = useState(false);
   const [newDocPath, setNewDocPath] = useState("docs/");
   const [newDocContent, setNewDocContent] = useState("");
@@ -312,6 +321,22 @@ export function KnowledgeView({
                   >
                     保存并提交
                   </button>
+                  <button
+                    type="button"
+                    className="studio-btn"
+                    data-size="sm"
+                    disabled={busy}
+                    onClick={() =>
+                      void onReadDocDiff(doc.path).then(setConflict)
+                    }
+                  >
+                    检查冲突
+                  </button>
+                  {conflict !== null ? (
+                    <pre className="studio-doc-diff">
+                      {conflict.dirty ? conflict.diff : "目标文件没有未提交改动。"}
+                    </pre>
+                  ) : null}
                 </div>
               ) : (
                 <pre>{doc.content || "（空文件）"}</pre>
