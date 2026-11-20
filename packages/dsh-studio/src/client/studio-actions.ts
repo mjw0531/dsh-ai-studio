@@ -878,6 +878,16 @@ export function createStudioActions({
     );
   };
 
+  const syncMilestoneDocs = async (): Promise<boolean> => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.syncProjectMilestones();
+      },
+      "里程碑文档已发布",
+    );
+  };
+
   const readRequirements = async (): Promise<RequirementsIndex | null> => {
     return client === null ? null : client.indexProjectRequirements();
   };
@@ -1067,6 +1077,7 @@ export function createStudioActions({
     rollbackMerge,
     initializeProjectDocs,
     readRequirements,
+    syncMilestoneDocs,
     syncModules,
     listBackups,
     restoreBackup,

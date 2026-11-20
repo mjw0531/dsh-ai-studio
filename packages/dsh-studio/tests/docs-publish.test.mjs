@@ -25,6 +25,26 @@ test("initializes the docs skeleton and indexes numbered requirements", async ()
       async bootstrap() {
         return {
           project: { repoPath: dir, prdPath: "docs/PRD.md" },
+          milestones: [
+            {
+              id: "milestone-1",
+              projectId: "project-1",
+              title: "M1",
+              goal: "跑通",
+              status: "active",
+              order: 1,
+            },
+          ],
+          tasks: [
+            {
+              id: "task-1",
+              number: "T-0001",
+              title: "实现移动",
+              status: "done",
+              milestoneId: "milestone-1",
+              acceptance: [{ id: "a1", text: "能移动", done: true }],
+            },
+          ],
           modules: [
             {
               id: "module-alpha",
@@ -49,6 +69,12 @@ test("initializes the docs skeleton and indexes numbered requirements", async ()
     assert.match(
       await readFile(path.join(dir, "docs/modules/Alpha.md"), "utf8"),
       /核心战斗/,
+    );
+    const milestoneDocs = await service.syncMilestones();
+    assert.ok(milestoneDocs.commit);
+    assert.match(
+      await readFile(path.join(dir, "docs/plan/milestones/M1.md"), "utf8"),
+      /任务覆盖：1\/1/,
     );
     const requirements = await service.requirements();
     assert.equal(requirements.items[0]?.id, "R-001");

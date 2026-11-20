@@ -480,6 +480,7 @@ export function StudioPage() {
     readProjectDoc,
     createModule,
     createMilestone,
+    syncMilestoneDocs,
     transitionTask,
     acceptAllTrivial,
     toggleAcceptance,
@@ -769,6 +770,7 @@ export function StudioPage() {
                 onOpenTask={setSelectedTaskId}
                 onNewTask={() => setModal({ kind: "task" })}
                 onCreateMilestone={(title) => createMilestone({ title })}
+                onPublishMilestones={syncMilestoneDocs}
               />
             ) : null}
 

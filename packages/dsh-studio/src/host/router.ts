@@ -118,6 +118,7 @@ export class StudioRouter {
     files: Array<{ path: string; content: string }>,
   ) => Promise<{ files: unknown[]; commit: string | null }>;
   private readonly syncProjectModules: () => Promise<{ files: unknown[]; commit: string | null }>;
+  private readonly syncProjectMilestones: () => Promise<{ files: unknown[]; commit: string | null }>;
   private readonly indexProjectRequirements: () => Promise<unknown>;
   private readonly runWorkshop: (workshopId: string) => Promise<Workshop>;
   private readonly summarizeWorkshop: (
@@ -160,6 +161,7 @@ export class StudioRouter {
     this.initializeProjectDocs = options.initializeProjectDocs;
     this.publishProjectDocs = options.publishProjectDocs;
     this.syncProjectModules = options.syncProjectModules;
+    this.syncProjectMilestones = options.syncProjectMilestones;
     this.indexProjectRequirements = options.indexProjectRequirements;
     this.runWorkshop = options.runWorkshop;
     this.summarizeWorkshop = options.summarizeWorkshop;
@@ -1076,6 +1078,12 @@ export class StudioRouter {
     if (parsed.pathname === `${API_PREFIX}/project-docs/modules`) {
       requireMethod(parsed, ["POST"]);
       sendJson(res, 200, { ok: true, ...(await this.syncProjectModules()) });
+      return;
+    }
+
+    if (parsed.pathname === `${API_PREFIX}/project-docs/milestones`) {
+      requireMethod(parsed, ["POST"]);
+      sendJson(res, 200, { ok: true, ...(await this.syncProjectMilestones()) });
       return;
     }
 

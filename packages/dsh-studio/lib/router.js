@@ -2,7 +2,7 @@
 import { timingSafeEqual as timingSafeEqual3 } from "node:crypto";
 
 // src/shared/types.ts
-var STUDIO_PLUGIN_VERSION = "3.16.5";
+var STUDIO_PLUGIN_VERSION = "3.16.6";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -729,6 +729,7 @@ var StudioRouter = class {
   initializeProjectDocs;
   publishProjectDocs;
   syncProjectModules;
+  syncProjectMilestones;
   indexProjectRequirements;
   runWorkshop;
   summarizeWorkshop;
@@ -756,6 +757,7 @@ var StudioRouter = class {
     this.initializeProjectDocs = options.initializeProjectDocs;
     this.publishProjectDocs = options.publishProjectDocs;
     this.syncProjectModules = options.syncProjectModules;
+    this.syncProjectMilestones = options.syncProjectMilestones;
     this.indexProjectRequirements = options.indexProjectRequirements;
     this.runWorkshop = options.runWorkshop;
     this.summarizeWorkshop = options.summarizeWorkshop;
@@ -1543,6 +1545,11 @@ var StudioRouter = class {
     if (parsed.pathname === `${API_PREFIX}/project-docs/modules`) {
       requireMethod(parsed, ["POST"]);
       sendJson(res, 200, { ok: true, ...await this.syncProjectModules() });
+      return;
+    }
+    if (parsed.pathname === `${API_PREFIX}/project-docs/milestones`) {
+      requireMethod(parsed, ["POST"]);
+      sendJson(res, 200, { ok: true, ...await this.syncProjectMilestones() });
       return;
     }
     if (parsed.pathname === `${API_PREFIX}/project-docs/requirements`) {

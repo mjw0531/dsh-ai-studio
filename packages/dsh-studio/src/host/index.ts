@@ -164,6 +164,7 @@ export async function apply(ctx: StudioHostContext): Promise<void> {
     initializeProjectDocs: () => docsPublisher.initializeSkeleton(),
     publishProjectDocs: (files) => docsPublisher.publish(files),
     syncProjectModules: () => docsPublisher.syncModules(),
+    syncProjectMilestones: () => docsPublisher.syncMilestones(),
     indexProjectRequirements: () => docsPublisher.requirements(),
     runWorkshop: (workshopId) => workshopRunner.run(workshopId),
     summarizeWorkshop: (workshopId) => workshopRunner.summarize(workshopId),

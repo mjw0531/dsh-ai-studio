@@ -178,6 +178,58 @@ ${module.contractPath ?? "（未绑定）"}`,
     return { commit: published.commit, files: published.files };
   }
 
+  async syncMilestones(): Promise<{ commit: string | null; files: PublishedDoc[] }> {
+    const data = await this.store.bootstrap();
+    if (data.milestones.length === 0) {
+      throw new StudioStoreError("milestones_empty", "没有可同步的里程碑", 409);
+    }
+    const files = data.milestones.map((milestone) => {
+      const slug = milestone.title
+        .trim()
+        .replace(/[^\p{L}\p{N}._-]+/gu, "-")
+        .replace(/^-+|-+$/gu, "") || milestone.id;
+      const tasks = data.tasks.filter(
+        (task) => task.milestoneId === milestone.id,
+      );
+      const done = tasks.filter((task) => task.status === "done").length;
+      const acceptanceTotal = tasks.reduce(
+        (sum, task) => sum + task.acceptance.length,
+        0,
+      );
+      const acceptanceDone = tasks.reduce(
+        (sum, task) => sum + task.acceptance.filter((item) => item.done).length,
+        0,
+      );
+      return {
+        path: `docs/plan/milestones/${slug}.md`,
+        content: [
+          `# 里程碑：${milestone.title}`,
+          "",
+          `- 状态：${milestone.status}`,
+          `- 任务覆盖：${done}/${tasks.length}`,
+          `- 验收覆盖：${acceptanceDone}/${acceptanceTotal}`,
+          "",
+          "## 目标",
+          "",
+          milestone.goal || "（未填写）",
+          "",
+          "## 任务",
+          "",
+          tasks.length === 0
+            ? "（暂无任务）"
+            : tasks
+                .map(
+                  (task) =>
+                    `- [${task.status === "done" ? "x" : " "}] ${task.number} ${task.title}`,
+                )
+                .join("\n"),
+        ].join("\n"),
+      };
+    });
+    const published = await this.publish(files);
+    return { commit: published.commit, files: published.files };
+  }
+
   async requirements(): Promise<RequirementsIndex> {
     const { root, prdPath } = await this.repo();
     const relative = prdPath.replaceAll("\\", "/").replace(/^\/+/u, "");

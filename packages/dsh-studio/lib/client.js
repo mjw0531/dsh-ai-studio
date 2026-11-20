@@ -291,6 +291,9 @@ var StudioClient = class {
   async syncProjectModules() {
     return this.request("/project-docs/modules", { method: "POST", body: {} });
   }
+  async syncProjectMilestones() {
+    return this.request("/project-docs/milestones", { method: "POST", body: {} });
+  }
   async indexProjectRequirements() {
     const data = await this.request(
       "/project-docs/requirements"
@@ -1404,6 +1407,15 @@ function createStudioActions({
       "\u6A21\u5757\u5361\u5DF2\u53D1\u5E03\u5230\u4ED3\u5E93"
     );
   };
+  const syncMilestoneDocs = async () => {
+    return run(
+      async () => {
+        if (client === null) return;
+        await client.syncProjectMilestones();
+      },
+      "\u91CC\u7A0B\u7891\u6587\u6863\u5DF2\u53D1\u5E03"
+    );
+  };
   const readRequirements = async () => {
     return client === null ? null : client.indexProjectRequirements();
   };
@@ -1577,6 +1589,7 @@ function createStudioActions({
     rollbackMerge,
     initializeProjectDocs,
     readRequirements,
+    syncMilestoneDocs,
     syncModules,
     listBackups,
     restoreBackup,
@@ -5701,7 +5714,8 @@ function TasksView({
   data,
   onOpenTask,
   onNewTask,
-  onCreateMilestone
+  onCreateMilestone,
+  onPublishMilestones
 }) {
   const [filter, setFilter] = (0, import_react11.useState)("all");
   const [milestoneFilter, setMilestoneFilter] = (0, import_react11.useState)("all");
@@ -5790,6 +5804,17 @@ function TasksView({
           onChange: (event) => setMilestoneTitle(event.target.value),
           placeholder: "\u65B0\u91CC\u7A0B\u7891\u540D\u79F0",
           "aria-label": "\u65B0\u91CC\u7A0B\u7891\u540D\u79F0"
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+        "button",
+        {
+          type: "button",
+          className: "studio-btn",
+          "data-size": "sm",
+          disabled: data.milestones.length === 0,
+          onClick: () => void onPublishMilestones(),
+          children: "\u53D1\u5E03\u91CC\u7A0B\u7891\u6587\u6863"
         }
       ),
       /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
@@ -8588,6 +8613,7 @@ function StudioPage() {
     readProjectDoc,
     createModule,
     createMilestone,
+    syncMilestoneDocs,
     transitionTask,
     acceptAllTrivial,
     toggleAcceptance,
@@ -8839,7 +8865,8 @@ function StudioPage() {
             data,
             onOpenTask: setSelectedTaskId,
             onNewTask: () => setModal({ kind: "task" }),
-            onCreateMilestone: (title) => createMilestone({ title })
+            onCreateMilestone: (title) => createMilestone({ title }),
+            onPublishMilestones: syncMilestoneDocs
           }
         ) : null,
         tab === "merges" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(

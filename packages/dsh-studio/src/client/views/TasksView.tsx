@@ -20,11 +20,13 @@ export function TasksView({
   onOpenTask,
   onNewTask,
   onCreateMilestone,
+  onPublishMilestones,
 }: {
   data: BootstrapResponse;
   onOpenTask: (id: string) => void;
   onNewTask: () => void;
   onCreateMilestone: (title: string) => Promise<boolean>;
+  onPublishMilestones: () => Promise<boolean>;
 }) {
   const [filter, setFilter] = useState<TaskStatus | "all">("all");
   const [milestoneFilter, setMilestoneFilter] = useState<string>("all");
@@ -105,6 +107,15 @@ export function TasksView({
           placeholder="新里程碑名称"
           aria-label="新里程碑名称"
         />
+        <button
+          type="button"
+          className="studio-btn"
+          data-size="sm"
+          disabled={data.milestones.length === 0}
+          onClick={() => void onPublishMilestones()}
+        >
+          发布里程碑文档
+        </button>
         <button
           type="button"
           className="studio-btn"

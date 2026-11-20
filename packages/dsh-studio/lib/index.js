@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 
 // src/shared/types.ts
 var STUDIO_SCHEMA_VERSION = 39;
-var STUDIO_PLUGIN_VERSION = "3.16.5";
+var STUDIO_PLUGIN_VERSION = "3.16.6";
 var PROJECT_STAGE_ORDER = [
   "discovery",
   "architecture",
@@ -8249,6 +8249,49 @@ ${module.contractPath ?? "\uFF08\u672A\u7ED1\u5B9A\uFF09"}`
     const published = await this.publish(files);
     return { commit: published.commit, files: published.files };
   }
+  async syncMilestones() {
+    const data = await this.store.bootstrap();
+    if (data.milestones.length === 0) {
+      throw new StudioStoreError("milestones_empty", "\u6CA1\u6709\u53EF\u540C\u6B65\u7684\u91CC\u7A0B\u7891", 409);
+    }
+    const files = data.milestones.map((milestone) => {
+      const slug = milestone.title.trim().replace(/[^\p{L}\p{N}._-]+/gu, "-").replace(/^-+|-+$/gu, "") || milestone.id;
+      const tasks = data.tasks.filter(
+        (task) => task.milestoneId === milestone.id
+      );
+      const done = tasks.filter((task) => task.status === "done").length;
+      const acceptanceTotal = tasks.reduce(
+        (sum, task) => sum + task.acceptance.length,
+        0
+      );
+      const acceptanceDone = tasks.reduce(
+        (sum, task) => sum + task.acceptance.filter((item) => item.done).length,
+        0
+      );
+      return {
+        path: `docs/plan/milestones/${slug}.md`,
+        content: [
+          `# \u91CC\u7A0B\u7891\uFF1A${milestone.title}`,
+          "",
+          `- \u72B6\u6001\uFF1A${milestone.status}`,
+          `- \u4EFB\u52A1\u8986\u76D6\uFF1A${done}/${tasks.length}`,
+          `- \u9A8C\u6536\u8986\u76D6\uFF1A${acceptanceDone}/${acceptanceTotal}`,
+          "",
+          "## \u76EE\u6807",
+          "",
+          milestone.goal || "\uFF08\u672A\u586B\u5199\uFF09",
+          "",
+          "## \u4EFB\u52A1",
+          "",
+          tasks.length === 0 ? "\uFF08\u6682\u65E0\u4EFB\u52A1\uFF09" : tasks.map(
+            (task) => `- [${task.status === "done" ? "x" : " "}] ${task.number} ${task.title}`
+          ).join("\n")
+        ].join("\n")
+      };
+    });
+    const published = await this.publish(files);
+    return { commit: published.commit, files: published.files };
+  }
   async requirements() {
     const { root, prdPath } = await this.repo();
     const relative = prdPath.replaceAll("\\", "/").replace(/^\/+/u, "");
@@ -9304,6 +9347,7 @@ var StudioRouter = class {
   initializeProjectDocs;
   publishProjectDocs;
   syncProjectModules;
+  syncProjectMilestones;
   indexProjectRequirements;
   runWorkshop;
   summarizeWorkshop;
@@ -9331,6 +9375,7 @@ var StudioRouter = class {
     this.initializeProjectDocs = options.initializeProjectDocs;
     this.publishProjectDocs = options.publishProjectDocs;
     this.syncProjectModules = options.syncProjectModules;
+    this.syncProjectMilestones = options.syncProjectMilestones;
     this.indexProjectRequirements = options.indexProjectRequirements;
     this.runWorkshop = options.runWorkshop;
     this.summarizeWorkshop = options.summarizeWorkshop;
@@ -10120,6 +10165,11 @@ var StudioRouter = class {
       sendJson(res, 200, { ok: true, ...await this.syncProjectModules() });
       return;
     }
+    if (parsed.pathname === `${API_PREFIX}/project-docs/milestones`) {
+      requireMethod(parsed, ["POST"]);
+      sendJson(res, 200, { ok: true, ...await this.syncProjectMilestones() });
+      return;
+    }
     if (parsed.pathname === `${API_PREFIX}/project-docs/requirements`) {
       requireMethod(parsed, ["GET"]);
       sendJson(res, 200, { ok: true, requirements: await this.indexProjectRequirements() });
@@ -10888,6 +10938,7 @@ async function apply(ctx) {
     initializeProjectDocs: () => docsPublisher.initializeSkeleton(),
     publishProjectDocs: (files) => docsPublisher.publish(files),
     syncProjectModules: () => docsPublisher.syncModules(),
+    syncProjectMilestones: () => docsPublisher.syncMilestones(),
     indexProjectRequirements: () => docsPublisher.requirements(),
     runWorkshop: (workshopId) => workshopRunner.run(workshopId),
     summarizeWorkshop: (workshopId) => workshopRunner.summarize(workshopId),
