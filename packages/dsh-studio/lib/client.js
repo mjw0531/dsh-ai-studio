@@ -8267,36 +8267,56 @@ function DecisionForm({
 // src/client/forms/ProjectForms.tsx
 var import_react18 = require("react");
 var import_jsx_runtime24 = require("react/jsx-runtime");
+var TEMPLATE_LABELS = {
+  blank: "\u7A7A\u767D\u9879\u76EE",
+  web: "Web \u5E94\u7528",
+  game: "\u6E38\u620F\u539F\u578B",
+  tool: "CLI \u5DE5\u5177"
+};
 function ProjectForm({
   busy,
   onCancel,
   onSubmit,
   onSubmitTemplate
 }) {
-  const [template, setTemplate] = (0, import_react18.useState)(
-    "blank"
-  );
+  const [step, setStep] = (0, import_react18.useState)(1);
+  const [template, setTemplate] = (0, import_react18.useState)("blank");
   const [name2, setName] = (0, import_react18.useState)("");
   const [description, setDescription] = (0, import_react18.useState)("");
   const [tokenBudget, setTokenBudget] = (0, import_react18.useState)("");
   const [repoPath, setRepoPath] = (0, import_react18.useState)("");
   const [localError, setLocalError] = (0, import_react18.useState)(null);
-  const submit = (event) => {
-    event.preventDefault();
+  const validateBasic = () => {
     if (name2.trim() === "") {
       setLocalError("\u8BF7\u586B\u5199\u9879\u76EE\u540D");
+      return false;
+    }
+    if (tokenBudget.trim() !== "") {
+      const number = Number(tokenBudget);
+      if (!Number.isSafeInteger(number) || number < 0) {
+        setLocalError("token \u9884\u7B97\u5FC5\u987B\u662F\u975E\u8D1F\u6574\u6570");
+        return false;
+      }
+    }
+    return true;
+  };
+  const submit = (event) => {
+    event.preventDefault();
+    setLocalError(null);
+    if (step < 3) {
+      if (step === 2 && !validateBasic()) return;
+      setStep(step + 1);
+      return;
+    }
+    if (!validateBasic()) {
+      setStep(2);
       return;
     }
     let budget = null;
     if (tokenBudget.trim() !== "") {
       const number = Number(tokenBudget);
-      if (!Number.isSafeInteger(number) || number < 0) {
-        setLocalError("token \u9884\u7B97\u5FC5\u987B\u662F\u975E\u8D1F\u6574\u6570");
-        return;
-      }
       budget = number === 0 ? null : number;
     }
-    setLocalError(null);
     if (template !== "blank") {
       onSubmitTemplate({
         template,
@@ -8316,11 +8336,24 @@ function ProjectForm({
   return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
     ModalShell,
     {
-      title: "\u65B0\u5EFA\u9879\u76EE",
-      subtitle: "\u9879\u76EE\u662F\u4EFB\u52A1\u3001\u89D2\u8272\u548C\u4E8B\u5B9E\u7684\u8FB9\u754C\u3002",
+      title: "\u9879\u76EE\u5F00\u5C40\u5411\u5BFC",
+      subtitle: "\u4E09\u6B65\u5EFA\u7ACB\u9879\u76EE\u3001\u89D2\u8272\u4E0E\u7B2C\u4E00\u5F20\u4EFB\u52A1\uFF1B\u4E4B\u540E\u53EF\u4EE5\u7EE7\u7EED\u7ED1\u5B9A\u4ED3\u5E93\u3002",
       onClose: onCancel,
       footer: /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-modal-foot", children: [
         /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("button", { className: "studio-btn", type: "button", onClick: onCancel, disabled: busy, children: "\u53D6\u6D88" }),
+        step > 1 ? /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+          "button",
+          {
+            className: "studio-btn",
+            type: "button",
+            disabled: busy,
+            onClick: () => {
+              setLocalError(null);
+              setStep(step - 1);
+            },
+            children: "\u4E0A\u4E00\u6B65"
+          }
+        ) : null,
         /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
           "button",
           {
@@ -8329,13 +8362,26 @@ function ProjectForm({
             type: "submit",
             form: "studio-project-form",
             disabled: busy,
-            children: busy ? "\u521B\u5EFA\u4E2D\u2026" : "\u521B\u5EFA\u9879\u76EE"
+            children: busy ? "\u521B\u5EFA\u4E2D\u2026" : step < 3 ? "\u4E0B\u4E00\u6B65" : "\u521B\u5EFA\u9879\u76EE"
           }
         )
       ] }),
       children: /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("form", { id: "studio-project-form", className: "studio-modal-body", onSubmit: submit, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "studio-wizard-steps", "aria-label": "\u5F00\u5C40\u6B65\u9AA4", children: ["\u6A21\u677F", "\u57FA\u672C\u4FE1\u606F", "\u786E\u8BA4"].map((label, index) => /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(
+          "div",
+          {
+            className: "studio-wizard-step",
+            "data-active": step === index + 1,
+            "data-done": step > index + 1,
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("span", { children: step > index + 1 ? "\u2713" : String(index + 1) }),
+              /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("span", { children: label })
+            ]
+          },
+          label
+        )) }),
         localError !== null ? /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "studio-alert", children: localError }) : null,
-        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
+        step === 1 ? /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(import_jsx_runtime24.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
           /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "project-template", children: "\u6A21\u677F" }),
           /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(
             "select",
@@ -8343,71 +8389,85 @@ function ProjectForm({
               id: "project-template",
               value: template,
               disabled: busy,
-              onChange: (event) => setTemplate(
-                event.target.value
-              ),
+              onChange: (event) => setTemplate(event.target.value),
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("option", { value: "blank", children: "\u7A7A\u767D\u9879\u76EE" }),
-                /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("option", { value: "web", children: "Web \u5E94\u7528\uFF08\u542B Lead/Builder/Verifier\uFF09" }),
-                /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("option", { value: "game", children: "\u6E38\u620F\u539F\u578B\uFF08\u542B Lead/Architect/Builder/Verifier\uFF09" }),
-                /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("option", { value: "tool", children: "CLI \u5DE5\u5177\uFF08\u542B Lead/Builder/Verifier\uFF09" })
+                /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("option", { value: "blank", children: "\u7A7A\u767D\u9879\u76EE\uFF08\u81EA\u5DF1\u914D\u7F6E\u89D2\u8272\uFF09" }),
+                /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("option", { value: "web", children: "Web \u5E94\u7528\uFF08Lead / Builder / Verifier\uFF09" }),
+                /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("option", { value: "game", children: "\u6E38\u620F\u539F\u578B\uFF08Lead / Architect / Builder / Verifier\uFF09" }),
+                /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("option", { value: "tool", children: "CLI \u5DE5\u5177\uFF08Lead / Builder / Verifier\uFF09" })
               ]
             }
           ),
-          template !== "blank" ? /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "studio-hint", children: "\u4F1A\u81EA\u52A8\u521B\u5EFA\u89D2\u8272\u548C\u9996\u6279\u4EFB\u52A1\uFF1BrepoPath \u53EF\u4EE5\u7A0D\u540E\u7ED1\u5B9A\u3002" }) : null
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "project-name", children: "\u9879\u76EE\u540D" }),
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
-            "input",
-            {
-              id: "project-name",
-              value: name2,
-              onChange: (event) => setName(event.target.value),
-              placeholder: "\u4F8B\u5982\uFF1A\u5B98\u7F51\u6539\u7248 / \u5DE5\u5177\u94FE\u5347\u7EA7 / \u6570\u636E\u770B\u677F",
-              autoFocus: true
-            }
-          )
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "project-description", children: "\u4E00\u53E5\u8BDD\u63CF\u8FF0" }),
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
-            "textarea",
-            {
-              id: "project-description",
-              value: description,
-              onChange: (event) => setDescription(event.target.value),
-              placeholder: "\u8FD9\u4E2A\u9879\u76EE\u8981\u9A8C\u8BC1\u4EC0\u4E48\uFF1F"
-            }
-          )
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "project-budget", children: "\u9879\u76EE token \u9884\u7B97\uFF08\u53EF\u9009\uFF09" }),
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
-            "input",
-            {
-              id: "project-budget",
-              inputMode: "numeric",
-              value: tokenBudget,
-              onChange: (event) => setTokenBudget(event.target.value),
-              placeholder: "\u7559\u7A7A = \u4E0D\u9650\u5236\uFF1B\u4F8B\u5982 200000"
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "studio-hint", children: "\u8FD9\u662F\u516C\u53F8\u7ED9\u8BE5\u9879\u76EE\u7684 token \u4E0A\u9650\uFF1B\u5B9E\u9645\u6D88\u8017\u6765\u81EA DSH token meter\u3002" })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "project-repo", children: "\u4EE3\u7801\u4ED3\u5E93\uFF08\u53EF\u9009\uFF09" }),
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
-            "input",
-            {
-              id: "project-repo",
-              value: repoPath,
-              onChange: (event) => setRepoPath(event.target.value),
-              placeholder: "\u4F8B\u5982 D:\\projects\\my-app"
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "studio-hint", children: "\u7ED1\u5B9A git \u4ED3\u5E93\u540E\uFF0C\u6D3E\u5355\u4F1A\u4E3A\u6BCF\u4E2A\u4EFB\u52A1\u521B\u5EFA\u72EC\u7ACB worktree \u548C\u5206\u652F\uFF1B\u4E0D\u7ED1\u5B9A\u5219\u53EA\u505A\u5206\u6790\u3002" })
-        ] })
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "studio-hint", children: template === "blank" ? "\u7A7A\u767D\u9879\u76EE\u4E0D\u81EA\u52A8\u751F\u6210\u89D2\u8272\u548C\u4EFB\u52A1\uFF0C\u9002\u5408\u5B8C\u5168\u81EA\u5B9A\u4E49\u3002" : "\u6A21\u677F\u53EA\u521D\u59CB\u5316\u9879\u76EE\u3001\u89D2\u8272\u548C backlog \u4EFB\u52A1\uFF1B\u4E0D\u4F1A\u81EA\u52A8\u6D3E\u5355\u3002" })
+        ] }) }) : null,
+        step === 2 ? /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(import_jsx_runtime24.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "project-name", children: "\u9879\u76EE\u540D" }),
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+              "input",
+              {
+                id: "project-name",
+                value: name2,
+                onChange: (event) => setName(event.target.value),
+                placeholder: "\u4F8B\u5982\uFF1A\u5B98\u7F51\u6539\u7248 / \u5DE5\u5177\u94FE\u5347\u7EA7 / \u6570\u636E\u770B\u677F",
+                autoFocus: true
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "project-description", children: "\u4E00\u53E5\u8BDD\u63CF\u8FF0" }),
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+              "textarea",
+              {
+                id: "project-description",
+                value: description,
+                onChange: (event) => setDescription(event.target.value),
+                placeholder: "\u8FD9\u4E2A\u9879\u76EE\u8981\u9A8C\u8BC1\u4EC0\u4E48\uFF1F"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "project-budget", children: "\u9879\u76EE token \u9884\u7B97\uFF08\u53EF\u9009\uFF09" }),
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+              "input",
+              {
+                id: "project-budget",
+                inputMode: "numeric",
+                value: tokenBudget,
+                onChange: (event) => setTokenBudget(event.target.value),
+                placeholder: "\u7559\u7A7A = \u4E0D\u9650\u5236\uFF1B\u4F8B\u5982 200000"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-field", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("label", { htmlFor: "project-repo", children: "\u4EE3\u7801\u4ED3\u5E93\uFF08\u53EF\u9009\uFF09" }),
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+              "input",
+              {
+                id: "project-repo",
+                value: repoPath,
+                onChange: (event) => setRepoPath(event.target.value),
+                placeholder: "\u4F8B\u5982 D:\\projects\\my-app"
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "studio-hint", children: "\u7ED1\u5B9A git \u4ED3\u5E93\u540E\uFF0C\u6D3E\u5355\u4F1A\u4E3A\u4EFB\u52A1\u521B\u5EFA\u72EC\u7ACB worktree\uFF1B\u7559\u7A7A\u5219\u5148\u505A\u5206\u6790\u3002" })
+          ] })
+        ] }) : null,
+        step === 3 ? /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className: "studio-wizard-summary", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { className: "studio-section-label", children: "\u786E\u8BA4\u5F00\u5C40" }),
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("dl", { className: "studio-kv", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("dt", { children: "\u6A21\u677F" }),
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("dd", { children: TEMPLATE_LABELS[template] }),
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("dt", { children: "\u9879\u76EE\u540D" }),
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("dd", { children: name2 || "\uFF08\u672A\u586B\u5199\uFF09" }),
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("dt", { children: "\u63CF\u8FF0" }),
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("dd", { children: description || "\uFF08\u672A\u586B\u5199\uFF09" }),
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("dt", { children: "\u4ED3\u5E93" }),
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("dd", { children: repoPath || "\u7A0D\u540E\u7ED1\u5B9A" }),
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("dt", { children: "token \u9884\u7B97" }),
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("dd", { children: tokenBudget || "\u4E0D\u9650\u5236" })
+          ] })
+        ] }) : null
       ] })
     }
   );
@@ -11480,6 +11540,12 @@ var views = `
 .studio-dispatch-check[data-ok="true"] { color: var(--st-ok); }
 .studio-dispatch-check[data-ok="false"] { color: var(--st-warn); }
 .studio-dispatch-check .studio-faint { margin-left: auto; text-align: right; }
+
+.studio-wizard-steps { display: flex; gap: 6px; margin-bottom: 12px; }
+.studio-wizard-step { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid var(--st-border); border-radius: 8px; color: var(--st-faint); font-size: 10px; }
+.studio-wizard-step[data-active="true"] { border-color: var(--st-accent); color: var(--st-text); background: var(--st-accent-soft); }
+.studio-wizard-step[data-done="true"] { color: var(--st-ok); }
+.studio-wizard-summary { display: grid; gap: 8px; }
 
 .studio-journey { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 14px; padding: 8px; border: 1px solid var(--st-border); border-radius: 10px; background: var(--st-panel); }
 .studio-journey-step { display: flex; align-items: center; gap: 5px; padding: 5px 8px; border-radius: 7px; color: var(--st-faint); font-size: 10px; }

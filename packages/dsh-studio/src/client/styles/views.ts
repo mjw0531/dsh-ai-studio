@@ -842,6 +842,12 @@ export const views = `
 .studio-dispatch-check[data-ok="false"] { color: var(--st-warn); }
 .studio-dispatch-check .studio-faint { margin-left: auto; text-align: right; }
 
+.studio-wizard-steps { display: flex; gap: 6px; margin-bottom: 12px; }
+.studio-wizard-step { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid var(--st-border); border-radius: 8px; color: var(--st-faint); font-size: 10px; }
+.studio-wizard-step[data-active="true"] { border-color: var(--st-accent); color: var(--st-text); background: var(--st-accent-soft); }
+.studio-wizard-step[data-done="true"] { color: var(--st-ok); }
+.studio-wizard-summary { display: grid; gap: 8px; }
+
 .studio-journey { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 14px; padding: 8px; border: 1px solid var(--st-border); border-radius: 10px; background: var(--st-panel); }
 .studio-journey-step { display: flex; align-items: center; gap: 5px; padding: 5px 8px; border-radius: 7px; color: var(--st-faint); font-size: 10px; }
 .studio-journey-step[data-state="active"] { color: var(--st-text); background: var(--st-accent-soft); }
