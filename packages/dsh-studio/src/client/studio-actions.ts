@@ -44,6 +44,7 @@ import type {
   UpdatePrototypeDemoInput,
   UpdateProviderProfileInput,
   UpdateStageGateInput,
+  UpdateTaskInput,
   UpdateTriggerRulesInput,
   Workshop,
   WorkshopDownstreamInput,
@@ -760,6 +761,21 @@ export function createStudioActions({
     return ok;
   };
 
+  const batchUpdateTasks = async (
+    tasks: Task[],
+    input: UpdateTaskInput,
+  ): Promise<boolean> => {
+    if (tasks.length === 0 || client === null) return false;
+    return run(
+      async () => {
+        for (const task of tasks) {
+          await client.updateTask(task.id, input);
+        }
+      },
+      `已更新 ${String(tasks.length)} 个任务`,
+    );
+  };
+
   const batchReadyTasks = async (tasks: Task[]): Promise<boolean> => {
     const backlog = tasks.filter((task) => task.status === "backlog");
     if (backlog.length === 0 || client === null) return false;
@@ -1245,6 +1261,7 @@ export function createStudioActions({
     createMilestone,
     transitionTask,
     batchReadyTasks,
+    batchUpdateTasks,
     acceptAllTrivial,
     toggleAcceptance,
     toggleDocsSynced,

@@ -1426,6 +1426,17 @@ function createStudioActions({
     if (ok) setModal(null);
     return ok;
   };
+  const batchUpdateTasks = async (tasks, input) => {
+    if (tasks.length === 0 || client === null) return false;
+    return run(
+      async () => {
+        for (const task of tasks) {
+          await client.updateTask(task.id, input);
+        }
+      },
+      `\u5DF2\u66F4\u65B0 ${String(tasks.length)} \u4E2A\u4EFB\u52A1`
+    );
+  };
   const batchReadyTasks = async (tasks) => {
     const backlog = tasks.filter((task) => task.status === "backlog");
     if (backlog.length === 0 || client === null) return false;
@@ -1830,6 +1841,7 @@ function createStudioActions({
     createMilestone,
     transitionTask,
     batchReadyTasks,
+    batchUpdateTasks,
     acceptAllTrivial,
     toggleAcceptance,
     toggleDocsSynced,
@@ -6424,7 +6436,8 @@ function TasksView({
   onNewTask,
   onCreateMilestone,
   onPublishMilestones,
-  onBatchReady
+  onBatchReady,
+  onBatchUpdate
 }) {
   const [filter, setFilter] = (0, import_react11.useState)("all");
   const [milestoneFilter, setMilestoneFilter] = (0, import_react11.useState)("all");
@@ -6433,6 +6446,8 @@ function TasksView({
   const [selected, setSelected] = (0, import_react11.useState)(/* @__PURE__ */ new Set());
   const [views2, setViews] = (0, import_react11.useState)([]);
   const [viewName, setViewName] = (0, import_react11.useState)("");
+  const [batchOwner, setBatchOwner] = (0, import_react11.useState)("");
+  const [batchMilestone, setBatchMilestone] = (0, import_react11.useState)("");
   (0, import_react11.useEffect)(() => {
     try {
       setViews(parseSavedTaskViews(localStorage.getItem("studio.task.views")));
@@ -6652,6 +6667,70 @@ function TasksView({
           "data-size": "sm",
           onClick: () => setSelected(/* @__PURE__ */ new Set()),
           children: "\u6E05\u7A7A\u9009\u62E9"
+        }
+      )
+    ] }) : null,
+    selected.size > 0 ? /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "studio-toolbar", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
+        "select",
+        {
+          value: batchOwner,
+          onChange: (event) => setBatchOwner(event.target.value),
+          "aria-label": "\u6279\u91CF\u8D1F\u8D23\u4EBA",
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("option", { value: "", children: "\u6279\u91CF\u6307\u6D3E\u8D1F\u8D23\u4EBA" }),
+            data.roles.map((role) => /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("option", { value: role.id, children: role.name }, role.id))
+          ]
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+        "button",
+        {
+          type: "button",
+          className: "studio-btn",
+          "data-size": "sm",
+          disabled: batchOwner === "",
+          onClick: () => void onBatchUpdate(
+            data.tasks.filter((task) => selected.has(task.id)),
+            { ownerRoleId: batchOwner }
+          ).then((ok) => {
+            if (ok) {
+              setSelected(/* @__PURE__ */ new Set());
+              setBatchOwner("");
+            }
+          }),
+          children: "\u6279\u91CF\u6307\u6D3E"
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
+        "select",
+        {
+          value: batchMilestone,
+          onChange: (event) => setBatchMilestone(event.target.value),
+          "aria-label": "\u6279\u91CF\u91CC\u7A0B\u7891",
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("option", { value: "", children: "\u5F52\u5165\u91CC\u7A0B\u7891" }),
+            data.milestones.map((milestone) => /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("option", { value: milestone.id, children: milestone.title }, milestone.id))
+          ]
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+        "button",
+        {
+          type: "button",
+          className: "studio-btn",
+          "data-size": "sm",
+          disabled: batchMilestone === "",
+          onClick: () => void onBatchUpdate(
+            data.tasks.filter((task) => selected.has(task.id)),
+            { milestoneId: batchMilestone }
+          ).then((ok) => {
+            if (ok) {
+              setSelected(/* @__PURE__ */ new Set());
+              setBatchMilestone("");
+            }
+          }),
+          children: "\u5F52\u5165\u91CC\u7A0B\u7891"
         }
       )
     ] }) : null,
@@ -9768,6 +9847,7 @@ function StudioPage() {
     syncMilestoneDocs,
     transitionTask,
     batchReadyTasks,
+    batchUpdateTasks,
     acceptAllTrivial,
     toggleAcceptance,
     toggleDocsSynced,
@@ -10046,7 +10126,8 @@ function StudioPage() {
             onNewTask: () => setModal({ kind: "task" }),
             onCreateMilestone: (title) => createMilestone({ title }),
             onPublishMilestones: syncMilestoneDocs,
-            onBatchReady: batchReadyTasks
+            onBatchReady: batchReadyTasks,
+            onBatchUpdate: batchUpdateTasks
           }
         ) : null,
         tab === "merges" ? /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(

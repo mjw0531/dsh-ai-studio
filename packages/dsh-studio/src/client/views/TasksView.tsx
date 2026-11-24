@@ -28,6 +28,7 @@ export function TasksView({
   onCreateMilestone,
   onPublishMilestones,
   onBatchReady,
+  onBatchUpdate,
 }: {
   data: BootstrapResponse;
   onOpenTask: (id: string) => void;
@@ -35,6 +36,10 @@ export function TasksView({
   onCreateMilestone: (title: string) => Promise<boolean>;
   onPublishMilestones: () => Promise<boolean>;
   onBatchReady: (tasks: Task[]) => Promise<boolean>;
+  onBatchUpdate: (
+    tasks: Task[],
+    input: { ownerRoleId?: string; milestoneId?: string | null },
+  ) => Promise<boolean>;
 }) {
   const [filter, setFilter] = useState<TaskStatus | "all">("all");
   const [milestoneFilter, setMilestoneFilter] = useState<string>("all");
@@ -43,6 +48,8 @@ export function TasksView({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [views, setViews] = useState<SavedTaskView[]>([]);
   const [viewName, setViewName] = useState("");
+  const [batchOwner, setBatchOwner] = useState("");
+  const [batchMilestone, setBatchMilestone] = useState("");
   useEffect(() => {
     try {
       setViews(parseSavedTaskViews(localStorage.getItem("studio.task.views")));
@@ -243,6 +250,73 @@ export function TasksView({
             onClick={() => setSelected(new Set())}
           >
             清空选择
+          </button>
+        </div>
+      ) : null}
+
+      {selected.size > 0 ? (
+        <div className="studio-toolbar">
+          <select
+            value={batchOwner}
+            onChange={(event) => setBatchOwner(event.target.value)}
+            aria-label="批量负责人"
+          >
+            <option value="">批量指派负责人</option>
+            {data.roles.map((role) => (
+              <option key={role.id} value={role.id}>
+                {role.name}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="studio-btn"
+            data-size="sm"
+            disabled={batchOwner === ""}
+            onClick={() =>
+              void onBatchUpdate(
+                data.tasks.filter((task) => selected.has(task.id)),
+                { ownerRoleId: batchOwner },
+              ).then((ok) => {
+                if (ok) {
+                  setSelected(new Set());
+                  setBatchOwner("");
+                }
+              })
+            }
+          >
+            批量指派
+          </button>
+          <select
+            value={batchMilestone}
+            onChange={(event) => setBatchMilestone(event.target.value)}
+            aria-label="批量里程碑"
+          >
+            <option value="">归入里程碑</option>
+            {data.milestones.map((milestone) => (
+              <option key={milestone.id} value={milestone.id}>
+                {milestone.title}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="studio-btn"
+            data-size="sm"
+            disabled={batchMilestone === ""}
+            onClick={() =>
+              void onBatchUpdate(
+                data.tasks.filter((task) => selected.has(task.id)),
+                { milestoneId: batchMilestone },
+              ).then((ok) => {
+                if (ok) {
+                  setSelected(new Set());
+                  setBatchMilestone("");
+                }
+              })
+            }
+          >
+            归入里程碑
           </button>
         </div>
       ) : null}

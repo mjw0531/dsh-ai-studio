@@ -521,6 +521,7 @@ export function StudioPage() {
     syncMilestoneDocs,
     transitionTask,
     batchReadyTasks,
+    batchUpdateTasks,
     acceptAllTrivial,
     toggleAcceptance,
     toggleDocsSynced,
@@ -835,6 +836,7 @@ export function StudioPage() {
                 onCreateMilestone={(title) => createMilestone({ title })}
                 onPublishMilestones={syncMilestoneDocs}
                 onBatchReady={batchReadyTasks}
+                onBatchUpdate={batchUpdateTasks}
               />
             ) : null}
 
